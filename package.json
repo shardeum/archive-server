@@ -4,7 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "check": "gts check",
+    "clean": "gts clean",
+    "compile": "tsc -p .",
+    "fix": "gts fix",
+    "prepare": "npm run compile",
+    "pretest": "npm run compile",
+    "posttest": "npm run check"
   },
   "repository": {
     "type": "git",
@@ -15,5 +22,13 @@
   "bugs": {
     "url": "https://gitlab.com/shardus/archive/archive-server/issues"
   },
-  "homepage": "https://gitlab.com/shardus/archive/archive-server#readme"
+  "homepage": "https://gitlab.com/shardus/archive/archive-server#readme",
+  "devDependencies": {
+    "gts": "^1.1.0",
+    "typescript": "~3.5.0",
+    "@types/node": "^10.0.3"
+  },
+  "dependencies": {
+    "fastify": "^2.10.0"
+  }
 }
