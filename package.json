@@ -1,0 +1,19 @@
+{
+  "name": "archive-server",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/shardus/archive/archive-server.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://gitlab.com/shardus/archive/archive-server/issues"
+  },
+  "homepage": "https://gitlab.com/shardus/archive/archive-server#readme"
+}
