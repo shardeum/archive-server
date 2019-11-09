@@ -1,15 +1,33 @@
+import { config } from './Config';
+import { crypto } from './Crypto';
+
 export interface NodeInfo {
-  publicKey: string,
-  ip: string,
-  port: number
+  ip: string;
+  port: number;
 }
 
-const list: NodeInfo[] = []
-
-export function addNode (node: NodeInfo) {
-  list.push(node)
+export interface SignedList {
+  nodeList: NodeInfo[];
 }
 
-export function getList () {
-  return list
+const list: NodeInfo[] = [];
+
+export function isFirst(): boolean {
+  return list.length <= 0;
+}
+
+export function addNode(node: NodeInfo) {
+  list.push(node);
+}
+
+export function getSignedList(): SignedList {
+  const signedList = {
+    nodeList: list,
+  };
+  crypto.signObj(
+    signedList,
+    config.ARCHIVER_SECRET_KEY,
+    config.ARCHIVER_PUBLIC_KEY
+  );
+  return signedList;
 }
