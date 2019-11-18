@@ -43,6 +43,7 @@ function processNewCycle(cycle: Storage.Cycle) {
   // Update NodeList from cycle info
   // Get new cycleSender if current cycleSender leaves network
   Storage.storeCycle(cycle)
+  console.log(`Processed cycle ${cycle.counter}`)
 }
 
 function startServer() {

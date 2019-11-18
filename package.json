@@ -2,7 +2,7 @@
   "name": "archive-server",
   "version": "0.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "./build/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "check": "gts check",
@@ -19,6 +19,9 @@
   },
   "author": "",
   "license": "ISC",
+  "bin": {
+    "monitor-server": "./bin/archive-server"
+  },
   "bugs": {
     "url": "https://gitlab.com/shardus/archive/archive-server/issues"
   },
