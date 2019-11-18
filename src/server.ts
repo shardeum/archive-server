@@ -61,6 +61,15 @@ function startServer() {
   })
 
   server.post('/nodelist', (request, reply) => {
+    interface Response {
+      nodeList: NodeList.ConsensusNodeInfo[]
+      joinRequest?: P2P.ArchiverJoinRequest
+    }
+
+    const response: Response = {
+      nodeList: NodeList.getList(),
+    }
+
     // Network genesis
     if (state.isFirst && NodeList.isEmpty()) {
       const ip = request.req.socket.remoteAddress
@@ -74,13 +83,11 @@ function startServer() {
         NodeList.addNode(firstNode)
         // Set first node as cycleSender
         state.cycleSender = firstNode
+        // Add joinRequest to response
+        response.joinRequest = P2P.createJoinRequest()
       }
     }
 
-    const response = {
-      nodeList: NodeList.getList(),
-      joinRequest: P2P.createJoinRequest(),
-    }
     crypto.signObj(response, state.nodeInfo.secretKey, state.nodeInfo.publicKey)
     reply.send(response)
   })

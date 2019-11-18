@@ -1,11 +1,11 @@
 import { state, ArchiverNodeInfo } from './State'
 import { crypto } from './Crypto'
 
-interface ArchiverJoinRequest {
+export interface ArchiverJoinRequest {
   nodeInfo: ArchiverNodeInfo
 }
 
-export function createJoinRequest() {
+export function createJoinRequest(): ArchiverJoinRequest {
   const nodeInfo = { ...state.nodeInfo }
   delete nodeInfo.secretKey
   const joinRequest = {
