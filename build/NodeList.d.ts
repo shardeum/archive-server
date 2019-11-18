@@ -5,6 +5,6 @@ export interface NodeInfo {
 export interface SignedList {
     nodeList: NodeInfo[];
 }
-export declare function isFirst(): boolean;
+export declare function isEmpty(): boolean;
 export declare function addNode(node: NodeInfo): void;
-export declare function getSignedList(): SignedList;
+export declare function getList(): NodeInfo[];

@@ -1,7 +1,7 @@
-import crypto = require('shardus-crypto-utils');
+import crypto = require('shardus-crypto-utils')
 
 export function setCryptoHashKey(hashkey: string) {
-  crypto(hashkey);
+  crypto(hashkey)
 }
 
-export { crypto };
+export { crypto }

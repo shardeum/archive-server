@@ -29,7 +29,11 @@
     "@types/node": "^10.0.3"
   },
   "dependencies": {
+    "deepmerge": "^4.2.2",
     "fastify": "^2.10.0",
-    "shardus-crypto-utils": "git+https://gitlab.com/shardus/shardus-crypto-utils.git"
+    "knex": "^0.20.2",
+    "minimist": "^1.2.0",
+    "shardus-crypto-utils": "git+https://gitlab.com/shardus/shardus-crypto-utils.git",
+    "sqlite3": "^4.1.0"
   }
 }
