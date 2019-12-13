@@ -1,10 +1,10 @@
-export interface NodeInfo {
+export interface ConsensusNodeInfo {
     ip: string;
     port: number;
 }
 export interface SignedList {
-    nodeList: NodeInfo[];
+    nodeList: ConsensusNodeInfo[];
 }
 export declare function isEmpty(): boolean;
-export declare function addNode(node: NodeInfo): void;
-export declare function getList(): NodeInfo[];
+export declare function addNode(node: ConsensusNodeInfo): void;
+export declare function getList(): ConsensusNodeInfo[];

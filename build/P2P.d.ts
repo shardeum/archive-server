@@ -1,8 +1,5 @@
-export declare function createJoinRequest(): {
-    nodeInfo: {
-        ip: string;
-        port: number;
-        publicKey: string;
-        secretKey?: string | undefined;
-    };
-};
+import { ArchiverNodeInfo } from './State';
+export interface ArchiverJoinRequest {
+    nodeInfo: ArchiverNodeInfo;
+}
+export declare function createJoinRequest(): ArchiverJoinRequest;

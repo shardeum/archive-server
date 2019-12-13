@@ -38,6 +38,7 @@ function processNewCycle(cycle) {
     // Update NodeList from cycle info
     // Get new cycleSender if current cycleSender leaves network
     Storage.storeCycle(cycle);
+    console.log(`Processed cycle ${cycle.counter}`);
 }
 function startServer() {
     // Start REST server and register endpoints
@@ -53,6 +54,9 @@ function startServer() {
         });
     });
     server.post('/nodelist', (request, reply) => {
+        const response = {
+            nodeList: NodeList.getList(),
+        };
         // Network genesis
         if (State_1.state.isFirst && NodeList.isEmpty()) {
             const ip = request.req.socket.remoteAddress;
@@ -66,12 +70,10 @@ function startServer() {
                 NodeList.addNode(firstNode);
                 // Set first node as cycleSender
                 State_1.state.cycleSender = firstNode;
+                // Add joinRequest to response
+                response.joinRequest = P2P.createJoinRequest();
             }
         }
-        const response = {
-            nodeList: NodeList.getList(),
-            joinRequest: P2P.createJoinRequest(),
-        };
         Crypto_1.crypto.signObj(response, State_1.state.nodeInfo.secretKey, State_1.state.nodeInfo.publicKey);
         reply.send(response);
     });
@@ -92,7 +94,8 @@ function startServer() {
         reply.send('Shutting down...');
         process.exit();
     });
-    server.listen(Config_1.config.ARCHIVER_PORT, (err, address) => {
+    // Always bind to all interfaces on the desired port
+    server.listen(Config_1.config.ARCHIVER_PORT, '0.0.0.0', (err, _address) => {
         if (err) {
             server.log.error(err);
             process.exit(1);
