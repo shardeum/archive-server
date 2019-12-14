@@ -11,6 +11,10 @@ export function createJoinRequest(): ArchiverJoinRequest {
   const joinRequest = {
     nodeInfo,
   }
-  crypto.signObj(joinRequest, state.nodeInfo.secretKey, state.nodeInfo.publicKey)
+  crypto.signObj(
+    joinRequest,
+    state.nodeInfo.secretKey,
+    state.nodeInfo.publicKey
+  )
   return joinRequest
 }

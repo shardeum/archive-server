@@ -10,6 +10,7 @@ export interface Cycle {
     expired: number;
     joined: string;
     joinedArchivers: string;
+    joinedConsensors: string;
     activated: string;
     removed: string;
     returned: string;

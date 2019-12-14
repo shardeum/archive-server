@@ -26,6 +26,9 @@ State_1.initStateFromConfig(Config_1.config);
 // Initialize storage
 Storage.initStorage(State_1.state.dbFile);
 if (State_1.state.isFirst === false) {
+    /**
+     * ENTRY POINT: Existing Shardus network
+     */
     // [TODO] If your not the first archiver node, get a nodelist from the others
     // [TODO] Send a join request a consensus node from the nodelist
     // [TODO] After you've joined, select a consensus node to be your cycleSender
@@ -35,9 +38,27 @@ else {
     startServer();
 }
 function processNewCycle(cycle) {
-    // Update NodeList from cycle info
-    // Get new cycleSender if current cycleSender leaves network
+    // Save the cycle to db
     Storage.storeCycle(cycle);
+    // Update NodeList from cycle info
+    function parseWarn(fallback, json, msg) {
+        try {
+            return JSON.parse(json);
+        }
+        catch (err) {
+            console.warn(msg ? msg : err);
+            return fallback;
+        }
+    }
+    //   Add joined nodes
+    const joinedConsensors = parseWarn([], cycle.joinedConsensors, `Error processing cycle ${cycle.counter}: failed to parse joinedConsensors`);
+    NodeList.addNodes(...joinedConsensors);
+    //   Remove removed nodes
+    const removed = parseWarn([], cycle.removed, `Error processing cycle ${cycle.counter}: failed to parse removed`);
+    for (const publicKey of removed) {
+        NodeList.removeNode({ publicKey });
+    }
+    // [TODO] Get new cycleSender if current cycleSender leaves network
     console.log(`Processed cycle ${cycle.counter}`);
 }
 function startServer() {
@@ -53,6 +74,16 @@ function startServer() {
             time: Date.now(),
         });
     });
+    /**
+     * ENTRY POINT: New Shardus network
+     *
+     * Consensus node zero (CZ) posts IP and port to archiver node zero (AZ).
+     *
+     * AZ adds CZ to nodelist, sets CZ as cycleSender, and responds with
+     * nodelist + archiver join request
+     *
+     * CZ adds AZ's join reqeuest to cycle zero and sets AZ as cycleRecipient
+     */
     server.post('/nodelist', (request, reply) => {
         const response = {
             nodeList: NodeList.getList(),
@@ -61,13 +92,15 @@ function startServer() {
         if (State_1.state.isFirst && NodeList.isEmpty()) {
             const ip = request.req.socket.remoteAddress;
             const port = request.body.nodeInfo.externalPort;
+            const publicKey = request.body.nodeInfo.publicKey;
             if (ip && port) {
                 const firstNode = {
                     ip,
                     port,
+                    publicKey,
                 };
                 // Add first node to NodeList
-                NodeList.addNode(firstNode);
+                NodeList.addNodes(firstNode);
                 // Set first node as cycleSender
                 State_1.state.cycleSender = firstNode;
                 // Add joinRequest to response
@@ -87,6 +120,7 @@ function startServer() {
     server.post('/newcycle', (request, reply) => {
         // [TODO] verify that it came from cycleSender
         const cycle = request.body;
+        console.log('GOT CYCLE:', cycle);
         processNewCycle(cycle);
         reply.send();
     });

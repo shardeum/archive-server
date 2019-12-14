@@ -15,6 +15,7 @@ export interface Cycle {
   expired: number
   joined: string
   joinedArchivers: string
+  joinedConsensors: string
   activated: string
   removed: string
   returned: string
@@ -46,6 +47,7 @@ export async function initStorage(dbFile: string) {
       table.bigInteger('expired')
       table.json('joined')
       table.json('joinedArchivers')
+      table.json('joinedConsensors')
       table.json('activated')
       table.json('removed')
       table.json('returned')
@@ -57,13 +59,39 @@ export async function initStorage(dbFile: string) {
 }
 
 export async function storeCycle(cycle: Cycle) {
-  cycle.joined = typeof cycle.joined !== 'string' ? JSON.stringify(cycle.joined) : cycle.joined
-  cycle.joinedArchivers = typeof cycle.joinedArchivers !== 'string' ? JSON.stringify(cycle.joinedArchivers) : cycle.joinedArchivers
-  cycle.activated = typeof cycle.activated !== 'string' ? JSON.stringify(cycle.activated) : cycle.activated
-  cycle.removed = typeof cycle.removed !== 'string' ? JSON.stringify(cycle.removed) : cycle.removed
-  cycle.returned = typeof cycle.returned !== 'string' ? JSON.stringify(cycle.returned) : cycle.returned
-  cycle.lost = typeof cycle.lost !== 'string' ? JSON.stringify(cycle.lost) : cycle.lost
-  cycle.refuted = typeof cycle.refuted !== 'string' ? JSON.stringify(cycle.refuted) : cycle.refuted
-  cycle.apoptosized = typeof cycle.apoptosized !== 'string' ? JSON.stringify(cycle.apoptosized) : cycle.apoptosized
+  cycle.joined =
+    typeof cycle.joined !== 'string'
+      ? JSON.stringify(cycle.joined)
+      : cycle.joined
+  cycle.joinedArchivers =
+    typeof cycle.joinedArchivers !== 'string'
+      ? JSON.stringify(cycle.joinedArchivers)
+      : cycle.joinedArchivers
+  cycle.joinedConsensors =
+    typeof cycle.joinedConsensors !== 'string'
+      ? JSON.stringify(cycle.joinedConsensors)
+      : cycle.joinedConsensors
+  cycle.activated =
+    typeof cycle.activated !== 'string'
+      ? JSON.stringify(cycle.activated)
+      : cycle.activated
+  cycle.removed =
+    typeof cycle.removed !== 'string'
+      ? JSON.stringify(cycle.removed)
+      : cycle.removed
+  cycle.returned =
+    typeof cycle.returned !== 'string'
+      ? JSON.stringify(cycle.returned)
+      : cycle.returned
+  cycle.lost =
+    typeof cycle.lost !== 'string' ? JSON.stringify(cycle.lost) : cycle.lost
+  cycle.refuted =
+    typeof cycle.refuted !== 'string'
+      ? JSON.stringify(cycle.refuted)
+      : cycle.refuted
+  cycle.apoptosized =
+    typeof cycle.apoptosized !== 'string'
+      ? JSON.stringify(cycle.apoptosized)
+      : cycle.apoptosized
   await db('cycles').insert(cycle)
 }

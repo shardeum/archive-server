@@ -29,6 +29,7 @@ const state: State = {
   cycleSender: {
     ip: '',
     port: -1,
+    publicKey: '',
   },
 }
 
@@ -43,7 +44,10 @@ export function initStateFromConfig(config: Config) {
   try {
     state.existingArchivers = JSON.parse(config.ARCHIVER_EXISTING)
   } catch (e) {
-    console.warn('Failed to parse ARCHIVER_EXISTING array:', config.ARCHIVER_EXISTING)
+    console.warn(
+      'Failed to parse ARCHIVER_EXISTING array:',
+      config.ARCHIVER_EXISTING
+    )
   }
 
   // You're first, unless existing archiver info is given

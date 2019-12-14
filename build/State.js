@@ -13,6 +13,7 @@ const state = {
     cycleSender: {
         ip: '',
         port: -1,
+        publicKey: '',
     },
 };
 exports.state = state;
