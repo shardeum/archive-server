@@ -28,9 +28,10 @@
   },
   "homepage": "https://gitlab.com/shardus/archive/archive-server#readme",
   "devDependencies": {
+    "@types/node": "^10.0.3",
+    "@types/node-fetch": "^2.5.4",
     "gts": "^1.1.0",
-    "typescript": "~3.5.0",
-    "@types/node": "^10.0.3"
+    "typescript": "~3.5.0"
   },
   "dependencies": {
     "deepmerge": "^4.2.2",
@@ -38,6 +39,7 @@
     "fastify-cors": "^3.0.0",
     "knex": "^0.20.2",
     "minimist": "^1.2.0",
+    "node-fetch": "^2.6.0",
     "shardus-crypto-utils": "git+https://gitlab.com/shardus/shardus-crypto-utils.git",
     "sqlite3": "^4.1.0"
   }

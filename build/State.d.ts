@@ -1,18 +1,13 @@
 import { Config } from './Config';
-import { ConsensusNodeInfo } from './NodeList';
 export interface ArchiverNodeInfo {
     ip: string;
     port: number;
     publicKey: string;
     secretKey?: string;
 }
-interface State {
-    nodeInfo: ArchiverNodeInfo;
-    existingArchivers: ArchiverNodeInfo[];
-    isFirst: boolean;
-    dbFile: string;
-    cycleSender: ConsensusNodeInfo;
-}
-declare const state: State;
-export declare function initStateFromConfig(config: Config): void;
-export { state };
+export declare let existingArchivers: ArchiverNodeInfo[];
+export declare let isFirst: boolean;
+export declare let dbFile: string;
+export declare function initFromConfig(config: Config): void;
+export declare function getNodeInfo(): ArchiverNodeInfo;
+export declare function getSecretKey(): string | undefined;

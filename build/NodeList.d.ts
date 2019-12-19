@@ -8,5 +8,6 @@ export interface SignedList {
 }
 export declare function isEmpty(): boolean;
 export declare function addNodes(...nodes: ConsensusNodeInfo[]): void;
-export declare function removeNode(partial: Partial<ConsensusNodeInfo>): void;
+export declare function removeNodes(...publicKeys: string[]): string[];
 export declare function getList(): ConsensusNodeInfo[];
+export declare function getNodeInfo(node: Partial<ConsensusNodeInfo>): ConsensusNodeInfo | undefined;

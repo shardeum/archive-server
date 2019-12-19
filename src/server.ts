@@ -4,11 +4,11 @@ import * as fastifyCors from 'fastify-cors'
 import { Server, IncomingMessage, ServerResponse } from 'http'
 import { overrideDefaultConfig, config } from './Config'
 import { setCryptoHashKey, crypto } from './Crypto'
-import { state, initStateFromConfig } from './State'
+import * as State from './State'
 import * as NodeList from './NodeList'
 import * as P2P from './P2P'
 import * as Storage from './Storage'
-import { notEqual } from 'assert'
+import * as Data from './Data'
 
 // Override default config params from config file, env vars, and cli args
 const file = join(process.cwd(), 'archiver-config.json')
@@ -27,12 +27,12 @@ if (config.ARCHIVER_SECRET_KEY === '' || config.ARCHIVER_PUBLIC_KEY === '') {
 }
 
 // Initialize state from config
-initStateFromConfig(config)
+State.initFromConfig(config)
 
 // Initialize storage
-Storage.initStorage(state.dbFile)
+Storage.initStorage(State.dbFile)
 
-if (state.isFirst === false) {
+if (State.isFirst === false) {
   /**
    * ENTRY POINT: Existing Shardus network
    */
@@ -42,43 +42,6 @@ if (state.isFirst === false) {
   startServer()
 } else {
   startServer()
-}
-
-function processNewCycle(cycle: Storage.Cycle) {
-  // Save the cycle to db
-  Storage.storeCycle(cycle)
-
-  // Update NodeList from cycle info
-
-  function parseWarn<Type>(fallback: Type, json: string, msg?: string): Type {
-    try {
-      return JSON.parse(json)
-    } catch (err) {
-      console.warn(msg ? msg : err)
-      return fallback
-    }
-  }
-
-  //   Add joined nodes
-  const joinedConsensors = parseWarn<NodeList.ConsensusNodeInfo[]>(
-    [],
-    cycle.joinedConsensors,
-    `Error processing cycle ${cycle.counter}: failed to parse joinedConsensors`
-  )
-  NodeList.addNodes(...joinedConsensors)
-
-  //   Remove removed nodes
-  const removed = parseWarn<string[]>(
-    [],
-    cycle.removed,
-    `Error processing cycle ${cycle.counter}: failed to parse removed`
-  )
-  for (const publicKey of removed) {
-    NodeList.removeNode({ publicKey })
-  }
-
-  // [TODO] Get new cycleSender if current cycleSender leaves network
-  console.log(`Processed cycle ${cycle.counter}`)
 }
 
 function startServer() {
@@ -123,7 +86,7 @@ function startServer() {
     }
 
     // Network genesis
-    if (state.isFirst && NodeList.isEmpty()) {
+    if (State.isFirst && NodeList.isEmpty()) {
       const ip = request.req.socket.remoteAddress
       const port = request.body.nodeInfo.externalPort
       const publicKey = request.body.nodeInfo.publicKey
@@ -136,13 +99,17 @@ function startServer() {
         // Add first node to NodeList
         NodeList.addNodes(firstNode)
         // Set first node as cycleSender
-        state.cycleSender = firstNode
+        Data.addCycleSenders(firstNode)
         // Add joinRequest to response
         response.joinRequest = P2P.createJoinRequest()
       }
     }
 
-    crypto.signObj(response, state.nodeInfo.secretKey, state.nodeInfo.publicKey)
+    crypto.signObj(
+      response,
+      State.getSecretKey(),
+      State.getNodeInfo().publicKey
+    )
     reply.send(response)
   })
 
@@ -150,7 +117,11 @@ function startServer() {
     const response = {
       nodeList: NodeList.getList(),
     }
-    crypto.signObj(response, state.nodeInfo.secretKey, state.nodeInfo.publicKey)
+    crypto.signObj(
+      response,
+      State.getSecretKey(),
+      State.getNodeInfo().publicKey
+    )
     reply.send(response)
   })
 
@@ -158,7 +129,7 @@ function startServer() {
     // [TODO] verify that it came from cycleSender
     const cycle = request.body
     console.log('GOT CYCLE:', cycle)
-    processNewCycle(cycle)
+    Data.processNewCycle(cycle)
     reply.send()
   })
 

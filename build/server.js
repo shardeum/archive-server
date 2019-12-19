@@ -5,10 +5,11 @@ const fastify = require("fastify");
 const fastifyCors = require("fastify-cors");
 const Config_1 = require("./Config");
 const Crypto_1 = require("./Crypto");
-const State_1 = require("./State");
+const State = require("./State");
 const NodeList = require("./NodeList");
 const P2P = require("./P2P");
 const Storage = require("./Storage");
+const Data = require("./Data");
 // Override default config params from config file, env vars, and cli args
 const file = path_1.join(process.cwd(), 'archiver-config.json');
 const env = process.env;
@@ -23,10 +24,10 @@ if (Config_1.config.ARCHIVER_SECRET_KEY === '' || Config_1.config.ARCHIVER_PUBLI
     Config_1.config.ARCHIVER_SECRET_KEY = keypair.secretKey;
 }
 // Initialize state from config
-State_1.initStateFromConfig(Config_1.config);
+State.initFromConfig(Config_1.config);
 // Initialize storage
-Storage.initStorage(State_1.state.dbFile);
-if (State_1.state.isFirst === false) {
+Storage.initStorage(State.dbFile);
+if (State.isFirst === false) {
     /**
      * ENTRY POINT: Existing Shardus network
      */
@@ -37,30 +38,6 @@ if (State_1.state.isFirst === false) {
 }
 else {
     startServer();
-}
-function processNewCycle(cycle) {
-    // Save the cycle to db
-    Storage.storeCycle(cycle);
-    // Update NodeList from cycle info
-    function parseWarn(fallback, json, msg) {
-        try {
-            return JSON.parse(json);
-        }
-        catch (err) {
-            console.warn(msg ? msg : err);
-            return fallback;
-        }
-    }
-    //   Add joined nodes
-    const joinedConsensors = parseWarn([], cycle.joinedConsensors, `Error processing cycle ${cycle.counter}: failed to parse joinedConsensors`);
-    NodeList.addNodes(...joinedConsensors);
-    //   Remove removed nodes
-    const removed = parseWarn([], cycle.removed, `Error processing cycle ${cycle.counter}: failed to parse removed`);
-    for (const publicKey of removed) {
-        NodeList.removeNode({ publicKey });
-    }
-    // [TODO] Get new cycleSender if current cycleSender leaves network
-    console.log(`Processed cycle ${cycle.counter}`);
 }
 function startServer() {
     // Start REST server and register endpoints
@@ -91,7 +68,7 @@ function startServer() {
             nodeList: NodeList.getList(),
         };
         // Network genesis
-        if (State_1.state.isFirst && NodeList.isEmpty()) {
+        if (State.isFirst && NodeList.isEmpty()) {
             const ip = request.req.socket.remoteAddress;
             const port = request.body.nodeInfo.externalPort;
             const publicKey = request.body.nodeInfo.publicKey;
@@ -104,26 +81,26 @@ function startServer() {
                 // Add first node to NodeList
                 NodeList.addNodes(firstNode);
                 // Set first node as cycleSender
-                State_1.state.cycleSender = firstNode;
+                Data.addCycleSenders(firstNode);
                 // Add joinRequest to response
                 response.joinRequest = P2P.createJoinRequest();
             }
         }
-        Crypto_1.crypto.signObj(response, State_1.state.nodeInfo.secretKey, State_1.state.nodeInfo.publicKey);
+        Crypto_1.crypto.signObj(response, State.getSecretKey(), State.getNodeInfo().publicKey);
         reply.send(response);
     });
     server.get('/nodelist', (_request, reply) => {
         const response = {
             nodeList: NodeList.getList(),
         };
-        Crypto_1.crypto.signObj(response, State_1.state.nodeInfo.secretKey, State_1.state.nodeInfo.publicKey);
+        Crypto_1.crypto.signObj(response, State.getSecretKey(), State.getNodeInfo().publicKey);
         reply.send(response);
     });
     server.post('/newcycle', (request, reply) => {
         // [TODO] verify that it came from cycleSender
         const cycle = request.body;
         console.log('GOT CYCLE:', cycle);
-        processNewCycle(cycle);
+        Data.processNewCycle(cycle);
         reply.send();
     });
     server.get('/exit', (_request, reply) => {
