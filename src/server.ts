@@ -1,5 +1,6 @@
 import { join } from 'path'
 import * as fastify from 'fastify'
+import * as fastifyCors from 'fastify-cors'
 import { Server, IncomingMessage, ServerResponse } from 'http'
 import { overrideDefaultConfig, config } from './Config'
 import { setCryptoHashKey, crypto } from './Crypto'
@@ -89,6 +90,8 @@ function startServer() {
   > = fastify({
     logger: true,
   })
+
+  server.register(fastifyCors)
 
   server.get('/nodeinfo', (_request, reply) => {
     reply.send({

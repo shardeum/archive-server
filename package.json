@@ -35,6 +35,7 @@
   "dependencies": {
     "deepmerge": "^4.2.2",
     "fastify": "^2.10.0",
+    "fastify-cors": "^3.0.0",
     "knex": "^0.20.2",
     "minimist": "^1.2.0",
     "shardus-crypto-utils": "git+https://gitlab.com/shardus/shardus-crypto-utils.git",

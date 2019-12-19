@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const path_1 = require("path");
 const fastify = require("fastify");
+const fastifyCors = require("fastify-cors");
 const Config_1 = require("./Config");
 const Crypto_1 = require("./Crypto");
 const State_1 = require("./State");
@@ -66,6 +67,7 @@ function startServer() {
     const server = fastify({
         logger: true,
     });
+    server.register(fastifyCors);
     server.get('/nodeinfo', (_request, reply) => {
         reply.send({
             publicKey: Config_1.config.ARCHIVER_PUBLIC_KEY,
