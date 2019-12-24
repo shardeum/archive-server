@@ -1,4 +1,4 @@
-import { Cycle } from './Data'
+import { Cycle } from './Data/Cycles'
 import knex = require('knex')
 
 let db: knex

@@ -1,13 +1,18 @@
 import { Config } from './Config';
-export interface ArchiverNodeInfo {
+import { core } from './Crypto';
+export interface ArchiverNodeState {
     ip: string;
     port: number;
-    publicKey: string;
-    secretKey?: string;
+    publicKey: core.publicKey;
+    secretKey: core.secretKey;
+    curvePk: core.curvePublicKey;
+    curveSk: core.curveSecretKey;
 }
-export declare let existingArchivers: ArchiverNodeInfo[];
+export declare type ArchiverNodeInfo = Omit<ArchiverNodeState, 'secretKey' | 'curveSk'>;
+export declare let existingArchivers: ArchiverNodeState[];
 export declare let isFirst: boolean;
 export declare let dbFile: string;
 export declare function initFromConfig(config: Config): void;
 export declare function getNodeInfo(): ArchiverNodeInfo;
-export declare function getSecretKey(): string | undefined;
+export declare function getSecretKey(): string;
+export declare function getCurveSk(): string;

@@ -1,5 +1,5 @@
 import * as State from './State'
-import { crypto } from './Crypto'
+import * as Crypto from './Crypto'
 import { ConsensusNodeInfo } from './NodeList'
 import 'node-fetch'
 import fetch, { FetchError, Response } from 'node-fetch'
@@ -13,15 +13,14 @@ export function createJoinRequest(): ArchiverJoinRequest {
   const joinRequest = {
     nodeInfo,
   }
-  crypto.signObj(
-    joinRequest,
-    State.getSecretKey(),
-    State.getNodeInfo().publicKey
-  )
+  Crypto.sign(joinRequest)
   return joinRequest
 }
 
-async function postJson(url: string, body: object): Promise<object | null> {
+export async function postJson(
+  url: string,
+  body: object
+): Promise<object | null> {
   try {
     const res = await fetch(url, {
       method: 'post',
@@ -43,10 +42,3 @@ async function postJson(url: string, body: object): Promise<object | null> {
     return null
   }
 }
-
-export async function addToCycleRecipients(node: ConsensusNodeInfo) {
-  const url = `http://${node.ip}:${node.port}/addtocyclerecipients`
-  const res = await postJson(url, State.getNodeInfo())
-}
-
-export function removeFromCycleRecipients(node: ConsensusNodeInfo) {}

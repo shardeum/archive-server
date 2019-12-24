@@ -1,28 +1,37 @@
 import { Config } from './Config'
+import { core } from './Crypto'
 
-export interface ArchiverNodeInfo {
+export interface ArchiverNodeState {
   ip: string
   port: number
-  publicKey: string
-  secretKey?: string
+  publicKey: core.publicKey
+  secretKey: core.secretKey
+  curvePk: core.curvePublicKey
+  curveSk: core.curveSecretKey
 }
 
-const nodeInfo: ArchiverNodeInfo = {
+export type ArchiverNodeInfo = Omit<ArchiverNodeState, 'secretKey' | 'curveSk'>
+
+const nodeState: ArchiverNodeState = {
   ip: '',
   port: -1,
   publicKey: '',
   secretKey: '',
+  curvePk: '',
+  curveSk: '',
 }
-export let existingArchivers: ArchiverNodeInfo[] = []
+export let existingArchivers: ArchiverNodeState[] = []
 export let isFirst = false
 export let dbFile = ''
 
 export function initFromConfig(config: Config) {
   // Get own nodeInfo from config
-  nodeInfo.ip = config.ARCHIVER_IP
-  nodeInfo.port = config.ARCHIVER_PORT
-  nodeInfo.publicKey = config.ARCHIVER_PUBLIC_KEY
-  nodeInfo.secretKey = config.ARCHIVER_SECRET_KEY
+  nodeState.ip = config.ARCHIVER_IP
+  nodeState.port = config.ARCHIVER_PORT
+  nodeState.publicKey = config.ARCHIVER_PUBLIC_KEY
+  nodeState.secretKey = config.ARCHIVER_SECRET_KEY
+  nodeState.curvePk = core.convertPkToCurve(nodeState.publicKey)
+  nodeState.curveSk = core.convertSkToCurve(nodeState.secretKey)
 
   // Parse existing archivers list
   try {
@@ -42,11 +51,16 @@ export function initFromConfig(config: Config) {
 }
 
 export function getNodeInfo(): ArchiverNodeInfo {
-  const sanitizedNodeInfo = { ...nodeInfo }
+  const sanitizedNodeInfo = { ...nodeState }
   delete sanitizedNodeInfo.secretKey
+  delete sanitizedNodeInfo.curveSk
   return sanitizedNodeInfo
 }
 
 export function getSecretKey() {
-  return nodeInfo.secretKey
+  return nodeState.secretKey
+}
+
+export function getCurveSk() {
+  return nodeState.curveSk
 }

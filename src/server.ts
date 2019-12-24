@@ -3,12 +3,12 @@ import * as fastify from 'fastify'
 import * as fastifyCors from 'fastify-cors'
 import { Server, IncomingMessage, ServerResponse } from 'http'
 import { overrideDefaultConfig, config } from './Config'
-import { setCryptoHashKey, crypto } from './Crypto'
+import * as Crypto from './Crypto'
 import * as State from './State'
 import * as NodeList from './NodeList'
 import * as P2P from './P2P'
 import * as Storage from './Storage'
-import * as Data from './Data'
+import * as Data from './Data/Data'
 
 // Override default config params from config file, env vars, and cli args
 const file = join(process.cwd(), 'archiver-config.json')
@@ -17,11 +17,11 @@ const args = process.argv
 overrideDefaultConfig(file, env, args)
 
 // Set crypto hash key from config
-setCryptoHashKey(config.ARCHIVER_HASH_KEY)
+Crypto.setCryptoHashKey(config.ARCHIVER_HASH_KEY)
 
 // If no keypair provided, generate one
 if (config.ARCHIVER_SECRET_KEY === '' || config.ARCHIVER_PUBLIC_KEY === '') {
-  const keypair = crypto.generateKeypair()
+  const keypair = Crypto.core.generateKeypair()
   config.ARCHIVER_PUBLIC_KEY = keypair.publicKey
   config.ARCHIVER_SECRET_KEY = keypair.secretKey
 }
@@ -37,8 +37,8 @@ if (State.isFirst === false) {
    * ENTRY POINT: Existing Shardus network
    */
   // [TODO] If your not the first archiver node, get a nodelist from the others
-  // [TODO] Send a join request a consensus node from the nodelist
-  // [TODO] After you've joined, select a consensus node to be your cycleSender
+  // [TODO] Send a join request to a consensus node from the nodelist
+  // [TODO] After you've joined, select a consensus node to be your dataSender
   startServer()
 } else {
   startServer()
@@ -70,7 +70,7 @@ function startServer() {
    *
    * Consensus node zero (CZ) posts IP and port to archiver node zero (AZ).
    *
-   * AZ adds CZ to nodelist, sets CZ as cycleSender, and responds with
+   * AZ adds CZ to nodelist, sets CZ as dataSender, and responds with
    * nodelist + archiver join request
    *
    * CZ adds AZ's join reqeuest to cycle zero and sets AZ as cycleRecipient
@@ -97,19 +97,18 @@ function startServer() {
           publicKey,
         }
         // Add first node to NodeList
-        NodeList.addNodes(firstNode)
-        // Set first node as cycleSender
-        Data.addCycleSenders(firstNode)
+        NodeList.addNodes(NodeList.Statuses.SYNCING, firstNode)
+        // Set first node as dataSender
+        Data.addDataSenders({
+          nodeInfo: firstNode,
+          type: Data.DataTypes.CYCLE,
+        })
         // Add joinRequest to response
         response.joinRequest = P2P.createJoinRequest()
       }
     }
 
-    crypto.signObj(
-      response,
-      State.getSecretKey(),
-      State.getNodeInfo().publicKey
-    )
+    Crypto.sign(response)
     reply.send(response)
   })
 
@@ -117,26 +116,17 @@ function startServer() {
     const response = {
       nodeList: NodeList.getList(),
     }
-    crypto.signObj(
-      response,
-      State.getSecretKey(),
-      State.getNodeInfo().publicKey
-    )
+    Crypto.sign(response)
     reply.send(response)
-  })
-
-  server.post('/newcycle', (request, reply) => {
-    // [TODO] verify that it came from cycleSender
-    const cycle = request.body
-    console.log('GOT CYCLE:', cycle)
-    Data.processNewCycle(cycle)
-    reply.send()
   })
 
   server.get('/exit', (_request, reply) => {
     reply.send('Shutting down...')
     process.exit()
   })
+
+  // POST /newdata
+  server.route(Data.routePostNewdata)
 
   // Always bind to all interfaces on the desired port
   server.listen(config.ARCHIVER_PORT, '0.0.0.0', (err, _address) => {

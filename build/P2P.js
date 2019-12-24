@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const State = require("./State");
-const Crypto_1 = require("./Crypto");
+const Crypto = require("./Crypto");
 require("node-fetch");
 const node_fetch_1 = require("node-fetch");
 function createJoinRequest() {
@@ -9,7 +9,7 @@ function createJoinRequest() {
     const joinRequest = {
         nodeInfo,
     };
-    Crypto_1.crypto.signObj(joinRequest, State.getSecretKey(), State.getNodeInfo().publicKey);
+    Crypto.sign(joinRequest);
     return joinRequest;
 }
 exports.createJoinRequest = createJoinRequest;
@@ -37,11 +37,5 @@ async function postJson(url, body) {
         return null;
     }
 }
-async function addToCycleRecipients(node) {
-    const url = `http://${node.ip}:${node.port}/addtocyclerecipients`;
-    const res = await postJson(url, State.getNodeInfo());
-}
-exports.addToCycleRecipients = addToCycleRecipients;
-function removeFromCycleRecipients(node) { }
-exports.removeFromCycleRecipients = removeFromCycleRecipients;
+exports.postJson = postJson;
 //# sourceMappingURL=P2P.js.map

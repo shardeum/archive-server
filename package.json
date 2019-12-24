@@ -12,7 +12,8 @@
     "prepare": "npm run compile",
     "pretest": "npm run compile",
     "posttest": "npm run check",
-    "update-docker": "docker build -t registry.gitlab.com/shardus/archive/archive-server . && docker push registry.gitlab.com/shardus/archive/archive-server"
+    "update-docker": "docker build -t registry.gitlab.com/shardus/archive/archive-server . && docker push registry.gitlab.com/shardus/archive/archive-server",
+    "update-schemas": "typescript-json-schema tsconfig.json NewData -o src/Data/schemas/NewData.json & typescript-json-schema tsconfig.json DataResponse -o src/Data/schemas/DataResponse.json"
   },
   "repository": {
     "type": "git",
@@ -31,7 +32,8 @@
     "@types/node": "^10.0.3",
     "@types/node-fetch": "^2.5.4",
     "gts": "^1.1.0",
-    "typescript": "~3.5.0"
+    "typescript": "~3.5.0",
+    "typescript-json-schema": "^0.41.0"
   },
   "dependencies": {
     "deepmerge": "^4.2.2",

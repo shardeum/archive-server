@@ -2,6 +2,11 @@ import { config } from './Config'
 
 // TYPES
 
+export enum Statuses {
+  ACTIVE = 'active',
+  SYNCING = 'syncing',
+}
+
 export interface ConsensusNodeInfo {
   ip: string
   port: number
@@ -15,6 +20,8 @@ export interface SignedList {
 // STATE
 
 const list: ConsensusNodeInfo[] = []
+const syncingList: Map<string, ConsensusNodeInfo> = new Map()
+const activeList: Map<string, ConsensusNodeInfo> = new Map()
 const byPublicKey: { [publicKey: string]: ConsensusNodeInfo } = {}
 const byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
 
@@ -28,7 +35,7 @@ export function isEmpty(): boolean {
   return list.length <= 0
 }
 
-export function addNodes(...nodes: ConsensusNodeInfo[]) {
+export function addNodes(status: Statuses, ...nodes: ConsensusNodeInfo[]) {
   for (const node of nodes) {
     if (byPublicKey[node.publicKey] !== undefined) {
       console.warn(
@@ -45,6 +52,11 @@ export function addNodes(...nodes: ConsensusNodeInfo[]) {
     }
 
     list.push(node)
+    if (status === Statuses.SYNCING) {
+      syncingList.set(node.publicKey, node)
+    } else if (status === Statuses.ACTIVE) {
+      activeList.set(node.publicKey, node)
+    }
     byPublicKey[node.publicKey] = node
     byIpPort[ipPort] = node
   }
@@ -70,6 +82,8 @@ export function removeNodes(...publicKeys: string[]): string[] {
       key = list[i].publicKey
       if (keysToDelete.has(key)) {
         list.splice(i, 1)
+        if (syncingList.has(key)) syncingList.delete(key)
+        else if (activeList.has(key)) activeList.delete(key)
       }
     }
   }
@@ -77,8 +91,35 @@ export function removeNodes(...publicKeys: string[]): string[] {
   return [...keysToDelete.keys()]
 }
 
+export function setStatus(status: Statuses, ...publicKeys: string[]) {
+  for (const key of publicKeys) {
+    const node = byPublicKey[key]
+    if (node === undefined) {
+      console.warn(`setStatus: publicKey ${key} not in nodelist`)
+      continue
+    }
+    if (status === Statuses.SYNCING) {
+      if (activeList.has(key)) activeList.delete(key)
+      if (syncingList.has(key)) continue
+      syncingList.set(key, node)
+    } else if (status === Statuses.ACTIVE) {
+      if (syncingList.has(key)) syncingList.delete(key)
+      if (activeList.has(key)) continue
+      activeList.set(key, node)
+    }
+  }
+}
+
 export function getList() {
   return list
+}
+
+export function getActiveList() {
+  return [...activeList.values()]
+}
+
+export function getSyncingList() {
+  return [...syncingList.values()]
 }
 
 export function getNodeInfo(node: Partial<ConsensusNodeInfo>) {

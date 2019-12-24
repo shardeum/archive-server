@@ -1,20 +1,25 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const nodeInfo = {
+const Crypto_1 = require("./Crypto");
+const nodeState = {
     ip: '',
     port: -1,
     publicKey: '',
     secretKey: '',
+    curvePk: '',
+    curveSk: '',
 };
 exports.existingArchivers = [];
 exports.isFirst = false;
 exports.dbFile = '';
 function initFromConfig(config) {
     // Get own nodeInfo from config
-    nodeInfo.ip = config.ARCHIVER_IP;
-    nodeInfo.port = config.ARCHIVER_PORT;
-    nodeInfo.publicKey = config.ARCHIVER_PUBLIC_KEY;
-    nodeInfo.secretKey = config.ARCHIVER_SECRET_KEY;
+    nodeState.ip = config.ARCHIVER_IP;
+    nodeState.port = config.ARCHIVER_PORT;
+    nodeState.publicKey = config.ARCHIVER_PUBLIC_KEY;
+    nodeState.secretKey = config.ARCHIVER_SECRET_KEY;
+    nodeState.curvePk = Crypto_1.core.convertPkToCurve(nodeState.publicKey);
+    nodeState.curveSk = Crypto_1.core.convertSkToCurve(nodeState.secretKey);
     // Parse existing archivers list
     try {
         exports.existingArchivers = JSON.parse(config.ARCHIVER_EXISTING);
@@ -29,13 +34,18 @@ function initFromConfig(config) {
 }
 exports.initFromConfig = initFromConfig;
 function getNodeInfo() {
-    const sanitizedNodeInfo = Object.assign({}, nodeInfo);
+    const sanitizedNodeInfo = Object.assign({}, nodeState);
     delete sanitizedNodeInfo.secretKey;
+    delete sanitizedNodeInfo.curveSk;
     return sanitizedNodeInfo;
 }
 exports.getNodeInfo = getNodeInfo;
 function getSecretKey() {
-    return nodeInfo.secretKey;
+    return nodeState.secretKey;
 }
 exports.getSecretKey = getSecretKey;
+function getCurveSk() {
+    return nodeState.curveSk;
+}
+exports.getCurveSk = getCurveSk;
 //# sourceMappingURL=State.js.map
