@@ -9,6 +9,7 @@ import * as NodeList from './NodeList'
 import * as P2P from './P2P'
 import * as Storage from './Storage'
 import * as Data from './Data/Data'
+import * as Cycles from './Data/Cycles'
 
 // Override default config params from config file, env vars, and cli args
 const file = join(process.cwd(), 'archiver-config.json')
@@ -44,8 +45,8 @@ if (State.isFirst === false) {
   startServer()
 }
 
+// Define all endpoints, all requests, and start REST server
 function startServer() {
-  // Start REST server and register endpoints
   const server: fastify.FastifyInstance<
     Server,
     IncomingMessage,
@@ -56,14 +57,7 @@ function startServer() {
 
   server.register(fastifyCors)
 
-  server.get('/nodeinfo', (_request, reply) => {
-    reply.send({
-      publicKey: config.ARCHIVER_PUBLIC_KEY,
-      ip: config.ARCHIVER_IP,
-      port: config.ARCHIVER_PORT,
-      time: Date.now(),
-    })
-  })
+  // ========== ENDPOINTS ==========
 
   /**
    * ENTRY POINT: New Shardus network
@@ -76,59 +70,104 @@ function startServer() {
    * CZ adds AZ's join reqeuest to cycle zero and sets AZ as cycleRecipient
    */
   server.post('/nodelist', (request, reply) => {
-    interface Response {
-      nodeList: NodeList.ConsensusNodeInfo[]
-      joinRequest?: P2P.ArchiverJoinRequest
-    }
+    const signedFirstNodeInfo: P2P.FirstNodeInfo & Crypto.SignedMessage =
+      request.body
 
-    const response: Response = {
-      nodeList: NodeList.getList(),
-    }
+    // [TODO] req type guard
+    // [TODO] Verify req signature
 
-    // Network genesis
+    const ip = request.req.socket.remoteAddress || signedFirstNodeInfo.ip
+    const port = signedFirstNodeInfo.nodeInfo.externalPort
+    const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
+    const firstCycleMarker = signedFirstNodeInfo.firstCycleMarker
+
     if (State.isFirst && NodeList.isEmpty()) {
-      const ip = request.req.socket.remoteAddress
-      const port = request.body.nodeInfo.externalPort
-      const publicKey = request.body.nodeInfo.publicKey
-      if (ip && port) {
-        const firstNode = {
-          ip,
-          port,
-          publicKey,
-        }
-        // Add first node to NodeList
-        NodeList.addNodes(NodeList.Statuses.SYNCING, firstNode)
-        // Set first node as dataSender
-        Data.addDataSenders({
-          nodeInfo: firstNode,
-          type: Data.DataTypes.CYCLE,
-        })
-        // Add joinRequest to response
-        response.joinRequest = P2P.createJoinRequest()
+      const firstNode: NodeList.ConsensusNodeInfo = {
+        ip,
+        port,
+        publicKey,
       }
-    }
+      // Add first node to NodeList
+      NodeList.addNodes(NodeList.Statuses.SYNCING, firstCycleMarker, firstNode)
+      // Set first node as dataSender
+      Data.addDataSenders({
+        nodeInfo: firstNode,
+        type: Data.TypeNames.CYCLE,
+      })
 
-    Crypto.sign(response)
-    reply.send(response)
+      const res = Crypto.sign<P2P.FirstNodeResponse>({
+        nodeList: NodeList.getList(),
+        joinRequest: P2P.createArchiverJoinRequest(),
+        dataRequest: Data.createDataRequest<Cycles.Cycle>(
+          Data.TypeNames.CYCLE,
+          0,
+          publicKey
+        ),
+      })
+
+      reply.send(res)
+    } else {
+      let nodeList = NodeList.getActiveList()
+      if (nodeList.length < 1) {
+        nodeList = NodeList.getList().slice(0, 1)
+      }
+      const res = Crypto.sign({
+        nodeList,
+      })
+      reply.send(res)
+    }
   })
 
   server.get('/nodelist', (_request, reply) => {
-    const response = {
-      nodeList: NodeList.getList(),
+    let nodeList = NodeList.getActiveList()
+    if (nodeList.length < 1) {
+      nodeList = NodeList.getList().slice(0, 1)
     }
-    Crypto.sign(response)
-    reply.send(response)
+    const res = Crypto.sign({
+      nodeList,
+    })
+    reply.send(res)
   })
 
+  server.get('/nodeinfo', (_request, reply) => {
+    reply.send({
+      publicKey: config.ARCHIVER_PUBLIC_KEY,
+      ip: config.ARCHIVER_IP,
+      port: config.ARCHIVER_PORT,
+      time: Date.now(),
+    })
+  })
+
+  // [TODO] Remove this before production
   server.get('/exit', (_request, reply) => {
     reply.send('Shutting down...')
     process.exit()
   })
 
+  // [TODO] Remove this before production
+  server.get('/nodeids', (_request, reply) => {
+    reply.send(NodeList.byId)
+  })
+
   // POST /newdata
   server.route(Data.routePostNewdata)
 
-  // Always bind to all interfaces on the desired port
+  // ========== REQUESTS ==========
+
+  Data.emitter.on(
+    'selectNewDataSender',
+    (
+      newSenderInfo: NodeList.ConsensusNodeInfo,
+      dataRequest: Data.DataRequest<Cycles.Cycle> & Crypto.TaggedMessage
+    ) => {
+      P2P.postJson(
+        `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
+        dataRequest
+      )
+    }
+  )
+
+  // Start server and bind to port on all interfaces
   server.listen(config.ARCHIVER_PORT, '0.0.0.0', (err, _address) => {
     if (err) {
       server.log.error(err)

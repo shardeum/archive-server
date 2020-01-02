@@ -1,13 +1,13 @@
 import { Config } from './Config'
-import { core } from './Crypto'
+import * as Crypto from './Crypto'
 
 export interface ArchiverNodeState {
   ip: string
   port: number
-  publicKey: core.publicKey
-  secretKey: core.secretKey
-  curvePk: core.curvePublicKey
-  curveSk: core.curveSecretKey
+  publicKey: Crypto.types.publicKey
+  secretKey: Crypto.types.secretKey
+  curvePk: Crypto.types.curvePublicKey
+  curveSk: Crypto.types.curveSecretKey
 }
 
 export type ArchiverNodeInfo = Omit<ArchiverNodeState, 'secretKey' | 'curveSk'>
@@ -30,8 +30,8 @@ export function initFromConfig(config: Config) {
   nodeState.port = config.ARCHIVER_PORT
   nodeState.publicKey = config.ARCHIVER_PUBLIC_KEY
   nodeState.secretKey = config.ARCHIVER_SECRET_KEY
-  nodeState.curvePk = core.convertPkToCurve(nodeState.publicKey)
-  nodeState.curveSk = core.convertSkToCurve(nodeState.secretKey)
+  nodeState.curvePk = Crypto.core.convertPkToCurve(nodeState.publicKey)
+  nodeState.curveSk = Crypto.core.convertSkToCurve(nodeState.secretKey)
 
   // Parse existing archivers list
   try {

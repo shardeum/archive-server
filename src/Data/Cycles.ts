@@ -16,6 +16,7 @@ export interface Cycle {
   joinedArchivers: string
   joinedConsensors: string
   activated: string
+  activatedPublicKeys: string
   removed: string
   returned: string
   lost: string
@@ -27,18 +28,20 @@ export let currentCycleDuration = 0
 export let currentCycleCounter = 0
 
 export function processCycles(cycles: Cycle[]) {
-  // Process 10 cycles max on each call
-  let cycle: Cycle
-  for (let i = 0; i < 10; i++) {
+  for (const cycle of cycles) {
+    // Skip if already processed [TODO] make this check more secure
+    if (currentCycleCounter > 0 && cycle.counter <= currentCycleCounter) {
+      continue
+    }
+
     // Save the cycle to db
-    cycle = cycles[i]
     Storage.storeCycle(cycle)
 
     // Update NodeList from cycle info
     updateNodeList(cycle)
 
     // Update currentCycle state
-    currentCycleDuration = cycle.duration
+    currentCycleDuration = cycle.duration * 1000
     currentCycleCounter = cycle.counter
 
     console.log(`Processed cycle ${cycle.counter}`)
@@ -52,15 +55,20 @@ function updateNodeList(cycle: Cycle) {
     cycle.joinedConsensors,
     `Error processing cycle ${cycle.counter}: failed to parse joinedConsensors`
   )
-  NodeList.addNodes(NodeList.Statuses.SYNCING, ...joinedConsensors)
+  NodeList.addNodes(
+    NodeList.Statuses.SYNCING,
+    cycle.marker,
+    ...joinedConsensors
+  )
 
   // Update activated nodes
-  const activated = safeParse<string[]>(
+  const activatedPublicKeys = safeParse<string[]>(
     [],
-    cycle.activated,
+    cycle.activatedPublicKeys,
     `Error processing cycle ${cycle.counter}: failed to parse activated`
   )
-  NodeList.setStatus(NodeList.Statuses.ACTIVE, ...activated)
+  NodeList.setStatus(NodeList.Statuses.ACTIVE, ...activatedPublicKeys)
+  NodeList.addNodeId(...activatedPublicKeys)
 
   // Remove removed nodes
   const removed = safeParse<string[]>(
@@ -68,7 +76,9 @@ function updateNodeList(cycle: Cycle) {
     cycle.removed,
     `Error processing cycle ${cycle.counter}: failed to parse removed`
   )
-  NodeList.removeNodes(...removed)
+  NodeList.removeNodes(
+    ...removed.map(id => NodeList.getNodeInfoById(id).publicKey)
+  )
 
   // Remove lost nodes
   const lost = safeParse<string[]>(
@@ -76,7 +86,9 @@ function updateNodeList(cycle: Cycle) {
     cycle.lost,
     `Error processing cycle ${cycle.counter}: failed to parse lost`
   )
-  NodeList.removeNodes(...lost)
+  NodeList.removeNodes(
+    ...lost.map(id => NodeList.getNodeInfoById(id).publicKey)
+  )
 
   // Remove apoptosized nodes
   const apoptosized = safeParse<string[]>(
@@ -84,5 +96,7 @@ function updateNodeList(cycle: Cycle) {
     cycle.lost,
     `Error processing cycle ${cycle.counter}: failed to parse apoptosized`
   )
-  NodeList.removeNodes(...apoptosized)
+  NodeList.removeNodes(
+    ...apoptosized.map(id => NodeList.getNodeInfoById(id).publicKey)
+  )
 }

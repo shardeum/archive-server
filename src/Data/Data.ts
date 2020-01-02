@@ -1,64 +1,155 @@
 import { Server, IncomingMessage, ServerResponse } from 'http'
+import { EventEmitter } from 'events'
 import fastify = require('fastify')
 import * as Crypto from '../Crypto'
 import * as NodeList from '../NodeList'
-import { postJson } from '../P2P'
-import * as Cycles from './Cycles'
+import {
+  Cycle,
+  currentCycleCounter,
+  currentCycleDuration,
+  processCycles,
+} from './Cycles'
 import { Transaction } from './Transactions'
 import { Partition } from './Partitions'
-import * as NewDataJson from './schemas/NewData.json'
-import * as DataResponseJson from './schemas/DataResponse.json'
 
-export enum DataTypes {
-  CYCLE = 'cycle',
-  TRANSACTION = 'transaction',
-  PARTITION = 'partition',
-  ALL = 'all',
+// Data types
+
+export type ValidTypes = Cycle | Transaction | Partition
+
+export enum TypeNames {
+  CYCLE = 'CYCLE',
+  TRANSACTION = 'TRANSACTION',
+  PARTITION = 'PARTITION',
 }
+
+export type TypeName<T extends ValidTypes> = T extends Cycle
+  ? TypeNames.CYCLE
+  : T extends Transaction
+  ? TypeNames.TRANSACTION
+  : TypeNames.PARTITION
+
+export type TypeIndex<T extends ValidTypes> = T extends Cycle
+  ? Cycle['counter']
+  : T extends Transaction
+  ? Transaction['id']
+  : Partition['hash']
 
 // Data network messages
 
-interface NewData extends Crypto.TaggedMessage {
-  type: Exclude<DataTypes, DataTypes.ALL>
-  data: Cycles.Cycle[] | Transaction[] | Partition[]
+export interface DataRequest<T extends ValidTypes> {
+  type: TypeName<T>
+  lastData: TypeIndex<T>
 }
 
-interface DataRequest extends Crypto.TaggedMessage {
-  type: DataTypes
-  lastData: Cycles.Cycle['counter'] | Transaction['id'] | Partition['hash']
+interface DataResponse<T extends ValidTypes> {
+  type: TypeName<T>
+  data: T[]
 }
 
-interface DataResponse extends Crypto.TaggedMessage {
+interface DataKeepAlive {
   keepAlive: boolean
 }
 
-// Constructs to track Data senders
+export function createDataRequest<T extends ValidTypes>(
+  type: TypeName<T>,
+  lastData: TypeIndex<T>,
+  recipientPk: Crypto.types.publicKey
+) {
+  return Crypto.tag<DataRequest<T>>(
+    {
+      type,
+      lastData,
+    },
+    recipientPk
+  )
+}
 
-interface DataSender {
+// Vars to track Data senders
+
+interface DataSender<T extends ValidTypes> {
   nodeInfo: NodeList.ConsensusNodeInfo
-  type: DataTypes
+  type: TypeName<T>
   contactTimeout?: NodeJS.Timeout
 }
 
 const dataSenders: Map<
   NodeList.ConsensusNodeInfo['publicKey'],
-  DataSender
+  DataSender<ValidTypes>
 > = new Map()
-const timeoutPadding = 5000
+
+const timeoutPadding = 1000
+
+export const emitter = new EventEmitter()
+
+function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
+  console.log(`replaceDataSender: replacing ${publicKey}`)
+
+  // Remove old dataSender
+  const removedSenders = removeDataSenders(publicKey)
+  if (removedSenders.length < 1) {
+    throw new Error('replaceDataSender failed: old sender not removed')
+  }
+  console.log(
+    `replaceDataSender: removed old sender ${JSON.stringify(
+      removedSenders,
+      null,
+      2
+    )}`
+  )
+
+  // Pick a new dataSender
+  const newSenderInfo = selectNewDataSender()
+  const newSender: DataSender<Cycle> = {
+    nodeInfo: newSenderInfo,
+    type: TypeNames.CYCLE,
+    contactTimeout: createContactTimeout(newSenderInfo.publicKey),
+  }
+  console.log(
+    `replaceDataSender: selected new sender ${JSON.stringify(
+      newSender.nodeInfo,
+      null,
+      2
+    )}`
+  )
+
+  // Add new dataSender to dataSenders
+  addDataSenders(newSender)
+  console.log(
+    `replaceDataSender: added new sender ${newSenderInfo.publicKey} to dataSenders`
+  )
+
+  // Send dataRequest to new dataSender
+  const dataRequest: DataRequest<Cycle> = {
+    type: TypeNames.CYCLE,
+    lastData: currentCycleCounter,
+  } as DataRequest<Cycle>
+  sendDataRequest(newSender, dataRequest)
+  console.log(
+    `replaceDataSender: sent dataRequest to new sender: ${JSON.stringify(
+      dataRequest,
+      null,
+      2
+    )}`
+  )
+}
 
 /**
  * Sets timeout to current cycle duration + some padding
  * Removes sender from dataSenders on timeout
  * Select a new dataSender
  */
-function removeOnTimeout(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
-  return setTimeout(() => {
-    removeDataSenders(publicKey)
-    selectNewDataSender()
-  }, Cycles.currentCycleDuration + timeoutPadding)
+function createContactTimeout(
+  publicKey: NodeList.ConsensusNodeInfo['publicKey']
+) {
+  const ms = currentCycleDuration + timeoutPadding
+  const contactTimeout = setTimeout(replaceDataSender, ms, publicKey)
+  console.log(
+    `createContactTimeout: created timeout for ${publicKey} in ${ms} ms...`
+  )
+  return contactTimeout
 }
 
-export function addDataSenders(...senders: DataSender[]) {
+export function addDataSenders(...senders: Array<DataSender<ValidTypes>>) {
   for (const sender of senders) {
     dataSenders.set(sender.nodeInfo.publicKey, sender)
   }
@@ -67,33 +158,41 @@ export function addDataSenders(...senders: DataSender[]) {
 function removeDataSenders(
   ...publicKeys: Array<NodeList.ConsensusNodeInfo['publicKey']>
 ) {
+  const removedSenders = []
   for (const key of publicKeys) {
-    dataSenders.delete(key)
+    const sender = dataSenders.get(key)
+    if (sender) {
+      // Clear contactTimeout associated with this sender
+      if (sender.contactTimeout) {
+        clearTimeout(sender.contactTimeout)
+      }
+
+      // Record which sender was removed
+      removedSenders.push(sender)
+
+      // Delete sender from dataSenders
+      dataSenders.delete(key)
+    }
   }
+  return removedSenders
 }
 
 function selectNewDataSender() {
   // Randomly pick an active node
   const activeList = NodeList.getActiveList()
   const newSender = activeList[Math.floor(Math.random() * activeList.length)]
-  // Add it to dataSenders
-  addDataSenders({
-    nodeInfo: newSender,
-    type: DataTypes.CYCLE,
-    contactTimeout: removeOnTimeout(newSender.publicKey),
-  })
-  //  Send it a DataRequest
-  const request: DataRequest = {
-    type: DataTypes.CYCLE,
-    lastData: Cycles.currentCycleCounter,
-  } as DataRequest
-  Crypto.tag(request, newSender.publicKey)
-  postJson(`http://${newSender.ip}:${newSender.port}/requestdata`, request)
+  return newSender
 }
 
-// Data endpoints
+function sendDataRequest(
+  sender: DataSender<Cycle>,
+  dataRequest: DataRequest<Cycle>
+) {
+  const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey)
+  emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
+}
 
-function processData(newData: NewData) {
+function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
   // Get sender entry
   const sender = dataSenders.get(newData.publicKey)
 
@@ -110,16 +209,16 @@ function processData(newData: NewData) {
 
   // Process data depending on type
   switch (newData.type) {
-    case DataTypes.CYCLE: {
+    case TypeNames.CYCLE: {
       // Process cycles
-      Cycles.processCycles(newData.data as Cycles.Cycle[])
+      processCycles(newData.data as Cycle[])
       break
     }
-    case DataTypes.TRANSACTION: {
+    case TypeNames.TRANSACTION: {
       // [TODO] process transactions
       break
     }
-    case DataTypes.PARTITION: {
+    case TypeNames.PARTITION: {
       // [TODO] process partitions
       break
     }
@@ -130,8 +229,12 @@ function processData(newData: NewData) {
   }
 
   // Set new contactTimeout for sender
-  sender.contactTimeout = removeOnTimeout(sender.nodeInfo.publicKey)
+  if (currentCycleDuration > 0) {
+    sender.contactTimeout = createContactTimeout(sender.nodeInfo.publicKey)
+  }
 }
+
+// Data endpoints
 
 export const routePostNewdata: fastify.RouteOptions<
   Server,
@@ -140,18 +243,17 @@ export const routePostNewdata: fastify.RouteOptions<
   fastify.DefaultQuery,
   fastify.DefaultParams,
   fastify.DefaultHeaders,
-  NewData
+  DataResponse<ValidTypes> & Crypto.TaggedMessage
 > = {
   method: 'POST',
   url: '/newdata',
-  // Compile json-schemas from types and add for validation + performance
-  schema: {
-    body: NewDataJson,
-    response: DataResponseJson,
-  },
+  // [TODO] Compile json-schemas from types and add for validation + performance
   handler: (request, reply) => {
     const newData = request.body
-    const resp = { keepAlive: true } as DataResponse
+
+    console.log('GOT NEWDATA', JSON.stringify(newData, null, 2))
+
+    const resp = { keepAlive: true } as DataKeepAlive
 
     // If publicKey is not in dataSenders, dont keepAlive, END
     const sender = dataSenders.get(newData.publicKey)
@@ -163,13 +265,11 @@ export const routePostNewdata: fastify.RouteOptions<
     }
 
     // If unexpected data type from sender, dont keepAlive, END
-    if (sender.type !== DataTypes.ALL) {
-      if (sender.type !== newData.type) {
-        resp.keepAlive = false
-        Crypto.tag(resp, newData.publicKey)
-        reply.send(resp)
-        return
-      }
+    if (sender.type !== newData.type) {
+      resp.keepAlive = false
+      Crypto.tag(resp, newData.publicKey)
+      reply.send(resp)
+      return
     }
 
     // If tag is invalid, dont keepAlive, END

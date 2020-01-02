@@ -26,6 +26,7 @@ async function initStorage(dbFile) {
             table.json('joinedArchivers');
             table.json('joinedConsensors');
             table.json('activated');
+            table.json('activatedPublicKeys');
             table.json('removed');
             table.json('returned');
             table.json('lost');
@@ -52,6 +53,10 @@ async function storeCycle(cycle) {
         typeof cycle.activated !== 'string'
             ? JSON.stringify(cycle.activated)
             : cycle.activated;
+    cycle.activatedPublicKeys =
+        typeof cycle.activatedPublicKeys !== 'string'
+            ? JSON.stringify(cycle.activatedPublicKeys)
+            : cycle.activatedPublicKeys;
     cycle.removed =
         typeof cycle.removed !== 'string'
             ? JSON.stringify(cycle.removed)

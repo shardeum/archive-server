@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const Crypto_1 = require("./Crypto");
+const Crypto = require("./Crypto");
 const nodeState = {
     ip: '',
     port: -1,
@@ -18,8 +18,8 @@ function initFromConfig(config) {
     nodeState.port = config.ARCHIVER_PORT;
     nodeState.publicKey = config.ARCHIVER_PUBLIC_KEY;
     nodeState.secretKey = config.ARCHIVER_SECRET_KEY;
-    nodeState.curvePk = Crypto_1.core.convertPkToCurve(nodeState.publicKey);
-    nodeState.curveSk = Crypto_1.core.convertSkToCurve(nodeState.secretKey);
+    nodeState.curvePk = Crypto.core.convertPkToCurve(nodeState.publicKey);
+    nodeState.curveSk = Crypto.core.convertSkToCurve(nodeState.secretKey);
     // Parse existing archivers list
     try {
         exports.existingArchivers = JSON.parse(config.ARCHIVER_EXISTING);

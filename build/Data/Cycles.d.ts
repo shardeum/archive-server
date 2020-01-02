@@ -12,6 +12,7 @@ export interface Cycle {
     joinedArchivers: string;
     joinedConsensors: string;
     activated: string;
+    activatedPublicKeys: string;
     removed: string;
     returned: string;
     lost: string;

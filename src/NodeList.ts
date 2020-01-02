@@ -1,4 +1,5 @@
 import { config } from './Config'
+import * as Crypto from './Crypto'
 
 // TYPES
 
@@ -13,6 +14,10 @@ export interface ConsensusNodeInfo {
   publicKey: string
 }
 
+export interface ConsensusNodeMetadata {
+  cycleMarkerJoined: string
+}
+
 export interface SignedList {
   nodeList: ConsensusNodeInfo[]
 }
@@ -20,10 +25,13 @@ export interface SignedList {
 // STATE
 
 const list: ConsensusNodeInfo[] = []
+const metadata: Map<string, ConsensusNodeMetadata> = new Map()
 const syncingList: Map<string, ConsensusNodeInfo> = new Map()
 const activeList: Map<string, ConsensusNodeInfo> = new Map()
 const byPublicKey: { [publicKey: string]: ConsensusNodeInfo } = {}
 const byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
+export const byId: { [id: string]: ConsensusNodeInfo } = {}
+const publicKeyToId: { [publicKey: string]: string } = {}
 
 // METHODS
 
@@ -31,34 +39,53 @@ function getIpPort({ ip, port }: { ip: string; port: number }): string {
   return ip + ':' + port
 }
 
+function computeNodeId(publicKey: string): string {
+  const meta = metadata.get(publicKey)
+
+  let cycleMarker = ''
+  if (meta && meta.cycleMarkerJoined) {
+    cycleMarker = meta.cycleMarkerJoined
+  } else {
+    console.warn(
+      `Warning computeNodeId: cycleMarkerJoined metadata not set for ${publicKey}`
+    )
+  }
+
+  return Crypto.core.hashObj({ publicKey, cycleMarker })
+}
+
 export function isEmpty(): boolean {
   return list.length <= 0
 }
 
-export function addNodes(status: Statuses, ...nodes: ConsensusNodeInfo[]) {
+export function addNodes(
+  status: Statuses,
+  cycleMarkerJoined: string,
+  ...nodes: ConsensusNodeInfo[]
+) {
   for (const node of nodes) {
-    if (byPublicKey[node.publicKey] !== undefined) {
-      console.warn(
-        `addNodes failed: publicKey ${node.publicKey} already in nodelist`
-      )
-      return
-    }
-
     const ipPort = getIpPort(node)
 
-    if (byIpPort[ipPort] !== undefined) {
-      console.warn(`addNodes failed: ipPort ${ipPort} already in nodelist`)
-      return
+    // If node not in lists, add it
+    if (
+      byPublicKey[node.publicKey] === undefined &&
+      byIpPort[ipPort] === undefined
+    ) {
+      list.push(node)
+      if (status === Statuses.SYNCING) {
+        syncingList.set(node.publicKey, node)
+      } else if (status === Statuses.ACTIVE) {
+        activeList.set(node.publicKey, node)
+      }
+
+      byPublicKey[node.publicKey] = node
+      byIpPort[ipPort] = node
     }
 
-    list.push(node)
-    if (status === Statuses.SYNCING) {
-      syncingList.set(node.publicKey, node)
-    } else if (status === Statuses.ACTIVE) {
-      activeList.set(node.publicKey, node)
-    }
-    byPublicKey[node.publicKey] = node
-    byIpPort[ipPort] = node
+    // Update its metadata
+    metadata.set(node.publicKey, {
+      cycleMarkerJoined,
+    })
   }
 }
 
@@ -74,6 +101,9 @@ export function removeNodes(...publicKeys: string[]): string[] {
     keysToDelete.set(key, true)
     delete byIpPort[getIpPort(byPublicKey[key])]
     delete byPublicKey[key]
+    const id = publicKeyToId[key]
+    delete byId[id]
+    delete publicKeyToId[key]
   }
 
   if (keysToDelete.size > 0) {
@@ -110,6 +140,19 @@ export function setStatus(status: Statuses, ...publicKeys: string[]) {
   }
 }
 
+export function addNodeId(...publicKeys: string[]) {
+  for (const key of publicKeys) {
+    const node = byPublicKey[key]
+    if (node === undefined) {
+      console.warn(`addNodeId: publicKey ${key} not in nodelist`)
+      continue
+    }
+    const id = computeNodeId(key)
+    publicKeyToId[key] = id
+    byId[id] = node
+  }
+}
+
 export function getList() {
   return list
 }
@@ -133,4 +176,12 @@ export function getNodeInfo(node: Partial<ConsensusNodeInfo>) {
   }
   // If nothing found, return undefined
   return undefined
+}
+
+export function getId(publicKey: string) {
+  return publicKeyToId[publicKey]
+}
+
+export function getNodeInfoById(id: string) {
+  return byId[id]
 }

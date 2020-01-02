@@ -1,17 +1,19 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const shardus_crypto_utils_1 = require("shardus-crypto-utils");
 const core = require("shardus-crypto-utils");
 exports.core = core;
+const cryptoTypes = require("./shardus-crypto-types");
+exports.types = cryptoTypes;
 const State = require("./State");
 // Crypto initialization fns
 function setCryptoHashKey(hashkey) {
-    shardus_crypto_utils_1.default(hashkey);
+    core(hashkey);
 }
 exports.setCryptoHashKey = setCryptoHashKey;
-// Asymmetric Encyption Sign/Verify API
 function sign(obj) {
-    core.signObj(obj, State.getSecretKey(), State.getNodeInfo().publicKey);
+    const objCopy = JSON.parse(core.stringify(obj));
+    core.signObj(objCopy, State.getSecretKey(), State.getNodeInfo().publicKey);
+    return objCopy;
 }
 exports.sign = sign;
 function verify(obj) {

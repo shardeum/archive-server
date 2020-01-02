@@ -1,20 +1,35 @@
 import * as State from './State'
 import * as Crypto from './Crypto'
-import { ConsensusNodeInfo } from './NodeList'
+import * as Data from './Data/Data'
+import * as NodeList from './NodeList'
 import 'node-fetch'
-import fetch, { FetchError, Response } from 'node-fetch'
+import fetch from 'node-fetch'
+import { Cycle } from './Data/Cycles'
 
 export interface ArchiverJoinRequest {
   nodeInfo: State.ArchiverNodeInfo
 }
 
-export function createJoinRequest(): ArchiverJoinRequest {
-  const nodeInfo = State.getNodeInfo()
-  const joinRequest = {
-    nodeInfo,
+export interface FirstNodeInfo {
+  nodeInfo: {
+    ip: string
+    externalPort: number
+    publicKey: string
   }
-  Crypto.sign(joinRequest)
-  return joinRequest
+  firstCycleMarker: string
+}
+
+export interface FirstNodeResponse {
+  nodeList: NodeList.ConsensusNodeInfo[]
+  joinRequest?: ArchiverJoinRequest & Crypto.SignedMessage
+  dataRequest?: Data.DataRequest<Cycle> & Crypto.TaggedMessage
+}
+
+export function createArchiverJoinRequest() {
+  const joinRequest: ArchiverJoinRequest = {
+    nodeInfo: State.getNodeInfo(),
+  }
+  return Crypto.sign(joinRequest)
 }
 
 export async function postJson(
@@ -28,12 +43,12 @@ export async function postJson(
       headers: { 'Content-Type': 'application/json' },
     })
     if (res.ok) {
-      return res.json()
+      return await res.json()
     } else {
       console.warn('postJson failed: got bad response')
       console.warn(res.headers)
       console.warn(res.statusText)
-      console.warn(res.text())
+      console.warn(await res.text())
       return null
     }
   } catch (err) {

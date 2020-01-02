@@ -1,30 +1,62 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const events_1 = require("events");
 const Crypto = require("../Crypto");
 const NodeList = require("../NodeList");
-const P2P_1 = require("../P2P");
-const Cycles = require("./Cycles");
-const NewDataJson = require("./schemas/NewData.json");
-const DataResponseJson = require("./schemas/DataResponse.json");
-var DataTypes;
-(function (DataTypes) {
-    DataTypes["CYCLE"] = "cycle";
-    DataTypes["TRANSACTION"] = "transaction";
-    DataTypes["PARTITION"] = "partition";
-    DataTypes["ALL"] = "all";
-})(DataTypes = exports.DataTypes || (exports.DataTypes = {}));
+const Cycles_1 = require("./Cycles");
+var TypeNames;
+(function (TypeNames) {
+    TypeNames["CYCLE"] = "CYCLE";
+    TypeNames["TRANSACTION"] = "TRANSACTION";
+    TypeNames["PARTITION"] = "PARTITION";
+})(TypeNames = exports.TypeNames || (exports.TypeNames = {}));
+function createDataRequest(type, lastData, recipientPk) {
+    return Crypto.tag({
+        type,
+        lastData,
+    }, recipientPk);
+}
+exports.createDataRequest = createDataRequest;
 const dataSenders = new Map();
-const timeoutPadding = 5000;
+const timeoutPadding = 1000;
+exports.emitter = new events_1.EventEmitter();
+function replaceDataSender(publicKey) {
+    console.log(`replaceDataSender: replacing ${publicKey}`);
+    // Remove old dataSender
+    const removedSenders = removeDataSenders(publicKey);
+    if (removedSenders.length < 1) {
+        throw new Error('replaceDataSender failed: old sender not removed');
+    }
+    console.log(`replaceDataSender: removed old sender ${JSON.stringify(removedSenders, null, 2)}`);
+    // Pick a new dataSender
+    const newSenderInfo = selectNewDataSender();
+    const newSender = {
+        nodeInfo: newSenderInfo,
+        type: TypeNames.CYCLE,
+        contactTimeout: createContactTimeout(newSenderInfo.publicKey),
+    };
+    console.log(`replaceDataSender: selected new sender ${JSON.stringify(newSender.nodeInfo, null, 2)}`);
+    // Add new dataSender to dataSenders
+    addDataSenders(newSender);
+    console.log(`replaceDataSender: added new sender ${newSenderInfo.publicKey} to dataSenders`);
+    // Send dataRequest to new dataSender
+    const dataRequest = {
+        type: TypeNames.CYCLE,
+        lastData: Cycles_1.currentCycleCounter,
+    };
+    sendDataRequest(newSender, dataRequest);
+    console.log(`replaceDataSender: sent dataRequest to new sender: ${JSON.stringify(dataRequest, null, 2)}`);
+}
 /**
  * Sets timeout to current cycle duration + some padding
  * Removes sender from dataSenders on timeout
  * Select a new dataSender
  */
-function removeOnTimeout(publicKey) {
-    return setTimeout(() => {
-        removeDataSenders(publicKey);
-        selectNewDataSender();
-    }, Cycles.currentCycleDuration + timeoutPadding);
+function createContactTimeout(publicKey) {
+    const ms = Cycles_1.currentCycleDuration + timeoutPadding;
+    const contactTimeout = setTimeout(replaceDataSender, ms, publicKey);
+    console.log(`createContactTimeout: created timeout for ${publicKey} in ${ms} ms...`);
+    return contactTimeout;
 }
 function addDataSenders(...senders) {
     for (const sender of senders) {
@@ -33,29 +65,32 @@ function addDataSenders(...senders) {
 }
 exports.addDataSenders = addDataSenders;
 function removeDataSenders(...publicKeys) {
+    const removedSenders = [];
     for (const key of publicKeys) {
-        dataSenders.delete(key);
+        const sender = dataSenders.get(key);
+        if (sender) {
+            // Clear contactTimeout associated with this sender
+            if (sender.contactTimeout) {
+                clearTimeout(sender.contactTimeout);
+            }
+            // Record which sender was removed
+            removedSenders.push(sender);
+            // Delete sender from dataSenders
+            dataSenders.delete(key);
+        }
     }
+    return removedSenders;
 }
 function selectNewDataSender() {
     // Randomly pick an active node
     const activeList = NodeList.getActiveList();
     const newSender = activeList[Math.floor(Math.random() * activeList.length)];
-    // Add it to dataSenders
-    addDataSenders({
-        nodeInfo: newSender,
-        type: DataTypes.CYCLE,
-        contactTimeout: removeOnTimeout(newSender.publicKey),
-    });
-    //  Send it a DataRequest
-    const request = {
-        type: DataTypes.CYCLE,
-        lastData: Cycles.currentCycleCounter,
-    };
-    Crypto.tag(request, newSender.publicKey);
-    P2P_1.postJson(`http://${newSender.ip}:${newSender.port}/requestdata`, request);
+    return newSender;
 }
-// Data endpoints
+function sendDataRequest(sender, dataRequest) {
+    const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey);
+    exports.emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest);
+}
 function processData(newData) {
     // Get sender entry
     const sender = dataSenders.get(newData.publicKey);
@@ -70,16 +105,16 @@ function processData(newData) {
     }
     // Process data depending on type
     switch (newData.type) {
-        case DataTypes.CYCLE: {
+        case TypeNames.CYCLE: {
             // Process cycles
-            Cycles.processCycles(newData.data);
+            Cycles_1.processCycles(newData.data);
             break;
         }
-        case DataTypes.TRANSACTION: {
+        case TypeNames.TRANSACTION: {
             // [TODO] process transactions
             break;
         }
-        case DataTypes.PARTITION: {
+        case TypeNames.PARTITION: {
             // [TODO] process partitions
             break;
         }
@@ -89,18 +124,18 @@ function processData(newData) {
         }
     }
     // Set new contactTimeout for sender
-    sender.contactTimeout = removeOnTimeout(sender.nodeInfo.publicKey);
+    if (Cycles_1.currentCycleDuration > 0) {
+        sender.contactTimeout = createContactTimeout(sender.nodeInfo.publicKey);
+    }
 }
+// Data endpoints
 exports.routePostNewdata = {
     method: 'POST',
     url: '/newdata',
-    // Compile json-schemas from types and add for validation + performance
-    schema: {
-        body: NewDataJson,
-        response: DataResponseJson,
-    },
+    // [TODO] Compile json-schemas from types and add for validation + performance
     handler: (request, reply) => {
         const newData = request.body;
+        console.log('GOT NEWDATA', JSON.stringify(newData, null, 2));
         const resp = { keepAlive: true };
         // If publicKey is not in dataSenders, dont keepAlive, END
         const sender = dataSenders.get(newData.publicKey);
@@ -111,13 +146,11 @@ exports.routePostNewdata = {
             return;
         }
         // If unexpected data type from sender, dont keepAlive, END
-        if (sender.type !== DataTypes.ALL) {
-            if (sender.type !== newData.type) {
-                resp.keepAlive = false;
-                Crypto.tag(resp, newData.publicKey);
-                reply.send(resp);
-                return;
-            }
+        if (sender.type !== newData.type) {
+            resp.keepAlive = false;
+            Crypto.tag(resp, newData.publicKey);
+            reply.send(resp);
+            return;
         }
         // If tag is invalid, dont keepAlive, END
         if (Crypto.authenticate(newData) === false) {

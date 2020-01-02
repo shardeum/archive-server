@@ -4,15 +4,13 @@ const State = require("./State");
 const Crypto = require("./Crypto");
 require("node-fetch");
 const node_fetch_1 = require("node-fetch");
-function createJoinRequest() {
-    const nodeInfo = State.getNodeInfo();
+function createArchiverJoinRequest() {
     const joinRequest = {
-        nodeInfo,
+        nodeInfo: State.getNodeInfo(),
     };
-    Crypto.sign(joinRequest);
-    return joinRequest;
+    return Crypto.sign(joinRequest);
 }
-exports.createJoinRequest = createJoinRequest;
+exports.createArchiverJoinRequest = createArchiverJoinRequest;
 async function postJson(url, body) {
     try {
         const res = await node_fetch_1.default(url, {
@@ -21,13 +19,13 @@ async function postJson(url, body) {
             headers: { 'Content-Type': 'application/json' },
         });
         if (res.ok) {
-            return res.json();
+            return await res.json();
         }
         else {
             console.warn('postJson failed: got bad response');
             console.warn(res.headers);
             console.warn(res.statusText);
-            console.warn(res.text());
+            console.warn(await res.text());
             return null;
         }
     }

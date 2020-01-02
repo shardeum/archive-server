@@ -1,12 +1,12 @@
 import { Config } from './Config';
-import { core } from './Crypto';
+import * as Crypto from './Crypto';
 export interface ArchiverNodeState {
     ip: string;
     port: number;
-    publicKey: core.publicKey;
-    secretKey: core.secretKey;
-    curvePk: core.curvePublicKey;
-    curveSk: core.curveSecretKey;
+    publicKey: Crypto.types.publicKey;
+    secretKey: Crypto.types.secretKey;
+    curvePk: Crypto.types.curvePublicKey;
+    curveSk: Crypto.types.curveSecretKey;
 }
 export declare type ArchiverNodeInfo = Omit<ArchiverNodeState, 'secretKey' | 'curveSk'>;
 export declare let existingArchivers: ArchiverNodeState[];

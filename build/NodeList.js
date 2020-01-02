@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const Crypto = require("./Crypto");
 // TYPES
 var Statuses;
 (function (Statuses) {
@@ -8,38 +9,52 @@ var Statuses;
 })(Statuses = exports.Statuses || (exports.Statuses = {}));
 // STATE
 const list = [];
+const metadata = new Map();
 const syncingList = new Map();
 const activeList = new Map();
 const byPublicKey = {};
 const byIpPort = {};
+exports.byId = {};
+const publicKeyToId = {};
 // METHODS
 function getIpPort({ ip, port }) {
     return ip + ':' + port;
+}
+function computeNodeId(publicKey) {
+    const meta = metadata.get(publicKey);
+    let cycleMarker = '';
+    if (meta && meta.cycleMarkerJoined) {
+        cycleMarker = meta.cycleMarkerJoined;
+    }
+    else {
+        console.warn(`Warning computeNodeId: cycleMarkerJoined metadata not set for ${publicKey}`);
+    }
+    return Crypto.core.hashObj({ publicKey, cycleMarker });
 }
 function isEmpty() {
     return list.length <= 0;
 }
 exports.isEmpty = isEmpty;
-function addNodes(status, ...nodes) {
+function addNodes(status, cycleMarkerJoined, ...nodes) {
     for (const node of nodes) {
-        if (byPublicKey[node.publicKey] !== undefined) {
-            console.warn(`addNodes failed: publicKey ${node.publicKey} already in nodelist`);
-            return;
-        }
         const ipPort = getIpPort(node);
-        if (byIpPort[ipPort] !== undefined) {
-            console.warn(`addNodes failed: ipPort ${ipPort} already in nodelist`);
-            return;
+        // If node not in lists, add it
+        if (byPublicKey[node.publicKey] === undefined &&
+            byIpPort[ipPort] === undefined) {
+            list.push(node);
+            if (status === Statuses.SYNCING) {
+                syncingList.set(node.publicKey, node);
+            }
+            else if (status === Statuses.ACTIVE) {
+                activeList.set(node.publicKey, node);
+            }
+            byPublicKey[node.publicKey] = node;
+            byIpPort[ipPort] = node;
         }
-        list.push(node);
-        if (status === Statuses.SYNCING) {
-            syncingList.set(node.publicKey, node);
-        }
-        else if (status === Statuses.ACTIVE) {
-            activeList.set(node.publicKey, node);
-        }
-        byPublicKey[node.publicKey] = node;
-        byIpPort[ipPort] = node;
+        // Update its metadata
+        metadata.set(node.publicKey, {
+            cycleMarkerJoined,
+        });
     }
 }
 exports.addNodes = addNodes;
@@ -54,6 +69,9 @@ function removeNodes(...publicKeys) {
         keysToDelete.set(key, true);
         delete byIpPort[getIpPort(byPublicKey[key])];
         delete byPublicKey[key];
+        const id = publicKeyToId[key];
+        delete exports.byId[id];
+        delete publicKeyToId[key];
     }
     if (keysToDelete.size > 0) {
         let key;
@@ -95,6 +113,19 @@ function setStatus(status, ...publicKeys) {
     }
 }
 exports.setStatus = setStatus;
+function addNodeId(...publicKeys) {
+    for (const key of publicKeys) {
+        const node = byPublicKey[key];
+        if (node === undefined) {
+            console.warn(`addNodeId: publicKey ${key} not in nodelist`);
+            continue;
+        }
+        const id = computeNodeId(key);
+        publicKeyToId[key] = id;
+        exports.byId[id] = node;
+    }
+}
+exports.addNodeId = addNodeId;
 function getList() {
     return list;
 }
@@ -120,4 +151,12 @@ function getNodeInfo(node) {
     return undefined;
 }
 exports.getNodeInfo = getNodeInfo;
+function getId(publicKey) {
+    return publicKeyToId[publicKey];
+}
+exports.getId = getId;
+function getNodeInfoById(id) {
+    return exports.byId[id];
+}
+exports.getNodeInfoById = getNodeInfoById;
 //# sourceMappingURL=NodeList.js.map
