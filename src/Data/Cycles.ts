@@ -76,9 +76,14 @@ function updateNodeList(cycle: Cycle) {
     cycle.removed,
     `Error processing cycle ${cycle.counter}: failed to parse removed`
   )
-  NodeList.removeNodes(
-    ...removed.map(id => NodeList.getNodeInfoById(id).publicKey)
-  )
+  const removedPks = removed.reduce((keys: string[], id) => {
+    const nodeInfo = NodeList.getNodeInfoById(id)
+    if (nodeInfo) {
+      keys.push(nodeInfo.publicKey)
+    }
+    return keys
+  }, [])
+  NodeList.removeNodes(...removedPks)
 
   // Remove lost nodes
   const lost = safeParse<string[]>(
@@ -86,9 +91,14 @@ function updateNodeList(cycle: Cycle) {
     cycle.lost,
     `Error processing cycle ${cycle.counter}: failed to parse lost`
   )
-  NodeList.removeNodes(
-    ...lost.map(id => NodeList.getNodeInfoById(id).publicKey)
-  )
+  const lostPks = lost.reduce((keys: string[], id) => {
+    const nodeInfo = NodeList.getNodeInfoById(id)
+    if (nodeInfo) {
+      keys.push(nodeInfo.publicKey)
+    }
+    return keys
+  }, [])
+  NodeList.removeNodes(...lostPks)
 
   // Remove apoptosized nodes
   const apoptosized = safeParse<string[]>(
@@ -96,7 +106,12 @@ function updateNodeList(cycle: Cycle) {
     cycle.lost,
     `Error processing cycle ${cycle.counter}: failed to parse apoptosized`
   )
-  NodeList.removeNodes(
-    ...apoptosized.map(id => NodeList.getNodeInfoById(id).publicKey)
-  )
+  const apoptosizedPks = apoptosized.reduce((keys: string[], id) => {
+    const nodeInfo = NodeList.getNodeInfoById(id)
+    if (nodeInfo) {
+      keys.push(nodeInfo.publicKey)
+    }
+    return keys
+  }, [])
+  NodeList.removeNodes(...apoptosizedPks)
 }
