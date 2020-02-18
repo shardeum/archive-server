@@ -34,6 +34,7 @@ export async function initStorage(dbFile: string) {
       table.json('lost')
       table.json('refuted')
       table.json('apoptosized')
+      table.json('apoptosizedNodes')
     })
   }
 }
@@ -77,5 +78,9 @@ export async function storeCycle(cycle: Cycle) {
     typeof cycle.apoptosized !== 'string'
       ? JSON.stringify(cycle.apoptosized)
       : cycle.apoptosized
+  cycle.apoptosizedNodes =
+    typeof cycle.apoptosizedNodes !== 'string'
+      ? JSON.stringify(cycle.apoptosizedNodes)
+      : cycle.apoptosizedNodes
   await db('cycles').insert(cycle)
 }
