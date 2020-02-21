@@ -16,7 +16,7 @@ export interface Signature {
 }
 
 export interface LooseObject {
-  [index: string]: any
+  [index: string]: unknown
 }
 
 export interface TaggedObject extends LooseObject {

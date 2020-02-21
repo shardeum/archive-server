@@ -22,7 +22,6 @@ export interface Cycle {
   lost: string
   refuted: string
   apoptosized: string
-  apoptosizedNodes: string
 }
 
 export let currentCycleDuration = 0
@@ -102,7 +101,6 @@ function updateNodeList(cycle: Cycle) {
   NodeList.removeNodes(...lostPks)
 
   // Remove apoptosized nodes
-  /*
   const apoptosized = safeParse<string[]>(
     [],
     cycle.lost,
@@ -116,20 +114,4 @@ function updateNodeList(cycle: Cycle) {
     return keys
   }, [])
   NodeList.removeNodes(...apoptosizedPks)
-  */
-
-  // Remove apoptosizedNodes nodes
-  const apoptosizedNodes = safeParse<string[]>(
-    [],
-    cycle.lost,
-    `Error processing cycle ${cycle.counter}: failed to parse apoptosized`
-  )
-  const apoptosizedNodesPks = apoptosizedNodes.reduce((keys: string[], id) => {
-    const nodeInfo = NodeList.getNodeInfoById(id)
-    if (nodeInfo) {
-      keys.push(nodeInfo.publicKey)
-    }
-    return keys
-  }, [])
-  NodeList.removeNodes(...apoptosizedNodesPks)
 }
