@@ -33,7 +33,7 @@ declare module 'shardus-crypto-utils' {
   import * as CryptoTypes from 'shardus-crypto-types'
 
   interface ShardusCrypto {
-    (hashKey: CryptoTypes.hexstring): void
+    init: (hashKey: CryptoTypes.hexstring) => void
     hashObj: (
       obj: CryptoTypes.LooseObject,
       removeSign?: boolean,

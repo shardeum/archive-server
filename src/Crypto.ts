@@ -1,11 +1,11 @@
-import core = require('shardus-crypto-utils')
+import * as core from 'shardus-crypto-utils'
 import * as cryptoTypes from './shardus-crypto-types'
 import * as State from './State'
 
 // Crypto initialization fns
 
 export function setCryptoHashKey(hashkey: string) {
-  core(hashkey)
+  core.init(hashkey)
 }
 
 // Asymmetric Encyption Sign/Verify API
