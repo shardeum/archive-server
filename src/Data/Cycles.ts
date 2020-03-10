@@ -48,18 +48,32 @@ export function processCycles(cycles: Cycle[]) {
   }
 }
 
+interface P2PNodeInfo {
+  publicKey: string
+  externalIp: string
+  externalPort: number
+  internalIp: string
+  internalPort: number
+  address: string
+  joinRequestTimestamp: number
+  activeTimestamp: number
+}
+
 function updateNodeList(cycle: Cycle) {
   // Add joined nodes
-  const joinedConsensors = safeParse<NodeList.ConsensusNodeInfo[]>(
+  const joinedConsensors = safeParse<P2PNodeInfo[]>(
     [],
     cycle.joinedConsensors,
     `Error processing cycle ${cycle.counter}: failed to parse joinedConsensors`
   )
-  NodeList.addNodes(
-    NodeList.Statuses.SYNCING,
-    cycle.marker,
-    ...joinedConsensors
-  )
+
+  const consensorInfos = joinedConsensors.map(jc => ({
+    ip: jc.externalIp,
+    port: jc.externalPort,
+    publicKey: jc.publicKey,
+  }))
+
+  NodeList.addNodes(NodeList.Statuses.SYNCING, cycle.marker, ...consensorInfos)
 
   // Update activated nodes
   const activatedPublicKeys = safeParse<string[]>(
