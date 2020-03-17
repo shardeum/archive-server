@@ -48,7 +48,7 @@ export function processCycles(cycles: Cycle[]) {
   }
 }
 
-interface P2PNodeInfo {
+interface P2PNode {
   publicKey: string
   externalIp: string
   externalPort: number
@@ -59,9 +59,14 @@ interface P2PNodeInfo {
   activeTimestamp: number
 }
 
+export interface JoinedConsensor extends P2PNode {
+  id: string
+  cycleJoined: string
+}
+
 function updateNodeList(cycle: Cycle) {
   // Add joined nodes
-  const joinedConsensors = safeParse<P2PNodeInfo[]>(
+  const joinedConsensors = safeParse<JoinedConsensor[]>(
     [],
     cycle.joinedConsensors,
     `Error processing cycle ${cycle.counter}: failed to parse joinedConsensors`
@@ -71,6 +76,7 @@ function updateNodeList(cycle: Cycle) {
     ip: jc.externalIp,
     port: jc.externalPort,
     publicKey: jc.publicKey,
+    id: jc.id,
   }))
 
   NodeList.addNodes(NodeList.Statuses.SYNCING, cycle.marker, ...consensorInfos)
@@ -82,7 +88,6 @@ function updateNodeList(cycle: Cycle) {
     `Error processing cycle ${cycle.counter}: failed to parse activated`
   )
   NodeList.setStatus(NodeList.Statuses.ACTIVE, ...activatedPublicKeys)
-  NodeList.addNodeId(...activatedPublicKeys)
 
   // Remove removed nodes
   const removed = safeParse<string[]>(

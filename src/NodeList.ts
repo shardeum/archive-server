@@ -12,6 +12,7 @@ export interface ConsensusNodeInfo {
   ip: string
   port: number
   publicKey: string
+  id?: string
 }
 
 export interface ConsensusNodeMetadata {
@@ -37,21 +38,6 @@ const publicKeyToId: { [publicKey: string]: string } = {}
 
 function getIpPort({ ip, port }: { ip: string; port: number }): string {
   return ip + ':' + port
-}
-
-function computeNodeId(publicKey: string): string {
-  const meta = metadata.get(publicKey)
-
-  let cycleMarker = ''
-  if (meta && meta.cycleMarkerJoined) {
-    cycleMarker = meta.cycleMarkerJoined
-  } else {
-    console.warn(
-      `Warning computeNodeId: cycleMarkerJoined metadata not set for ${publicKey}`
-    )
-  }
-
-  return Crypto.core.hashObj({ publicKey, cycleMarker })
 }
 
 export function isEmpty(): boolean {
@@ -80,6 +66,12 @@ export function addNodes(
 
       byPublicKey[node.publicKey] = node
       byIpPort[ipPort] = node
+    }
+
+    // If and id is given, update its id
+    if (node.id) {
+      publicKeyToId[node.publicKey] = node.id
+      byId[node.id] = node
     }
 
     // Update its metadata
@@ -137,19 +129,6 @@ export function setStatus(status: Statuses, ...publicKeys: string[]) {
       if (activeList.has(key)) continue
       activeList.set(key, node)
     }
-  }
-}
-
-export function addNodeId(...publicKeys: string[]) {
-  for (const key of publicKeys) {
-    const node = byPublicKey[key]
-    if (node === undefined) {
-      console.warn(`addNodeId: publicKey ${key} not in nodelist`)
-      continue
-    }
-    const id = computeNodeId(key)
-    publicKeyToId[key] = id
-    byId[id] = node
   }
 }
 

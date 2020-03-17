@@ -108,6 +108,7 @@ function startServer() {
       reply.send(res)
     } else {
       let nodeList = NodeList.getActiveList()
+      // If we dont have any active nodes, send back the first node in our list
       if (nodeList.length < 1) {
         nodeList = NodeList.getList().slice(0, 1)
       }
