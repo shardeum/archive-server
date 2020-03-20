@@ -64,3 +64,7 @@ export function getSecretKey() {
 export function getCurveSk() {
   return nodeState.curveSk
 }
+
+export function getCurvePk() {
+  return nodeState.curvePk
+}
