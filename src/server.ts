@@ -79,7 +79,6 @@ function startServer() {
     const ip = request.req.socket.remoteAddress || signedFirstNodeInfo.ip
     const port = signedFirstNodeInfo.nodeInfo.externalPort
     const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
-    const firstCycleMarker = signedFirstNodeInfo.firstCycleMarker
 
     if (State.isFirst && NodeList.isEmpty()) {
       const firstNode: NodeList.ConsensusNodeInfo = {
@@ -88,7 +87,8 @@ function startServer() {
         publicKey,
       }
       // Add first node to NodeList
-      NodeList.addNodes(NodeList.Statuses.SYNCING, firstCycleMarker, firstNode)
+      // NodeList.addNodes(NodeList.Statuses.SYNCING, firstCycleMarker, firstNode)
+      NodeList.addNodes(NodeList.Statuses.SYNCING, 'bogus', firstNode)
       // Set first node as dataSender
       Data.addDataSenders({
         nodeInfo: firstNode,

@@ -16,7 +16,6 @@ export interface FirstNodeInfo {
     externalPort: number
     publicKey: string
   }
-  firstCycleMarker: string
 }
 
 export interface FirstNodeResponse {
