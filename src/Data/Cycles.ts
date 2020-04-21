@@ -25,14 +25,12 @@ export interface Cycle {
 }
 
 export let currentCycleDuration = 0
-export let currentCycleCounter = 0
+export let currentCycleCounter = -1
 
 export function processCycles(cycles: Cycle[]) {
   for (const cycle of cycles) {
     // Skip if already processed [TODO] make this check more secure
-    if (currentCycleCounter > 0 && cycle.counter <= currentCycleCounter) {
-      continue
-    }
+    if (cycle.counter <= currentCycleCounter) continue
 
     // Save the cycle to db
     Storage.storeCycle(cycle)

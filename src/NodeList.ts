@@ -68,10 +68,14 @@ export function addNodes(
       byIpPort[ipPort] = node
     }
 
-    // If and id is given, update its id
+    // If an id is given, update its id
     if (node.id) {
-      publicKeyToId[node.publicKey] = node.id
-      byId[node.id] = node
+      const entry = byPublicKey[node.publicKey]
+      if (entry) {
+        entry.id = node.id
+        publicKeyToId[node.publicKey] = node.id
+        byId[node.id] = node
+      }
     }
 
     // Update its metadata

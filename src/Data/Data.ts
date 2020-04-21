@@ -72,7 +72,7 @@ interface DataSender<T extends ValidTypes> {
   contactTimeout?: NodeJS.Timeout
 }
 
-const dataSenders: Map<
+export const dataSenders: Map<
   NodeList.ConsensusNodeInfo['publicKey'],
   DataSender<ValidTypes>
 > = new Map()

@@ -52,7 +52,7 @@ function startServer() {
     IncomingMessage,
     ServerResponse
   > = fastify({
-    logger: true,
+    logger: false,
   })
 
   server.register(fastifyCors)
@@ -100,7 +100,7 @@ function startServer() {
         joinRequest: P2P.createArchiverJoinRequest(),
         dataRequest: Data.createDataRequest<Cycles.Cycle>(
           Data.TypeNames.CYCLE,
-          0,
+          Cycles.currentCycleCounter,
           publicKey
         ),
       })
@@ -128,6 +128,24 @@ function startServer() {
       nodeList,
     })
     reply.send(res)
+  })
+
+  server.get('/debug', (_request, reply) => {
+    let nodeList = NodeList.getActiveList()
+    if (nodeList.length < 1) {
+      nodeList = NodeList.getList().slice(0, 1)
+    }
+    const nodes = nodeList.map(node => node.port)
+    const senders = [...Data.dataSenders.values()].map(
+      sender => sender.nodeInfo.port
+    )
+    const lastData = Cycles.currentCycleCounter
+
+    reply.send({
+      lastData,
+      senders,
+      nodes,
+    })
   })
 
   server.get('/nodeinfo', (_request, reply) => {
@@ -161,6 +179,11 @@ function startServer() {
       newSenderInfo: NodeList.ConsensusNodeInfo,
       dataRequest: Data.DataRequest<Cycles.Cycle> & Crypto.TaggedMessage
     ) => {
+      // Omar added this logging
+      console.log(
+        `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
+        JSON.stringify(dataRequest, null, 2)
+      )
       P2P.postJson(
         `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
         dataRequest
