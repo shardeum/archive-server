@@ -26,8 +26,8 @@ export async function initStorage(dbFile: string) {
       table.bigInteger('expired')
       table.json('joined')
       table.json('joinedArchivers')
-      table.json('refreshedArchivers')
       table.json('joinedConsensors')
+      table.json('refreshedArchivers')
       table.json('refreshedConsensors')
       table.json('activated')
       table.json('activatedPublicKeys')
@@ -53,6 +53,14 @@ export async function storeCycle(cycle: Cycle) {
     typeof cycle.joinedConsensors !== 'string'
       ? JSON.stringify(cycle.joinedConsensors)
       : cycle.joinedConsensors
+  cycle.refreshedArchivers =
+    typeof cycle.refreshedArchivers !== 'string'
+      ? JSON.stringify(cycle.refreshedArchivers)
+      : cycle.refreshedArchivers
+  cycle.refreshedConsensors =
+    typeof cycle.refreshedConsensors !== 'string'
+      ? JSON.stringify(cycle.refreshedConsensors)
+      : cycle.refreshedConsensors
   cycle.activated =
     typeof cycle.activated !== 'string'
       ? JSON.stringify(cycle.activated)

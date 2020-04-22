@@ -15,6 +15,8 @@ export interface Cycle {
   joined: string
   joinedArchivers: string
   joinedConsensors: string
+  refreshedArchivers: string
+  refreshedConsensors: string
   activated: string
   activatedPublicKeys: string
   removed: string
