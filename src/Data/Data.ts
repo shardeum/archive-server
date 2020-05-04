@@ -82,20 +82,20 @@ const timeoutPadding = 1000
 export const emitter = new EventEmitter()
 
 function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
-  console.log(`replaceDataSender: replacing ${publicKey}`)
+  // console.log(`replaceDataSender: replacing ${publicKey}`)
 
   // Remove old dataSender
   const removedSenders = removeDataSenders(publicKey)
   if (removedSenders.length < 1) {
     throw new Error('replaceDataSender failed: old sender not removed')
   }
-  console.log(
-    `replaceDataSender: removed old sender ${JSON.stringify(
-      removedSenders,
-      null,
-      2
-    )}`
-  )
+  // console.log(
+  //   `replaceDataSender: removed old sender ${JSON.stringify(
+  //     removedSenders,
+  //     null,
+  //     2
+  //   )}`
+  // )
 
   // Pick a new dataSender
   const newSenderInfo = selectNewDataSender()
@@ -104,19 +104,19 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
     type: TypeNames.CYCLE,
     contactTimeout: createContactTimeout(newSenderInfo.publicKey),
   }
-  console.log(
-    `replaceDataSender: selected new sender ${JSON.stringify(
-      newSender.nodeInfo,
-      null,
-      2
-    )}`
-  )
+  // console.log(
+  //   `replaceDataSender: selected new sender ${JSON.stringify(
+  //     newSender.nodeInfo,
+  //     null,
+  //     2
+  //   )}`
+  // )
 
   // Add new dataSender to dataSenders
   addDataSenders(newSender)
-  console.log(
-    `replaceDataSender: added new sender ${newSenderInfo.publicKey} to dataSenders`
-  )
+  // console.log(
+  //   `replaceDataSender: added new sender ${newSenderInfo.publicKey} to dataSenders`
+  // )
 
   // Send dataRequest to new dataSender
   const dataRequest: DataRequest<Cycle> = {
@@ -124,13 +124,13 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
     lastData: currentCycleCounter,
   } as DataRequest<Cycle>
   sendDataRequest(newSender, dataRequest)
-  console.log(
-    `replaceDataSender: sent dataRequest to new sender: ${JSON.stringify(
-      dataRequest,
-      null,
-      2
-    )}`
-  )
+  // console.log(
+  //   `replaceDataSender: sent dataRequest to new sender: ${JSON.stringify(
+  //     dataRequest,
+  //     null,
+  //     2
+  //   )}`
+  // )
 }
 
 /**
@@ -143,9 +143,9 @@ function createContactTimeout(
 ) {
   const ms = currentCycleDuration + timeoutPadding
   const contactTimeout = setTimeout(replaceDataSender, ms, publicKey)
-  console.log(
-    `createContactTimeout: created timeout for ${publicKey} in ${ms} ms...`
-  )
+  // console.log(
+  //   `createContactTimeout: created timeout for ${publicKey} in ${ms} ms...`
+  // )
   return contactTimeout
 }
 
@@ -251,7 +251,7 @@ export const routePostNewdata: fastify.RouteOptions<
   handler: (request, reply) => {
     const newData = request.body
 
-    console.log('GOT NEWDATA', JSON.stringify(newData, null, 2))
+    // console.log('GOT NEWDATA', JSON.stringify(newData, null, 2))
 
     const resp = { keepAlive: true } as DataKeepAlive
 

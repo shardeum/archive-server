@@ -180,10 +180,10 @@ function startServer() {
       dataRequest: Data.DataRequest<Cycles.Cycle> & Crypto.TaggedMessage
     ) => {
       // Omar added this logging
-      console.log(
-        `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
-        JSON.stringify(dataRequest, null, 2)
-      )
+      // console.log(
+      //   `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
+      //   JSON.stringify(dataRequest, null, 2)
+      // )
       P2P.postJson(
         `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
         dataRequest

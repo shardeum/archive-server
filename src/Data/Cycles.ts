@@ -122,7 +122,7 @@ function updateNodeList(cycle: Cycle) {
   // Remove apoptosized nodes
   const apoptosized = safeParse<string[]>(
     [],
-    cycle.lost,
+    cycle.apoptosized,
     `Error processing cycle ${cycle.counter}: failed to parse apoptosized`
   )
   const apoptosizedPks = apoptosized.reduce((keys: string[], id) => {
