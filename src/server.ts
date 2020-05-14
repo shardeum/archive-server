@@ -76,7 +76,7 @@ function startServer() {
     // [TODO] req type guard
     // [TODO] Verify req signature
 
-    const ip = request.req.socket.remoteAddress || signedFirstNodeInfo.ip
+    const ip = signedFirstNodeInfo.nodeInfo.externalIp
     const port = signedFirstNodeInfo.nodeInfo.externalPort
     const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
 
@@ -135,9 +135,9 @@ function startServer() {
     if (nodeList.length < 1) {
       nodeList = NodeList.getList().slice(0, 1)
     }
-    const nodes = nodeList.map(node => node.port)
+    const nodes = nodeList.map((node) => node.port)
     const senders = [...Data.dataSenders.values()].map(
-      sender => sender.nodeInfo.port
+      (sender) => sender.nodeInfo.port
     )
     const lastData = Cycles.currentCycleCounter
 

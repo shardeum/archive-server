@@ -12,7 +12,7 @@ export interface ArchiverJoinRequest {
 
 export interface FirstNodeInfo {
   nodeInfo: {
-    ip: string
+    externalIp: string
     externalPort: number
     publicKey: string
   }
