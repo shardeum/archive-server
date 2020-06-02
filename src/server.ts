@@ -135,9 +135,9 @@ function startServer() {
     if (nodeList.length < 1) {
       nodeList = NodeList.getList().slice(0, 1)
     }
-    const nodes = nodeList.map((node) => node.port)
+    const nodes = nodeList.map(node => node.port)
     const senders = [...Data.dataSenders.values()].map(
-      (sender) => sender.nodeInfo.port
+      sender => sender.nodeInfo.port
     )
     const lastData = Cycles.currentCycleCounter
 
@@ -155,6 +155,22 @@ function startServer() {
       port: config.ARCHIVER_PORT,
       time: Date.now(),
     })
+  })
+
+  server.get('/cycleinfo', async (_request, reply) => {
+    let cycleInfo = await Storage.queryAllCycles()
+    const res = Crypto.sign({
+      cycleInfo,
+    })
+    reply.send(res)
+  })
+
+  server.get('/cycleinfo/latest', async (_request, reply) => {
+    let cycleInfo = await Storage.queryLatestCycle()
+    const res = Crypto.sign({
+      cycleInfo,
+    })
+    reply.send(res)
   })
 
   // [TODO] Remove this before production

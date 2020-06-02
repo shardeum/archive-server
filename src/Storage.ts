@@ -37,6 +37,7 @@ export async function initStorage(dbFile: string) {
       table.json('lost')
       table.json('refuted')
       table.json('apoptosized')
+      table.json('syncing')
     })
   }
 }
@@ -89,4 +90,17 @@ export async function storeCycle(cycle: Cycle) {
       ? JSON.stringify(cycle.apoptosized)
       : cycle.apoptosized
   await db('cycles').insert(cycle)
+}
+
+export async function queryAllCycles () {
+  let data = await db('cycles').select('*')
+  return data
+}
+
+export async function queryLatestCycle () {
+  let data = await db('cycles')
+    .select('*')
+    .orderBy('counter', 'desc')
+    .limit(1)
+  return data
 }
