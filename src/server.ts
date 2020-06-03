@@ -135,9 +135,9 @@ function startServer() {
     if (nodeList.length < 1) {
       nodeList = NodeList.getList().slice(0, 1)
     }
-    const nodes = nodeList.map(node => node.port)
+    const nodes = nodeList.map((node) => node.port)
     const senders = [...Data.dataSenders.values()].map(
-      sender => sender.nodeInfo.port
+      (sender) => sender.nodeInfo.port
     )
     const lastData = Cycles.currentCycleCounter
 
@@ -165,8 +165,10 @@ function startServer() {
     reply.send(res)
   })
 
-  server.get('/cycleinfo/latest', async (_request, reply) => {
-    let cycleInfo = await Storage.queryLatestCycle()
+  server.get('/cycleinfo/:count', async (_request, reply) => {
+    let count = _request.params.count
+    console.log(_request.params)
+    let cycleInfo = await Storage.queryLatestCycle(count)
     const res = Crypto.sign({
       cycleInfo,
     })

@@ -92,15 +92,15 @@ export async function storeCycle(cycle: Cycle) {
   await db('cycles').insert(cycle)
 }
 
-export async function queryAllCycles () {
+export async function queryAllCycles() {
   let data = await db('cycles').select('*')
   return data
 }
 
-export async function queryLatestCycle () {
+export async function queryLatestCycle(count = 1) {
   let data = await db('cycles')
     .select('*')
     .orderBy('counter', 'desc')
-    .limit(1)
+    .limit(count)
   return data
 }
