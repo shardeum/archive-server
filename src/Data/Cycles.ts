@@ -12,6 +12,7 @@ export interface Cycle {
   active: number
   desired: number
   expired: number
+  syncing: number
   joined: string
   joinedArchivers: string
   joinedConsensors: string
@@ -72,7 +73,7 @@ function updateNodeList(cycle: Cycle) {
     `Error processing cycle ${cycle.counter}: failed to parse joinedConsensors`
   )
 
-  const consensorInfos = joinedConsensors.map(jc => ({
+  const consensorInfos = joinedConsensors.map((jc) => ({
     ip: jc.externalIp,
     port: jc.externalPort,
     publicKey: jc.publicKey,

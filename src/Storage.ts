@@ -14,7 +14,7 @@ export async function initStorage(dbFile: string) {
 
   // Create a cycles table if it doesn't exist
   if ((await db.schema.hasTable('cycles')) === false) {
-    await db.schema.createTable('cycles', table => {
+    await db.schema.createTable('cycles', (table) => {
       table.bigInteger('counter')
       table.json('certificate')
       table.text('previous')
@@ -24,6 +24,7 @@ export async function initStorage(dbFile: string) {
       table.bigInteger('active')
       table.bigInteger('desired')
       table.bigInteger('expired')
+      table.bigInteger('syncing')
       table.json('joined')
       table.json('joinedArchivers')
       table.json('joinedConsensors')
