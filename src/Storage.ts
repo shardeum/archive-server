@@ -3,7 +3,7 @@ import knex = require('knex')
 
 let db: knex
 
-export async function initStorage(dbFile: string) {
+export async function initStorage (dbFile: string) {
   // Connect to a db
   db = knex({
     client: 'sqlite3',
@@ -14,7 +14,7 @@ export async function initStorage(dbFile: string) {
 
   // Create a cycles table if it doesn't exist
   if ((await db.schema.hasTable('cycles')) === false) {
-    await db.schema.createTable('cycles', (table) => {
+    await db.schema.createTable('cycles', table => {
       table.bigInteger('counter')
       table.json('certificate')
       table.text('previous')
@@ -37,12 +37,12 @@ export async function initStorage(dbFile: string) {
       table.json('lost')
       table.json('refuted')
       table.json('apoptosized')
-      table.json('syncing')
     })
+    console.log('Cycle table created.')
   }
 }
 
-export async function storeCycle(cycle: Cycle) {
+export async function storeCycle (cycle: Cycle) {
   cycle.joined =
     typeof cycle.joined !== 'string'
       ? JSON.stringify(cycle.joined)
@@ -92,12 +92,12 @@ export async function storeCycle(cycle: Cycle) {
   await db('cycles').insert(cycle)
 }
 
-export async function queryAllCycles() {
+export async function queryAllCycles () {
   let data = await db('cycles').select('*')
   return data
 }
 
-export async function queryLatestCycle(count = 1) {
+export async function queryLatestCycle (count = 1) {
   let data = await db('cycles')
     .select('*')
     .orderBy('counter', 'desc')
