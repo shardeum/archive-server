@@ -144,6 +144,16 @@ function startServer() {
     reply.send(res)
   })
 
+  server.get('/full-nodelist', (_request, reply) => {
+    const activeNodeList = NodeList.getActiveList()
+    const syncingNodeList = NodeList.getSyncingList()
+    const fullNodeList = activeNodeList.concat(syncingNodeList)
+    const res = Crypto.sign({
+      nodeList: fullNodeList,
+    })
+    reply.send(res)
+  })
+
   server.get('/debug', (_request, reply) => {
     let nodeList = NodeList.getActiveList()
     if (nodeList.length < 1) {
