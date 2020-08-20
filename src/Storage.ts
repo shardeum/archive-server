@@ -13,6 +13,7 @@ export async function initStorage (dbFile: string) {
   })
 
   // Create a cycles table if it doesn't exist
+  // TODO: add safetyMode, safetyNum, networkId columns
   if ((await db.schema.hasTable('cycles')) === false) {
     await db.schema.createTable('cycles', table => {
       table.bigInteger('counter')
