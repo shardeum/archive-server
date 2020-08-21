@@ -201,6 +201,24 @@ function startServer() {
     reply.send(res)
   })
 
+  server.get('/statehashes', async (_request, reply) => {
+    let stateHashes = await Storage.queryAllStateHashes()
+    const res = Crypto.sign({
+      stateHashes,
+    })
+    reply.send(res)
+  })
+
+  server.get('/statehashes/:count', async (_request, reply) => {
+    let count = _request.params.count
+    console.log(_request.params)
+    let stateHashes = await Storage.queryLatestStateHash(count)
+    const res = Crypto.sign({
+      stateHashes,
+    })
+    reply.send(res)
+  })
+
   // [TODO] Remove this before production
   server.get('/exit', (_request, reply) => {
     reply.send('Shutting down...')

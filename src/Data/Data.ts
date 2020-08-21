@@ -10,7 +10,7 @@ import {
   processCycles,
 } from './Cycles'
 import { Transaction } from './Transactions'
-import { StateHashes } from './State'
+import { StateHashes, processStateHashes } from './State'
 
 // Data types
 
@@ -243,7 +243,8 @@ function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
       break
     }
     case TypeNames.STATE: {
-      // [TODO] process state data
+      // [TODO] validate the state data by robust querying other nodes
+      processStateHashes(newData.responses.STATE as StateHashes[])
       break
     }
     default: {
@@ -275,8 +276,7 @@ export const routePostNewdata: fastify.RouteOptions<
   handler: (request, reply) => {
     const newData = request.body
 
-    console.log('GOT NEWDATA')
-    console.log(newData)
+    console.log('GOT NEWDATA', JSON.stringify(newData))
 
     const resp = { keepAlive: true } as DataKeepAlive
 

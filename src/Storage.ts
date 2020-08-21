@@ -1,5 +1,6 @@
 import { Cycle } from './Data/Cycles'
 import knex = require('knex')
+import { StateHashes } from './Data/State'
 
 let db: knex
 
@@ -16,6 +17,10 @@ export async function initStorage (dbFile: string) {
   // TODO: add safetyMode, safetyNum, networkId columns
   if ((await db.schema.hasTable('cycles')) === false) {
     await db.schema.createTable('cycles', table => {
+      table.boolean('safetyMode')
+      table.bigInteger('safetyNum')
+      table.text('networkId')
+      table.text('networkStateHash')
       table.bigInteger('counter')
       table.json('certificate')
       table.text('previous')
@@ -40,6 +45,16 @@ export async function initStorage (dbFile: string) {
       table.json('apoptosized')
     })
     console.log('Cycle table created.')
+  }
+
+  // TODO: add safetyMode, safetyNum, networkId columns
+  if ((await db.schema.hasTable('stateHashes')) === false) {
+    await db.schema.createTable('stateHashes', table => {
+      table.bigInteger('counter')
+      table.json('partitionHashes')
+      table.text('networkHash')
+    })
+    console.log('StateHashes table created.')
   }
 }
 
@@ -93,6 +108,14 @@ export async function storeCycle (cycle: Cycle) {
   await db('cycles').insert(cycle)
 }
 
+export async function storeStateHashes (stateHashes: StateHashes) {
+  console.log('Storing state hashes')
+  await db('stateHashes').insert({
+    ...stateHashes,
+    partitionHashes: JSON.stringify(stateHashes.partitionHashes)
+  })
+}
+
 export async function queryAllCycles () {
   let data = await db('cycles').select('*')
   return data
@@ -100,6 +123,19 @@ export async function queryAllCycles () {
 
 export async function queryLatestCycle (count = 1) {
   let data = await db('cycles')
+    .select('*')
+    .orderBy('counter', 'desc')
+    .limit(count)
+  return data
+}
+
+export async function queryAllStateHashes () {
+  let data = await db('stateHashes').select('*')
+  return data
+}
+
+export async function queryLatestStateHash (count = 1) {
+  let data = await db('stateHashes')
     .select('*')
     .orderBy('counter', 'desc')
     .limit(count)
