@@ -74,23 +74,20 @@ export function createCombinedDataRequest<T extends ValidTypes>(
   DataRequest: (DataRequest<Cycle> | DataRequest<StateHashes>)[],
   recipientPk: Crypto.types.publicKey
 ) {
-  return Crypto.tag(
-    {data: DataRequest},
-    recipientPk
-  )
+  return Crypto.tag({ data: DataRequest }, recipientPk)
 }
 
 // Vars to track Data senders
 
-interface DataSender<T extends ValidTypes> {
+interface DataSender {
   nodeInfo: NodeList.ConsensusNodeInfo
-  type: (TypeNames.CYCLE | TypeNames.STATE)[]
+  types: (keyof typeof TypeNames)[]
   contactTimeout?: NodeJS.Timeout
 }
 
 export const dataSenders: Map<
   NodeList.ConsensusNodeInfo['publicKey'],
-  DataSender<ValidTypes>
+  DataSender
 > = new Map()
 
 const timeoutPadding = 1000
@@ -115,9 +112,9 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
 
   // Pick a new dataSender
   const newSenderInfo = selectNewDataSender()
-  const newSender: DataSender<Cycle> = {
+  const newSender: DataSender = {
     nodeInfo: newSenderInfo,
-    type: [TypeNames.CYCLE, TypeNames.STATE],
+    types: [TypeNames.CYCLE, TypeNames.STATE],
     contactTimeout: createContactTimeout(newSenderInfo.publicKey),
   }
   // console.log(
@@ -172,7 +169,7 @@ function createContactTimeout(
   return contactTimeout
 }
 
-export function addDataSenders(...senders: Array<DataSender<ValidTypes>>) {
+export function addDataSenders(...senders: DataSender[]) {
   for (const sender of senders) {
     dataSenders.set(sender.nodeInfo.publicKey, sender)
   }
@@ -208,8 +205,8 @@ function selectNewDataSender() {
 }
 
 function sendDataRequest(
-  sender: DataSender<Cycle>,
-  dataRequest: (DataRequest<Cycle> | DataRequest<StateHashes>)[]
+  sender: DataSender,
+  dataRequest: DataRequest<ValidTypes>[]
 ) {
   // TODO: crypto.tag cannot handle array type. To change something else
   const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey)
@@ -280,8 +277,9 @@ export const routePostNewdata: fastify.RouteOptions<
 
     const resp = { keepAlive: true } as DataKeepAlive
 
-    // If publicKey is not in dataSenders, dont keepAlive, END
     const sender = dataSenders.get(newData.publicKey)
+
+    // If publicKey is not in dataSenders, dont keepAlive, END
     if (!sender) {
       resp.keepAlive = false
       Crypto.tag(resp, newData.publicKey)
@@ -291,12 +289,19 @@ export const routePostNewdata: fastify.RouteOptions<
     }
 
     // If unexpected data type from sender, dont keepAlive, END
-    if (newData.type.indexOf(newData.type) === -1) {
-      resp.keepAlive = false
-      Crypto.tag(resp, newData.publicKey)
-      reply.send(resp)
-      console.log(`NEW DATA type ${newData.type} not included in sender's type: ${JSON.stringify(sender.type)}`)
-      return
+    const newDataTypes = Object.keys(newData.responses)
+    for (const type of newDataTypes as (keyof typeof TypeNames)[]) {
+      if (sender.types.includes(type) === false) {
+        resp.keepAlive = false
+        Crypto.tag(resp, newData.publicKey)
+        reply.send(resp)
+        console.log(
+          `NEW DATA type ${type} not included in sender's types: ${JSON.stringify(
+            sender.types
+          )}`
+        )
+        return
+      }
     }
 
     // If tag is invalid, dont keepAlive, END

@@ -93,14 +93,13 @@ function startServer() {
       // Set first node as dataSender
       Data.addDataSenders({
         nodeInfo: firstNode,
-        type: [Data.TypeNames.CYCLE, Data.TypeNames.STATE],
+        types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE],
       })
 
       const dataRequestCycle: Data.DataRequest<Cycles.Cycle> = {
         type: Data.TypeNames.CYCLE,
         lastData: Cycles.currentCycleCounter,
       } as Data.DataRequest<Cycles.Cycle>
-    
       const dataRequestSTATE: Data.DataRequest<StateHashes> = {
         type: Data.TypeNames.STATE,
         lastData: Cycles.currentCycleCounter,
