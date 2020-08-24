@@ -205,6 +205,7 @@ export function addDataSenders(...senders: DataSender[]) {
 function removeDataSenders(
   ...publicKeys: Array<NodeList.ConsensusNodeInfo['publicKey']>
 ) {
+  // console.log(`Removing data sender ${JSON.stringify([...publicKeys])}`)
   const removedSenders = []
   for (const key of publicKeys) {
     const sender = dataSenders.get(key)
@@ -256,28 +257,31 @@ function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
     clearTimeout(sender.contactTimeout)
   }
 
-  // Process data depending on type
-  switch (newData.type) {
-    case TypeNames.CYCLE: {
-      // Process cycles
-      processCycles(newData.responses.CYCLE as Cycle[])
-      break
-    }
-    case TypeNames.TRANSACTION: {
-      // [TODO] process transactions
-      break
-    }
-    case TypeNames.STATE: {
-      // [TODO] validate the state data by robust querying other nodes
-      processStateHashes(newData.responses.STATE as StateHashes[])
-      break
-    }
-    default: {
-      // If data type not recognized, remove sender from dataSenders
-      removeDataSenders(newData.publicKey)
+  const newDataTypes = Object.keys(newData.responses)
+  for (const type of newDataTypes as (keyof typeof TypeNames)[]) {
+
+    // Process data depending on type
+    switch (type) {
+      case TypeNames.CYCLE: {
+        // Process cycles
+        processCycles(newData.responses.CYCLE as Cycle[])
+        break
+      }
+      case TypeNames.TRANSACTION: {
+        // [TODO] process transactions
+        break
+      }
+      case TypeNames.STATE: {
+        // [TODO] validate the state data by robust querying other nodes
+        processStateHashes(newData.responses.STATE as StateHashes[])
+        break
+      }
+      default: {
+        // If data type not recognized, remove sender from dataSenders
+        removeDataSenders(newData.publicKey)
+      }
     }
   }
-
   // Set new contactTimeout for sender
   if (currentCycleDuration > 0) {
     sender.contactTimeout = createContactTimeout(sender.nodeInfo.publicKey)
