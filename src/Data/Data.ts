@@ -12,6 +12,11 @@ import {
 import { Transaction } from './Transactions'
 import { Partition } from './Partitions'
 
+// Socket modules
+let socketServer: SocketIO.Server
+let ioclient: SocketIOClientStatic = require('socket.io-client')
+let socketClient: SocketIOClientStatic["Socket"]
+
 // Data types
 
 export type ValidTypes = Cycle | Transaction | Partition
@@ -48,6 +53,27 @@ interface DataResponse<T extends ValidTypes> {
 
 interface DataKeepAlive {
   keepAlive: boolean
+}
+
+export function initSocketServer(io: SocketIO.Server) {
+  socketServer = io
+  socketServer.on('connection', (socket: SocketIO.Socket) => {
+    console.log('Explorer has connected')
+  })
+}
+
+export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
+  console.log(node)
+  socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
+
+  socketClient.on('connect', () => {
+    console.log('Connection to consensus node was made')
+  })
+
+  socketClient.on('DATA', (data: unknown) => {
+    console.log(data)
+    socketServer.emit('DATA', data)
+  })
 }
 
 export function createDataRequest<T extends ValidTypes>(
@@ -123,7 +149,9 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
     type: TypeNames.CYCLE,
     lastData: currentCycleCounter,
   } as DataRequest<Cycle>
+
   sendDataRequest(newSender, dataRequest)
+
   // console.log(
   //   `replaceDataSender: sent dataRequest to new sender: ${JSON.stringify(
   //     dataRequest,
@@ -181,6 +209,7 @@ function selectNewDataSender() {
   // Randomly pick an active node
   const activeList = NodeList.getActiveList()
   const newSender = activeList[Math.floor(Math.random() * activeList.length)]
+  initSocketClient(newSender)
   return newSender
 }
 

@@ -11,7 +11,9 @@ import * as Storage from './Storage'
 import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
 
-const ioclient: SocketIOClientStatic = require('socket.io-client')
+// Socket modules
+let io: SocketIO.Server
+let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic["Socket"]
 
 // Override default config params from config file, env vars, and cli args
@@ -43,10 +45,11 @@ if (State.isFirst === false) {
   // [TODO] If your not the first archiver node, get a nodelist from the others
   // [TODO] Send a join request to a consensus node from the nodelist
   // [TODO] After you've joined, select a consensus node to be your dataSender
-  startServer()
+  io = startServer()
 } else {
-  startServer()
+  io = startServer()
 }
+
 
 // Define all endpoints, all requests, and start REST server
 function startServer() {
@@ -59,6 +62,11 @@ function startServer() {
   })
 
   server.register(fastifyCors)
+
+
+  // Socket server instance
+  io = (require('socket.io'))(server.server)
+  Data.initSocketServer(io)
 
   // ========== ENDPOINTS ==========
 
@@ -89,6 +97,8 @@ function startServer() {
         port,
         publicKey,
       }
+
+      Data.initSocketClient(firstNode)
 
       // Add first node to NodeList
       // NodeList.addNodes(NodeList.Statuses.SYNCING, firstCycleMarker, firstNode)
@@ -121,10 +131,6 @@ function startServer() {
       })
       reply.send(res)
     }
-  })
-
-  server.post('/subscribe', (req, res) => {
-    
   })
 
   server.get('/nodelist', (_request, reply) => {
@@ -217,20 +223,6 @@ function startServer() {
     }
   )
 
-  const io = (require('socket.io'))(server.server)
-
-  io.on('connection', (socket: SocketIO.Socket) => {
-    console.log('CONNECTED')
-  })
-
-  socketClient = ioclient.connect('http://localhost:9001')
-  socketClient.on('connect', () => {
-    console.log('Connection to consensus node was made')
-  })
-  socketClient.on('DATA', (data: unknown) => {
-    console.log(data)
-    io.emit('DATA', data)
-  })
   // Start server and bind to port on all interfaces
   server.listen(config.ARCHIVER_PORT, '0.0.0.0', (err, _address) => {
     console.log('Listening3')
@@ -239,4 +231,5 @@ function startServer() {
       process.exit(1)
     }
   })
+  return io
 }
