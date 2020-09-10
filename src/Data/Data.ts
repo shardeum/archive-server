@@ -121,7 +121,7 @@ const timeoutPadding = 1000
 export const emitter = new EventEmitter()
 
 function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
-  // console.log(`replaceDataSender: replacing ${publicKey}`)
+  console.log(`replaceDataSender: replacing ${publicKey}`)
 
   // Remove old dataSender
   const removedSenders = removeDataSenders(publicKey)
@@ -153,9 +153,9 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
 
   // Add new dataSender to dataSenders
   addDataSenders(newSender)
-  // console.log(
-  //   `replaceDataSender: added new sender ${newSenderInfo.publicKey} to dataSenders`
-  // )
+  console.log(
+    `replaceDataSender: added new sender ${newSenderInfo.publicKey} to dataSenders`
+  )
 
   // Send dataRequest to new dataSender
   const dataRequestCycle: DataRequest<Cycle> = {
@@ -168,7 +168,19 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
     lastData: currentCycleCounter,
   } as DataRequest<StateHashes>
 
-  const dataRequest = [dataRequestCycle, dataRequestSTATE]
+  const dataRequest = {
+    dataRequestCycle: createDataRequest<Cycle>(
+      TypeNames.CYCLE,
+      currentCycleCounter,
+      publicKey
+    ),
+    dataRequestState: createDataRequest<StateHashes>(
+      TypeNames.STATE,
+      currentCycleCounter,
+      publicKey
+    )
+  }
+
   sendDataRequest(newSender, dataRequest)
 
   // console.log(
@@ -235,7 +247,7 @@ function selectNewDataSender() {
 
 function sendDataRequest(
   sender: DataSender,
-  dataRequest: DataRequest<ValidTypes>[]
+  dataRequest: any
 ) {
   // TODO: crypto.tag cannot handle array type. To change something else
   const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey)
@@ -305,7 +317,7 @@ export const routePostNewdata: fastify.RouteOptions<
   handler: (request, reply) => {
     const newData = request.body
 
-    console.log('GOT NEWDATA', JSON.stringify(newData))
+    // console.log('GOT NEWDATA', JSON.stringify(newData))
 
     const resp = { keepAlive: true } as DataKeepAlive
 

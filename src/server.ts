@@ -110,15 +110,6 @@ function startServer() {
         types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE],
       })
 
-      const dataRequestCycle: Data.DataRequest<Cycles.Cycle> = {
-        type: Data.TypeNames.CYCLE,
-        lastData: Cycles.currentCycleCounter,
-      } as Data.DataRequest<Cycles.Cycle>
-      const dataRequestSTATE: Data.DataRequest<StateHashes> = {
-        type: Data.TypeNames.STATE,
-        lastData: Cycles.currentCycleCounter,
-      } as Data.DataRequest<StateHashes>
-
       const res = Crypto.sign<P2P.FirstNodeResponse>({
         nodeList: NodeList.getList(),
         joinRequest: P2P.createArchiverJoinRequest(),
@@ -250,20 +241,25 @@ function startServer() {
 
   Data.emitter.on(
     'selectNewDataSender',
-    (
+    async (
       newSenderInfo: NodeList.ConsensusNodeInfo,
-      dataRequest: Data.DataRequest<Cycles.Cycle> & Crypto.TaggedMessage
+      dataRequest: any
     ) => {
+      let request = {
+        ...dataRequest,
+        nodeInfo: State.getNodeInfo()
+      }
       // Omar added this logging
-      console.log('Sending data request to: ', newSenderInfo.port)
-      console.log(
+      // console.log('Sending data request to: ', newSenderInfo.port)
+      // console.log(
+      //   `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
+      //   JSON.stringify(request, null, 2)
+      // )
+      let response = await P2P.postJson(
         `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
-        JSON.stringify(dataRequest, null, 2)
+        request
       )
-      P2P.postJson(
-        `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
-        dataRequest
-      )
+      console.log('Data request response:', response)
     }
   )
 
