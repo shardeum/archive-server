@@ -10,6 +10,7 @@ import * as P2P from './P2P'
 import * as Storage from './Storage'
 import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
+import { StateHashes } from './Data/State'
 
 // Socket modules
 let io: SocketIO.Server
@@ -106,14 +107,29 @@ function startServer() {
       // Set first node as dataSender
       Data.addDataSenders({
         nodeInfo: firstNode,
-        type: Data.TypeNames.CYCLE,
+        type: [Data.TypeNames.CYCLE, Data.TypeNames.STATE],
       })
+
+      const dataRequestCycle: Data.DataRequest<Cycles.Cycle> = {
+        type: Data.TypeNames.CYCLE,
+        lastData: Cycles.currentCycleCounter,
+      } as Data.DataRequest<Cycles.Cycle>
+    
+      const dataRequestSTATE: Data.DataRequest<StateHashes> = {
+        type: Data.TypeNames.STATE,
+        lastData: Cycles.currentCycleCounter,
+      } as Data.DataRequest<StateHashes>
 
       const res = Crypto.sign<P2P.FirstNodeResponse>({
         nodeList: NodeList.getList(),
         joinRequest: P2P.createArchiverJoinRequest(),
-        dataRequest: Data.createDataRequest<Cycles.Cycle>(
+        dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
           Data.TypeNames.CYCLE,
+          Cycles.currentCycleCounter,
+          publicKey
+        ),
+        dataRequestState: Data.createDataRequest<StateHashes>(
+          Data.TypeNames.STATE,
           Cycles.currentCycleCounter,
           publicKey
         ),
@@ -222,10 +238,11 @@ function startServer() {
       dataRequest: Data.DataRequest<Cycles.Cycle> & Crypto.TaggedMessage
     ) => {
       // Omar added this logging
-      // console.log(
-      //   `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
-      //   JSON.stringify(dataRequest, null, 2)
-      // )
+      console.log('Sending data request to: ', newSenderInfo.port)
+      console.log(
+        `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
+        JSON.stringify(dataRequest, null, 2)
+      )
       P2P.postJson(
         `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
         dataRequest
@@ -240,6 +257,7 @@ function startServer() {
       server.log.error(err)
       process.exit(1)
     }
+    console.log('Archive-server has started.')
   })
   return io
 }

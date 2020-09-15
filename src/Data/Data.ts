@@ -10,7 +10,7 @@ import {
   processCycles,
 } from './Cycles'
 import { Transaction } from './Transactions'
-import { Partition } from './Partitions'
+import { StateHashes } from './State'
 
 // Socket modules
 let socketServer: SocketIO.Server
@@ -19,25 +19,31 @@ let socketClient: SocketIOClientStatic["Socket"]
 
 // Data types
 
-export type ValidTypes = Cycle | Transaction | Partition
+export type ValidTypes = Cycle | Transaction | StateHashes
 
 export enum TypeNames {
   CYCLE = 'CYCLE',
   TRANSACTION = 'TRANSACTION',
-  PARTITION = 'PARTITION',
+  STATE = 'STATE',
+}
+
+interface NamesToTypes {
+  CYCLE: Cycle
+  TRANSACTION: Transaction
+  STATE: StateHashes
 }
 
 export type TypeName<T extends ValidTypes> = T extends Cycle
   ? TypeNames.CYCLE
   : T extends Transaction
   ? TypeNames.TRANSACTION
-  : TypeNames.PARTITION
+  : TypeNames.STATE
 
 export type TypeIndex<T extends ValidTypes> = T extends Cycle
   ? Cycle['counter']
   : T extends Transaction
   ? Transaction['id']
-  : Partition['hash']
+  : StateHashes['counter']
 
 // Data network messages
 
@@ -90,11 +96,21 @@ export function createDataRequest<T extends ValidTypes>(
   )
 }
 
+export function createCombinedDataRequest<T extends ValidTypes>(
+  DataRequest: (DataRequest<Cycle> | DataRequest<StateHashes>)[],
+  recipientPk: Crypto.types.publicKey
+) {
+  return Crypto.tag(
+    {data: DataRequest},
+    recipientPk
+  )
+}
+
 // Vars to track Data senders
 
 interface DataSender<T extends ValidTypes> {
   nodeInfo: NodeList.ConsensusNodeInfo
-  type: TypeName<T>
+  type: (TypeNames.CYCLE | TypeNames.STATE)[]
   contactTimeout?: NodeJS.Timeout
 }
 
@@ -127,7 +143,7 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   const newSenderInfo = selectNewDataSender()
   const newSender: DataSender<Cycle> = {
     nodeInfo: newSenderInfo,
-    type: TypeNames.CYCLE,
+    type: [TypeNames.CYCLE, TypeNames.STATE],
     contactTimeout: createContactTimeout(newSenderInfo.publicKey),
   }
   // console.log(
@@ -145,11 +161,17 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   // )
 
   // Send dataRequest to new dataSender
-  const dataRequest: DataRequest<Cycle> = {
+  const dataRequestCycle: DataRequest<Cycle> = {
     type: TypeNames.CYCLE,
     lastData: currentCycleCounter,
   } as DataRequest<Cycle>
 
+  const dataRequestSTATE: DataRequest<StateHashes> = {
+    type: TypeNames.STATE,
+    lastData: currentCycleCounter,
+  } as DataRequest<StateHashes>
+
+  const dataRequest = [dataRequestCycle, dataRequestSTATE]
   sendDataRequest(newSender, dataRequest)
 
   // console.log(
@@ -215,8 +237,9 @@ function selectNewDataSender() {
 
 function sendDataRequest(
   sender: DataSender<Cycle>,
-  dataRequest: DataRequest<Cycle>
+  dataRequest: (DataRequest<Cycle> | DataRequest<StateHashes>)[]
 ) {
+  // TODO: crypto.tag cannot handle array type. To change something else
   const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey)
   emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
 }
@@ -240,15 +263,15 @@ function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
   switch (newData.type) {
     case TypeNames.CYCLE: {
       // Process cycles
-      processCycles(newData.data as Cycle[])
+      processCycles(newData.responses.CYCLE as Cycle[])
       break
     }
     case TypeNames.TRANSACTION: {
       // [TODO] process transactions
       break
     }
-    case TypeNames.PARTITION: {
-      // [TODO] process partitions
+    case TypeNames.STATE: {
+      // [TODO] process state data
       break
     }
     default: {
@@ -280,7 +303,8 @@ export const routePostNewdata: fastify.RouteOptions<
   handler: (request, reply) => {
     const newData = request.body
 
-    // console.log('GOT NEWDATA', JSON.stringify(newData, null, 2))
+    console.log('GOT NEWDATA')
+    console.log(newData)
 
     const resp = { keepAlive: true } as DataKeepAlive
 
@@ -290,14 +314,16 @@ export const routePostNewdata: fastify.RouteOptions<
       resp.keepAlive = false
       Crypto.tag(resp, newData.publicKey)
       reply.send(resp)
+      console.log('NO SENDER')
       return
     }
 
     // If unexpected data type from sender, dont keepAlive, END
-    if (sender.type !== newData.type) {
+    if (newData.type.indexOf(newData.type) === -1) {
       resp.keepAlive = false
       Crypto.tag(resp, newData.publicKey)
       reply.send(resp)
+      console.log(`NEW DATA type ${newData.type} not included in sender's type: ${JSON.stringify(sender.type)}`)
       return
     }
 
