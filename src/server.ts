@@ -11,6 +11,7 @@ import * as Storage from './Storage'
 import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
 import { StateHashes } from './Data/State'
+import { ReceiptHashes } from './Data/Receipt'
 
 // Socket modules
 let io: SocketIO.Server
@@ -107,7 +108,7 @@ function startServer() {
       // Set first node as dataSender
       Data.addDataSenders({
         nodeInfo: firstNode,
-        types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE],
+        types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE, Data.TypeNames.RECEIPT],
       })
 
       const res = Crypto.sign<P2P.FirstNodeResponse>({
@@ -120,6 +121,11 @@ function startServer() {
         ),
         dataRequestState: Data.createDataRequest<StateHashes>(
           Data.TypeNames.STATE,
+          Cycles.currentCycleCounter,
+          publicKey
+        ),
+        dataRequestReceipt: Data.createDataRequest<ReceiptHashes>(
+          Data.TypeNames.RECEIPT,
           Cycles.currentCycleCounter,
           publicKey
         ),

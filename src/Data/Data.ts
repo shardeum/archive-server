@@ -11,6 +11,7 @@ import {
 } from './Cycles'
 import { Transaction } from './Transactions'
 import { StateHashes, processStateHashes } from './State'
+import { ReceiptHashes, processReceiptHashes } from './Receipt'
 
 // Socket modules
 let socketServer: SocketIO.Server
@@ -19,30 +20,32 @@ let socketClient: SocketIOClientStatic["Socket"]
 
 // Data types
 
-export type ValidTypes = Cycle | Transaction | StateHashes
+export type ValidTypes = Cycle | Transaction | StateHashes | ReceiptHashes
 
 export enum TypeNames {
   CYCLE = 'CYCLE',
   TRANSACTION = 'TRANSACTION',
   STATE = 'STATE',
+  RECEIPT = 'RECEIPT',
 }
 
 interface NamesToTypes {
   CYCLE: Cycle
   TRANSACTION: Transaction
   STATE: StateHashes
+  RECEIPT: ReceiptHashes
 }
 
 export type TypeName<T extends ValidTypes> = T extends Cycle
   ? TypeNames.CYCLE
-  : T extends Transaction
-  ? TypeNames.TRANSACTION
+  : T extends ReceiptHashes
+  ? TypeNames.RECEIPT
   : TypeNames.STATE
 
 export type TypeIndex<T extends ValidTypes> = T extends Cycle
   ? Cycle['counter']
-  : T extends Transaction
-  ? Transaction['id']
+  : T extends ReceiptHashes
+  ? ReceiptHashes['counter']
   : StateHashes['counter']
 
 // Data network messages
@@ -140,7 +143,7 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   const newSenderInfo = selectNewDataSender()
   const newSender: DataSender = {
     nodeInfo: newSenderInfo,
-    types: [TypeNames.CYCLE, TypeNames.STATE],
+    types: [TypeNames.CYCLE, TypeNames.STATE, TypeNames.RECEIPT],
     contactTimeout: createContactTimeout(newSenderInfo.publicKey),
   }
   // console.log(
@@ -158,16 +161,6 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   )
 
   // Send dataRequest to new dataSender
-  const dataRequestCycle: DataRequest<Cycle> = {
-    type: TypeNames.CYCLE,
-    lastData: currentCycleCounter,
-  } as DataRequest<Cycle>
-
-  const dataRequestSTATE: DataRequest<StateHashes> = {
-    type: TypeNames.STATE,
-    lastData: currentCycleCounter,
-  } as DataRequest<StateHashes>
-
   const dataRequest = {
     dataRequestCycle: createDataRequest<Cycle>(
       TypeNames.CYCLE,
@@ -178,7 +171,12 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
       TypeNames.STATE,
       currentCycleCounter,
       publicKey
-    )
+    ),
+    dataRequestReceipt: createDataRequest<ReceiptHashes>(
+      TypeNames.RECEIPT,
+      currentCycleCounter,
+      publicKey
+    ),
   }
 
   sendDataRequest(newSender, dataRequest)
@@ -260,6 +258,7 @@ function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
 
   // If no sender entry, remove publicKey from senders, END
   if (!sender) {
+    console.log('No sender found')
     removeDataSenders(newData.publicKey)
     return
   }
@@ -288,8 +287,14 @@ function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
         processStateHashes(newData.responses.STATE as StateHashes[])
         break
       }
+      case TypeNames.RECEIPT: {
+        // [TODO] validate the state data by robust querying other nodes
+        processReceiptHashes(newData.responses.RECEIPT as ReceiptHashes[])
+        break
+      }
       default: {
         // If data type not recognized, remove sender from dataSenders
+        console.log('Unknow data type detected', type)
         removeDataSenders(newData.publicKey)
       }
     }

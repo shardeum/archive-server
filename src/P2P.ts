@@ -6,6 +6,7 @@ import 'node-fetch'
 import fetch from 'node-fetch'
 import { Cycle } from './Data/Cycles'
 import { StateHashes } from './Data/State'
+import { ReceiptHashes } from './Data/Receipt'
 
 export interface ArchiverJoinRequest {
   nodeInfo: State.ArchiverNodeInfo
@@ -24,6 +25,7 @@ export interface FirstNodeResponse {
   joinRequest?: ArchiverJoinRequest & Crypto.SignedMessage
   dataRequestCycle?: Data.DataRequest<Cycle> & Crypto.TaggedMessage
   dataRequestState?: Data.DataRequest<StateHashes> & Crypto.TaggedMessage
+  dataRequestReceipt?: Data.DataRequest<ReceiptHashes> & Crypto.TaggedMessage
 }
 
 export function createArchiverJoinRequest() {
