@@ -1,6 +1,6 @@
 {
   "name": "archive-server",
-  "version": "0.0.0",
+  "version": "1.1.0",
   "description": "",
   "main": "./build/server.js",
   "types": "./build/server.d.ts",
@@ -48,6 +48,6 @@
     "minimist": "^1.2.0",
     "node-fetch": "^2.6.0",
     "shardus-crypto-utils": "git+https://gitlab.com/shardus/shardus-crypto-utils.git",
-    "sqlite3": "^4.2.0"
+    "sqlite3": "^5.0.0"
   }
 }
