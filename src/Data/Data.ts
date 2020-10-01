@@ -318,63 +318,63 @@ function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
 
 // Data endpoints
 
-export const routePostNewdata: fastify.RouteOptions<
-  Server,
-  IncomingMessage,
-  ServerResponse,
-  fastify.DefaultQuery,
-  fastify.DefaultParams,
-  fastify.DefaultHeaders,
-  DataResponse<ValidTypes> & Crypto.TaggedMessage
-> = {
-  method: 'POST',
-  url: '/newdata',
-  // [TODO] Compile json-schemas from types and add for validation + performance
-  handler: (request, reply) => {
-    const newData = request.body
+// export const routePostNewdata: fastify.RouteOptions<
+//   Server,
+//   IncomingMessage,
+//   ServerResponse,
+//   fastify.DefaultQuery,
+//   fastify.DefaultParams,
+//   fastify.DefaultHeaders,
+//   DataResponse<ValidTypes> & Crypto.TaggedMessage
+// > = {
+//   method: 'POST',
+//   url: '/newdata',
+//   // [TODO] Compile json-schemas from types and add for validation + performance
+//   handler: (request, reply) => {
+//     const newData = request.body
 
-    // console.log('GOT NEWDATA', JSON.stringify(newData))
+//     // console.log('GOT NEWDATA', JSON.stringify(newData))
 
-    const resp = { keepAlive: true } as DataKeepAlive
+//     const resp = { keepAlive: true } as DataKeepAlive
 
-    const sender = dataSenders.get(newData.publicKey)
+//     const sender = dataSenders.get(newData.publicKey)
 
-    // If publicKey is not in dataSenders, dont keepAlive, END
-    if (!sender) {
-      resp.keepAlive = false
-      Crypto.tag(resp, newData.publicKey)
-      reply.send(resp)
-      console.log('NO SENDER')
-      return
-    }
+//     // If publicKey is not in dataSenders, dont keepAlive, END
+//     if (!sender) {
+//       resp.keepAlive = false
+//       Crypto.tag(resp, newData.publicKey)
+//       reply.send(resp)
+//       console.log('NO SENDER')
+//       return
+//     }
 
-    // If unexpected data type from sender, dont keepAlive, END
-    const newDataTypes = Object.keys(newData.responses)
-    for (const type of newDataTypes as (keyof typeof TypeNames)[]) {
-      if (sender.types.includes(type) === false) {
-        resp.keepAlive = false
-        Crypto.tag(resp, newData.publicKey)
-        reply.send(resp)
-        console.log(
-          `NEW DATA type ${type} not included in sender's types: ${JSON.stringify(
-            sender.types
-          )}`
-        )
-        return
-      }
-    }
+//     // If unexpected data type from sender, dont keepAlive, END
+//     const newDataTypes = Object.keys(newData.responses)
+//     for (const type of newDataTypes as (keyof typeof TypeNames)[]) {
+//       if (sender.types.includes(type) === false) {
+//         resp.keepAlive = false
+//         Crypto.tag(resp, newData.publicKey)
+//         reply.send(resp)
+//         console.log(
+//           `NEW DATA type ${type} not included in sender's types: ${JSON.stringify(
+//             sender.types
+//           )}`
+//         )
+//         return
+//       }
+//     }
 
-    // If tag is invalid, dont keepAlive, END
-    if (Crypto.authenticate(newData) === false) {
-      resp.keepAlive = false
-      Crypto.tag(resp, newData.publicKey)
-      reply.send(resp)
-      return
-    }
+//     // If tag is invalid, dont keepAlive, END
+//     if (Crypto.authenticate(newData) === false) {
+//       resp.keepAlive = false
+//       Crypto.tag(resp, newData.publicKey)
+//       reply.send(resp)
+//       return
+//     }
 
-    // Reply with keepAlive and schedule data processing after I/O
-    Crypto.tag(resp, newData.publicKey)
-    reply.send(resp)
-    setImmediate(processData, newData)
-  },
-}
+//     // Reply with keepAlive and schedule data processing after I/O
+//     Crypto.tag(resp, newData.publicKey)
+//     reply.send(resp)
+//     setImmediate(processData, newData)
+//   },
+// }

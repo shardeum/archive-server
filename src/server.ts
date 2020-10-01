@@ -236,7 +236,7 @@ function startServer() {
   })
 
   // POST /newdata
-  server.route(Data.routePostNewdata)
+  // server.route(Data.routePostNewdata)
 
   // ========== REQUESTS ==========
 
