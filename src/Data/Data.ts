@@ -12,41 +12,40 @@ import {
 import { Transaction } from './Transactions'
 import { StateHashes, processStateHashes } from './State'
 import { ReceiptHashes, processReceiptHashes } from './Receipt'
+import { SummaryHashes, processSummaryHashes } from './Summary'
 
 // Socket modules
 let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic["Socket"]
 
+export interface StateMetaData {
+  counter: Cycle['counter']
+  stateHashes: StateHashes[],
+  receiptHashes: ReceiptHashes[],
+  summaryHashes: SummaryHashes[]
+}
 // Data types
 
-export type ValidTypes = Cycle | Transaction | StateHashes | ReceiptHashes
+export type ValidTypes = Cycle | StateMetaData
 
 export enum TypeNames {
   CYCLE = 'CYCLE',
-  TRANSACTION = 'TRANSACTION',
-  STATE = 'STATE',
-  RECEIPT = 'RECEIPT',
+  STATE_METADATA = 'STATE_METADATA'
 }
 
 interface NamesToTypes {
   CYCLE: Cycle
-  TRANSACTION: Transaction
-  STATE: StateHashes
-  RECEIPT: ReceiptHashes
+  STATE_METADATA: StateMetaData
 }
 
 export type TypeName<T extends ValidTypes> = T extends Cycle
   ? TypeNames.CYCLE
-  : T extends ReceiptHashes
-  ? TypeNames.RECEIPT
-  : TypeNames.STATE
+  : TypeNames.STATE_METADATA
 
 export type TypeIndex<T extends ValidTypes> = T extends Cycle
   ? Cycle['counter']
-  : T extends ReceiptHashes
-  ? ReceiptHashes['counter']
-  : StateHashes['counter']
+  : StateMetaData['counter']
 
 // Data network messages
 
@@ -79,9 +78,38 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
     console.log('Connection to consensus node was made')
   })
 
-  socketClient.on('DATA', (data: unknown) => {
-    console.log(data)
-    socketServer.emit('DATA', data)
+  socketClient.on('DATA', (newData: any) => {
+    console.log('DATA from consensor', newData)
+    socketServer.emit('DATA', newData)
+
+    const sender = dataSenders.get(newData.publicKey)
+
+    // If publicKey is not in dataSenders, dont keepAlive, END
+    if (!sender) {
+      console.log('NO SENDER')
+      return
+    }
+
+    // If unexpected data type from sender, dont keepAlive, END
+    const newDataTypes = Object.keys(newData.responses)
+    for (const type of newDataTypes as (keyof typeof TypeNames)[]) {
+      if (sender.types.includes(type) === false) {
+        console.log(
+          `NEW DATA type ${type} not included in sender's types: ${JSON.stringify(
+            sender.types
+          )}`
+        )
+        return
+      }
+    }
+
+    // If tag is invalid, dont keepAlive, END
+    if (Crypto.authenticate(newData) === false) {
+      console.log('Invalid tag')
+      return
+    }
+
+    setImmediate(processData, newData)
   })
 }
 
@@ -98,14 +126,6 @@ export function createDataRequest<T extends ValidTypes>(
     recipientPk
   )
 }
-
-export function createCombinedDataRequest<T extends ValidTypes>(
-  DataRequest: (DataRequest<Cycle> | DataRequest<StateHashes>)[],
-  recipientPk: Crypto.types.publicKey
-) {
-  return Crypto.tag({ data: DataRequest }, recipientPk)
-}
-
 // Vars to track Data senders
 
 interface DataSender {
@@ -143,7 +163,7 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   const newSenderInfo = selectNewDataSender()
   const newSender: DataSender = {
     nodeInfo: newSenderInfo,
-    types: [TypeNames.CYCLE, TypeNames.STATE, TypeNames.RECEIPT],
+    types: [TypeNames.CYCLE, TypeNames.STATE_METADATA],
     contactTimeout: createContactTimeout(newSenderInfo.publicKey),
   }
   // console.log(
@@ -167,16 +187,11 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
       currentCycleCounter,
       publicKey
     ),
-    dataRequestState: createDataRequest<StateHashes>(
-      TypeNames.STATE,
+    dataRequestState: createDataRequest<StateMetaData>(
+      TypeNames.STATE_METADATA,
       currentCycleCounter,
       publicKey
-    ),
-    dataRequestReceipt: createDataRequest<ReceiptHashes>(
-      TypeNames.RECEIPT,
-      currentCycleCounter,
-      publicKey
-    ),
+    )
   }
 
   sendDataRequest(newSender, dataRequest)
@@ -253,6 +268,7 @@ function sendDataRequest(
 }
 
 function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
+  console.log('processing data')
   // Get sender entry
   const sender = dataSenders.get(newData.publicKey)
 
@@ -278,18 +294,13 @@ function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
         processCycles(newData.responses.CYCLE as Cycle[])
         break
       }
-      case TypeNames.TRANSACTION: {
-        // [TODO] process transactions
-        break
-      }
-      case TypeNames.STATE: {
+      case TypeNames.STATE_METADATA: {
+        let stateMetaData: StateMetaData = newData.responses.STATE_METADATA[0]
+        console.log('Received MetaData', stateMetaData)
         // [TODO] validate the state data by robust querying other nodes
-        processStateHashes(newData.responses.STATE as StateHashes[])
-        break
-      }
-      case TypeNames.RECEIPT: {
-        // [TODO] validate the state data by robust querying other nodes
-        processReceiptHashes(newData.responses.RECEIPT as ReceiptHashes[])
+        processStateHashes(stateMetaData.stateHashes as StateHashes[])
+        processSummaryHashes(stateMetaData.summaryHashes as SummaryHashes[])
+        processReceiptHashes(stateMetaData.receiptHashes as ReceiptHashes[])
         break
       }
       default: {

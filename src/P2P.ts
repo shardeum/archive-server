@@ -24,8 +24,7 @@ export interface FirstNodeResponse {
   nodeList: NodeList.ConsensusNodeInfo[]
   joinRequest?: ArchiverJoinRequest & Crypto.SignedMessage
   dataRequestCycle?: Data.DataRequest<Cycle> & Crypto.TaggedMessage
-  dataRequestState?: Data.DataRequest<StateHashes> & Crypto.TaggedMessage
-  dataRequestReceipt?: Data.DataRequest<ReceiptHashes> & Crypto.TaggedMessage
+  dataRequestStateMetaData?: Data.DataRequest<Data.StateMetaData> & Crypto.TaggedMessage
 }
 
 export function createArchiverJoinRequest() {

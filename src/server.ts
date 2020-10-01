@@ -108,7 +108,7 @@ function startServer() {
       // Set first node as dataSender
       Data.addDataSenders({
         nodeInfo: firstNode,
-        types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE, Data.TypeNames.RECEIPT],
+        types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
       })
 
       const res = Crypto.sign<P2P.FirstNodeResponse>({
@@ -119,16 +119,11 @@ function startServer() {
           Cycles.currentCycleCounter,
           publicKey
         ),
-        dataRequestState: Data.createDataRequest<StateHashes>(
-          Data.TypeNames.STATE,
+        dataRequestStateMetaData: Data.createDataRequest<Data.StateMetaData>(
+          Data.TypeNames.STATE_METADATA,
           Cycles.currentCycleCounter,
           publicKey
-        ),
-        dataRequestReceipt: Data.createDataRequest<ReceiptHashes>(
-          Data.TypeNames.RECEIPT,
-          Cycles.currentCycleCounter,
-          publicKey
-        ),
+        )
       })
 
       reply.send(res)

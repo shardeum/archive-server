@@ -2,6 +2,7 @@ import { Cycle } from './Data/Cycles'
 import knex = require('knex')
 import { StateHashes } from './Data/State'
 import { ReceiptHashes } from './Data/Receipt'
+import { SummaryHashes } from './Data/Summary'
 
 let db: knex
 
@@ -56,6 +57,15 @@ export async function initStorage (dbFile: string) {
       table.text('networkHash')
     })
     console.log('StateHashes table created.')
+  }
+
+  if ((await db.schema.hasTable('summaryHashes')) === false) {
+    await db.schema.createTable('summaryHashes', table => {
+      table.bigInteger('counter')
+      table.json('summaryHashes')
+      table.text('networkSummaryHash')
+    })
+    console.log('SummaryHashes table created.')
   }
 
   if ((await db.schema.hasTable('receiptHashes')) === false) {
@@ -123,6 +133,14 @@ export async function storeStateHashes (stateHashes: StateHashes) {
   await db('stateHashes').insert({
     ...stateHashes,
     partitionHashes: JSON.stringify(stateHashes.partitionHashes)
+  })
+}
+
+export async function storeSummaryHashes (summaryHashes: SummaryHashes) {
+  console.log('Storing summary hashes')
+  await db('summaryHashes').insert({
+    ...summaryHashes,
+    summaryHashes: JSON.stringify(summaryHashes.summaryHashes)
   })
 }
 
