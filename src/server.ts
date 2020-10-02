@@ -10,8 +10,6 @@ import * as P2P from './P2P'
 import * as Storage from './Storage'
 import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
-import { StateHashes } from './Data/State'
-import { ReceiptHashes } from './Data/Receipt'
 
 // Socket modules
 let io: SocketIO.Server
@@ -256,6 +254,7 @@ function startServer() {
       //   `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
       //   JSON.stringify(request, null, 2)
       // )
+      // let response: Data.DataQueryResponse = await P2P.postJson(
       let response = await P2P.postJson(
         `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
         request

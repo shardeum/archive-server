@@ -3,6 +3,7 @@ import knex = require('knex')
 import { StateHashes } from './Data/State'
 import { ReceiptHashes } from './Data/Receipt'
 import { SummaryHashes } from './Data/Summary'
+import { DataQueryResponse } from './Data/Data'
 
 let db: knex
 
@@ -176,4 +177,12 @@ export async function queryLatestStateHash (count = 1) {
     .orderBy('counter', 'desc')
     .limit(count)
   return data
+}
+
+export async function queryReceiptMapHashesByCycle (cycle: number)  {
+  let data = await db('receiptHashes')
+    .select('*')
+    .where('counter', cycle)
+    .orderBy('counter', 'desc')
+  if(data.length > 0) return data[0]
 }

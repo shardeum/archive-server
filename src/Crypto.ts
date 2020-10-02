@@ -8,6 +8,8 @@ export function setCryptoHashKey(hashkey: string) {
   core.init(hashkey)
 }
 
+export const hashObj = core.hashObj
+
 // Asymmetric Encyption Sign/Verify API
 export type SignedMessage = cryptoTypes.SignedObject
 

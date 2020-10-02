@@ -37,7 +37,7 @@ export function createArchiverJoinRequest() {
 export async function postJson(
   url: string,
   body: object
-): Promise<object | null> {
+): Promise<Data.DataQueryResponse | null> {
   try {
     const res = await fetch(url, {
       method: 'post',

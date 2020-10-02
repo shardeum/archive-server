@@ -3,6 +3,9 @@ import { EventEmitter } from 'events'
 import fastify = require('fastify')
 import * as Crypto from '../Crypto'
 import * as NodeList from '../NodeList'
+import * as Storage from '../Storage'
+import * as State from '../State'
+import * as P2P from '../P2P'
 import {
   Cycle,
   currentCycleCounter,
@@ -11,13 +14,17 @@ import {
 } from './Cycles'
 import { Transaction } from './Transactions'
 import { StateHashes, processStateHashes } from './State'
-import { ReceiptHashes, processReceiptHashes } from './Receipt'
+import { ReceiptHashes, processReceiptHashes, getReceiptMapHash } from './Receipt'
 import { SummaryHashes, processSummaryHashes } from './Summary'
 
 // Socket modules
 let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic["Socket"]
+
+let verifiedReceiptMapResults: {
+  [key: number]: { [key: number]: ReceiptMapResult }
+} = {}
 
 export interface StateMetaData {
   counter: Cycle['counter']
@@ -61,6 +68,20 @@ interface DataResponse<T extends ValidTypes> {
 
 interface DataKeepAlive {
   keepAlive: boolean
+}
+
+export type ReceiptMap = {[txId:string] : string[]  }
+
+export type ReceiptMapResult = {
+  cycle:number;
+  partition:number;
+  receiptMap:ReceiptMap;
+  txCount:number
+}
+
+export interface DataQueryResponse {
+  success: boolean
+  data: { [key: number]: ReceiptMapResult[] }
 }
 
 export function initSocketServer(io: SocketIO.Server) {
@@ -119,6 +140,20 @@ export function createDataRequest<T extends ValidTypes>(
   recipientPk: Crypto.types.publicKey
 ) {
   return Crypto.tag<DataRequest<T>>(
+    {
+      type,
+      lastData,
+    },
+    recipientPk
+  )
+}
+
+export function createQueryRequest<T extends ValidTypes>(
+  type: string,
+  lastData: number,
+  recipientPk: Crypto.types.publicKey
+) {
+  return Crypto.tag(
     {
       type,
       lastData,
@@ -267,7 +302,16 @@ function sendDataRequest(
   emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
 }
 
-function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
+function sendDataQuery(
+  consensorNode: NodeList.ConsensusNodeInfo,
+  dataQuery: any
+) {
+  // TODO: crypto.tag cannot handle array type. To change something else
+  const taggedDataQuery = Crypto.tag(dataQuery, consensorNode.publicKey)
+  queryReceiptMapFromNode(consensorNode, taggedDataQuery)
+}
+
+async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
   console.log('processing data')
   // Get sender entry
   const sender = dataSenders.get(newData.publicKey)
@@ -301,6 +345,19 @@ function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
         processStateHashes(stateMetaData.stateHashes as StateHashes[])
         processSummaryHashes(stateMetaData.summaryHashes as SummaryHashes[])
         processReceiptHashes(stateMetaData.receiptHashes as ReceiptHashes[])
+
+        // Query receipt maps from other nodes and store it
+        if (stateMetaData.receiptHashes.length > 0) {
+          let activeNodes = NodeList.getActiveList()
+          for (let node of activeNodes) {
+            const queryRequest = createQueryRequest('RECEIPT_MAP', stateMetaData.receiptHashes[0].counter, node.publicKey)
+            sendDataQuery(node, queryRequest)
+          }
+        }
+
+        if (stateMetaData.summaryHashes.length > 0) {
+          // TODO: query summary blob and store it
+        }
         break
       }
       default: {
@@ -316,65 +373,64 @@ function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
   }
 }
 
-// Data endpoints
+async function queryReceiptMapFromNode (
+  newSenderInfo: NodeList.ConsensusNodeInfo,
+  dataQuery: any
+) {
+  let request = {
+    ...dataQuery,
+    nodeInfo: State.getNodeInfo(),
+  }
+  let response = await P2P.postJson(
+    `http://${newSenderInfo.ip}:${newSenderInfo.port}/querydata`,
+    request
+  )
+  if (response && request.type === 'RECEIPT_MAP') {
+    for (let counter in response.data) {
+      validateAndStoreReceiptMaps(response.data)
+    }
+  }
+}
 
-// export const routePostNewdata: fastify.RouteOptions<
-//   Server,
-//   IncomingMessage,
-//   ServerResponse,
-//   fastify.DefaultQuery,
-//   fastify.DefaultParams,
-//   fastify.DefaultHeaders,
-//   DataResponse<ValidTypes> & Crypto.TaggedMessage
-// > = {
-//   method: 'POST',
-//   url: '/newdata',
-//   // [TODO] Compile json-schemas from types and add for validation + performance
-//   handler: (request, reply) => {
-//     const newData = request.body
+function isPartitionBlockExisted (counter: number, partition: number) {
+  let existingPartitionBlockForCycle = verifiedReceiptMapResults[counter]
+  if (!existingPartitionBlockForCycle) return false
+  else {
+    if (existingPartitionBlockForCycle[partition]) return true
+  }
+  return false
+}
 
-//     // console.log('GOT NEWDATA', JSON.stringify(newData))
+function storePartitionBlock (partitionBlock: ReceiptMapResult) {
+  let { cycle, partition } = partitionBlock
 
-//     const resp = { keepAlive: true } as DataKeepAlive
+  if (!verifiedReceiptMapResults[cycle]) {
+    let obj: {[key: number]: ReceiptMapResult} = {}
+    obj[cycle] = partitionBlock
+    verifiedReceiptMapResults[cycle] = obj
+  } else {
+    verifiedReceiptMapResults[cycle][partition] = partitionBlock
+  }
+}
 
-//     const sender = dataSenders.get(newData.publicKey)
+async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
+  [key: number]: ReceiptMapResult[]
+}) {
+  for (let counter in receiptMapResultsForCycles) {
+    let receiptMapResults: ReceiptMapResult[] =
+      receiptMapResultsForCycles[counter]
+    for (let partitionBlock of receiptMapResults) {
+      let { partition } = partitionBlock
+      if (isPartitionBlockExisted(parseInt(counter), partition)) {
+        console.log(`Receipt Map already existed for cycle ${counter}, partition ${partition}`)
+        continue
+      }
+      let reciptMapHash = await getReceiptMapHash(parseInt(counter), partition)
+      let calculatedReceiptMapHash = Crypto.hashObj(partitionBlock)
+      if (calculatedReceiptMapHash === reciptMapHash) {
+        storePartitionBlock(partitionBlock)
+      }
+    }
+  }
+}
 
-//     // If publicKey is not in dataSenders, dont keepAlive, END
-//     if (!sender) {
-//       resp.keepAlive = false
-//       Crypto.tag(resp, newData.publicKey)
-//       reply.send(resp)
-//       console.log('NO SENDER')
-//       return
-//     }
-
-//     // If unexpected data type from sender, dont keepAlive, END
-//     const newDataTypes = Object.keys(newData.responses)
-//     for (const type of newDataTypes as (keyof typeof TypeNames)[]) {
-//       if (sender.types.includes(type) === false) {
-//         resp.keepAlive = false
-//         Crypto.tag(resp, newData.publicKey)
-//         reply.send(resp)
-//         console.log(
-//           `NEW DATA type ${type} not included in sender's types: ${JSON.stringify(
-//             sender.types
-//           )}`
-//         )
-//         return
-//       }
-//     }
-
-//     // If tag is invalid, dont keepAlive, END
-//     if (Crypto.authenticate(newData) === false) {
-//       resp.keepAlive = false
-//       Crypto.tag(resp, newData.publicKey)
-//       reply.send(resp)
-//       return
-//     }
-
-//     // Reply with keepAlive and schedule data processing after I/O
-//     Crypto.tag(resp, newData.publicKey)
-//     reply.send(resp)
-//     setImmediate(processData, newData)
-//   },
-// }

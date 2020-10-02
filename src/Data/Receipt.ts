@@ -24,3 +24,10 @@ export function processReceiptHashes(receiptHashes: ReceiptHashes[]) {
     console.log(`Processed receipt ${receiptHash.counter}`)
   }
 }
+
+export async function getReceiptMapHash(counter: number, partition: number): Promise<string> {
+  let partitionBlock = await Storage.queryReceiptMapHashesByCycle(counter)
+  let receiptMapHashes = JSON.parse(partitionBlock.receiptMapHashes)
+  let hash = receiptMapHashes[partition]
+  return hash
+}
