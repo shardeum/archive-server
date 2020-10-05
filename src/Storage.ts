@@ -3,7 +3,7 @@ import knex = require('knex')
 import { StateHashes } from './Data/State'
 import { ReceiptHashes } from './Data/Receipt'
 import { SummaryHashes } from './Data/Summary'
-import { DataQueryResponse } from './Data/Data'
+import { DataQueryResponse, ReceiptMapResult, socketServer } from './Data/Data'
 
 let db: knex
 
@@ -76,6 +76,17 @@ export async function initStorage (dbFile: string) {
       table.text('networkReceiptHash')
     })
     console.log('ReceiptHashes table created.')
+  }
+
+  if ((await db.schema.hasTable('receiptMap')) === false) {
+    await db.schema.createTable('receiptMap', table => {
+      table.bigInteger('cycle')
+      table.bigInteger('partition')
+      table.json('receiptMap')
+      table.bigInteger('txCount')
+      table.unique(['cycle', 'partition'])
+    })
+    console.log('receiptMap table created.')
   }
 }
 
@@ -151,6 +162,19 @@ export async function storeReceiptHashes (receiptHashes: ReceiptHashes) {
     ...receiptHashes,
     receiptMapHashes: JSON.stringify(receiptHashes.receiptMapHashes)
   })
+}
+
+export async function storeReceiptMap (receiptMapResult: ReceiptMapResult) {
+  console.log('Storing receipt map')
+  try {
+    await db('receiptMap').insert({
+      ...receiptMapResult,
+      receiptMap: JSON.stringify(receiptMapResult.receiptMap)
+    })
+    socketServer.emit('RECEIPT_MAP', receiptMapResult)
+  } catch(e) {
+
+  }
 }
 
 export async function queryAllCycles () {

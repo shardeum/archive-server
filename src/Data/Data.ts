@@ -18,7 +18,7 @@ import { ReceiptHashes, processReceiptHashes, getReceiptMapHash } from './Receip
 import { SummaryHashes, processSummaryHashes } from './Summary'
 
 // Socket modules
-let socketServer: SocketIO.Server
+export let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic["Socket"]
 
@@ -392,27 +392,6 @@ async function queryReceiptMapFromNode (
   }
 }
 
-function isPartitionBlockExisted (counter: number, partition: number) {
-  let existingPartitionBlockForCycle = verifiedReceiptMapResults[counter]
-  if (!existingPartitionBlockForCycle) return false
-  else {
-    if (existingPartitionBlockForCycle[partition]) return true
-  }
-  return false
-}
-
-function storePartitionBlock (partitionBlock: ReceiptMapResult) {
-  let { cycle, partition } = partitionBlock
-
-  if (!verifiedReceiptMapResults[cycle]) {
-    let obj: {[key: number]: ReceiptMapResult} = {}
-    obj[cycle] = partitionBlock
-    verifiedReceiptMapResults[cycle] = obj
-  } else {
-    verifiedReceiptMapResults[cycle][partition] = partitionBlock
-  }
-}
-
 async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
   [key: number]: ReceiptMapResult[]
 }) {
@@ -421,14 +400,10 @@ async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
       receiptMapResultsForCycles[counter]
     for (let partitionBlock of receiptMapResults) {
       let { partition } = partitionBlock
-      if (isPartitionBlockExisted(parseInt(counter), partition)) {
-        console.log(`Receipt Map already existed for cycle ${counter}, partition ${partition}`)
-        continue
-      }
       let reciptMapHash = await getReceiptMapHash(parseInt(counter), partition)
       let calculatedReceiptMapHash = Crypto.hashObj(partitionBlock)
       if (calculatedReceiptMapHash === reciptMapHash) {
-        storePartitionBlock(partitionBlock)
+        await Storage.storeReceiptMap(partitionBlock)
       }
     }
   }
