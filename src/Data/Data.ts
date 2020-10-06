@@ -15,7 +15,7 @@ import {
 import { Transaction } from './Transactions'
 import { StateHashes, processStateHashes } from './State'
 import { ReceiptHashes, processReceiptHashes, getReceiptMapHash } from './Receipt'
-import { SummaryHashes, processSummaryHashes } from './Summary'
+import { SummaryHashes, processSummaryHashes, getSummaryHash } from './Summary'
 
 // Socket modules
 export let socketServer: SocketIO.Server
@@ -79,10 +79,25 @@ export type ReceiptMapResult = {
   txCount:number
 }
 
+export type SummaryBlob = {
+  cycle: number,
+  partition: number, 
+  blob: unknown
+}
+
+export interface ReceiptMapQueryResponse {
+  success: boolean
+  data: { [key: number]: ReceiptMapResult[]}
+}
+export interface SummaryBlobQueryResponse {
+  success: boolean
+  data: { [key: number]: SummaryBlob[]}
+}
 export interface DataQueryResponse {
   success: boolean
-  data: { [key: number]: ReceiptMapResult[] }
+  data: any
 }
+
 
 export function initSocketServer(io: SocketIO.Server) {
   socketServer = io
@@ -308,7 +323,7 @@ function sendDataQuery(
 ) {
   // TODO: crypto.tag cannot handle array type. To change something else
   const taggedDataQuery = Crypto.tag(dataQuery, consensorNode.publicKey)
-  queryReceiptMapFromNode(consensorNode, taggedDataQuery)
+  queryDataFromNode(consensorNode, taggedDataQuery)
 }
 
 async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
@@ -346,7 +361,6 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
         processSummaryHashes(stateMetaData.summaryHashes as SummaryHashes[])
         processReceiptHashes(stateMetaData.receiptHashes as ReceiptHashes[])
 
-        // Query receipt maps from other nodes and store it
         if (stateMetaData.receiptHashes.length > 0) {
           let activeNodes = NodeList.getActiveList()
           for (let node of activeNodes) {
@@ -355,8 +369,13 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
           }
         }
 
+        // Query receipt maps from other nodes and store it
         if (stateMetaData.summaryHashes.length > 0) {
-          // TODO: query summary blob and store it
+          let activeNodes = NodeList.getActiveList()
+          for (let node of activeNodes) {
+            const queryRequest = createQueryRequest('SUMMARY_BLOB', stateMetaData.summaryHashes[0].counter, node.publicKey)
+            sendDataQuery(node, queryRequest)
+          }
         }
         break
       }
@@ -373,7 +392,7 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
   }
 }
 
-async function queryReceiptMapFromNode (
+async function queryDataFromNode (
   newSenderInfo: NodeList.ConsensusNodeInfo,
   dataQuery: any
 ) {
@@ -388,6 +407,10 @@ async function queryReceiptMapFromNode (
   if (response && request.type === 'RECEIPT_MAP') {
     for (let counter in response.data) {
       validateAndStoreReceiptMaps(response.data)
+    }
+  } else if (response && request.type === 'SUMMARY_BLOB') {
+    for (let counter in response.data) {
+      validateAndStoreSummaryBlobs(response.data)
     }
   }
 }
@@ -404,6 +427,22 @@ async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
       let calculatedReceiptMapHash = Crypto.hashObj(partitionBlock)
       if (calculatedReceiptMapHash === reciptMapHash) {
         await Storage.storeReceiptMap(partitionBlock)
+      }
+    }
+  }
+}
+
+async function validateAndStoreSummaryBlobs (summaryBlobsForCycles: {
+  [key: number]: SummaryBlob[]
+}) {
+  for (let cycle in summaryBlobsForCycles) {
+    let summaryBlobs: SummaryBlob[] = summaryBlobsForCycles[cycle]
+    for (let blob of summaryBlobs) {
+      let { partition } = blob
+      let summaryHash = await getSummaryHash(parseInt(cycle), partition)
+      let calculatedSummaryHash = Crypto.hashObj(blob)
+      if (calculatedSummaryHash === summaryHash) {
+        await Storage.storeSummaryBlob(blob)
       }
     }
   }

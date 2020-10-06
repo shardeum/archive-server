@@ -23,3 +23,10 @@ export function processSummaryHashes(summaryHashes: SummaryHashes[]) {
     console.log(`Processed state ${item.counter}`)
   }
 }
+
+export async function getSummaryHash(counter: number, partition: number): Promise<string> {
+  let summaryHashesForCycle = await Storage.querySummaryHashesByCycle(counter)
+  let summaryHashesForAllPartitions = JSON.parse(summaryHashesForCycle.summaryHashes)
+  let hash = summaryHashesForAllPartitions[partition]
+  return hash
+}

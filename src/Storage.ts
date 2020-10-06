@@ -3,7 +3,7 @@ import knex = require('knex')
 import { StateHashes } from './Data/State'
 import { ReceiptHashes } from './Data/Receipt'
 import { SummaryHashes } from './Data/Summary'
-import { DataQueryResponse, ReceiptMapResult, socketServer } from './Data/Data'
+import { DataQueryResponse, ReceiptMapResult, socketServer, SummaryBlob } from './Data/Data'
 
 let db: knex
 
@@ -88,6 +88,16 @@ export async function initStorage (dbFile: string) {
     })
     console.log('receiptMap table created.')
   }
+
+  if ((await db.schema.hasTable('summaryBlob')) === false) {
+    await db.schema.createTable('summaryBlob', table => {
+      table.bigInteger('cycle')
+      table.bigInteger('partition')
+      table.json('blob')
+      table.unique(['cycle', 'partition'])
+    })
+    console.log('SummaryBlob table created.')
+  }
 }
 
 export async function storeCycle (cycle: Cycle) {
@@ -165,13 +175,24 @@ export async function storeReceiptHashes (receiptHashes: ReceiptHashes) {
 }
 
 export async function storeReceiptMap (receiptMapResult: ReceiptMapResult) {
-  console.log('Storing receipt map')
   try {
     await db('receiptMap').insert({
       ...receiptMapResult,
       receiptMap: JSON.stringify(receiptMapResult.receiptMap)
     })
     socketServer.emit('RECEIPT_MAP', receiptMapResult)
+  } catch(e) {
+
+  }
+}
+
+export async function storeSummaryBlob (summaryBlob: SummaryBlob) {
+  try {
+    await db('summaryBlob').insert({
+      ...summaryBlob,
+      blob: JSON.stringify(summaryBlob.blob)
+    })
+    socketServer.emit('SUMMARY_BLOB', summaryBlob)
   } catch(e) {
 
   }
@@ -205,6 +226,14 @@ export async function queryLatestStateHash (count = 1) {
 
 export async function queryReceiptMapHashesByCycle (cycle: number)  {
   let data = await db('receiptHashes')
+    .select('*')
+    .where('counter', cycle)
+    .orderBy('counter', 'desc')
+  if(data.length > 0) return data[0]
+}
+
+export async function querySummaryHashesByCycle (cycle: number)  {
+  let data = await db('summaryHashes')
     .select('*')
     .where('counter', cycle)
     .orderBy('counter', 'desc')
