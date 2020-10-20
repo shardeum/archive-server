@@ -91,9 +91,12 @@ export async function initStorage (dbFile: string) {
 
   if ((await db.schema.hasTable('summaryBlob')) === false) {
     await db.schema.createTable('summaryBlob', table => {
+      table.bigInteger('latestCycle')
       table.bigInteger('cycle')
+      table.bigInteger('counter')
       table.bigInteger('partition')
-      table.json('blob')
+      table.bigInteger('errorNull')
+      table.json('opaqueBlob')
       table.unique(['cycle', 'partition'])
     })
     console.log('SummaryBlob table created.')
@@ -186,13 +189,14 @@ export async function storeReceiptMap (receiptMapResult: ReceiptMapResult) {
   }
 }
 
-export async function storeSummaryBlob (summaryBlob: SummaryBlob) {
+export async function storeSummaryBlob (summaryBlob: SummaryBlob, cycle: number) {
   try {
     await db('summaryBlob').insert({
       ...summaryBlob,
-      blob: JSON.stringify(summaryBlob.blob)
+      opaqueBlob: JSON.stringify(summaryBlob.opaqueBlob),
+      cycle
     })
-    socketServer.emit('SUMMARY_BLOB', summaryBlob)
+    socketServer.emit('SUMMARY_BLOB', {...summaryBlob, cycle})
   } catch(e) {
 
   }

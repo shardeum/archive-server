@@ -79,10 +79,31 @@ export type ReceiptMapResult = {
   txCount:number
 }
 
+type OpaqueBlob = any
+
 export type SummaryBlob = {
-  cycle: number,
-  partition: number, 
-  blob: unknown
+  latestCycle: number; //The highest cycle that was used in this summary.  
+  counter:number; 
+  errorNull:number; 
+  partition:number; 
+  opaqueBlob:OpaqueBlob;
+}
+
+//A collection of blobs that share the same cycle.  For TX summaries
+type SummaryBlobCollection = {
+  cycle:number; 
+  blobsByPartition:Map<number, SummaryBlob>;
+}
+
+// Stats collected for a cycle
+export type StatsClump = {
+  error:boolean; 
+  cycle:number; 
+  dataStats:SummaryBlob[]; 
+  txStats:SummaryBlob[]; 
+  covered:number[];
+  coveredParititionCount:number;
+  skippedParitionCount:number; 
 }
 
 export interface ReceiptMapQueryResponse {
@@ -410,7 +431,7 @@ async function queryDataFromNode (
     }
   } else if (response && request.type === 'SUMMARY_BLOB') {
     for (let counter in response.data) {
-      validateAndStoreSummaryBlobs(response.data)
+      validateAndStoreSummaryBlobs(Object.values(response.data))
     }
   }
 }
@@ -432,19 +453,54 @@ async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
   }
 }
 
-async function validateAndStoreSummaryBlobs (summaryBlobsForCycles: {
-  [key: number]: SummaryBlob[]
-}) {
-  for (let cycle in summaryBlobsForCycles) {
-    let summaryBlobs: SummaryBlob[] = summaryBlobsForCycles[cycle]
-    for (let blob of summaryBlobs) {
-      let { partition } = blob
-      let summaryHash = await getSummaryHash(parseInt(cycle), partition)
-      let calculatedSummaryHash = Crypto.hashObj(blob)
-      if (calculatedSummaryHash === summaryHash) {
-        await Storage.storeSummaryBlob(blob)
+async function validateAndStoreSummaryBlobs (
+  statsClumpForCycles: StatsClump[]
+) {
+  for (let statsClump of statsClumpForCycles) {
+
+    let { cycle, dataStats, txStats, covered } = statsClump
+
+    console.log('cycle', cycle)
+    console.log('length of dataStats', dataStats.length)
+    console.log('length of txStats', txStats.length)
+
+    for (let partition of covered) {
+      let summaryBlob
+      let dataBlob = dataStats.find(d => d.partition === partition)
+      let txBlob = txStats.find(t => t.partition === partition)
+      let summaryHash = await getSummaryHash(cycle, partition)
+      let calculatedSummaryHash = Crypto.hashObj({
+        dataStat: dataBlob,
+        txStats: txBlob,
+      })
+      if (summaryHash !== calculatedSummaryHash) return
+      if (dataBlob) {
+        summaryBlob = {
+          ...dataBlob,
+        }
+      }
+      console.log('txBlob', txBlob)
+      if (txBlob) {
+        if (!summaryBlob) {
+          summaryBlob = {
+            ...txBlob
+          }
+        } else if (summaryBlob && txBlob.latestCycle > summaryBlob.latestCycle) {
+          summaryBlob.latestCycle = txBlob.latestCycle
+          summaryBlob.opaqueBlob = {
+            ...summaryBlob.opaqueBlob,
+            ...txBlob.opaqueBlob,
+          }
+        }
+      }
+      if (summaryBlob) {
+        console.log(`Summary blob for partition: ${partition}`, summaryBlob)
+        try {
+          await Storage.storeSummaryBlob(summaryBlob, cycle)
+        } catch (e) {
+          console.log('Unable to store summary blob', e)
+        }
       }
     }
   }
 }
-
