@@ -196,7 +196,6 @@ export async function storeSummaryBlob (summaryBlob: SummaryBlob, cycle: number)
       opaqueBlob: JSON.stringify(summaryBlob.opaqueBlob),
       cycle
     })
-    socketServer.emit('SUMMARY_BLOB', {...summaryBlob, cycle})
   } catch(e) {
 
   }

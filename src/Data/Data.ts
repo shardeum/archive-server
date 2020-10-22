@@ -459,10 +459,7 @@ async function validateAndStoreSummaryBlobs (
   for (let statsClump of statsClumpForCycles) {
 
     let { cycle, dataStats, txStats, covered } = statsClump
-
-    console.log('cycle', cycle)
-    console.log('length of dataStats', dataStats.length)
-    console.log('length of txStats', txStats.length)
+    let blobsToForward = []
 
     for (let partition of covered) {
       let summaryBlob
@@ -479,7 +476,6 @@ async function validateAndStoreSummaryBlobs (
           ...dataBlob,
         }
       }
-      console.log('txBlob', txBlob)
       if (txBlob) {
         if (!summaryBlob) {
           summaryBlob = {
@@ -494,7 +490,7 @@ async function validateAndStoreSummaryBlobs (
         }
       }
       if (summaryBlob) {
-        console.log(`Summary blob for partition: ${partition}`, summaryBlob)
+        blobsToForward.push(summaryBlob)
         try {
           await Storage.storeSummaryBlob(summaryBlob, cycle)
         } catch (e) {
@@ -502,5 +498,6 @@ async function validateAndStoreSummaryBlobs (
         }
       }
     }
+    socketServer.emit('SUMMARY_BLOB', {blobs: blobsToForward, cycle})
   }
 }
