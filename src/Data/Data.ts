@@ -481,7 +481,7 @@ async function validateAndStoreSummaryBlobs (
           summaryBlob = {
             ...txBlob
           }
-        } else if (summaryBlob && txBlob.latestCycle > summaryBlob.latestCycle) {
+        } else if (summaryBlob) {
           summaryBlob.latestCycle = txBlob.latestCycle
           summaryBlob.opaqueBlob = {
             ...summaryBlob.opaqueBlob,
