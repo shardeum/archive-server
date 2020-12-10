@@ -1,5 +1,7 @@
 import { config } from './Config'
 import * as Crypto from './Crypto'
+import * as State from './State'
+import * as P2P from './P2P'
 
 // TYPES
 
@@ -142,6 +144,18 @@ export function getList() {
 
 export function getActiveList() {
   return [...activeList.values()]
+}
+
+export async function getActiveListFromArchivers(activeArchivers: State.ArchiverNodeInfo[]) {
+  const randomIndex = Math.floor(Math.random() * activeArchivers.length)
+  const randomArchiver = activeArchivers[randomIndex]
+  let response:any = await P2P.getJson(
+    `http://${randomArchiver.ip}:${randomArchiver.port}/nodelist`
+  )
+  if(response && response.nodeList) {
+    // TODO: validate the reponse is from archiver
+    return response.nodeList
+  }
 }
 
 export function getSyncingList() {

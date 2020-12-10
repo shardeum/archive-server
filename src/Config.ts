@@ -1,15 +1,16 @@
 import { readFileSync } from 'fs'
 import merge = require('deepmerge')
 import minimist = require('minimist')
+import { ArchiverNodeInfo } from './State'
 
 export interface Config {
-  [index: string]: string | number | boolean
+  [index: string]: object | string | number | boolean
   ARCHIVER_IP: string
   ARCHIVER_PORT: number
   ARCHIVER_HASH_KEY: string
   ARCHIVER_PUBLIC_KEY: string
   ARCHIVER_SECRET_KEY: string
-  ARCHIVER_EXISTING: string
+  ARCHIVER_EXISTING: ArchiverNodeInfo[]
   ARCHIVER_DB: string
 }
 
@@ -22,7 +23,7 @@ let config: Config = {
     '758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3',
   ARCHIVER_SECRET_KEY:
     '3be00019f23847529bd63e41124864983175063bb524bd54ea3c155f2fa12969758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3',
-  ARCHIVER_EXISTING: '[]',
+  ARCHIVER_EXISTING: [],
   ARCHIVER_DB: './archiver-db.sqlite',
 }
 

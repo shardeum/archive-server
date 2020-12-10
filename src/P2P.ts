@@ -59,3 +59,27 @@ export async function postJson(
     return null
   }
 }
+
+export async function getJson(
+  url: string,
+): Promise<object | null> {
+  try {
+    const res = await fetch(url, {
+      method: 'get',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    if (res.ok) {
+      return await res.json()
+    } else {
+      console.warn('getJson failed: got bad response')
+      console.warn(res.headers)
+      console.warn(res.statusText)
+      console.warn(await res.text())
+      return null
+    }
+  } catch (err) {
+    console.warn('getJson failed: could not reach host')
+    console.warn(err)
+    return null
+  }
+}

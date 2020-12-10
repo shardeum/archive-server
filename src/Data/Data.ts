@@ -199,7 +199,7 @@ export function createQueryRequest<T extends ValidTypes>(
 }
 // Vars to track Data senders
 
-interface DataSender {
+export interface DataSender {
   nodeInfo: NodeList.ConsensusNodeInfo
   types: (keyof typeof TypeNames)[]
   contactTimeout?: NodeJS.Timeout
@@ -281,10 +281,10 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
  * Removes sender from dataSenders on timeout
  * Select a new dataSender
  */
-function createContactTimeout(
+export function createContactTimeout(
   publicKey: NodeList.ConsensusNodeInfo['publicKey']
 ) {
-  const ms = currentCycleDuration + timeoutPadding
+  const ms = currentCycleDuration || (20 * 1000) + timeoutPadding
   const contactTimeout = setTimeout(replaceDataSender, ms, publicKey)
   // console.log(
   //   `createContactTimeout: created timeout for ${publicKey} in ${ms} ms...`
@@ -329,13 +329,18 @@ function selectNewDataSender() {
   return newSender
 }
 
-function sendDataRequest(
+export function sendDataRequest(
   sender: DataSender,
   dataRequest: any
 ) {
   // TODO: crypto.tag cannot handle array type. To change something else
   const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey)
   emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
+}
+
+export function sendJoinRequest (nodeInfo: NodeList.ConsensusNodeInfo) {
+  let joinRequest = P2P.createArchiverJoinRequest()
+  emitter.emit('submitJoinRequest', nodeInfo, joinRequest)
 }
 
 function sendDataQuery(
@@ -501,3 +506,42 @@ async function validateAndStoreSummaryBlobs (
     socketServer.emit('SUMMARY_BLOB', {blobs: blobsToForward, cycle})
   }
 }
+
+emitter.on(
+  'selectNewDataSender',
+  async (
+    newSenderInfo: NodeList.ConsensusNodeInfo,
+    dataRequest: any
+  ) => {
+    let request = {
+      ...dataRequest,
+      nodeInfo: State.getNodeInfo()
+    }
+    // console.log('Sending data request to: ', newSenderInfo.port)
+    let response = await P2P.postJson(
+      `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
+      request
+    )
+    console.log('Data request response:', response)
+  }
+)
+
+emitter.on(
+  'submitJoinRequest',
+  async (
+    newSenderInfo: NodeList.ConsensusNodeInfo,
+    joinRequest: any
+  ) => {
+    let request = {
+      ...joinRequest,
+      nodeInfo: State.getNodeInfo()
+    }
+    console.log('join request', request)
+    // console.log('Sending join request to: ', newSenderInfo.port)
+    let response = await P2P.postJson(
+      `http://${newSenderInfo.ip}:${newSenderInfo.port}/joinarchiver`,
+      request
+    )
+    console.log('Join request response:', response)
+  }
+)

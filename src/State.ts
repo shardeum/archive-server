@@ -1,5 +1,6 @@
 import { Config } from './Config'
 import * as Crypto from './Crypto'
+import * as P2P from './P2P'
 
 export interface ArchiverNodeState {
   ip: string
@@ -20,11 +21,12 @@ const nodeState: ArchiverNodeState = {
   curvePk: '',
   curveSk: '',
 }
-export let existingArchivers: ArchiverNodeState[] = []
+export let existingArchivers: ArchiverNodeInfo[] = []
+export let activeArchivers: ArchiverNodeInfo[] = []
 export let isFirst = false
 export let dbFile = ''
 
-export function initFromConfig(config: Config) {
+export async function initFromConfig(config: Config) {
   // Get own nodeInfo from config
   nodeState.ip = config.ARCHIVER_IP
   nodeState.port = config.ARCHIVER_PORT
@@ -35,16 +37,29 @@ export function initFromConfig(config: Config) {
 
   // Parse existing archivers list
   try {
-    existingArchivers = JSON.parse(config.ARCHIVER_EXISTING)
+    existingArchivers = config.ARCHIVER_EXISTING
   } catch (e) {
     console.warn(
       'Failed to parse ARCHIVER_EXISTING array:',
       config.ARCHIVER_EXISTING
     )
   }
+  for (let i = 0; i < existingArchivers.length; i++) {
+    if (existingArchivers[i].publicKey === nodeState.publicKey) {
+      continue
+    }
+    let response:any = await P2P.getJson(
+      `http://${existingArchivers[i].ip}:${existingArchivers[i].port}/nodelist`
+    )
+    if(response && response.nodeList) {
+      // TODO: validate the reponse is from archiver
+      activeArchivers.push(existingArchivers[i])
+    }
+  }
+
 
   // You're first, unless existing archiver info is given
-  isFirst = existingArchivers.length <= 0
+  isFirst = activeArchivers.length <= 0
 
   // Get db file location from config
   dbFile = config.ARCHIVER_DB

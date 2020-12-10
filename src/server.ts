@@ -20,33 +20,71 @@ let socketClient: SocketIOClientStatic["Socket"]
 const file = join(process.cwd(), 'archiver-config.json')
 const env = process.env
 const args = process.argv
-overrideDefaultConfig(file, env, args)
 
-// Set crypto hash key from config
-Crypto.setCryptoHashKey(config.ARCHIVER_HASH_KEY)
+async function start () {
+  overrideDefaultConfig(file, env, args)
 
-// If no keypair provided, generate one
-if (config.ARCHIVER_SECRET_KEY === '' || config.ARCHIVER_PUBLIC_KEY === '') {
-  const keypair = Crypto.core.generateKeypair()
-  config.ARCHIVER_PUBLIC_KEY = keypair.publicKey
-  config.ARCHIVER_SECRET_KEY = keypair.secretKey
+  // Set crypto hash key from config
+  Crypto.setCryptoHashKey(config.ARCHIVER_HASH_KEY)
+
+  // If no keypair provided, generate one
+  if (config.ARCHIVER_SECRET_KEY === '' || config.ARCHIVER_PUBLIC_KEY === '') {
+    const keypair = Crypto.core.generateKeypair()
+    config.ARCHIVER_PUBLIC_KEY = keypair.publicKey
+    config.ARCHIVER_SECRET_KEY = keypair.secretKey
+  }
+
+  // Initialize storage
+  Storage.initStorage(State.dbFile)
+
+  // Initialize state from config
+  await State.initFromConfig(config)
+
+  if (State.isFirst === false) {
+    syncAndStartServer()
+  } else {
+    io = startServer()
+  }
 }
 
-// Initialize state from config
-State.initFromConfig(config)
 
-// Initialize storage
-Storage.initStorage(State.dbFile)
+async function syncAndStartServer() {
+  // If your not the first archiver node, get a nodelist from the others
+  const nodeList = await NodeList.getActiveListFromArchivers(State.activeArchivers)
+  if (nodeList && nodeList.length > 0) {
+    const randomIndex = Math.floor(Math.random() * nodeList.length)
+    const randomConsensor: NodeList.ConsensusNodeInfo = nodeList[randomIndex]
 
-if (State.isFirst === false) {
-  /**
-   * ENTRY POINT: Existing Shardus network
-   */
-  // [TODO] If your not the first archiver node, get a nodelist from the others
-  // [TODO] Send a join request to a consensus node from the nodelist
-  // [TODO] After you've joined, select a consensus node to be your dataSender
-  io = startServer()
-} else {
+    // Set randomly selected node as dataSender
+    Data.addDataSenders({
+      nodeInfo: randomConsensor,
+      types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
+    })
+
+    // Send a join request to a consensus node from the nodelist
+    Data.sendJoinRequest(randomConsensor)
+
+    // After you've joined, select a consensus node to be your dataSender
+    const dataRequest = Crypto.sign({
+      dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
+        Data.TypeNames.CYCLE,
+        Cycles.currentCycleCounter,
+        randomConsensor.publicKey
+      ),
+      dataRequestStateMetaData: Data.createDataRequest<Data.StateMetaData>(
+        Data.TypeNames.STATE_METADATA,
+        Cycles.currentCycleCounter,
+        randomConsensor.publicKey
+      )
+    })
+    const newSender: Data.DataSender = {
+      nodeInfo: randomConsensor,
+      types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
+      contactTimeout: Data.createContactTimeout(randomConsensor.publicKey),
+    }
+    Data.sendDataRequest(newSender, dataRequest)
+    Data.initSocketClient(randomConsensor)
+  }
   io = startServer()
 }
 
@@ -233,36 +271,6 @@ function startServer() {
     reply.send(NodeList.byId)
   })
 
-  // POST /newdata
-  // server.route(Data.routePostNewdata)
-
-  // ========== REQUESTS ==========
-
-  Data.emitter.on(
-    'selectNewDataSender',
-    async (
-      newSenderInfo: NodeList.ConsensusNodeInfo,
-      dataRequest: any
-    ) => {
-      let request = {
-        ...dataRequest,
-        nodeInfo: State.getNodeInfo()
-      }
-      // Omar added this logging
-      // console.log('Sending data request to: ', newSenderInfo.port)
-      // console.log(
-      //   `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
-      //   JSON.stringify(request, null, 2)
-      // )
-      // let response: Data.DataQueryResponse = await P2P.postJson(
-      let response = await P2P.postJson(
-        `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
-        request
-      )
-      console.log('Data request response:', response)
-    }
-  )
-
   // Start server and bind to port on all interfaces
   server.listen(config.ARCHIVER_PORT, '0.0.0.0', (err, _address) => {
     console.log('Listening3')
@@ -274,3 +282,5 @@ function startServer() {
   })
   return io
 }
+
+start()
