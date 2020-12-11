@@ -10,6 +10,7 @@ import * as P2P from './P2P'
 import * as Storage from './Storage'
 import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
+import { stat } from 'fs'
 
 // Socket modules
 let io: SocketIO.Server
@@ -41,16 +42,18 @@ async function start () {
   await State.initFromConfig(config)
 
   if (State.isFirst === false) {
+    console.log('We are not first archiver. Syncing and starting archive-server')
     syncAndStartServer()
   } else {
+    console.log('We are first archiver. Starting archive-server')
     io = startServer()
   }
 }
 
-
 async function syncAndStartServer() {
   // If your not the first archiver node, get a nodelist from the others
-  const nodeList = await NodeList.getActiveListFromArchivers(State.activeArchivers)
+  const nodeList: any = await NodeList.getActiveListFromArchivers(State.activeArchivers)
+  console.log('nodeList', nodeList)
   if (nodeList && nodeList.length > 0) {
     const randomIndex = Math.floor(Math.random() * nodeList.length)
     const randomConsensor: NodeList.ConsensusNodeInfo = nodeList[randomIndex]
@@ -63,27 +66,39 @@ async function syncAndStartServer() {
 
     // Send a join request to a consensus node from the nodelist
     Data.sendJoinRequest(randomConsensor)
+    const cycleDuration = await Data.getCycleDuration()
+
+    if (!cycleDuration) return
+    await Data.checkJoinStatus(cycleDuration)
+    
+    console.log('We have joined the network')
+
+    let stateHashes = await Data.fetchStateHashes(State.activeArchivers)
+    let cycleRecords = await Data.fetchCycleRecords(State.activeArchivers)
+
+    console.log('stateHashes', stateHashes)
+    console.log('cycleRecords', cycleRecords)
 
     // After you've joined, select a consensus node to be your dataSender
-    const dataRequest = Crypto.sign({
-      dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
-        Data.TypeNames.CYCLE,
-        Cycles.currentCycleCounter,
-        randomConsensor.publicKey
-      ),
-      dataRequestStateMetaData: Data.createDataRequest<Data.StateMetaData>(
-        Data.TypeNames.STATE_METADATA,
-        Cycles.currentCycleCounter,
-        randomConsensor.publicKey
-      )
-    })
-    const newSender: Data.DataSender = {
-      nodeInfo: randomConsensor,
-      types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
-      contactTimeout: Data.createContactTimeout(randomConsensor.publicKey),
-    }
-    Data.sendDataRequest(newSender, dataRequest)
-    Data.initSocketClient(randomConsensor)
+    // const dataRequest = Crypto.sign({
+    //   dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
+    //     Data.TypeNames.CYCLE,
+    //     Cycles.currentCycleCounter,
+    //     randomConsensor.publicKey
+    //   ),
+    //   dataRequestStateMetaData: Data.createDataRequest<Data.StateMetaData>(
+    //     Data.TypeNames.STATE_METADATA,
+    //     Cycles.currentCycleCounter,
+    //     randomConsensor.publicKey
+    //   )
+    // })
+    // const newSender: Data.DataSender = {
+    //   nodeInfo: randomConsensor,
+    //   types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
+    //   contactTimeout: Data.createContactTimeout(randomConsensor.publicKey),
+    // }
+    // Data.sendDataRequest(newSender, dataRequest)
+    // Data.initSocketClient(randomConsensor)
   }
   io = startServer()
 }

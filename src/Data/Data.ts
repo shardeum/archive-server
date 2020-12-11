@@ -6,6 +6,8 @@ import * as NodeList from '../NodeList'
 import * as Storage from '../Storage'
 import * as State from '../State'
 import * as P2P from '../P2P'
+import * as Utils from '../Utils'
+import { isDeepStrictEqual } from 'util'
 import {
   Cycle,
   currentCycleCounter,
@@ -16,6 +18,9 @@ import { Transaction } from './Transactions'
 import { StateHashes, processStateHashes } from './State'
 import { ReceiptHashes, processReceiptHashes, getReceiptMapHash } from './Receipt'
 import { SummaryHashes, processSummaryHashes, getSummaryHash } from './Summary'
+import { join } from 'path'
+import { resolve } from 'dns'
+import fetch from 'node-fetch'
 
 // Socket modules
 export let socketServer: SocketIO.Server
@@ -343,6 +348,58 @@ export function sendJoinRequest (nodeInfo: NodeList.ConsensusNodeInfo) {
   emitter.emit('submitJoinRequest', nodeInfo, joinRequest)
 }
 
+export async function getCycleDuration () {
+  let cycleDuration
+  const randomIndex = Math.floor(Math.random() * State.activeArchivers.length)
+  const randomArchiver = State.activeArchivers[randomIndex]
+  let response: any = await P2P.getJson(
+    `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo/1`)
+  if (response && response.cycleInfo) {
+    return response.cycleInfo[0].duration
+  }
+}
+export function checkJoinStatus (cycleDuration: number): Promise<boolean> {
+  if (!cycleDuration) {
+    console.log('No cycle duration provided')
+    throw new Error('No cycle duration provided')
+  }
+  console.log('cycle duration', cycleDuration)
+  const ourNodeInfo = State.getNodeInfo()
+  const randomIndex = Math.floor(Math.random() * State.activeArchivers.length)
+  const randomArchiver = State.activeArchivers[randomIndex]
+
+  return new Promise(resolve => {
+    async function fetchJoinedArchiverList () {
+      console.log(
+        'Asking join status from random archiver',
+        randomArchiver.port
+      )
+      let response: any = await P2P.getJson(
+        `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo/1`
+      )
+      try {
+        if (response && response.cycleInfo[0] && response.cycleInfo[0].joinedArchivers) {
+          let joinedArchivers = JSON.parse(response.cycleInfo[0].joinedArchivers)
+          console.log('Joined archivers', joinedArchivers)
+          let isJoind = joinedArchivers.includes(
+            (a: any) => a.publicKey === ourNodeInfo.publicKey
+          )
+          console.log('isJoind', isJoind)
+          resolve(true)
+        } else {
+          setTimeout(fetchJoinedArchiverList, cycleDuration * 1000 + Date.now())
+        }
+      } catch (e) {
+        console.log(e)
+        setTimeout(fetchJoinedArchiverList, cycleDuration * 1000 + Date.now())
+      }
+    }
+
+    setTimeout(fetchJoinedArchiverList, cycleDuration * 1000 + Date.now())
+  })
+}
+
+
 function sendDataQuery(
   consensorNode: NodeList.ConsensusNodeInfo,
   dataQuery: any
@@ -416,6 +473,54 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
   if (currentCycleDuration > 0) {
     sender.contactTimeout = createContactTimeout(sender.nodeInfo.publicKey)
   }
+}
+
+export async function fetchStateHashes (archivers: any) {
+  function _isSameStateHashes (info1: any, info2: any ) {
+    const cm1 = Utils.deepCopy(info1)
+    const cm2 = Utils.deepCopy(info2)
+    delete cm1.currentTime
+    delete cm2.currentTime
+    const equivalent = isDeepStrictEqual(cm1, cm2)
+    return equivalent
+  }
+
+  const queryFn = async (node: any) => {
+    const response: any = await P2P.getJson(
+      `http://${node.ip}:${node.port}/statehashes`
+    )
+    return response.stateHashes[0]
+  }
+  const stateHashes = await Utils.robustQuery(
+    archivers,
+    queryFn,
+    _isSameStateHashes
+  )
+  return stateHashes
+}
+
+export async function fetchCycleRecords(activeArchivers: State.ArchiverNodeInfo[]): Promise<any> {
+  function isSameCyceInfo (info1: any, info2: any) {
+    const cm1 = Utils.deepCopy(info1)
+    const cm2 = Utils.deepCopy(info2)
+    delete cm1.currentTime
+    delete cm2.currentTime
+    const equivalent = isDeepStrictEqual(cm1, cm2)
+    return equivalent
+  }
+
+  const queryFn = async (node: any) => {
+    const response: any = await P2P.getJson(
+      `http://${node.ip}:${node.port}/cycleinfo`
+    )
+    return response.cycleInfo
+  }
+  let cycleInfo: any = await Utils.robustQuery(
+    activeArchivers,
+    queryFn,
+    isSameCyceInfo
+  )
+  return cycleInfo[0]
 }
 
 async function queryDataFromNode (
@@ -537,7 +642,7 @@ emitter.on(
       nodeInfo: State.getNodeInfo()
     }
     console.log('join request', request)
-    // console.log('Sending join request to: ', newSenderInfo.port)
+    console.log('Sending join request to: ', newSenderInfo.port)
     let response = await P2P.postJson(
       `http://${newSenderInfo.ip}:${newSenderInfo.port}/joinarchiver`,
       request

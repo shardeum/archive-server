@@ -2,7 +2,8 @@ import { config } from './Config'
 import * as Crypto from './Crypto'
 import * as State from './State'
 import * as P2P from './P2P'
-
+import * as Utils from './Utils'
+import { isDeepStrictEqual } from 'util'
 // TYPES
 
 export enum Statuses {
@@ -146,17 +147,44 @@ export function getActiveList() {
   return [...activeList.values()]
 }
 
-export async function getActiveListFromArchivers(activeArchivers: State.ArchiverNodeInfo[]) {
-  const randomIndex = Math.floor(Math.random() * activeArchivers.length)
-  const randomArchiver = activeArchivers[randomIndex]
-  let response:any = await P2P.getJson(
-    `http://${randomArchiver.ip}:${randomArchiver.port}/nodelist`
-  )
-  if(response && response.nodeList) {
-    // TODO: validate the reponse is from archiver
+export async function getActiveListFromArchivers(activeArchivers: State.ArchiverNodeInfo[]): Promise<ConsensusNodeInfo> {
+  function isSameCyceInfo (info1: any, info2: any) {
+    console.log('info1', info1)
+    console.log('info2', info2)
+    const cm1 = Utils.deepCopy(info1)
+    const cm2 = Utils.deepCopy(info2)
+    delete cm1.currentTime
+    delete cm2.currentTime
+    const equivalent = isDeepStrictEqual(cm1, cm2)
+    return equivalent
+  }
+
+  const queryFn = async (node: any) => {
+    console.log(node)
+    console.log(`http://${node.ip}:${node.port}/nodelist`)
+    const response: any = await P2P.getJson(
+      `http://${node.ip}:${node.port}/nodelist`
+    )
     return response.nodeList
   }
+  let nodeList: any = await Utils.robustQuery(
+    activeArchivers,
+    queryFn,
+    isSameCyceInfo
+  )
+  return nodeList[0]
 }
+// export async function getActiveListFromArchivers(activeArchivers: State.ArchiverNodeInfo[]) {
+//   const randomIndex = Math.floor(Math.random() * activeArchivers.length)
+//   const randomArchiver = activeArchivers[randomIndex]
+//   let response:any = await P2P.getJson(
+//     `http://${randomArchiver.ip}:${randomArchiver.port}/nodelist`
+//   )
+//   if(response && response.nodeList) {
+//     // TODO: validate the reponse is from archiver
+//     return response.nodeList
+//   }
+// }
 
 export function getSyncingList() {
   return [...syncingList.values()]
