@@ -1,5 +1,5 @@
 # Node.js LTS 10.x.x from Docker Hub
-FROM node:10
+FROM node:12
 
 # Create app directory
 WORKDIR /usr/src/app
@@ -18,4 +18,4 @@ COPY . .
 EXPOSE 4000
 
 # Define run command
-CMD [ "bin/archive-server" ]
+CMD [ "node", "build/server.js" ]
