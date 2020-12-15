@@ -36,7 +36,7 @@ export function processCycles(cycles: Cycle[]) {
     if (cycle.counter <= currentCycleCounter) continue
 
     // Save the cycle to db
-    Storage.storeCycle(cycle)
+    Storage.storeCycles([cycle])
 
     // Update NodeList from cycle info
     updateNodeList(cycle)

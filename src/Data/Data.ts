@@ -289,11 +289,8 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
 export function createContactTimeout(
   publicKey: NodeList.ConsensusNodeInfo['publicKey']
 ) {
-  const ms = currentCycleDuration || (20 * 1000) + timeoutPadding
+  const ms = currentCycleDuration || (30 * 1000) + timeoutPadding
   const contactTimeout = setTimeout(replaceDataSender, ms, publicKey)
-  // console.log(
-  //   `createContactTimeout: created timeout for ${publicKey} in ${ms} ms...`
-  // )
   return contactTimeout
 }
 
@@ -438,7 +435,7 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
       }
       case TypeNames.STATE_METADATA: {
         let stateMetaData: StateMetaData = newData.responses.STATE_METADATA[0]
-        console.log('Received MetaData', stateMetaData)
+        // console.log('Received MetaData', stateMetaData)
         // [TODO] validate the state data by robust querying other nodes
         processStateHashes(stateMetaData.stateHashes as StateHashes[])
         processSummaryHashes(stateMetaData.summaryHashes as SummaryHashes[])
@@ -489,14 +486,14 @@ export async function fetchStateHashes (archivers: any) {
     const response: any = await P2P.getJson(
       `http://${node.ip}:${node.port}/statehashes`
     )
-    return response.stateHashes[0]
+    return response.stateHashes
   }
-  const stateHashes = await Utils.robustQuery(
+  const stateHashes:any = await Utils.robustQuery(
     archivers,
     queryFn,
     _isSameStateHashes
   )
-  return stateHashes
+  return stateHashes[0]
 }
 
 export async function fetchCycleRecords(activeArchivers: State.ArchiverNodeInfo[]): Promise<any> {

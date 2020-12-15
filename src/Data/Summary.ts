@@ -20,7 +20,7 @@ export function processSummaryHashes(summaryHashes: SummaryHashes[]) {
 
     // Save the cycle to db
     Storage.storeSummaryHashes(item)
-    console.log(`Processed state ${item.counter}`)
+    // console.log(`Processed state ${item.counter}`)
   }
 }
 

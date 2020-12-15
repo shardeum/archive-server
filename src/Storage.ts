@@ -103,66 +103,73 @@ export async function initStorage (dbFile: string) {
   }
 }
 
-export async function storeCycle (cycle: Cycle) {
-  cycle.joined =
+function strigifyCycleRecordFields (cycle: Cycle) {
+  let stringifiedCycle: Cycle = { ...cycle }
+  stringifiedCycle.joined =
     typeof cycle.joined !== 'string'
       ? JSON.stringify(cycle.joined)
       : cycle.joined
-  cycle.joinedArchivers =
+  stringifiedCycle.joinedArchivers =
     typeof cycle.joinedArchivers !== 'string'
       ? JSON.stringify(cycle.joinedArchivers)
       : cycle.joinedArchivers
-  cycle.joinedConsensors =
+  stringifiedCycle.joinedConsensors =
     typeof cycle.joinedConsensors !== 'string'
       ? JSON.stringify(cycle.joinedConsensors)
       : cycle.joinedConsensors
-  cycle.refreshedArchivers =
+  stringifiedCycle.refreshedArchivers =
     typeof cycle.refreshedArchivers !== 'string'
       ? JSON.stringify(cycle.refreshedArchivers)
       : cycle.refreshedArchivers
-  cycle.refreshedConsensors =
+  stringifiedCycle.refreshedConsensors =
     typeof cycle.refreshedConsensors !== 'string'
       ? JSON.stringify(cycle.refreshedConsensors)
       : cycle.refreshedConsensors
-  cycle.activated =
+  stringifiedCycle.activated =
     typeof cycle.activated !== 'string'
       ? JSON.stringify(cycle.activated)
       : cycle.activated
-  cycle.activatedPublicKeys =
+  stringifiedCycle.activatedPublicKeys =
     typeof cycle.activatedPublicKeys !== 'string'
       ? JSON.stringify(cycle.activatedPublicKeys)
       : cycle.activatedPublicKeys
-  cycle.removed =
+  stringifiedCycle.removed =
     typeof cycle.removed !== 'string'
       ? JSON.stringify(cycle.removed)
       : cycle.removed
-  cycle.returned =
+  stringifiedCycle.returned =
     typeof cycle.returned !== 'string'
       ? JSON.stringify(cycle.returned)
       : cycle.returned
-  cycle.lost =
+  stringifiedCycle.lost =
     typeof cycle.lost !== 'string' ? JSON.stringify(cycle.lost) : cycle.lost
-  cycle.refuted =
+  stringifiedCycle.refuted =
     typeof cycle.refuted !== 'string'
       ? JSON.stringify(cycle.refuted)
       : cycle.refuted
-  cycle.apoptosized =
+  stringifiedCycle.apoptosized =
     typeof cycle.apoptosized !== 'string'
       ? JSON.stringify(cycle.apoptosized)
       : cycle.apoptosized
-  await db('cycles').insert(cycle)
+  return stringifiedCycle
 }
 
-export async function storeStateHashes (stateHashes: StateHashes) {
-  console.log('Storing state hashes')
-  await db('stateHashes').insert({
-    ...stateHashes,
-    partitionHashes: JSON.stringify(stateHashes.partitionHashes)
+export async function storeCycles (cycles: Cycle[]) {
+  cycles.forEach(async cycle => {
+    await db('cycles').insert(strigifyCycleRecordFields(cycle))
+  })
+}
+
+export async function storeStateHashes (stateHashess: StateHashes[]) {
+  stateHashess.forEach(async stateHash => {
+    await db('stateHashes').insert({
+      ...stateHash,
+      partitionHashes: JSON.stringify(stateHash.partitionHashes)
+    })
   })
 }
 
 export async function storeSummaryHashes (summaryHashes: SummaryHashes) {
-  console.log('Storing summary hashes')
   await db('summaryHashes').insert({
     ...summaryHashes,
     summaryHashes: JSON.stringify(summaryHashes.summaryHashes)
@@ -170,7 +177,6 @@ export async function storeSummaryHashes (summaryHashes: SummaryHashes) {
 }
 
 export async function storeReceiptHashes (receiptHashes: ReceiptHashes) {
-  console.log('Storing receipt hashes')
   await db('receiptHashes').insert({
     ...receiptHashes,
     receiptMapHashes: JSON.stringify(receiptHashes.receiptMapHashes)
