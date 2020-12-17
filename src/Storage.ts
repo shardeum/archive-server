@@ -1,4 +1,5 @@
 import { Cycle } from './Data/Cycles'
+import { Config } from './Config'
 import knex = require('knex')
 import { StateHashes } from './Data/State'
 import { ReceiptHashes } from './Data/Receipt'
@@ -7,7 +8,9 @@ import { DataQueryResponse, ReceiptMapResult, socketServer, SummaryBlob } from '
 
 let db: knex
 
-export async function initStorage (dbFile: string) {
+export async function initStorage (config: Config) {
+  // Get db file location from config
+  let dbFile = config.ARCHIVER_DB
   // Connect to a db
   db = knex({
     client: 'sqlite3',
@@ -101,6 +104,7 @@ export async function initStorage (dbFile: string) {
     })
     console.log('SummaryBlob table created.')
   }
+  console.log('Database is initialised.')
 }
 
 function strigifyCycleRecordFields (cycle: Cycle) {
@@ -162,10 +166,7 @@ export async function storeCycles (cycles: Cycle[]) {
 
 export async function storeStateHashes (stateHashess: StateHashes[]) {
   stateHashess.forEach(async stateHash => {
-    await db('stateHashes').insert({
-      ...stateHash,
-      partitionHashes: JSON.stringify(stateHash.partitionHashes)
-    })
+      await db('stateHashes').insert(stateHash)
   })
 }
 

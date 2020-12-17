@@ -24,7 +24,6 @@ const nodeState: ArchiverNodeState = {
 export let existingArchivers: ArchiverNodeInfo[] = []
 export let activeArchivers: ArchiverNodeInfo[] = []
 export let isFirst = false
-export let dbFile = ''
 
 export async function initFromConfig(config: Config) {
   // Get own nodeInfo from config
@@ -60,9 +59,6 @@ export async function initFromConfig(config: Config) {
 
   // You're first, unless existing archiver info is given
   isFirst = activeArchivers.length <= 0
-
-  // Get db file location from config
-  dbFile = config.ARCHIVER_DB
 }
 
 export function getNodeInfo(): ArchiverNodeInfo {

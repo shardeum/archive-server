@@ -37,7 +37,7 @@ async function start () {
   }
 
   // Initialize storage
-  Storage.initStorage(State.dbFile)
+  await Storage.initStorage(config)
 
   // Initialize state from config
   await State.initFromConfig(config)
