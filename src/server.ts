@@ -85,11 +85,9 @@ async function syncAndStartServer() {
     console.log('We have joined the network')
 
     let stateHashes: any = await Data.fetchStateHashes(State.activeArchivers)
-    let cycleRecords: any = await Data.fetchCycleRecords(State.activeArchivers)
+    await Data.sync(State.activeArchivers)
 
-    // Store historical cycle records and state hashes
-    await Storage.storeCycles(cycleRecords)
-    await Storage.storeStateHashes(stateHashes)
+    // await Storage.storeStateHashes(stateHashes)
 
     setTimeout(() => {
       // After you've joined, select a consensus node to be your dataSender
@@ -112,7 +110,7 @@ async function syncAndStartServer() {
       }
       Data.sendDataRequest(newSender, dataRequest)
       Data.initSocketClient(randomConsensor)
-    }, cycleRecords[0].duration * 1000) // wait for one cycle before sending data request
+    }, cycleDuration * 1000) // wait for one cycle before sending data request
   }
   io = startServer()
 }
@@ -254,7 +252,13 @@ function startServer() {
   })
 
   server.get('/cycleinfo', async (_request, reply) => {
-    let cycleInfo = await Storage.queryAllCycles()
+    let cycleInfo = []
+    if (_request.query.start && _request.query.end) {
+      let { start, end } = _request.query
+      cycleInfo = await Storage.queryCyclesBetween(start, end)
+    } else {
+      cycleInfo = await Storage.queryAllCycles()
+    }
     const res = Crypto.sign({
       cycleInfo,
     })

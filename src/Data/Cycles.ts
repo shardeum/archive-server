@@ -1,5 +1,6 @@
 import * as Storage from '../Storage'
 import * as NodeList from '../NodeList'
+import * as Crypto from '../Crypto'
 import { safeParse } from '../Utils'
 
 export interface Cycle {
@@ -32,6 +33,7 @@ export let currentCycleCounter = -1
 
 export function processCycles(cycles: Cycle[]) {
   for (const cycle of cycles) {
+    console.log('New Cycle received', cycle)
     // Skip if already processed [TODO] make this check more secure
     if (cycle.counter <= currentCycleCounter) continue
 
@@ -47,6 +49,19 @@ export function processCycles(cycles: Cycle[]) {
 
     console.log(`Processed cycle ${cycle.counter}`)
   }
+}
+
+export function computeCycleMarker(fields: any) {
+  const cycleMarker = Crypto.hashObj(fields)
+  return cycleMarker
+}
+
+export function validateCycle(prev: Cycle, next: Cycle): boolean {
+  // const prevMarker = computeCycleMarker(prev)
+  // if (next.previous !== prevMarker) return false
+  // [TODO] More validation
+  return true
+  
 }
 
 interface P2PNode {
@@ -66,6 +81,7 @@ export interface JoinedConsensor extends P2PNode {
 }
 
 function updateNodeList(cycle: Cycle) {
+  console.log('Updating nodelist', cycle)
   // Add joined nodes
   const joinedConsensors = safeParse<JoinedConsensor[]>(
     [],

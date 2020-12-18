@@ -221,6 +221,14 @@ export async function queryLatestCycle (count = 1) {
   return data
 }
 
+export async function queryCyclesBetween (start = 0, end = 0) {
+  let data = await db('cycles')
+    .select('*')
+    .where('counter', '>=', start).andWhere('counter', '<=', end)
+    .orderBy('counter', 'desc')
+  return data
+}
+
 export async function queryAllStateHashes () {
   let data = await db('stateHashes').select('*')
   return data

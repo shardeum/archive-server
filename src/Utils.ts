@@ -5,6 +5,9 @@ export function safeParse<Type>(
   json: string,
   msg?: string
 ): Type {
+  if (typeof json === 'object' && json !== null) {
+    return json
+  }
   try {
     return JSON.parse(json)
   } catch (err) {
@@ -251,6 +254,42 @@ export async function robustQuery<Node = unknown, Response = unknown>(
     )
     console.trace()
     return responses.getHighestCountItem()
+  }
+}
+
+export async function sequentialQuery<Node = unknown, Response = unknown>(
+  nodes: Node[],
+  queryFn: QueryFunction<Node, Response>,
+  verifyFn: VerifyFunction<Response> = () => true
+): Promise<SequentialQueryResult<Node>> {
+  nodes = [...nodes]
+  shuffleArray(nodes)
+
+  let result: any
+  const errors: Array<SequentialQueryError<Node>> = []
+
+  for (const node of nodes) {
+    try {
+      const response = await queryFn(node)
+      if (verifyFn(response) === false) {
+        errors.push({
+          node,
+          error: new Error('Response failed verifyFn'),
+          response,
+        })
+        continue
+      }
+      result = response
+    } catch (error) {
+      errors.push({
+        node,
+        error,
+      })
+    }
+  }
+  return {
+    result,
+    errors,
   }
 }
 

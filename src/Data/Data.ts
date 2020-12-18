@@ -13,6 +13,7 @@ import {
   currentCycleCounter,
   currentCycleDuration,
   processCycles,
+  validateCycle
 } from './Cycles'
 import { Transaction } from './Transactions'
 import { StateHashes, processStateHashes } from './State'
@@ -220,6 +221,15 @@ const timeoutPadding = 1000
 export const emitter = new EventEmitter()
 
 function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
+  if (NodeList.getActiveList.length < 2) {
+    console.log('There is only one active node in the network. Unable to replace data sender')
+    let sender = dataSenders.get(publicKey)
+    if (sender && sender.contactTimeout) {
+      clearTimeout(sender.contactTimeout)
+      sender.contactTimeout = createContactTimeout(publicKey)
+    }
+    return
+  }
   console.log(`replaceDataSender: replacing ${publicKey}`)
 
   // Remove old dataSender
@@ -496,7 +506,7 @@ export async function fetchStateHashes (archivers: any) {
   return stateHashes[0]
 }
 
-export async function fetchCycleRecords(activeArchivers: State.ArchiverNodeInfo[]): Promise<any> {
+export async function fetchCycleRecords(activeArchivers: State.ArchiverNodeInfo[], start:number, end: number): Promise<any> {
   function isSameCyceInfo (info1: any, info2: any) {
     const cm1 = Utils.deepCopy(info1)
     const cm2 = Utils.deepCopy(info2)
@@ -508,7 +518,28 @@ export async function fetchCycleRecords(activeArchivers: State.ArchiverNodeInfo[
 
   const queryFn = async (node: any) => {
     const response: any = await P2P.getJson(
-      `http://${node.ip}:${node.port}/cycleinfo`
+      `http://${node.ip}:${node.port}/cycleinfo?start=${start}&end=${end}`
+    )
+    return response.cycleInfo
+  }
+  const { result } = await Utils.sequentialQuery(activeArchivers, queryFn)
+  // console.log('Sequential query result', result)
+  return result
+}
+
+export async function getNewestCycle(activeArchivers: State.ArchiverNodeInfo[]): Promise<any> {
+  function isSameCyceInfo (info1: any, info2: any) {
+    const cm1 = Utils.deepCopy(info1)
+    const cm2 = Utils.deepCopy(info2)
+    delete cm1.currentTime
+    delete cm2.currentTime
+    const equivalent = isDeepStrictEqual(cm1, cm2)
+    return equivalent
+  }
+
+  const queryFn = async (node: any) => {
+    const response: any = await P2P.getJson(
+      `http://${node.ip}:${node.port}/cycleinfo/1`
     )
     return response.cycleInfo
   }
@@ -518,6 +549,48 @@ export async function fetchCycleRecords(activeArchivers: State.ArchiverNodeInfo[
     isSameCyceInfo
   )
   return cycleInfo[0]
+}
+
+export async function sync (activeArchivers: State.ArchiverNodeInfo[]) {
+  // Get the networks newest cycle as the anchor point for sync
+  console.log('Getting newest cycle...')
+  const [cycleToSyncTo] = await getNewestCycle(activeArchivers)
+  console.log('cycleToSyncTo', cycleToSyncTo)
+  console.log(`Syncing till cycle ${cycleToSyncTo.counter}...`)
+  const cyclesToGet = 2 * Math.floor(Math.sqrt(cycleToSyncTo.active)) + 2
+  console.log(`Cycles to get is ${cyclesToGet}`)
+
+  let CycleChain = []
+  CycleChain.unshift(cycleToSyncTo)
+  // squasher.addChange(parse(CycleChain.oldest))
+
+  // Get prevCycles from the network
+  const end = CycleChain[0].counter - 1
+  const start = end - cyclesToGet
+  console.log(`Getting cycles ${start} - ${end}...`)
+  const prevCycles = await fetchCycleRecords(activeArchivers, start, end)
+  console.log(`Got cycles`, prevCycles)
+
+  // If prevCycles is empty, start over
+  if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
+
+  // Add prevCycles to our cycle chain
+  let prepended = 0
+  for (const prevCycle of prevCycles) {
+    // Stop prepending prevCycles if one of them is invalid
+    if (validateCycle(prevCycle, CycleChain[0]) === false) {
+      console.log(`Record ${prevCycle.counter} failed validation`)
+      break
+    }
+    // Prepend the cycle to our cycle chain
+    CycleChain.unshift(prevCycle)
+    prepended++
+  }
+  // If you weren't able to prepend any of the prevCycles, start over
+  if (prepended < 1) throw new Error('Unable to prepend any previous cycles')
+  await Storage.storeCycles(CycleChain)
+  console.log('Cycle chain is synced.')
+  return true
 }
 
 async function queryDataFromNode (
