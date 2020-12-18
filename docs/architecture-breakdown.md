@@ -62,7 +62,7 @@ sequenceDiagram
   end
 ```
 
-This procedure works even when multiple Consensors are configured with the same Archiver and started at the same time. The Archiver picks the first Consensor to reach it as the first node in the network, and as the creator of the first Cycle. The Archiver then responds to any other nodes that want to join the network with the first Consensors information:
+This procedure works even when multiple Consensors are configured with the same Archiver and started at the same time. The Archiver picks the first Consensor to reach it as the first node of the network, and as the creator of the first Cycle. The Archiver then responds to any other nodes that want to join the network with the first Consensors information:
 
 ```mermaid
 sequenceDiagram
