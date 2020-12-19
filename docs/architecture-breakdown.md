@@ -1,4 +1,4 @@
-# Architecture
+# [WIP] Architecture
 
 ## 1. Required Context
 
@@ -158,4 +158,81 @@ Response:
 
 ### **Consensor**
 
-## 2. Archiver Joins an Existing Network
+## 3. Archiver Joins an Existing Network
+
+### Data Structures
+
+See https://gitlab.com/shardus/global/shardus-global-server/-/blob/master/docs/state-metadata/state-metadata.md
+
+```ts
+/*
+
+cycle 1
+
+  cycle_record: { start, end, ... }
+
+  network_data_hash: '...'
+  partition_data_hashes: [data_hash_1, data_hash_2, ...]
+
+  network_receipt_hash: '...'
+  partition_receipt_hashes: [receipt_hash_1, receipt_hash_2, ...]
+  partition_receipt_maps: [receipt_map_1, receipt_map_2, ...]
+  [OPTIONAL] partition_txs: 
+
+  network_summary_hash: '...'
+  partition_summary_hashes: [summary_hash_1, summary_hash_2, ...]
+  partition_summary_blobs: [summary_blob_1, summary_blob_2, ...]
+
+
+*/
+
+interface ArchivedCycle {
+  cycleRecord: CycleRecord
+  networkDataHash: string
+  partitionDataHashes: string[]
+  networkReceiptHash: string
+  partitionReceiptHashes: string[]
+  partitionReceiptMaps: { [partition: number]: ReceiptMap }
+  partitionTxs?: { [partition: number]: Tx[] }
+  networkSummaryHash: string
+  partitionSummaryHashes: string[]
+  partitionSummaryBlobs: { [partition: number]: SummaryBlob }
+}
+
+/** ArchivedCycles are stored in a NoSQL DB, indexed by cycle number */
+```
+
+### Algorithm
+
+0. New Archiver is configured with info of Archiver currently in network
+
+1. Gets list of some Consensors currently in network from Archiver
+
+2. Joins network
+
+3. Syncs recent cycles from Consensors to build up current node list
+
+   - Builds node list by recursively parsing cycles backwards starting from some starting point cycle until  
+     starting point cycle === most recent cycle
+
+   - Checks that the hash of each older cycle is present in the newer cycle
+
+   - Once current node list is built, checks to make sure original Archiver is present in node list
+
+4. Syncs older cycles from Archivers to build up historical node list
+
+5. Syncs network hashes (data, receipt, summary), partition hash arrays, and metadata/data  
+   (ReceiptMaps, Txs, SummaryBlobs) for all cycles
+
+   - Checks that network hashes are signed by a node present in the historical node list during that cycle
+
+   - Checks that the hash of partition hash arrays === network hashes
+
+_Sequence Diagram coming soon..._
+
+```mermaid
+sequenceDiagram
+  participant N as New Archiver
+  participant A as Existing Archiver
+  participant C as Existing Consensor
+```
