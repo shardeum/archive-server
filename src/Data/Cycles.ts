@@ -60,11 +60,10 @@ export function computeCycleMarker(fields: any) {
 }
 
 export function validateCycle(prev: Cycle, next: Cycle): boolean {
-  // const prevMarker = computeCycleMarker(prev)
-  // if (next.previous !== prevMarker) return false
+  const prevMarker = computeCycleMarker(prev)
+  if (next.previous !== prevMarker) return false
   // [TODO] More validation
   return true
-  
 }
 
 interface P2PNode {
