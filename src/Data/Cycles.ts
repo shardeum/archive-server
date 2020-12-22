@@ -26,6 +26,9 @@ export interface Cycle {
   lost: string
   refuted: string
   apoptosized: string
+  networkDataHash: string
+  networkReceiptHash: string
+  networkSummaryHash: string
 }
 
 export let currentCycleDuration = 0

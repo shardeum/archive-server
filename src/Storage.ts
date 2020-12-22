@@ -17,6 +17,7 @@ export async function initStorage (config: Config) {
     connection: {
       filename: dbFile,
     },
+    useNullAsDefault: true
   })
 
   // Create a cycles table if it doesn't exist
@@ -27,6 +28,9 @@ export async function initStorage (config: Config) {
       table.bigInteger('safetyNum')
       table.text('networkId')
       table.text('networkStateHash')
+      table.json('networkDataHash')
+      table.json('networkReceiptHash')
+      table.json('networkSummaryHash')
       table.bigInteger('counter')
       table.json('certificate')
       table.text('previous')
@@ -155,6 +159,12 @@ function strigifyCycleRecordFields (cycle: Cycle) {
     typeof cycle.apoptosized !== 'string'
       ? JSON.stringify(cycle.apoptosized)
       : cycle.apoptosized
+  stringifiedCycle.networkDataHash =
+      typeof cycle.networkDataHash !== 'string' ? JSON.stringify(cycle.networkDataHash) : cycle.networkDataHash
+  stringifiedCycle.networkReceiptHash =
+      typeof cycle.networkReceiptHash !== 'string' ? JSON.stringify(cycle.networkReceiptHash) : cycle.networkReceiptHash
+  stringifiedCycle.networkSummaryHash =
+      typeof cycle.networkSummaryHash !== 'string' ? JSON.stringify(cycle.networkSummaryHash) : cycle.networkSummaryHash
   return stringifiedCycle
 }
 
