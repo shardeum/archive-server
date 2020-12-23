@@ -267,3 +267,11 @@ export async function querySummaryHashesByCycle (cycle: number)  {
     .orderBy('counter', 'desc')
   if(data.length > 0) return data[0]
 }
+
+export async function queryAllReceipts ()  {
+  let data = await db('receiptMap')
+    .select('*')
+    .orderBy('cycle', 'asc')
+  if(data.length > 0) return data
+  return []
+}

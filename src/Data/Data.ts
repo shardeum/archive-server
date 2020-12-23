@@ -740,7 +740,7 @@ function applyNodeListChange(change: Change) {
   }
 }
 
-export async function sync (activeArchivers: State.ArchiverNodeInfo[]) {
+export async function syncCyclesAndNodeList (activeArchivers: State.ArchiverNodeInfo[]) {
   // Get the networks newest cycle as the anchor point for sync
   console.log('Getting newest cycle...')
   const [cycleToSyncTo] = await getNewestCycle(activeArchivers)
@@ -816,6 +816,59 @@ export async function sync (activeArchivers: State.ArchiverNodeInfo[]) {
   await Storage.storeCycles(CycleChain)
   console.log('Cycle chain is synced.')
   return true
+}
+
+async function downloadReceiptMap(archiver: State.ArchiverNodeInfo) {
+  let response: any = await P2P.getJson(
+    `http://${archiver.ip}:${archiver.port}/download/receipt`)
+  if (response && response.receiptMap) {
+    return response.receiptMap
+  }
+}
+
+export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo[]) {
+  const randomIndex = Math.floor(Math.random() * activeArchivers.length)
+  const randomArchiver = activeArchivers[randomIndex]
+  console.log('Downloading state meta data from random archiver', randomArchiver)
+  let receiptMap = await downloadReceiptMap(randomArchiver)
+  let cycleInfo = await Storage.queryLatestCycle(1)
+  let latestCounter = cycleInfo[0].counter
+  let allCycles = await Storage.queryAllCycles()
+  let networkReceiptHashesFromRecords = new Map()
+
+  allCycles.forEach((cycleRecord: any) => {
+    let hashes = JSON.parse(cycleRecord.networkReceiptHash)
+    if (hashes.length > 0) {
+      hashes.forEach((hash: any) => {
+        networkReceiptHashesFromRecords.set(hash.cycle, hash.hash)
+      } )
+    }
+  })
+
+  console.log('networkReceiptHashesFromRecords', networkReceiptHashesFromRecords)
+
+  for (let i = latestCounter - 1; i > 0; i--) {
+    console.log('validating for cycle', i)
+    let downloadedReceiptMap = receiptMap.filter((r: any) => r.cycle === i).map((r: any) => {
+      return {
+        ...r,
+        receiptMap: JSON.parse(r.receiptMap)
+      }
+    })
+    let calculatedReciptMapHashes = downloadedReceiptMap.map((r: any) => {
+      return Crypto.hashObj(r)
+    }).sort()
+    let calculatedNetworkReceiptMap = Crypto.hashObj(calculatedReciptMapHashes)
+
+    // console.log('receiptMapForCycle', receiptMapForCycle)
+    // console.log('receiptMapHashesForCycle', receiptMapHashesForCycle)
+    // console.log('networkReceiptMapForCycle', networkReceiptMapForCycle)
+
+    if (calculatedNetworkReceiptMap === networkReceiptHashesFromRecords.get(i)) {
+      console.log('Receipt Map data is valid')
+      Storage.storeReceiptMap(downloadedReceiptMap)
+    }
+  }
 }
 
 async function queryDataFromNode (

@@ -85,7 +85,8 @@ async function syncAndStartServer() {
     console.log('We have joined the network')
 
     let stateHashes: any = await Data.fetchStateHashes(State.activeArchivers)
-    await Data.sync(State.activeArchivers)
+    await Data.syncCyclesAndNodeList(State.activeArchivers)
+    await Data.syncStateMetaData(State.activeArchivers)
 
     // await Storage.storeStateHashes(stateHashes)
 
@@ -289,6 +290,14 @@ function startServer() {
     let stateHashes = await Storage.queryLatestStateHash(count)
     const res = Crypto.sign({
       stateHashes,
+    })
+    reply.send(res)
+  })
+
+  server.get('/download/receipt', async (_request, reply) => {
+    let receiptMap = await Storage.queryAllReceipts()
+    const res = Crypto.sign({
+      receiptMap
     })
     reply.send(res)
   })
