@@ -60,8 +60,8 @@ export function computeCycleMarker(fields: any) {
 }
 
 export function validateCycle(prev: Cycle, next: Cycle): boolean {
-  const prevMarker = computeCycleMarker(prev)
-  if (next.previous !== prevMarker) return false
+  // const prevMarker = computeCycleMarker(prev)
+  // if (next.previous !== prevMarker) return false
   // [TODO] More validation
   return true
 }
@@ -98,7 +98,7 @@ function updateNodeList(cycle: Cycle) {
     id: jc.id,
   }))
 
-  NodeList.addNodes(NodeList.Statuses.SYNCING, cycle.marker, ...consensorInfos)
+  NodeList.addNodes(NodeList.Statuses.SYNCING, cycle.marker, consensorInfos)
 
   // Update activated nodes
   const activatedPublicKeys = safeParse<string[]>(
@@ -121,7 +121,7 @@ function updateNodeList(cycle: Cycle) {
     }
     return keys
   }, [])
-  NodeList.removeNodes(...removedPks)
+  NodeList.removeNodes(removedPks)
 
   // Remove lost nodes
   const lost = safeParse<string[]>(
@@ -136,7 +136,7 @@ function updateNodeList(cycle: Cycle) {
     }
     return keys
   }, [])
-  NodeList.removeNodes(...lostPks)
+  NodeList.removeNodes(lostPks)
 
   // Remove apoptosized nodes
   const apoptosized = safeParse<string[]>(
@@ -151,5 +151,5 @@ function updateNodeList(cycle: Cycle) {
     }
     return keys
   }, [])
-  NodeList.removeNodes(...apoptosizedPks)
+  NodeList.removeNodes(apoptosizedPks)
 }

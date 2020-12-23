@@ -54,16 +54,16 @@ async function start () {
 async function syncAndStartServer() {
   // If your not the first archiver node, get a nodelist from the others
   const nodeList: any = await NodeList.getActiveListFromArchivers(State.activeArchivers)
-  if (NodeList.isEmpty()) {
-    for (let node of nodeList) {
-      const activeNode: NodeList.ConsensusNodeInfo = {
-        ip: node.ip,
-        port: node.port,
-        publicKey: node.publicKey,
-      }
-      NodeList.addNodes(NodeList.Statuses.ACTIVE, 'bogus', activeNode)
-    }
-  }
+  // if (NodeList.isEmpty()) {
+  //   for (let node of nodeList) {
+  //     const activeNode: NodeList.ConsensusNodeInfo = {
+  //       ip: node.ip,
+  //       port: node.port,
+  //       publicKey: node.publicKey,
+  //     }
+  //     NodeList.addNodes(NodeList.Statuses.ACTIVE, 'bogus', activeNode)
+  //   }
+  // }
 
   if (nodeList && nodeList.length > 0) {
     const randomIndex = Math.floor(Math.random() * nodeList.length)
@@ -167,7 +167,7 @@ function startServer() {
 
       // Add first node to NodeList
       // NodeList.addNodes(NodeList.Statuses.SYNCING, firstCycleMarker, firstNode)
-      NodeList.addNodes(NodeList.Statuses.SYNCING, 'bogus', firstNode)
+      NodeList.addNodes(NodeList.Statuses.SYNCING, 'bogus', [firstNode])
       // Set first node as dataSender
       Data.addDataSenders({
         nodeInfo: firstNode,

@@ -2,6 +2,7 @@ import { config } from './Config'
 import * as Crypto from './Crypto'
 import * as State from './State'
 import * as P2P from './P2P'
+import * as Data from './Data/Data'
 import * as Utils from './Utils'
 import { isDeepStrictEqual } from 'util'
 // TYPES
@@ -31,16 +32,21 @@ export interface SignedList {
 const list: ConsensusNodeInfo[] = []
 const metadata: Map<string, ConsensusNodeMetadata> = new Map()
 const syncingList: Map<string, ConsensusNodeInfo> = new Map()
-const activeList: Map<string, ConsensusNodeInfo> = new Map()
-const byPublicKey: { [publicKey: string]: ConsensusNodeInfo } = {}
+export const activeList: Map<string, ConsensusNodeInfo> = new Map()
+export const byPublicKey: { [publicKey: string]: ConsensusNodeInfo } = {}
 const byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
 export const byId: { [id: string]: ConsensusNodeInfo } = {}
 const publicKeyToId: { [publicKey: string]: string } = {}
 
 // METHODS
 
-function getIpPort({ ip, port }: { ip: string; port: number }): string {
-  return ip + ':' + port
+function getIpPort(node: any) {
+  if (node.ip && node.port) {
+    return node.ip + ':' + node.port
+  } else if (node.externalIp && node.externalPort) {
+    return node.externalIp + ':' + node.externalPort
+  }
+  return ''
 }
 
 export function isEmpty(): boolean {
@@ -50,8 +56,11 @@ export function isEmpty(): boolean {
 export function addNodes(
   status: Statuses,
   cycleMarkerJoined: string,
-  ...nodes: ConsensusNodeInfo[]
+  nodes: ConsensusNodeInfo[] | Data.JoinedConsensor[]
 ) {
+  console.log('Typeof Nodes to add', typeof nodes)
+  console.log('Length of Nodes to add', nodes.length)
+  console.log('Nodes to add', nodes)
   for (const node of nodes) {
     const ipPort = getIpPort(node)
 
@@ -60,6 +69,7 @@ export function addNodes(
       byPublicKey[node.publicKey] === undefined &&
       byIpPort[ipPort] === undefined
     ) {
+      console.log('adding new node', node.publicKey)
       list.push(node)
       if (status === Statuses.SYNCING) {
         syncingList.set(node.publicKey, node)
@@ -86,9 +96,10 @@ export function addNodes(
       cycleMarkerJoined,
     })
   }
+  console.log('ActiveList', activeList)
 }
 
-export function removeNodes(...publicKeys: string[]): string[] {
+export function removeNodes(publicKeys: string[]): string[] {
   // Efficiently remove nodes from nodelist
   const keysToDelete: Map<ConsensusNodeInfo['publicKey'], boolean> = new Map()
 

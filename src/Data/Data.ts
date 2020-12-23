@@ -1,5 +1,6 @@
 import { Server, IncomingMessage, ServerResponse } from 'http'
 import { EventEmitter } from 'events'
+import * as deepmerge from 'deepmerge'
 import fastify = require('fastify')
 import * as Crypto from '../Crypto'
 import * as NodeList from '../NodeList'
@@ -551,6 +552,194 @@ export async function getNewestCycle(activeArchivers: State.ArchiverNodeInfo[]):
   return cycleInfo[0]
 }
 
+export function activeNodeCount(cycle: Cycle) {
+  return (
+    cycle.active +
+    cycle.activated.length -
+    cycle.apoptosized.length -
+    cycle.removed.length -
+    cycle.lost.length
+  )
+}
+
+export function totalNodeCount(cycle: Cycle) {
+  return (
+    cycle.syncing +
+    cycle.joinedConsensors.length +
+    cycle.active +
+    //    cycle.activated.length -      // don't count activated because it was already counted in syncing
+    cycle.apoptosized.length -
+    cycle.removed.length -
+    cycle.lost.length
+  )
+}
+
+export interface JoinedConsensor extends NodeList.ConsensusNodeInfo {
+  cycleJoined: string
+  counterRefreshed: number
+  id: string
+}
+
+export enum NodeStatus {
+  ACTIVE = 'active',
+  SYNCING = 'syncing',
+  REMOVED = 'removed',
+}
+
+export interface Node extends JoinedConsensor {
+  curvePublicKey: string
+  status: NodeStatus
+}
+
+
+type OptionalExceptFor<T, TRequired extends keyof T> = Partial<T> &
+  Pick<T, TRequired>
+
+export type Update = OptionalExceptFor<Node, 'id'>
+
+export interface Change {
+  added: JoinedConsensor[] // order joinRequestTimestamp [OLD, ..., NEW]
+  removed: Array<string> // order doesn't matter
+  updated: Update[] // order doesn't matter
+}
+
+export function reversed<T>(thing: Iterable<T>) {
+  const arr = Array.isArray(thing) ? thing : Array.from(thing)
+  let i = arr.length - 1
+  const reverseIterator = {
+    next: () => {
+      const done = i < 0
+      const value = done ? undefined : arr[i]
+      i--
+      return { value, done }
+    },
+  }
+  return {
+    [Symbol.iterator]: () => reverseIterator,
+  }
+}
+
+export class ChangeSquasher {
+  final: Change
+  removedIds: Set<Node['id']>
+  seenUpdates: Map<Update['id'], Update>
+  addedIds: Set<Node['id']>
+  constructor () {
+    this.final = {
+      added: [],
+      removed: [],
+      updated: [],
+    }
+    this.addedIds = new Set()
+    this.removedIds = new Set()
+    this.seenUpdates = new Map()
+  }
+
+  addChange (change: Change) {
+    for (const id of change.removed) {
+      // Ignore if id is already removed
+      if (this.removedIds.has(id)) continue
+      // Mark this id as removed
+      this.removedIds.add(id)
+    }
+
+    for (const update of change.updated) {
+      // Ignore if update.id is already removed
+      if (this.removedIds.has(update.id)) continue
+      // Mark this id as updated
+      this.seenUpdates.set(update.id, update)
+    }
+
+    for (const joinedConsensor of reversed(change.added)) {
+      // Ignore if it's already been added
+      if (this.addedIds.has(joinedConsensor.id)) continue
+
+      // Ignore if joinedConsensor.id is already removed
+      if (this.removedIds.has(joinedConsensor.id)) {
+        continue
+      }
+      // Check if this id has updates
+      const update = this.seenUpdates.get(joinedConsensor.id)
+      if (update) {
+        // If so, put them into final.updated
+        this.final.updated.unshift(update)
+        this.seenUpdates.delete(joinedConsensor.id)
+      }
+      // Add joinedConsensor to final.added
+      this.final.added.unshift(joinedConsensor)
+      // Mark this id as added
+      this.addedIds.add(joinedConsensor.id)
+    }
+  }
+}
+
+export function parseRecord (record: any): Change {
+  console.log('parsing record', record)
+  // For all nodes described by activated, make an update to change their status to active
+  const activated = JSON.parse(record.activated).map((id: string) => ({
+    id,
+    activeTimestamp: record.start,
+    status: NodeStatus.ACTIVE,
+  }))
+
+  const refreshAdded: Change['added'] = []
+  const refreshUpdated: Change['updated'] = []
+  for (const refreshed of JSON.parse(record.refreshedConsensors)) {
+    // const node = NodeList.nodes.get(refreshed.id)
+    const node = NodeList.getNodeInfoById(refreshed.id) as JoinedConsensor
+    if (node) {
+      // If it's in our node list, we update its counterRefreshed
+      // (IMPORTANT: update counterRefreshed only if its greater than ours)
+      if (record.counter > node.counterRefreshed) {
+        refreshUpdated.push({
+          id: refreshed.id,
+          counterRefreshed: record.counter,
+        })
+      }
+    } else {
+      // If it's not in our node list, we add it...
+      refreshAdded.push(refreshed)
+      // and immediately update its status to ACTIVE
+      // (IMPORTANT: update counterRefreshed to the records counter)
+      refreshUpdated.push({
+        id: refreshed.id,
+        status: NodeStatus.ACTIVE,
+        counterRefreshed: record.counter,
+      })
+    }
+  }
+
+  return {
+    added: [...JSON.parse(record.joinedConsensors)],
+    removed: [...JSON.parse(record.apoptosized)],
+    updated: [...activated, refreshUpdated],
+  }
+}
+
+export function parse (record: any): Change {
+  const changes = parseRecord(record)
+  // const mergedChange = deepmerge.all<Change>(changes)
+  // return mergedChange
+  return changes
+}
+
+function applyNodeListChange(change: Change) {
+  console.log('Applying node changes', change)
+  if (change.added.length > 0) {
+    const consensorInfos = change.added.map((jc: any) => ({
+      ip: jc.externalIp,
+      port: jc.externalPort,
+      publicKey: jc.publicKey,
+      id: jc.id,
+    }))
+
+    NodeList.addNodes(NodeList.Statuses.ACTIVE, change.added[0].cycleJoined, consensorInfos)
+  }
+  if (change.removed.length > 0) {
+    NodeList.removeNodes(change.removed)
+  }
+}
+
 export async function sync (activeArchivers: State.ArchiverNodeInfo[]) {
   // Get the networks newest cycle as the anchor point for sync
   console.log('Getting newest cycle...')
@@ -561,33 +750,69 @@ export async function sync (activeArchivers: State.ArchiverNodeInfo[]) {
   console.log(`Cycles to get is ${cyclesToGet}`)
 
   let CycleChain = []
+  const squasher = new ChangeSquasher()
+
   CycleChain.unshift(cycleToSyncTo)
-  // squasher.addChange(parse(CycleChain.oldest))
+  squasher.addChange(parse(CycleChain[0]))
 
-  // Get prevCycles from the network
-  const end = CycleChain[0].counter - 1
-  const start = end - cyclesToGet
-  console.log(`Getting cycles ${start} - ${end}...`)
-  const prevCycles = await fetchCycleRecords(activeArchivers, start, end)
-  console.log(`Got cycles`, prevCycles)
+  do {
+    // Get prevCycles from the network
+    const end: number = CycleChain[0].counter - 1
+    const start: number = end - cyclesToGet
+    console.log(`Getting cycles ${start} - ${end}...`)
+    const prevCycles = await fetchCycleRecords(activeArchivers, start, end)
+    console.log(`Got cycles`, prevCycles.length)
 
-  // If prevCycles is empty, start over
-  if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
+    // If prevCycles is empty, start over
+    if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
 
-  // Add prevCycles to our cycle chain
-  let prepended = 0
-  for (const prevCycle of prevCycles) {
-    // Stop prepending prevCycles if one of them is invalid
-    if (validateCycle(prevCycle, CycleChain[0]) === false) {
-      console.log(`Record ${prevCycle.counter} failed validation`)
-      break
+    // Add prevCycles to our cycle chain
+    let prepended = 0
+    for (const prevCycle of prevCycles) {
+      // Stop prepending prevCycles if one of them is invalid
+      if (validateCycle(prevCycle, CycleChain[0]) === false) {
+        console.log(`Record ${prevCycle.counter} failed validation`)
+        break
+      }
+      // Prepend the cycle to our cycle chain
+      CycleChain.unshift(prevCycle)
+      squasher.addChange(parse(prevCycle))
+      prepended++
+
+      if (
+        squasher.final.updated.length >= activeNodeCount(cycleToSyncTo) &&
+        squasher.final.added.length >= totalNodeCount(cycleToSyncTo)
+      ) {
+        break
+      }
     }
-    // Prepend the cycle to our cycle chain
-    CycleChain.unshift(prevCycle)
-    prepended++
-  }
-  // If you weren't able to prepend any of the prevCycles, start over
-  if (prepended < 1) throw new Error('Unable to prepend any previous cycles')
+
+    console.log(
+      `Got ${
+        squasher.final.updated.length
+      } active nodes, need ${activeNodeCount(cycleToSyncTo)}`
+    )
+    console.log(
+      `Got ${squasher.final.added.length} total nodes, need ${totalNodeCount(
+        cycleToSyncTo
+      )}`
+    )
+    if (squasher.final.added.length < totalNodeCount(cycleToSyncTo))
+      console.log(
+        'Short on nodes. Need to get more cycles. Cycle:' +
+          cycleToSyncTo.counter
+      )
+
+    // If you weren't able to prepend any of the prevCycles, start over
+    if (prepended < 1) throw new Error('Unable to prepend any previous cycles')
+  } while (
+    squasher.final.updated.length < activeNodeCount(cycleToSyncTo) ||
+    squasher.final.added.length < totalNodeCount(cycleToSyncTo)
+  )
+
+  applyNodeListChange(squasher.final)
+  console.log('NodeList after sync', NodeList.getActiveList())
+
   await Storage.storeCycles(CycleChain)
   console.log('Cycle chain is synced.')
   return true
