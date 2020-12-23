@@ -164,6 +164,10 @@ Response:
 
 See https://gitlab.com/shardus/global/shardus-global-server/-/blob/master/docs/state-metadata/state-metadata.md
 
+`ArchivedCycle`s are created for each cycle archived by the Archiver
+
+`ArchivedCycle`s are stored by Archivers in a NoSQL DB, indexed by cycle marker and cycle number
+
 ```ts
 /*
 
@@ -183,23 +187,81 @@ cycle 1
   partition_summary_hashes: [summary_hash_1, summary_hash_2, ...]
   partition_summary_blobs: [summary_blob_1, summary_blob_2, ...]
 
-
 */
+type CycleMarker = string
 
 interface ArchivedCycle {
   cycleRecord: CycleRecord
-  networkDataHash: string
-  partitionDataHashes: string[]
-  networkReceiptHash: string
-  partitionReceiptHashes: string[]
-  partitionReceiptMaps: { [partition: number]: ReceiptMap }
-  partitionTxs?: { [partition: number]: Tx[] }
-  networkSummaryHash: string
-  partitionSummaryHashes: string[]
-  partitionSummaryBlobs: { [partition: number]: SummaryBlob }
+  cycleMarker: CycleMarker
+
+  // State Data
+  data: {
+    parentCycle?: CycleMarker
+    networkHash?: string
+    partitionHashes?: string[]
+  }
+
+  // Receipt Maps/Txs
+  receipt: {
+    parentCycle?: CycleMarker
+    networkHash?: string
+    partitionHashes?: string[]
+    partitionMaps?: { [partition: number]: ReceiptMap }
+    partitionTxs?: { [partition: number]: Tx[] }
+  }
+
+  // Summary Blobs
+  summary: {
+    parentCycle?: CycleMarker
+    networkHash?: string
+    partitionHashes?: string[]
+    partitionBlobs?: { [partition: number]: SummaryBlob }
+  }
+}
+```
+
+We need to add some new Cycle Record fields to hold network level hashes:
+
+```ts
+/*
+
+  C1    C2    C3    C4    C5    C6
+|-----|-----|-----|-----|-----|-----|
+
+
+C3: {
+  network_data_hash: [ { cycle: C1, hash: 'abc...' } ]
+  network_receipt_hash: [ { cycle: C2, hash: 'abc...' } ]
+  network_summary_hash: [ { cycle: C3, hash: 'abc...' } ]
+  ...
 }
 
-/** ArchivedCycles are stored in a NoSQL DB, indexed by cycle number */
+C4: {
+  network_data_hash: [ { cycle: C2, hash: 'abc...' } ]
+  network_receipt_hash: [ { cycle: C3, hash: 'abc...' } ]
+  network_summary_hash: [ { cycle: C4, hash: 'abc...' } ]
+  ...
+}
+
+C5: {
+  network_data_hash: [ { cycle: C3, hash: 'abc...' }, { cycle: C4, hash: 'abc...' } ]
+  network_receipt_hash: [ { cycle: C4, hash: 'abc...' } ]
+  network_summary_hash: [ { cycle: C5, hash: 'abc...' } ]
+  ...
+}
+
+*/
+
+interface NetworkHashEntry {
+  cycle: CycleMarker
+  hash: string
+}
+
+interface UpdatedCycleRecord extends CycleRecord {
+  networkDataHash: NetworkHashEntry[]
+  networkReceiptHash: NetworkHashEntry[]
+  networkSummaryHash: NetworkHashEntry[]
+}
 ```
 
 ### Algorithm
@@ -210,19 +272,25 @@ interface ArchivedCycle {
 
 2. Joins network
 
-3. Syncs recent cycles from Consensors to build up current node list
+3. As steps 4 and 5 are happening, create `ArchivedCycle` entries for each cycle as they are parsed.
 
-   - Builds node list by recursively parsing cycles backwards starting from some starting point cycle until  
-     starting point cycle === most recent cycle
+   - Create `ArchivedCycle` entries for cycles mentioned in the `networkDataHash`, `networkReceiptHash`, and `networkSummaryHash` fields of cycles that are being parsed
+
+   - `ArchivedCycle` entries will be partial at this point and become complete as the sync process continues
+
+4. Syncs recent cycles from Consensors until current node list is built up
+
+   - Builds node list by parsing cycles backwards starting from some starting point cycle. Moves starting point cycle forward and recursively does this until starting point cycle === most recent cycle
 
    - Checks that the hash of each older cycle is present in the newer cycle
 
    - Once current node list is built, checks to make sure original Archiver is present in node list
 
-4. Syncs older cycles from Archivers to build up historical node list
+5. Syncs older cycles from Archivers until historical node list is built up
 
-5. Syncs network hashes (data, receipt, summary), partition hash arrays, and metadata/data  
-   (ReceiptMaps, Txs, SummaryBlobs) for all cycles
+   - Parses cycles backwards until an older cycle cannot be found
+
+6. Syncs partition hash arrays and metadata/data (ReceiptMaps, Txs, SummaryBlobs) for all `ArchivedCycles`
 
    - Checks that network hashes are signed by a node present in the historical node list during that cycle
 
