@@ -5,6 +5,7 @@ import fastify = require('fastify')
 import * as Crypto from '../Crypto'
 import * as NodeList from '../NodeList'
 import * as Storage from '../Storage'
+import * as Cycles from './Cycles'
 import * as State from '../State'
 import * as P2P from '../P2P'
 import * as Utils from '../Utils'
@@ -20,9 +21,7 @@ import { Transaction } from './Transactions'
 import { StateHashes, processStateHashes } from './State'
 import { ReceiptHashes, processReceiptHashes, getReceiptMapHash } from './Receipt'
 import { SummaryHashes, processSummaryHashes, getSummaryHash } from './Summary'
-import { join } from 'path'
-import { resolve } from 'dns'
-import fetch from 'node-fetch'
+import { BaseModel } from 'tydb'
 
 // Socket modules
 export let socketServer: SocketIO.Server
@@ -125,7 +124,36 @@ export interface DataQueryResponse {
   success: boolean
   data: any
 }
+type CycleMarker = string
 
+type StateData = {
+  parentCycle?: CycleMarker
+  networkHash?: string
+  partitionHashes?: string[]
+}
+
+type Receipt = {
+  parentCycle?: CycleMarker
+  networkHash?: string
+  partitionHashes?: string[]
+  partitionMaps?: { [partition: number]: ReceiptMapResult }
+  partitionTxs?: { [partition: number]: any }
+}
+
+type Summary = {
+  parentCycle?: CycleMarker
+  networkHash?: string
+  partitionHashes?: string[]
+  partitionBlobs?: { [partition: number]: SummaryBlob }
+}
+
+export class ArchivedCycle extends BaseModel {
+  cycleRecord!: Cycle
+  cycleMarker!: CycleMarker
+  data!: StateData
+  receipt!: Receipt
+  summary!: Summary
+}
 
 export function initSocketServer(io: SocketIO.Server) {
   socketServer = io
@@ -435,6 +463,7 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
   }
 
   const newDataTypes = Object.keys(newData.responses)
+  let archivedCycle: any = {}
   for (const type of newDataTypes as (keyof typeof TypeNames)[]) {
 
     // Process data depending on type
@@ -442,6 +471,11 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
       case TypeNames.CYCLE: {
         // Process cycles
         processCycles(newData.responses.CYCLE as Cycle[])
+        if (newData.responses.CYCLE.length > 0) {
+          archivedCycle.cycleRecord = newData.responses.CYCLE[0]
+          archivedCycle.cycleMarker = newData.responses.CYCLE[0].marker
+          Cycles.CycleChain.set(newData.responses.CYCLE[0].counter, newData.responses.CYCLE[0])
+        }
         break
       }
       case TypeNames.STATE_METADATA: {
@@ -452,6 +486,44 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
         processSummaryHashes(stateMetaData.summaryHashes as SummaryHashes[])
         processReceiptHashes(stateMetaData.receiptHashes as ReceiptHashes[])
 
+        if (stateMetaData.stateHashes.length > 0) {
+          let parentCycle = Cycles.CycleChain.get(stateMetaData.stateHashes[0].counter)
+          archivedCycle.data = {
+            parentCycle: parentCycle ? parentCycle.marker : '',
+            networkHash: stateMetaData.stateHashes[0].networkHash,
+            partitionHashes: stateMetaData.stateHashes[0].partitionHashes,
+          }
+        }
+
+        if (stateMetaData.receiptHashes.length > 0) {
+          let parentCycle = Cycles.CycleChain.get(
+            stateMetaData.receiptHashes[0].counter
+          )
+
+          archivedCycle.receipt = {
+            parentCycle: parentCycle ? parentCycle.marker : '',
+            networkHash: stateMetaData.receiptHashes[0].networkReceiptHash,
+            partitionHashes: stateMetaData.receiptHashes[0].receiptMapHashes,
+            partitionMaps: {},
+            partitionTxs: {},
+          }
+        }
+
+        if (stateMetaData.summaryHashes.length > 0) {
+          let parentCycle = Cycles.CycleChain.get(
+            stateMetaData.summaryHashes[0].counter
+          )
+
+          archivedCycle.summary = {
+            parentCycle: parentCycle ? parentCycle.marker : '',
+            networkHash: stateMetaData.summaryHashes[0].networkSummaryHash,
+            partitionHashes: stateMetaData.summaryHashes[0].summaryHashes,
+            partitionBlobs: {},
+          }
+        }
+
+
+        // Query receipt maps from other nodes and store it
         if (stateMetaData.receiptHashes.length > 0) {
           let activeNodes = NodeList.getActiveList()
           for (let node of activeNodes) {
@@ -460,7 +532,7 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
           }
         }
 
-        // Query receipt maps from other nodes and store it
+        // Query summary blobs from other nodes and store it
         if (stateMetaData.summaryHashes.length > 0) {
           let activeNodes = NodeList.getActiveList()
           for (let node of activeNodes) {
@@ -477,6 +549,8 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
       }
     }
   }
+
+  Storage.insertArchivedCycle(archivedCycle)
   // Set new contactTimeout for sender
   if (currentCycleDuration > 0) {
     sender.contactTimeout = createContactTimeout(sender.nodeInfo.publicKey)
@@ -674,7 +748,6 @@ export class ChangeSquasher {
 }
 
 export function parseRecord (record: any): Change {
-  console.log('parsing record', record)
   // For all nodes described by activated, make an update to change their status to active
   const activated = JSON.parse(record.activated).map((id: string) => ({
     id,
@@ -724,7 +797,6 @@ export function parse (record: any): Change {
 }
 
 function applyNodeListChange(change: Change) {
-  console.log('Applying node changes', change)
   if (change.added.length > 0) {
     const consensorInfos = change.added.map((jc: any) => ({
       ip: jc.externalIp,
@@ -761,7 +833,6 @@ export async function syncCyclesAndNodeList (activeArchivers: State.ArchiverNode
     const start: number = end - cyclesToGet
     console.log(`Getting cycles ${start} - ${end}...`)
     const prevCycles = await fetchCycleRecords(activeArchivers, start, end)
-    console.log(`Got cycles`, prevCycles.length)
 
     // If prevCycles is empty, start over
     if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
@@ -906,6 +977,8 @@ async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
       let calculatedReceiptMapHash = Crypto.hashObj(partitionBlock)
       if (calculatedReceiptMapHash === reciptMapHash) {
         await Storage.storeReceiptMap(partitionBlock)
+        await Storage.updateReceiptMap(partitionBlock)
+
       }
     }
   }
@@ -951,6 +1024,7 @@ async function validateAndStoreSummaryBlobs (
         blobsToForward.push(summaryBlob)
         try {
           await Storage.storeSummaryBlob(summaryBlob, cycle)
+          await Storage.updateSummaryBlob(summaryBlob, cycle)
         } catch (e) {
           console.log('Unable to store summary blob', e)
         }

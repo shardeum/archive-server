@@ -1,12 +1,16 @@
-import { Cycle } from './Data/Cycles'
+import { Cycle, CycleChain } from './Data/Cycles'
 import { Config } from './Config'
+import * as Data from './Data/Data'
 import knex = require('knex')
 import { StateHashes } from './Data/State'
 import { ReceiptHashes } from './Data/Receipt'
 import { SummaryHashes } from './Data/Summary'
 import { DataQueryResponse, ReceiptMapResult, socketServer, SummaryBlob } from './Data/Data'
+import { Database, BaseModel, FS_Persistence_Adapter } from 'tydb'
 
 let db: knex
+
+export let Collection: any
 
 export async function initStorage (config: Config) {
   // Get db file location from config
@@ -19,6 +23,15 @@ export async function initStorage (config: Config) {
     },
     useNullAsDefault: true
   })
+
+  Collection = new Database<Data.ArchivedCycle>({
+    ref: 'archiver-db',
+    model: Data.ArchivedCycle,
+    persistence_adapter: FS_Persistence_Adapter,
+    autoCompaction: 60 * 60 * 1000, // ^ compaction every hour
+  })
+
+  await Collection.createIndex({ fieldName: 'cycleMarker', unique: true })
 
   // Create a cycles table if it doesn't exist
   // TODO: add safetyMode, safetyNum, networkId columns
@@ -109,6 +122,183 @@ export async function initStorage (config: Config) {
     console.log('SummaryBlob table created.')
   }
   console.log('Database is initialised.')
+}
+export async function insertArchivedCycle (archivedCycle: any) {
+  try {
+    await Collection.insert([Data.ArchivedCycle.new(archivedCycle)])
+  } catch (e) {
+    console.log('Unable to insert archived cycle')
+    console.log(e)
+  }
+}
+
+export async function updateReceiptMap (
+  receiptMapResult: Data.ReceiptMapResult
+) {
+  if (!receiptMapResult) return
+  try {
+    let parentCycle = CycleChain.get(receiptMapResult.cycle)
+
+    if (!parentCycle) {
+      console.log(
+        'Unable find record with parent cycle with counter',
+        receiptMapResult.cycle
+      )
+      return
+    }
+
+    const existingArchivedCycle = await queryArchivedCycleByMarker(
+      parentCycle.marker
+    )
+
+    console.log('Existing Archived cycle', existingArchivedCycle)
+
+    if (!existingArchivedCycle) {
+      console.log(
+        'Unable find existing archived cycle with marker',
+        parentCycle.marker
+      )
+      return
+    }
+
+    let newPartitionMaps: any = {}
+    if (
+      existingArchivedCycle.receipt &&
+      existingArchivedCycle.receipt.partitionMaps
+    ) {
+      newPartitionMaps = { ...existingArchivedCycle.receipt.partitionMaps }
+    }
+
+    newPartitionMaps[receiptMapResult.partition] = receiptMapResult.receiptMap
+
+    console.log('newPartitionMaps', newPartitionMaps)
+
+    await Collection.update({
+      filter: { cycleMarker: parentCycle.marker },
+      update: { $set: { 'receipt.partitionMaps': newPartitionMaps } },
+    })
+  } catch (e) {
+    console.log('Unable to update receipt maps in archived cycle')
+    console.log(e)
+  }
+}
+
+export async function updateSummaryBlob (
+  summaryBlob: SummaryBlob,
+  cycle: number
+) {
+  if (!summaryBlob) return
+  try {
+    let parentCycle = CycleChain.get(cycle)
+
+    if (!parentCycle) {
+      console.log('Unable find record with parent cycle with counter', cycle)
+      return
+    }
+
+    const existingArchivedCycle = await queryArchivedCycleByMarker(
+      parentCycle.marker
+    )
+
+    console.log('Existing Archived cycle', existingArchivedCycle)
+
+    if (!existingArchivedCycle) {
+      console.log(
+        'Unable find existing archived cycle with marker',
+        parentCycle.marker
+      )
+      return
+    }
+
+    let newPartitionBlobs: any = {}
+    if (
+      existingArchivedCycle.summary &&
+      existingArchivedCycle.summary.partitionBlobs
+    ) {
+      newPartitionBlobs = { ...existingArchivedCycle.summary.partitionBlobs }
+    }
+
+    newPartitionBlobs[summaryBlob.partition] = summaryBlob
+
+    console.log('newPartitionBlobs', newPartitionBlobs)
+
+    await Collection.update({
+      filter: { cycleMarker: parentCycle.marker },
+      update: { $set: { 'summary.partitionBlobs': newPartitionBlobs } },
+    })
+  } catch (e) {
+    console.log('Unable to update summary blobs in archived cycle')
+    console.log(e)
+  }
+}
+
+export async function queryAllArchivedCycles () {
+  let archivedCycles = await Collection.find({
+    filter: {},
+    project: {
+      _id: 0,
+      cycleMarker: 0,
+      receipt: 0,
+      data: 0,
+      summary: 0,
+    },
+  })
+  return archivedCycles
+}
+
+export async function queryAllCycleRecords () {
+  let cycleRecords = await Collection.find({
+    filter: {},
+    project: {
+      _id: 0,
+      cycleMarker: 0,
+      receipt: 0,
+      data: 0,
+      summary: 0,
+    },
+  })
+  return cycleRecords.map((item: any) => item.cycleRecord)
+}
+
+export async function queryLatestCycleRecords (count: number = 1) {
+  let cycleRecords = await Collection.find({
+    filter: {},
+    limit: count,
+    project: {
+      _id: 0,
+      cycleMarker: 0,
+      receipt: 0,
+      data: 0,
+      summary: 0,
+    },
+  })
+  return cycleRecords.map((item: any) => item.cycleRecord)
+}
+
+export async function queryCycleRecordsBetween (start: number, end: number) {
+  let cycleRecords = await Collection.find({
+    filter: {
+      $and: [
+        { 'cycleRecord.counter': { $gte: start } },
+        { 'cycleRecord.counter': { $lte: end } },
+      ],
+    },
+    project: {
+      _id: 0,
+      cycleMarker: 0,
+      receipt: 0,
+      data: 0,
+      summary: 0,
+    },
+  })
+  return cycleRecords.map((item: any) => item.cycleRecord)
+}
+
+export async function queryArchivedCycleByMarker (marker: string) {
+  let archivedCycles = await Collection.find({
+    filter: { cycleMarker: marker },
+  })
+  if (archivedCycles.length > 0) return archivedCycles[0]
 }
 
 function strigifyCycleRecordFields (cycle: Cycle) {

@@ -225,6 +225,15 @@ function startServer() {
     reply.send(res)
   })
 
+  server.get('/full-archive', async (_request, reply) => {
+    const archivedCycles = await Storage.queryAllArchivedCycles()
+    const res = Crypto.sign({
+      archivedCycles,
+    })
+    reply.send(res)
+  })
+
+
   server.get('/debug', (_request, reply) => {
     let nodeList = NodeList.getActiveList()
     if (nodeList.length < 1) {
@@ -256,9 +265,9 @@ function startServer() {
     let cycleInfo = []
     if (_request.query.start && _request.query.end) {
       let { start, end } = _request.query
-      cycleInfo = await Storage.queryCyclesBetween(start, end)
+      cycleInfo = await Storage.queryCycleRecordsBetween(start, end)
     } else {
-      cycleInfo = await Storage.queryAllCycles()
+      cycleInfo = await Storage.queryAllCycleRecords()
     }
     const res = Crypto.sign({
       cycleInfo,
@@ -268,8 +277,7 @@ function startServer() {
 
   server.get('/cycleinfo/:count', async (_request, reply) => {
     let count = _request.params.count
-    console.log(_request.params)
-    let cycleInfo = await Storage.queryLatestCycle(count)
+    let cycleInfo = await Storage.queryLatestCycleRecords(count)
     const res = Crypto.sign({
       cycleInfo,
     })

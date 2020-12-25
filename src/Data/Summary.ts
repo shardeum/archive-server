@@ -10,7 +10,7 @@ export type NetworkSummaryHash = string
 export interface SummaryHashes {
   counter: Cycle['counter']
   summaryHashes: hashMap
-  networkHash: NetworkSummaryHash
+  networkSummaryHash: NetworkSummaryHash
 }
 
 export function processSummaryHashes(summaryHashes: SummaryHashes[]) {

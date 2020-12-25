@@ -52,6 +52,7 @@
     "shardus-crypto-utils": "git+https://gitlab.com/shardus/shardus-crypto-utils.git",
     "socket.io": "^2.3.0",
     "socket.io-client": "^2.3.0",
-    "sqlite3": "^5.0.0"
+    "sqlite3": "^5.0.0",
+    "tydb": "^0.1.5"
   }
 }

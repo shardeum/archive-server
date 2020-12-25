@@ -2,6 +2,7 @@ import * as Storage from '../Storage'
 import * as NodeList from '../NodeList'
 import * as Crypto from '../Crypto'
 import { safeParse } from '../Utils'
+import { countReset } from 'console'
 
 export interface Cycle {
   counter: number
@@ -33,6 +34,7 @@ export interface Cycle {
 
 export let currentCycleDuration = 0
 export let currentCycleCounter = -1
+export let CycleChain: Map<Cycle["counter"], Cycle> = new Map()
 
 export function processCycles(cycles: Cycle[]) {
   for (const cycle of cycles) {
@@ -60,9 +62,26 @@ export function computeCycleMarker(fields: any) {
 }
 
 export function validateCycle(prev: Cycle, next: Cycle): boolean {
-  // const prevMarker = computeCycleMarker(prev)
-  // if (next.previous !== prevMarker) return false
-  // [TODO] More validation
+  console.log('prev cycle', prev)
+  console.log('next cycle', next)
+  let previousRecordWithoutMarker: any = {...prev}
+  delete previousRecordWithoutMarker.marker
+
+  for (let key in previousRecordWithoutMarker) {
+    try {
+      previousRecordWithoutMarker[key] = JSON.parse(previousRecordWithoutMarker[key])
+    } catch(e) {
+      console.log('Unable to parse record field', key)
+    }
+  }
+
+  console.log('previousRecordWithoutMarker', previousRecordWithoutMarker)
+
+
+  const prevMarker = computeCycleMarker(previousRecordWithoutMarker)
+  console.log('Calculated prevMarker', prevMarker)
+  console.log('next.previous', next.previous)
+  if (next.previous !== prevMarker) return false
   return true
 }
 
