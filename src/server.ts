@@ -84,11 +84,11 @@ async function syncAndStartServer() {
     
     console.log('We have joined the network')
 
-    let stateHashes: any = await Data.fetchStateHashes(State.activeArchivers)
     await Data.syncCyclesAndNodeList(State.activeArchivers)
-    await Data.syncStateMetaData(State.activeArchivers)
 
-    // await Storage.storeStateHashes(stateHashes)
+    // TODO: Sync all cycles until no older cycle is fetched from other archivers
+
+    await Data.syncStateMetaData(State.activeArchivers)
 
     setTimeout(() => {
       // After you've joined, select a consensus node to be your dataSender

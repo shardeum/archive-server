@@ -124,11 +124,11 @@ export async function initStorage (config: Config) {
   console.log('Database is initialised.')
 }
 export async function insertArchivedCycle (archivedCycle: any) {
+  console.log('Inserting archived cycle', archivedCycle.cycleMarker)
   try {
     await Collection.insert([Data.ArchivedCycle.new(archivedCycle)])
   } catch (e) {
-    console.log('Unable to insert archived cycle')
-    console.log(e)
+    console.log('Unable to insert archive cycle or it is already stored in to database', archivedCycle.cycleRecord.counter, archivedCycle.cycleMarker)
   }
 }
 
@@ -151,8 +151,6 @@ export async function updateReceiptMap (
       parentCycle.marker
     )
 
-    console.log('Existing Archived cycle', existingArchivedCycle)
-
     if (!existingArchivedCycle) {
       console.log(
         'Unable find existing archived cycle with marker',
@@ -170,8 +168,6 @@ export async function updateReceiptMap (
     }
 
     newPartitionMaps[receiptMapResult.partition] = receiptMapResult.receiptMap
-
-    console.log('newPartitionMaps', newPartitionMaps)
 
     await Collection.update({
       filter: { cycleMarker: parentCycle.marker },
@@ -200,8 +196,6 @@ export async function updateSummaryBlob (
       parentCycle.marker
     )
 
-    console.log('Existing Archived cycle', existingArchivedCycle)
-
     if (!existingArchivedCycle) {
       console.log(
         'Unable find existing archived cycle with marker',
@@ -220,8 +214,6 @@ export async function updateSummaryBlob (
 
     newPartitionBlobs[summaryBlob.partition] = summaryBlob
 
-    console.log('newPartitionBlobs', newPartitionBlobs)
-
     await Collection.update({
       filter: { cycleMarker: parentCycle.marker },
       update: { $set: { 'summary.partitionBlobs': newPartitionBlobs } },
@@ -232,15 +224,23 @@ export async function updateSummaryBlob (
   }
 }
 
+export async function updateArchivedCycle(marker: string, field: string, data: any) {
+  let updateObj: any = {}
+  updateObj[field] = data
+  await Collection.update({
+    filter: { cycleMarker: marker },
+    update: { $set: updateObj },
+  })
+}
+
 export async function queryAllArchivedCycles () {
   let archivedCycles = await Collection.find({
     filter: {},
+    sort: {
+      'cycleRecord.counter': -1,
+    },
     project: {
       _id: 0,
-      cycleMarker: 0,
-      receipt: 0,
-      data: 0,
-      summary: 0,
     },
   })
   return archivedCycles
@@ -249,6 +249,9 @@ export async function queryAllArchivedCycles () {
 export async function queryAllCycleRecords () {
   let cycleRecords = await Collection.find({
     filter: {},
+    sort: {
+      'cycleRecord.counter': -1,
+    },
     project: {
       _id: 0,
       cycleMarker: 0,
@@ -263,6 +266,9 @@ export async function queryAllCycleRecords () {
 export async function queryLatestCycleRecords (count: number = 1) {
   let cycleRecords = await Collection.find({
     filter: {},
+    sort: {
+      'cycleRecord.counter': -1,
+    },
     limit: count,
     project: {
       _id: 0,
@@ -275,24 +281,21 @@ export async function queryLatestCycleRecords (count: number = 1) {
   return cycleRecords.map((item: any) => item.cycleRecord)
 }
 
-export async function queryCycleRecordsBetween (start: number, end: number) {
+export async function queryCycleRecordsBetween (start: string, end: string) {
   let cycleRecords = await Collection.find({
     filter: {
       $and: [
-        { 'cycleRecord.counter': { $gte: start } },
-        { 'cycleRecord.counter': { $lte: end } },
+        { 'cycleRecord.counter': { $gte: parseInt(start) } },
+        { 'cycleRecord.counter': { $lte: parseInt(end) } },
       ],
     },
-    project: {
-      _id: 0,
-      cycleMarker: 0,
-      receipt: 0,
-      data: 0,
-      summary: 0,
+    sort: {
+      'cycleRecord.counter': -1,
     },
   })
   return cycleRecords.map((item: any) => item.cycleRecord)
 }
+
 
 export async function queryArchivedCycleByMarker (marker: string) {
   let archivedCycles = await Collection.find({
