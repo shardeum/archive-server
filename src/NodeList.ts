@@ -96,7 +96,6 @@ export function addNodes(
       cycleMarkerJoined,
     })
   }
-  console.log('ActiveList', activeList)
 }
 
 export function removeNodes(publicKeys: string[]): string[] {
@@ -160,8 +159,8 @@ export function getActiveList() {
 
 export async function getActiveListFromArchivers(activeArchivers: State.ArchiverNodeInfo[]): Promise<ConsensusNodeInfo> {
   function isSameCyceInfo (info1: any, info2: any) {
-    console.log('info1', info1)
-    console.log('info2', info2)
+    // console.log('info1', info1)
+    // console.log('info2', info2)
     const cm1 = Utils.deepCopy(info1)
     const cm2 = Utils.deepCopy(info2)
     delete cm1.currentTime
@@ -171,8 +170,6 @@ export async function getActiveListFromArchivers(activeArchivers: State.Archiver
   }
 
   const queryFn = async (node: any) => {
-    console.log(node)
-    console.log(`http://${node.ip}:${node.port}/nodelist`)
     const response: any = await P2P.getJson(
       `http://${node.ip}:${node.port}/nodelist`
     )
@@ -185,17 +182,6 @@ export async function getActiveListFromArchivers(activeArchivers: State.Archiver
   )
   return nodeList[0]
 }
-// export async function getActiveListFromArchivers(activeArchivers: State.ArchiverNodeInfo[]) {
-//   const randomIndex = Math.floor(Math.random() * activeArchivers.length)
-//   const randomArchiver = activeArchivers[randomIndex]
-//   let response:any = await P2P.getJson(
-//     `http://${randomArchiver.ip}:${randomArchiver.port}/nodelist`
-//   )
-//   if(response && response.nodeList) {
-//     // TODO: validate the reponse is from archiver
-//     return response.nodeList
-//   }
-// }
 
 export function getSyncingList() {
   return [...syncingList.values()]

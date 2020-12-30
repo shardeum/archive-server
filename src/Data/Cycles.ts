@@ -38,12 +38,9 @@ export let CycleChain: Map<Cycle["counter"], any> = new Map()
 
 export function processCycles(cycles: Cycle[]) {
   for (const cycle of cycles) {
-    // console.log('New Cycle received', cycle)
+    console.log('New Cycle received', cycle.counter)
     // Skip if already processed [TODO] make this check more secure
     if (cycle.counter <= currentCycleCounter) continue
-
-    // Save the cycle to db
-    Storage.storeCycles([cycle])
 
     // Update NodeList from cycle info
     updateNodeList(cycle)
@@ -54,6 +51,14 @@ export function processCycles(cycles: Cycle[]) {
 
     console.log(`Processed cycle ${cycle.counter}`)
   }
+}
+
+export function getCurrentCycleCounter() {
+  return currentCycleCounter
+}
+
+export function setCurrentCycleCounter(value: number) {
+  currentCycleCounter = value
 }
 
 export function computeCycleMarker(fields: any) {

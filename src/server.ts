@@ -10,13 +10,10 @@ import * as P2P from './P2P'
 import * as Storage from './Storage'
 import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
-import { stat } from 'fs'
-import { StateHashes } from './Data/State'
+import * as Utils from './Utils'
 
 // Socket modules
 let io: SocketIO.Server
-let ioclient: SocketIOClientStatic = require('socket.io-client')
-let socketClient: SocketIOClientStatic["Socket"]
 
 // Override default config params from config file, env vars, and cli args
 const file = join(process.cwd(), 'archiver-config.json')
@@ -54,22 +51,13 @@ async function start () {
 async function syncAndStartServer() {
   // If your not the first archiver node, get a nodelist from the others
   const nodeList: any = await NodeList.getActiveListFromArchivers(State.activeArchivers)
-  // if (NodeList.isEmpty()) {
-  //   for (let node of nodeList) {
-  //     const activeNode: NodeList.ConsensusNodeInfo = {
-  //       ip: node.ip,
-  //       port: node.port,
-  //       publicKey: node.publicKey,
-  //     }
-  //     NodeList.addNodes(NodeList.Statuses.ACTIVE, 'bogus', activeNode)
-  //   }
-  // }
 
+  // If there are active consensors in the network, sync cycle chain and state metadata from other archivers
   if (nodeList && nodeList.length > 0) {
     const randomIndex = Math.floor(Math.random() * nodeList.length)
     const randomConsensor: NodeList.ConsensusNodeInfo = nodeList[randomIndex]
 
-    // Set randomly selected node as dataSender
+    // Set randomly selected consensors as dataSender
     Data.addDataSenders({
       nodeInfo: randomConsensor,
       types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
@@ -82,7 +70,7 @@ async function syncAndStartServer() {
     if (!cycleDuration) return
     await Data.checkJoinStatus(cycleDuration)
     
-    console.log('We have joined the network')
+    console.log('We have successfully joined the network')
 
     await Data.syncCyclesAndNodeList(State.activeArchivers)
 
@@ -90,28 +78,29 @@ async function syncAndStartServer() {
 
     await Data.syncStateMetaData(State.activeArchivers)
 
-    setTimeout(() => {
-      // After you've joined, select a consensus node to be your dataSender
-      const dataRequest = Crypto.sign({
-        dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
-          Data.TypeNames.CYCLE,
-          Cycles.currentCycleCounter,
-          randomConsensor.publicKey
-        ),
-        dataRequestStateMetaData: Data.createDataRequest<Data.StateMetaData>(
-          Data.TypeNames.STATE_METADATA,
-          Cycles.currentCycleCounter,
-          randomConsensor.publicKey
-        ),
-      })
-      const newSender: Data.DataSender = {
-        nodeInfo: randomConsensor,
-        types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
-        contactTimeout: Data.createContactTimeout(randomConsensor.publicKey),
-      }
-      Data.sendDataRequest(newSender, dataRequest)
-      Data.initSocketClient(randomConsensor)
-    }, cycleDuration * 1000) // wait for one cycle before sending data request
+    // wait for one cycle before sending data request
+    Utils.sleep(cycleDuration * 1000)
+
+    // After we've joined, select a consensus node to be your dataSender
+    const dataRequest = Crypto.sign({
+      dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
+        Data.TypeNames.CYCLE,
+        Cycles.getCurrentCycleCounter(),
+        randomConsensor.publicKey
+      ),
+      dataRequestStateMetaData: Data.createDataRequest<Data.StateMetaData>(
+        Data.TypeNames.STATE_METADATA,
+        Cycles.getCurrentCycleCounter(),
+        randomConsensor.publicKey
+      ),
+    })
+    const newSender: Data.DataSender = {
+      nodeInfo: randomConsensor,
+      types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
+      contactTimeout: Data.createContactTimeout(randomConsensor.publicKey),
+    }
+    Data.sendDataRequest(newSender, dataRequest)
+    Data.initSocketClient(randomConsensor)
   }
   io = startServer()
 }
@@ -233,6 +222,14 @@ function startServer() {
     reply.send(res)
   })
 
+  server.get('/full-archive/:count', async (_request, reply) => {
+    let count = _request.params.count || 10
+    const archivedCycles = await Storage.queryAllArchivedCycles(count)
+    const res = Crypto.sign({
+      archivedCycles,
+    })
+    reply.send(res)
+  })
 
   server.get('/debug', (_request, reply) => {
     let nodeList = NodeList.getActiveList()
@@ -284,31 +281,31 @@ function startServer() {
     reply.send(res)
   })
 
-  server.get('/statehashes', async (_request, reply) => {
-    let stateHashes = await Storage.queryAllStateHashes()
-    const res = Crypto.sign({
-      stateHashes,
-    })
-    reply.send(res)
-  })
+  // server.get('/statehashes', async (_request, reply) => {
+  //   let stateHashes = await Storage.queryAllStateHashes()
+  //   const res = Crypto.sign({
+  //     stateHashes,
+  //   })
+  //   reply.send(res)
+  // })
 
-  server.get('/statehashes/:count', async (_request, reply) => {
-    let count = _request.params.count
-    console.log(_request.params)
-    let stateHashes = await Storage.queryLatestStateHash(count)
-    const res = Crypto.sign({
-      stateHashes,
-    })
-    reply.send(res)
-  })
+  // server.get('/statehashes/:count', async (_request, reply) => {
+  //   let count = _request.params.count
+  //   console.log(_request.params)
+  //   let stateHashes = await Storage.queryLatestStateHash(count)
+  //   const res = Crypto.sign({
+  //     stateHashes,
+  //   })
+  //   reply.send(res)
+  // })
 
-  server.get('/download/receipt', async (_request, reply) => {
-    let receiptMap = await Storage.queryAllReceipts()
-    const res = Crypto.sign({
-      receiptMap
-    })
-    reply.send(res)
-  })
+  // server.get('/download/receipt', async (_request, reply) => {
+  //   let receiptMap = await Storage.queryAllReceipts()
+  //   const res = Crypto.sign({
+  //     receiptMap
+  //   })
+  //   reply.send(res)
+  // })
 
   // [TODO] Remove this before production
   server.get('/exit', (_request, reply) => {

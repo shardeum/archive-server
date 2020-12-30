@@ -299,3 +299,11 @@ export const deepCopy = (obj: any) => {
   }
   return JSON.parse(JSON.stringify(obj))
 }
+
+export async function sleep(time: number) {
+  return new Promise((resolve: any) => {
+    setTimeout(() => {
+      resolve(true)
+    }, time)
+  })
+}
