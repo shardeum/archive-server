@@ -55,6 +55,19 @@ export function overrideDefaultConfig(
           config[param] = String(env[param])
           break
         }
+        case 'object': {
+          try {
+            var parameterStr = env[param]
+            if(parameterStr) {
+              let parameterObj = JSON.parse(parameterStr)
+              config[param] = parameterObj
+            }
+          } catch(e) {
+            console.log(e)
+            console.log('Unable to JSON parse', env[param])
+          }
+          break
+        }
         case 'boolean': {
           config[param] = String(env[param]).toLowerCase() === 'true'
           break
