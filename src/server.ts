@@ -98,6 +98,7 @@ async function syncAndStartServer() {
       nodeInfo: randomConsensor,
       types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
       contactTimeout: Data.createContactTimeout(randomConsensor.publicKey),
+      replaceTimeout: Data.createReplaceTimeout(randomConsensor.publicKey),
     }
     Data.sendDataRequest(newSender, dataRequest)
     Data.initSocketClient(randomConsensor)
@@ -162,6 +163,7 @@ function startServer() {
       Data.addDataSenders({
         nodeInfo: firstNode,
         types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
+        replaceTimeout: Data.createReplaceTimeout(firstNode.publicKey)
       })
 
       const res = Crypto.sign<P2P.FirstNodeResponse>({

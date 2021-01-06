@@ -10,6 +10,8 @@ import * as State from '../State'
 import * as P2P from '../P2P'
 import * as Utils from '../Utils'
 import { isDeepStrictEqual } from 'util'
+import { config, Config } from '../Config'
+
 import {
   Cycle,
   currentCycleCounter,
@@ -170,8 +172,8 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   })
 
   socketClient.on('DATA', (newData: any) => {
-    if (newData.responses && newData.responses.CYCLE) console.log('New DATA from consensor CYCLE', newData.responses.CYCLE)
-    if (newData.responses && newData.responses.STATE_METADATA) console.log('New DATA from consensor STATE_METADATA', newData.responses.STATE_METADATA)
+    if (newData.responses && newData.responses.CYCLE) console.log('New DATA from consensor CYCLE', newData.publicKey, newData.responses.CYCLE)
+    if (newData.responses && newData.responses.STATE_METADATA) console.log('New DATA from consensor STATE_METADATA', newData.publicKey, newData.responses.STATE_METADATA)
     
     socketServer.emit('DATA', newData)
     const sender = dataSenders.get(newData.publicKey)
@@ -196,7 +198,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
 
     // If tag is invalid, dont keepAlive, END
     if (Crypto.authenticate(newData) === false) {
-      console.log('Invalid tag')
+      console.log('Invalid tag. Data received from archiver cannot be authenticated', newData)
       return
     }
 
@@ -237,6 +239,7 @@ export interface DataSender {
   nodeInfo: NodeList.ConsensusNodeInfo
   types: (keyof typeof TypeNames)[]
   contactTimeout?: NodeJS.Timeout
+  replaceTimeout?: NodeJS.Timeout
 }
 
 export const dataSenders: Map<
@@ -255,6 +258,10 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
     if (sender && sender.contactTimeout) {
       clearTimeout(sender.contactTimeout)
       sender.contactTimeout = createContactTimeout(publicKey)
+    }
+    if (sender && sender.replaceTimeout) {
+      clearTimeout(sender.replaceTimeout)
+      sender.replaceTimeout = createReplaceTimeout(publicKey)
     }
     return
   }
@@ -283,6 +290,7 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
     nodeInfo: newSenderInfo,
     types: [TypeNames.CYCLE, TypeNames.STATE_METADATA],
     contactTimeout: createContactTimeout(newSenderInfo.publicKey),
+    replaceTimeout: createReplaceTimeout(newSenderInfo.publicKey),
   }
   // console.log(
   //   `replaceDataSender: selected new sender ${JSON.stringify(
@@ -305,7 +313,7 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
       currentCycleCounter,
       publicKey
     ),
-    dataRequestState: createDataRequest<StateMetaData>(
+    dataRequestStateMetaData: createDataRequest<StateMetaData>(
       TypeNames.STATE_METADATA,
       currentCycleCounter,
       publicKey
@@ -332,13 +340,31 @@ export function createContactTimeout(
   publicKey: NodeList.ConsensusNodeInfo['publicKey']
 ) {
   // TODO: discuss and set correct contact timeout
-  const ms = 3 * currentCycleDuration || (3 * 30 * 1000) + timeoutPadding
+  const ms = 1 * currentCycleDuration || (1 * 30 * 1000) + timeoutPadding
   const contactTimeout = setTimeout(replaceDataSender, ms, publicKey)
 
-  console.log(`${new Date()}: Created replace timeout of ${Math.round(ms / 1000)} s for ${publicKey}`)
+  console.log(`${new Date()}: Created CONTACT timeout of ${Math.round(ms / 1000)} s for ${publicKey}`)
   console.log(`${new Date()}: Data sender ${publicKey} is set to be replaced at ${new Date(Date.now() + ms)}`)
 
   return contactTimeout
+}
+
+export function createReplaceTimeout(
+  publicKey: NodeList.ConsensusNodeInfo['publicKey']
+) {
+  // TODO: discuss and set correct contact timeout
+  const ms = config.DATASENDER_TIMEOUT || 1000 * 60 * 20
+  // const contactTimeout = setTimeout(replaceDataSender, ms, publicKey)
+
+  const replaceTimeout = setTimeout(() => {
+    console.log('ROTATING sender due to REPLACE timeout')
+    replaceDataSender(publicKey)
+  }, ms)
+
+  console.log(`${new Date()}: Created REPLACE timeout of ${Math.round(ms / 1000)} s for ${publicKey}`)
+  console.log(`${new Date()}: Data sender ${publicKey} is set to be replaced at ${new Date(Date.now() + ms)}`)
+
+  return replaceTimeout
 }
 
 export function addDataSenders(...senders: DataSender[]) {
@@ -357,6 +383,9 @@ function removeDataSenders (
     // Clear contactTimeout associated with this sender
     if (sender.contactTimeout) {
       clearTimeout(sender.contactTimeout)
+    }
+    if (sender.replaceTimeout) {
+      clearTimeout(sender.replaceTimeout)
     }
 
     // Record which sender was removed
@@ -470,9 +499,9 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
   }
 
   // Clear senders contactTimeout, if it has one
-  // if (sender.contactTimeout) {
-  //   clearTimeout(sender.contactTimeout)
-  // }
+  if (sender.contactTimeout) {
+    clearTimeout(sender.contactTimeout)
+  }
 
   const newDataTypes = Object.keys(newData.responses)
   for (const type of newDataTypes as (keyof typeof TypeNames)[]) {
@@ -578,9 +607,9 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
   }
 
   // Set new contactTimeout for sender. Postpone sender removal because data is still received from consensor
-  // if (currentCycleDuration > 0) {
-  //   sender.contactTimeout = createContactTimeout(sender.nodeInfo.publicKey)
-  // }
+  if (currentCycleDuration > 0) {
+    sender.contactTimeout = createContactTimeout(sender.nodeInfo.publicKey)
+  }
 }
 
 export async function fetchStateHashes (archivers: any) {

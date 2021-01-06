@@ -26,6 +26,7 @@ export async function insertArchivedCycle (archivedCycle: any) {
   console.log('Inserting archived cycle', archivedCycle.cycleRecord.counter, archivedCycle.cycleMarker)
   try {
     await Collection.insert([Data.ArchivedCycle.new(archivedCycle)])
+    console.log('Successfully inserted archivedCycle', archivedCycle.cycleRecord.counter)
   } catch (e) {
     console.log('Unable to insert archive cycle or it is already stored in to database', archivedCycle.cycleRecord.counter, archivedCycle.cycleMarker)
   }
