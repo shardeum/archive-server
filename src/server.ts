@@ -90,7 +90,7 @@ async function syncAndStartServer() {
       ),
       dataRequestStateMetaData: Data.createDataRequest<Data.StateMetaData>(
         Data.TypeNames.STATE_METADATA,
-        Cycles.getCurrentCycleCounter(),
+        Cycles.lastProcessedMetaData,
         randomConsensor.publicKey
       ),
     })
@@ -176,7 +176,7 @@ function startServer() {
         ),
         dataRequestStateMetaData: Data.createDataRequest<Data.StateMetaData>(
           Data.TypeNames.STATE_METADATA,
-          Cycles.currentCycleCounter,
+          Cycles.lastProcessedMetaData,
           publicKey
         )
       })

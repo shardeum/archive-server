@@ -1,6 +1,7 @@
 import { Config } from './Config'
 import * as Crypto from './Crypto'
 import * as P2P from './P2P'
+import * as Utils from './Utils'
 
 export interface ArchiverNodeState {
   ip: string
@@ -43,22 +44,41 @@ export async function initFromConfig(config: Config) {
       config.ARCHIVER_EXISTING
     )
   }
-  for (let i = 0; i < existingArchivers.length; i++) {
-    if (existingArchivers[i].publicKey === nodeState.publicKey) {
-      continue
-    }
-    let response:any = await P2P.getJson(
-      `http://${existingArchivers[i].ip}:${existingArchivers[i].port}/nodelist`
-    )
-    if(response && response.nodeList) {
-      // TODO: validate the reponse is from archiver
-      activeArchivers.push(existingArchivers[i])
-    }
+
+  if (existingArchivers.length === 0) {
+    isFirst = true
+    return
   }
 
+  let retryCount = 1
+  let waitTime = 1000 * 60
 
-  // You're first, unless existing archiver info is given
-  isFirst = activeArchivers.length <= 0
+  while(retryCount < 10 && activeArchivers.length === 0) {
+    console.log(`Getting consensor list from other achivers. [round: ${retryCount}]`)
+    for (let i = 0; i < existingArchivers.length; i++) {
+      if (existingArchivers[i].publicKey === nodeState.publicKey) {
+        continue
+      }
+      let response:any = await P2P.getJson(
+        `http://${existingArchivers[i].ip}:${existingArchivers[i].port}/nodelist`
+      )
+      console.log('response', `http://${existingArchivers[i].ip}:${existingArchivers[i].port}/nodelist`, response)
+      if(response && response.nodeList && response.nodeList.length > 0) {
+        // TODO: validate the reponse is from archiver
+        activeArchivers.push(existingArchivers[i])
+      }
+    }
+    if (activeArchivers.length === 0) {
+      console.log(`Unable to find active archivers. Waiting for ${waitTime} before trying again.`)
+      // wait for 1 min before retrying
+      await Utils.sleep(waitTime)
+      retryCount += 1
+    }
+  }
+  if (activeArchivers.length === 0) {
+    console.log(`We have tried ${retryCount} times to get nodeList from other archivers. But got no response or empty list. About to exit now.`)
+    process.exit(0)
+  }
 }
 
 export function getNodeInfo(): ArchiverNodeInfo {

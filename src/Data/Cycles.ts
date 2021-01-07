@@ -2,7 +2,7 @@ import * as Storage from '../Storage'
 import * as NodeList from '../NodeList'
 import * as Crypto from '../Crypto'
 import { safeParse } from '../Utils'
-import { countReset } from 'console'
+import * as State from '../State'
 
 export interface Cycle {
   counter: number
@@ -34,11 +34,13 @@ export interface Cycle {
 
 export let currentCycleDuration = 0
 export let currentCycleCounter = -1
+export let lastProcessedMetaData = -1
 export let CycleChain: Map<Cycle["counter"], any> = new Map()
 
 export function processCycles(cycles: Cycle[]) {
   for (const cycle of cycles) {
     console.log('New Cycle received', cycle.counter)
+    console.log('Current cycle counter', currentCycleCounter)
     // Skip if already processed [TODO] make this check more secure
     if (cycle.counter <= currentCycleCounter) continue
 
@@ -59,6 +61,10 @@ export function getCurrentCycleCounter() {
 
 export function setCurrentCycleCounter(value: number) {
   currentCycleCounter = value
+}
+
+export function setLastProcessedMetaDataCounter(value: number) {
+  lastProcessedMetaData = value
 }
 
 export function computeCycleMarker(fields: any) {
@@ -168,4 +174,17 @@ function updateNodeList(cycle: Cycle) {
     return keys
   }, [])
   NodeList.removeNodes(apoptosizedPks)
+  const joinedArchivers = safeParse<State.ArchiverNodeState[]>(
+    [],
+    cycle.joinedArchivers,
+    `Error processing cycle ${cycle.counter}: failed to parse joinedArchivers`
+  )
+  for (let joinedArchiver of joinedArchivers) {
+    let foundArchiver = State.activeArchivers.find(a => a.publicKey === joinedArchiver.publicKey)
+    if (!foundArchiver) {
+      State.activeArchivers.push(joinedArchiver)
+      console.log('New archiver added to active list', joinedArchiver)
+    }
+    console.log('active archiver list', State.activeArchivers)
+  }
 }
