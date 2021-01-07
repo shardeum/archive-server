@@ -9,6 +9,7 @@ import * as Cycles from './Cycles'
 import * as State from '../State'
 import * as P2P from '../P2P'
 import * as Utils from '../Utils'
+import * as Gossip from './Gossip'
 import { isDeepStrictEqual } from 'util'
 import { config, Config } from '../Config'
 
@@ -152,6 +153,9 @@ export class ArchivedCycle extends BaseModel {
   summary!: Summary
 }
 
+export let StateMetaData = new Map()
+export let currentDataSender: string = ''
+
 export function initSocketServer(io: SocketIO.Server) {
   socketServer = io
   socketServer.on('connection', (socket: SocketIO.Socket) => {
@@ -164,8 +168,6 @@ export function unsubscribeDataSender() {
   socketClient.emit('UNSUBSCRIBE', config.ARCHIVER_PUBLIC_KEY);
   socketClient.disconnect()
 }
-
-let dataTracker: any = {}
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   console.log(node)
@@ -182,22 +184,11 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
     if (newData.responses) {
       console.log('New DATA from consensor COMBINED', newData.publicKey, newData.responses)
     }
-    if (newData.responses && newData.responses.CYCLE) {
-      console.log('New DATA from consensor CYCLE', newData.publicKey, newData.responses.CYCLE)
-      let counter = newData.responses.CYCLE[0].counter
-      if(dataTracker[`cycle_${counter}_${newData.publicKey}`]) {
-        console.log(`Data for cycle ${counter} from ${newData.publicKey} is already received by archiver. No need to process again.`)
-        return
-        // dataTracker[`cycle_${counter}_${newData.publicKey}`].push(newData)
-      } else {
-        dataTracker[`cycle_${counter}_${newData.publicKey}`] = [newData] 
-      }
-    }
+    currentDataSender = newData.publicKey
     if (newData.responses && newData.responses.STATE_METADATA) {
-      console.log('New DATA from consensor STATE_METADATA', newData.publicKey, newData.responses.STATE_METADATA)
-      console.log('New DATA from consensor STATE_METADATA RECEIPT', newData.publicKey, newData.responses.STATE_METADATA[0].receiptHashes)
-      // let counter = newData.response.CYCLE[0].counter
-      // dataTracker[`cycle_${counter}_${newData.publicKey}`] = newData 
+      // console.log('New DATA from consensor STATE_METADATA', newData.publicKey, newData.responses.STATE_METADATA)
+      StateMetaData.set(newData.responses.STATE_METADATA[0].counter, newData.responses.STATE_METADATA[0])
+      Gossip.sendGossip('hashes', newData.responses.STATE_METADATA[0])
     }
 
     // console.log('data tracker', dataTracker)
@@ -224,10 +215,11 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
     }
 
     // If tag is invalid, dont keepAlive, END
-    if (Crypto.authenticate(newData) === false) {
-      console.log('Invalid tag. Data received from archiver cannot be authenticated', newData)
-      return
-    }
+    // TODO: to check this block
+    // if (Crypto.authenticate(newData) === false) {
+    //   console.log('Invalid tag. Data received from archiver cannot be authenticated', newData)
+    //   return
+    // }
 
     setImmediate(processData, newData)
   })
@@ -278,7 +270,7 @@ const timeoutPadding = 1000
 
 export const emitter = new EventEmitter()
 
-function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
+export function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   if (NodeList.getActiveList().length < 2) {
     console.log('There is only one active node in the network. Unable to replace data sender')
     let sender = dataSenders.get(publicKey)
@@ -299,8 +291,9 @@ function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   // Remove old dataSender
   const removedSenders = removeDataSenders(publicKey)
   if (removedSenders.length < 1) {
-    throw new Error('replaceDataSender failed: old sender not removed')
-    // console.log('replaceDataSender failed: old sender not removed')
+    // throw new Error('replaceDataSender failed: old sender not removed')
+    console.log('replaceDataSender failed: old sender not removed')
+    return
   }
   // console.log(
   //   `replaceDataSender: removed old sender ${JSON.stringify(
@@ -404,6 +397,7 @@ export function createReplaceTimeout(
 export function addDataSenders(...senders: DataSender[]) {
   for (const sender of senders) {
     dataSenders.set(sender.nodeInfo.publicKey, sender)
+    currentDataSender = sender.nodeInfo.publicKey
   }
 }
 
@@ -564,81 +558,82 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
       }
       case TypeNames.STATE_METADATA: {
         console.log('Processing STATE_METADATA')
-        for (let stateMetaData of newData.responses.STATE_METADATA) {
-          let data, receipt, summary
-          // [TODO] validate the state data by robust querying other nodes
+        processStateMetaData(newData.responses.STATE_METADATA)
+        // for (let stateMetaData of newData.responses.STATE_METADATA) {
+        //   let data, receipt, summary
+        //   // [TODO] validate the state data by robust querying other nodes
 
-          // store state hashes to archivedCycle
-          stateMetaData.stateHashes.forEach(async (stateHashesForCycle: any) => {
-            let parentCycle = Cycles.CycleChain.get(stateHashesForCycle.counter)
-            if (!parentCycle) {
-              console.log('Unable to find parent cycle for cycle', stateHashesForCycle.counter)
-              return
-            }
-            data = {
-              parentCycle: parentCycle ? parentCycle.marker : '',
-              networkHash: stateHashesForCycle.networkHash,
-              partitionHashes: stateHashesForCycle.partitionHashes,
-            }
-            await Storage.updateArchivedCycle(data.parentCycle, 'data', data)
-            Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
-          })
+        //   // store state hashes to archivedCycle
+        //   stateMetaData.stateHashes.forEach(async (stateHashesForCycle: any) => {
+        //     let parentCycle = Cycles.CycleChain.get(stateHashesForCycle.counter)
+        //     if (!parentCycle) {
+        //       console.log('Unable to find parent cycle for cycle', stateHashesForCycle.counter)
+        //       return
+        //     }
+        //     data = {
+        //       parentCycle: parentCycle ? parentCycle.marker : '',
+        //       networkHash: stateHashesForCycle.networkHash,
+        //       partitionHashes: stateHashesForCycle.partitionHashes,
+        //     }
+        //     await Storage.updateArchivedCycle(data.parentCycle, 'data', data)
+        //     Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
+        //   })
           
-          // store receipt hashes to archivedCycle
-          stateMetaData.receiptHashes.forEach(async (receiptHashesForCycle: any) => {
-            let parentCycle = Cycles.CycleChain.get(
-              receiptHashesForCycle.counter
-            )
-            if (!parentCycle) {
-              console.log('Unable to find parent cycle for cycle', receiptHashesForCycle.counter)
-              return
-            }
-            receipt = {
-              parentCycle: parentCycle ? parentCycle.marker : '',
-              networkHash: receiptHashesForCycle.networkReceiptHash,
-              partitionHashes: receiptHashesForCycle.receiptMapHashes,
-              partitionMaps: {},
-              partitionTxs: {},
-            }
-            await Storage.updateArchivedCycle(receipt.parentCycle, 'receipt', receipt)
-            console.log('receipt hashes are stored for cycle', receiptHashesForCycle.counter)
-            Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
+        //   // store receipt hashes to archivedCycle
+        //   stateMetaData.receiptHashes.forEach(async (receiptHashesForCycle: any) => {
+        //     let parentCycle = Cycles.CycleChain.get(
+        //       receiptHashesForCycle.counter
+        //     )
+        //     if (!parentCycle) {
+        //       console.log('Unable to find parent cycle for cycle', receiptHashesForCycle.counter)
+        //       return
+        //     }
+        //     receipt = {
+        //       parentCycle: parentCycle ? parentCycle.marker : '',
+        //       networkHash: receiptHashesForCycle.networkReceiptHash,
+        //       partitionHashes: receiptHashesForCycle.receiptMapHashes,
+        //       partitionMaps: {},
+        //       partitionTxs: {},
+        //     }
+        //     await Storage.updateArchivedCycle(receipt.parentCycle, 'receipt', receipt)
+        //     console.log('receipt hashes are stored for cycle', receiptHashesForCycle.counter)
+        //     Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
 
-            // Query receipt maps from other nodes and store it
-              let activeNodes = NodeList.getActiveList()
-              for (let node of activeNodes) {
-                const queryRequest = createQueryRequest('RECEIPT_MAP', receiptHashesForCycle.counter, node.publicKey)
-                console.log('Sending RECEIPT QUERY for cycle', receiptHashesForCycle.counter)
-                sendDataQuery(node, queryRequest)
-              }
-          })
+        //     // Query receipt maps from other nodes and store it
+        //       let activeNodes = NodeList.getActiveList()
+        //       for (let node of activeNodes) {
+        //         const queryRequest = createQueryRequest('RECEIPT_MAP', receiptHashesForCycle.counter, node.publicKey)
+        //         console.log('Sending RECEIPT QUERY for cycle', receiptHashesForCycle.counter)
+        //         sendDataQuery(node, queryRequest)
+        //       }
+        //   })
 
-          // store summary hashes to archivedCycle
-          stateMetaData.summaryHashes.forEach(async (summaryHashesForCycle: any) => {
-            let parentCycle = Cycles.CycleChain.get(
-              summaryHashesForCycle.counter
-            )
-            if (!parentCycle) {
-              console.log('Unable to find parent cycle for cycle', summaryHashesForCycle.counter)
-              return
-            }
-            summary = {
-              parentCycle: parentCycle ? parentCycle.marker : '',
-              networkHash: summaryHashesForCycle.networkSummaryHash,
-              partitionHashes: summaryHashesForCycle.summaryHashes,
-              partitionBlobs: {},
-            }
-            await Storage.updateArchivedCycle(summary.parentCycle, 'summary', summary)
-            Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
+        //   // store summary hashes to archivedCycle
+        //   stateMetaData.summaryHashes.forEach(async (summaryHashesForCycle: any) => {
+        //     let parentCycle = Cycles.CycleChain.get(
+        //       summaryHashesForCycle.counter
+        //     )
+        //     if (!parentCycle) {
+        //       console.log('Unable to find parent cycle for cycle', summaryHashesForCycle.counter)
+        //       return
+        //     }
+        //     summary = {
+        //       parentCycle: parentCycle ? parentCycle.marker : '',
+        //       networkHash: summaryHashesForCycle.networkSummaryHash,
+        //       partitionHashes: summaryHashesForCycle.summaryHashes,
+        //       partitionBlobs: {},
+        //     }
+        //     await Storage.updateArchivedCycle(summary.parentCycle, 'summary', summary)
+        //     Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
 
-            // Query summary blobs from other nodes and store it
-            let activeNodes = NodeList.getActiveList()
-            for (let node of activeNodes) {
-              const queryRequest = createQueryRequest('SUMMARY_BLOB', summaryHashesForCycle.counter, node.publicKey)
-              sendDataQuery(node, queryRequest)
-            }
-          })
-        }
+        //     // Query summary blobs from other nodes and store it
+        //     let activeNodes = NodeList.getActiveList()
+        //     for (let node of activeNodes) {
+        //       const queryRequest = createQueryRequest('SUMMARY_BLOB', summaryHashesForCycle.counter, node.publicKey)
+        //       sendDataQuery(node, queryRequest)
+        //     }
+        //   })
+        // }
         break
       }
       default: {
@@ -652,6 +647,84 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
   // Set new contactTimeout for sender. Postpone sender removal because data is still received from consensor
   if (currentCycleDuration > 0) {
     sender.contactTimeout = createContactTimeout(sender.nodeInfo.publicKey, "This timeout is created after processing data")
+  }
+}
+
+export async function processStateMetaData(STATE_METADATA: any) {
+  for (let stateMetaData of STATE_METADATA) {
+    let data, receipt, summary
+    // [TODO] validate the state data by robust querying other nodes
+
+    // store state hashes to archivedCycle
+    stateMetaData.stateHashes.forEach(async (stateHashesForCycle: any) => {
+      let parentCycle = Cycles.CycleChain.get(stateHashesForCycle.counter)
+      if (!parentCycle) {
+        console.log('Unable to find parent cycle for cycle', stateHashesForCycle.counter)
+        return
+      }
+      data = {
+        parentCycle: parentCycle ? parentCycle.marker : '',
+        networkHash: stateHashesForCycle.networkHash,
+        partitionHashes: stateHashesForCycle.partitionHashes,
+      }
+      await Storage.updateArchivedCycle(data.parentCycle, 'data', data)
+      Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
+    })
+    
+    // store receipt hashes to archivedCycle
+    stateMetaData.receiptHashes.forEach(async (receiptHashesForCycle: any) => {
+      let parentCycle = Cycles.CycleChain.get(
+        receiptHashesForCycle.counter
+      )
+      if (!parentCycle) {
+        console.log('Unable to find parent cycle for cycle', receiptHashesForCycle.counter)
+        return
+      }
+      receipt = {
+        parentCycle: parentCycle ? parentCycle.marker : '',
+        networkHash: receiptHashesForCycle.networkReceiptHash,
+        partitionHashes: receiptHashesForCycle.receiptMapHashes,
+        partitionMaps: {},
+        partitionTxs: {},
+      }
+      await Storage.updateArchivedCycle(receipt.parentCycle, 'receipt', receipt)
+      console.log('receipt hashes are stored for cycle', receiptHashesForCycle.counter)
+      Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
+
+      // Query receipt maps from other nodes and store it
+        let activeNodes = NodeList.getActiveList()
+        for (let node of activeNodes) {
+          const queryRequest = createQueryRequest('RECEIPT_MAP', receiptHashesForCycle.counter, node.publicKey)
+          console.log('Sending RECEIPT QUERY for cycle', receiptHashesForCycle.counter)
+          sendDataQuery(node, queryRequest)
+        }
+    })
+
+    // store summary hashes to archivedCycle
+    stateMetaData.summaryHashes.forEach(async (summaryHashesForCycle: any) => {
+      let parentCycle = Cycles.CycleChain.get(
+        summaryHashesForCycle.counter
+      )
+      if (!parentCycle) {
+        console.log('Unable to find parent cycle for cycle', summaryHashesForCycle.counter)
+        return
+      }
+      summary = {
+        parentCycle: parentCycle ? parentCycle.marker : '',
+        networkHash: summaryHashesForCycle.networkSummaryHash,
+        partitionHashes: summaryHashesForCycle.summaryHashes,
+        partitionBlobs: {},
+      }
+      await Storage.updateArchivedCycle(summary.parentCycle, 'summary', summary)
+      Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
+
+      // Query summary blobs from other nodes and store it
+      let activeNodes = NodeList.getActiveList()
+      for (let node of activeNodes) {
+        const queryRequest = createQueryRequest('SUMMARY_BLOB', summaryHashesForCycle.counter, node.publicKey)
+        sendDataQuery(node, queryRequest)
+      }
+    })
   }
 }
 

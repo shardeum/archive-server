@@ -11,6 +11,7 @@ import * as Storage from './Storage'
 import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
 import * as Utils from './Utils'
+import { sendGossip, addHashesGossip } from './Data/Gossip'
 
 // Socket modules
 let io: SocketIO.Server
@@ -189,7 +190,7 @@ function startServer() {
         nodeList = NodeList.getList().slice(0, 1)
       }
       const res = Crypto.sign({
-        nodeList,
+        nodeList: nodeList.sort((a: any, b: any) => a.id - b.id),
       })
       reply.send(res)
     }
@@ -200,8 +201,12 @@ function startServer() {
     if (nodeList.length < 1) {
       nodeList = NodeList.getList().slice(0, 1)
     }
+    let sortedNodeList = [...nodeList].sort((a: any, b: any) => a.id - b.id)
+    console.log('nodeList', nodeList)
+    console.log('sortedNodeList', sortedNodeList)
+
     const res = Crypto.sign({
-      nodeList,
+      nodeList: sortedNodeList,
     })
     reply.send(res)
   })
@@ -279,6 +284,16 @@ function startServer() {
     let cycleInfo = await Storage.queryLatestCycleRecords(count)
     const res = Crypto.sign({
       cycleInfo,
+    })
+    reply.send(res)
+  })
+
+  server.post('/gossip-hashes', async (_request, reply) => {
+    let gossipMessage = _request.body
+    console.log('Gossip received', gossipMessage)
+    addHashesGossip(gossipMessage.data.counter, gossipMessage.sender, gossipMessage.data)
+    const res = Crypto.sign({
+      success: true,
     })
     reply.send(res)
   })

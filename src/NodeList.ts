@@ -173,7 +173,7 @@ export async function getActiveListFromArchivers(activeArchivers: State.Archiver
     const response: any = await P2P.getJson(
       `http://${node.ip}:${node.port}/nodelist`
     )
-    return response.nodeList
+    if(response.nodeList) return response.nodeList.sort((a: any, b: any) => a.publicKey - b.publicKey)
   }
   let nodeList: any = await Utils.robustQuery(
     activeArchivers,
