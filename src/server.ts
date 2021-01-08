@@ -290,7 +290,7 @@ function startServer() {
 
   server.post('/gossip-hashes', async (_request, reply) => {
     let gossipMessage = _request.body
-    console.log('Gossip received', gossipMessage)
+    console.log('Gossip received', JSON.stringify(gossipMessage))
     addHashesGossip(gossipMessage.data.counter, gossipMessage.sender, gossipMessage.data)
     const res = Crypto.sign({
       success: true,

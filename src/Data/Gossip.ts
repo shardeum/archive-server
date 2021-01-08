@@ -5,7 +5,6 @@ import * as State from '../State'
 import * as P2P from '../P2P'
 import { config, Config } from '../Config'
 
-
 let gossipCollector = new Map()
 
 export async function sendGossip (type: string, payload: any) {
@@ -14,7 +13,7 @@ export async function sendGossip (type: string, payload: any) {
   if (archivers.length === 0) return
   const gossipPayload = { type, data: payload, sender: config.ARCHIVER_PUBLIC_KEY }
 
-  console.log(`Start of sendGossipIn(${JSON.stringify(gossipPayload)})`)
+  // console.log(`Start of sendGossipIn(${JSON.stringify(gossipPayload)})`)
 
   archivers = archivers.sort((a: any, b: any) => a.publicKey - b.publicKey)
 
@@ -39,8 +38,7 @@ export async function sendGossip (type: string, payload: any) {
     console.log(ex)
     console.log('Fail to gossip')
   }
-
-  console.log(`End of sendGossipIn(${JSON.stringify(payload)})`)
+  // console.log(`End of sendGossipIn(${JSON.stringify(payload)})`)
 }
 
 async function tell (
@@ -67,20 +65,57 @@ async function tell (
   }
 }
 
-export function addHashesGossip(counter: number, sender: string, hashes: any) {
-  if(gossipCollector.has(counter)) {
+export function convertStateMetadataToHashArray(STATE_METATDATA: any) {
+  let hashCollector: any = {}
+  STATE_METATDATA.stateHashes.forEach((h:any) => {
+    if (!hashCollector[h.counter]) {
+      hashCollector[h.counter] = {
+        counter: h.counter
+      }
+    }
+    hashCollector[h.counter]['stateHashes'] = h
+  })
+  STATE_METATDATA.receiptHashes.forEach((h:any) => {
+    if (!hashCollector[h.counter]) {
+      hashCollector[h.counter] = {
+        counter: h.counter
+      }
+    }
+    hashCollector[h.counter]['receiptHashes'] = h
+  })
+  STATE_METATDATA.summaryHashes.forEach((h:any) => {
+    if (!hashCollector[h.counter]) {
+      hashCollector[h.counter] = {
+        counter: h.counter
+      }
+    }
+    hashCollector[h.counter]['summaryHashes'] = h
+  })
+  return Object.values(hashCollector)
+}
+
+export function addHashesGossip (
+  sender: string,
+  gossip: any
+) {
+  let counter = gossip.counter
+  if (gossipCollector.has(counter)) {
     let existingGossips = gossipCollector.get(counter)
-    existingGossips[sender] = hashes
+    existingGossips[sender] = gossip
   } else {
     let obj: any = {}
-    obj[sender] = hashes
+    obj[sender] = gossip
     gossipCollector.set(counter, obj)
   }
   let totalGossip = gossipCollector.get(counter)
-  if (Object.keys(totalGossip).length > 0.5 * State.activeArchivers.length) {
+  if (
+    totalGossip &&
+    Object.keys(totalGossip).length > 0.5 * State.activeArchivers.length
+  ) {
     setTimeout(() => {
       processGossip(counter)
-    }, 3000)
+      gossipCollector.delete(counter)
+    }, 500)
   }
 }
 
@@ -88,7 +123,6 @@ function processGossip(counter: number) {
   console.log('Processing gossips for counter', counter, gossipCollector.get(counter))
   let gossips = gossipCollector.get(counter)
   if (!gossips) {
-    console.log('No gossip found')
     return
   }
   let gossipCounter: any = {}
@@ -100,10 +134,10 @@ function processGossip(counter: number) {
         gossip: gossips[sender]
       } 
     } else {
-      gossipCounter[hashedGossip].counter += 1
+      gossipCounter[hashedGossip].count += 1
     }
   }
-  console.log('gossipCounter', gossipCounter)
+  // console.log('gossipCounter', gossipCounter)
   let gossipWithHighestCount: any
   let highestCount = 0
   let hashWithHighestCounter: any
@@ -114,9 +148,11 @@ function processGossip(counter: number) {
       highestCount = gossipCounter[key].count 
     }
   }
-  console.log('highest counter', highestCount)
-  console.log('gossip with highest counter', gossipWithHighestCount)
-  let ourHashes = Data.StateMetaData.get(counter)
+  let ourHashes = Data.StateMetaDataMap.get(counter)
+  if (!ourHashes) {
+    console.log(`Unable to find our stored statemetadata hashes for counter ${counter}`)
+    return
+  }
   if (hashWithHighestCounter && hashWithHighestCounter !== Crypto.hashObj(ourHashes)) {
     console.log('our hash is different from other archivers hashes. Storing the correct hashes')
     Data.processStateMetaData(gossipWithHighestCount)

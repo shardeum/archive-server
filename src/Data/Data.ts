@@ -153,7 +153,7 @@ export class ArchivedCycle extends BaseModel {
   summary!: Summary
 }
 
-export let StateMetaData = new Map()
+export let StateMetaDataMap = new Map()
 export let currentDataSender: string = ''
 
 export function initSocketServer(io: SocketIO.Server) {
@@ -187,11 +187,12 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
     currentDataSender = newData.publicKey
     if (newData.responses && newData.responses.STATE_METADATA) {
       // console.log('New DATA from consensor STATE_METADATA', newData.publicKey, newData.responses.STATE_METADATA)
-      StateMetaData.set(newData.responses.STATE_METADATA[0].counter, newData.responses.STATE_METADATA[0])
-      Gossip.sendGossip('hashes', newData.responses.STATE_METADATA[0])
+      let hashArray: any = Gossip.convertStateMetadataToHashArray(newData.responses.STATE_METADATA[0])
+      for (let stateMetadataHash of hashArray) {
+        StateMetaDataMap.set(stateMetadataHash.counter, stateMetadataHash)
+        Gossip.sendGossip('hashes', stateMetadataHash)
+      }
     }
-
-    // console.log('data tracker', dataTracker)
     
     socketServer.emit('DATA', newData)
     const sender = dataSenders.get(newData.publicKey)
@@ -1017,12 +1018,17 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
       console.log('Unable to download archivedCycle for counter', counter)
       return
     }
+
+    let isDataSynced = false
+    let isReceiptSynced = false
+    let isSummarySynced = false
   
     // Check and store data hashes
     if (foundArchiveCycle.data) {
       let downloadedNetworkDataHash = foundArchiveCycle.data.networkHash
       if (downloadedNetworkDataHash === networkDataHashesFromRecords.get(counter)) {
-        Storage.updateArchivedCycle(marker, 'data', foundArchiveCycle.data)
+        await Storage.updateArchivedCycle(marker, 'data', foundArchiveCycle.data)
+        isDataSynced = true
       }
     } else {
       console.log(`ArchivedCycle ${foundArchiveCycle.cycleRecord.counter}, ${foundArchiveCycle.cycleMarker} does not have data field`)
@@ -1033,7 +1039,8 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
       // TODO: calcuate the network hash by hashing downloaded receipt Map instead of using downloadedNetworkReceiptHash
       let downloadedNetworkReceiptHash = foundArchiveCycle.receipt.networkHash
       if (downloadedNetworkReceiptHash === networkReceiptHashesFromRecords.get(counter)) {
-        Storage.updateArchivedCycle(marker, 'receipt', foundArchiveCycle.receipt)
+        await Storage.updateArchivedCycle(marker, 'receipt', foundArchiveCycle.receipt)
+        isReceiptSynced = true
       }
     } else {
       console.log(`ArchivedCycle ${foundArchiveCycle.cycleRecord.counter}, ${foundArchiveCycle.cycleMarker} does not have receipt field`)
@@ -1044,10 +1051,15 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
       // TODO: calcuate the network hash by hashing downloaded summary Blobs instead of using downloadedNetworkSummaryHash
       let downloadedNetworkSummaryHash = foundArchiveCycle.summary.networkHash
       if (downloadedNetworkSummaryHash === networkSummaryHashesFromRecords.get(counter)) {
-        Storage.updateArchivedCycle(marker, 'summary', foundArchiveCycle.summary)
+        await Storage.updateArchivedCycle(marker, 'summary', foundArchiveCycle.summary)
+        isSummarySynced = true
       }
     } else {
       console.log(`ArchivedCycle ${foundArchiveCycle.cycleRecord.counter}, ${foundArchiveCycle.cycleMarker} does not have summary field`)
+    }
+    if (isDataSynced && isReceiptSynced && isSummarySynced) {
+      console.log(`Successfully synced statemetadata for counter ${counter}`)
+      if(counter > Cycles.lastProcessedMetaData) Cycles.setLastProcessedMetaDataCounter(counter)
     }
   }
 }
@@ -1168,6 +1180,7 @@ emitter.on(
       ...dataRequest,
       nodeInfo: State.getNodeInfo()
     }
+    console.log('dataRequest', JSON.stringify(dataRequest))
     // console.log('Sending data request to: ', newSenderInfo.port)
     let response = await P2P.postJson(
       `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
