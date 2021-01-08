@@ -9,7 +9,6 @@ import { config, Config } from '../Config'
 let gossipCollector = new Map()
 
 export async function sendGossip (type: string, payload: any) {
-  // [TODO] Don't copy the node list once sorted lists are passed in
   let archivers: State.ArchiverNodeInfo[] = [...State.activeArchivers]
 
   if (archivers.length === 0) return
@@ -19,6 +18,7 @@ export async function sendGossip (type: string, payload: any) {
 
   archivers = archivers.sort((a: any, b: any) => a.publicKey - b.publicKey)
 
+  // TODO: check if need to select random archivers instead of sending to all other archivers
   let recipients: State.ArchiverNodeInfo[] = archivers.filter(
     a => a.publicKey !== config.ARCHIVER_PUBLIC_KEY
   )
@@ -50,10 +50,7 @@ async function tell (
   logged = false
 ) {
   let InternalTellCounter = 0
-  const data = { route, payload: message }
   const promises = []
-  let id = ''
-
   for (const node of nodes) {
     InternalTellCounter++
     const url = `http://${node.ip}:${node.port}/${route}`
@@ -95,13 +92,8 @@ function processGossip(counter: number) {
     return
   }
   let gossipCounter: any = {}
-
   for (let sender in gossips) {
     let hashedGossip = Crypto.hashObj(gossips[sender])
-    console.log('sender', sender)
-    console.log('gossip', gossips[sender])
-    console.log('hashed gossip', hashedGossip)
-
     if(!gossipCounter[hashedGossip]) {
       gossipCounter[hashedGossip] = {
         count: 1,
@@ -125,8 +117,6 @@ function processGossip(counter: number) {
   console.log('highest counter', highestCount)
   console.log('gossip with highest counter', gossipWithHighestCount)
   let ourHashes = Data.StateMetaData.get(counter)
-  console.log('our state hashes', ourHashes)
-  console.log('our state hashes hashed', Crypto.hashObj(ourHashes))
   if (hashWithHighestCounter && hashWithHighestCounter !== Crypto.hashObj(ourHashes)) {
     console.log('our hash is different from other archivers hashes. Storing the correct hashes')
     Data.processStateMetaData(gossipWithHighestCount)

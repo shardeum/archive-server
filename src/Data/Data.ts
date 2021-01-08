@@ -274,11 +274,6 @@ export function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicK
   if (NodeList.getActiveList().length < 2) {
     console.log('There is only one active node in the network. Unable to replace data sender')
     let sender = dataSenders.get(publicKey)
-    // if (sender && sender.contactTimeout) {
-    //   clearTimeout(sender.contactTimeout)
-    //   sender.contactTimeout = createContactTimeout(publicKey, "this timeout is created due to single node")
-    //   sender.contactTimeout = null
-    // }
     if (sender && sender.replaceTimeout) {
       clearTimeout(sender.replaceTimeout)
       sender.replaceTimeout = null
@@ -295,13 +290,6 @@ export function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicK
     console.log('replaceDataSender failed: old sender not removed')
     return
   }
-  // console.log(
-  //   `replaceDataSender: removed old sender ${JSON.stringify(
-  //     removedSenders,
-  //     null,
-  //     2
-  //   )}`
-  // )
 
   // Pick a new dataSender
   const newSenderInfo = selectNewDataSender()
@@ -315,13 +303,6 @@ export function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicK
     contactTimeout: createContactTimeout(newSenderInfo.publicKey, "This timeout is created during newSender selection", 2 * currentCycleDuration),
     replaceTimeout: createReplaceTimeout(newSenderInfo.publicKey),
   }
-  // console.log(
-  //   `replaceDataSender: selected new sender ${JSON.stringify(
-  //     newSender.nodeInfo,
-  //     null,
-  //     2
-  //   )}`
-  // )
 
   // Add new dataSender to dataSenders
   addDataSenders(newSender)
@@ -342,16 +323,7 @@ export function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicK
       publicKey
     )
   }
-
   sendDataRequest(newSender, dataRequest)
-
-  // console.log(
-  //   `replaceDataSender: sent dataRequest to new sender: ${JSON.stringify(
-  //     dataRequest,
-  //     null,
-  //     2
-  //   )}`
-  // )
 }
 
 /**
@@ -362,16 +334,15 @@ export function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicK
 export function createContactTimeout(
   publicKey: NodeList.ConsensusNodeInfo['publicKey'], msg: string = '', timeout: number = 1 *  currentCycleDuration
 ) {
-  // TODO: discuss and set correct contact timeout
+  // TODO: check what is the best contact timeout
   const ms = timeout ? timeout : 1 * currentCycleDuration || (1 * 30 * 1000) + timeoutPadding
-  // const contactTimeout = setTimeout(replaceDataSender, ms, publicKey)
   const contactTimeout = setTimeout(() => {
     console.log('REPLACING sender due to CONTACT timeout', msg)
     replaceDataSender(publicKey)
   }, ms)
 
-  console.log(`${new Date()}: Created CONTACT timeout of ${Math.round(ms / 1000)} s for ${publicKey}`)
-  console.log(`${new Date()}: Data sender ${publicKey} is set to be replaced at ${new Date(Date.now() + ms)}`)
+  // console.log(`${new Date()}: Created CONTACT timeout of ${Math.round(ms / 1000)} s for ${publicKey}`)
+  // console.log(`${new Date()}: Data sender ${publicKey} is set to be replaced at ${new Date(Date.now() + ms)}`)
 
   return contactTimeout
 }
@@ -379,17 +350,14 @@ export function createContactTimeout(
 export function createReplaceTimeout(
   publicKey: NodeList.ConsensusNodeInfo['publicKey']
 ) {
-  // TODO: discuss and set correct contact timeout
   const ms = config.DATASENDER_TIMEOUT || 1000 * 60 * 20
-  // const ms = 1000 * 60 * 60 * 6
-
   const replaceTimeout = setTimeout(() => {
     console.log('ROTATING sender due to REPLACE timeout')
     replaceDataSender(publicKey)
   }, ms)
 
-  console.log(`${new Date()}: Created REPLACE timeout of ${Math.round(ms / 1000)} s for ${publicKey}`)
-  console.log(`${new Date()}: Data sender ${publicKey} is set to be replaced at ${new Date(Date.now() + ms)}`)
+  // console.log(`${new Date()}: Created REPLACE timeout of ${Math.round(ms / 1000)} s for ${publicKey}`)
+  // console.log(`${new Date()}: Data sender ${publicKey} is set to be replaced at ${new Date(Date.now() + ms)}`)
 
   return replaceTimeout
 }
@@ -408,7 +376,6 @@ function removeDataSenders (
   const removedSenders = []
   const sender = dataSenders.get(publicKey)
   if (sender) {
-    console.log('Sender to remove', sender)
     // Clear contactTimeout associated with this sender
     if (sender.contactTimeout) {
       clearTimeout(sender.contactTimeout)
@@ -427,7 +394,6 @@ function removeDataSenders (
   } else {
     console.log('Unable to find sender in the list', dataSenders)
   }
-
   return removedSenders
 }
 
@@ -459,7 +425,6 @@ export function sendJoinRequest (nodeInfo: NodeList.ConsensusNodeInfo) {
 }
 
 export async function getCycleDuration () {
-  let cycleDuration
   const randomIndex = Math.floor(Math.random() * State.activeArchivers.length)
   const randomArchiver = State.activeArchivers[randomIndex]
   let response: any = await P2P.getJson(
@@ -468,22 +433,18 @@ export async function getCycleDuration () {
     return response.cycleInfo[0].duration
   }
 }
+
 export function checkJoinStatus (cycleDuration: number): Promise<boolean> {
   if (!cycleDuration) {
     console.log('No cycle duration provided')
     throw new Error('No cycle duration provided')
   }
-  console.log('cycle duration', cycleDuration)
   const ourNodeInfo = State.getNodeInfo()
   const randomIndex = Math.floor(Math.random() * State.activeArchivers.length)
   const randomArchiver = State.activeArchivers[randomIndex]
 
   return new Promise(resolve => {
     async function fetchJoinedArchiverList () {
-      console.log(
-        'Asking join status from random archiver',
-        randomArchiver.port
-      )
       let response: any = await P2P.getJson(
         `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo/1`
       )
@@ -504,19 +465,19 @@ export function checkJoinStatus (cycleDuration: number): Promise<boolean> {
         setTimeout(fetchJoinedArchiverList, cycleDuration * 1000 + Date.now())
       }
     }
-
     setTimeout(fetchJoinedArchiverList, cycleDuration * 1000 + Date.now())
   })
 }
 
 
-function sendDataQuery(
+async function sendDataQuery(
   consensorNode: NodeList.ConsensusNodeInfo,
   dataQuery: any
 ) {
   // TODO: crypto.tag cannot handle array type. To change something else
   const taggedDataQuery = Crypto.tag(dataQuery, consensorNode.publicKey)
-  queryDataFromNode(consensorNode, taggedDataQuery)
+  let isSuccess = await queryDataFromNode(consensorNode, taggedDataQuery)
+  return isSuccess
 }
 
 async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
@@ -559,81 +520,6 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
       case TypeNames.STATE_METADATA: {
         console.log('Processing STATE_METADATA')
         processStateMetaData(newData.responses.STATE_METADATA)
-        // for (let stateMetaData of newData.responses.STATE_METADATA) {
-        //   let data, receipt, summary
-        //   // [TODO] validate the state data by robust querying other nodes
-
-        //   // store state hashes to archivedCycle
-        //   stateMetaData.stateHashes.forEach(async (stateHashesForCycle: any) => {
-        //     let parentCycle = Cycles.CycleChain.get(stateHashesForCycle.counter)
-        //     if (!parentCycle) {
-        //       console.log('Unable to find parent cycle for cycle', stateHashesForCycle.counter)
-        //       return
-        //     }
-        //     data = {
-        //       parentCycle: parentCycle ? parentCycle.marker : '',
-        //       networkHash: stateHashesForCycle.networkHash,
-        //       partitionHashes: stateHashesForCycle.partitionHashes,
-        //     }
-        //     await Storage.updateArchivedCycle(data.parentCycle, 'data', data)
-        //     Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
-        //   })
-          
-        //   // store receipt hashes to archivedCycle
-        //   stateMetaData.receiptHashes.forEach(async (receiptHashesForCycle: any) => {
-        //     let parentCycle = Cycles.CycleChain.get(
-        //       receiptHashesForCycle.counter
-        //     )
-        //     if (!parentCycle) {
-        //       console.log('Unable to find parent cycle for cycle', receiptHashesForCycle.counter)
-        //       return
-        //     }
-        //     receipt = {
-        //       parentCycle: parentCycle ? parentCycle.marker : '',
-        //       networkHash: receiptHashesForCycle.networkReceiptHash,
-        //       partitionHashes: receiptHashesForCycle.receiptMapHashes,
-        //       partitionMaps: {},
-        //       partitionTxs: {},
-        //     }
-        //     await Storage.updateArchivedCycle(receipt.parentCycle, 'receipt', receipt)
-        //     console.log('receipt hashes are stored for cycle', receiptHashesForCycle.counter)
-        //     Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
-
-        //     // Query receipt maps from other nodes and store it
-        //       let activeNodes = NodeList.getActiveList()
-        //       for (let node of activeNodes) {
-        //         const queryRequest = createQueryRequest('RECEIPT_MAP', receiptHashesForCycle.counter, node.publicKey)
-        //         console.log('Sending RECEIPT QUERY for cycle', receiptHashesForCycle.counter)
-        //         sendDataQuery(node, queryRequest)
-        //       }
-        //   })
-
-        //   // store summary hashes to archivedCycle
-        //   stateMetaData.summaryHashes.forEach(async (summaryHashesForCycle: any) => {
-        //     let parentCycle = Cycles.CycleChain.get(
-        //       summaryHashesForCycle.counter
-        //     )
-        //     if (!parentCycle) {
-        //       console.log('Unable to find parent cycle for cycle', summaryHashesForCycle.counter)
-        //       return
-        //     }
-        //     summary = {
-        //       parentCycle: parentCycle ? parentCycle.marker : '',
-        //       networkHash: summaryHashesForCycle.networkSummaryHash,
-        //       partitionHashes: summaryHashesForCycle.summaryHashes,
-        //       partitionBlobs: {},
-        //     }
-        //     await Storage.updateArchivedCycle(summary.parentCycle, 'summary', summary)
-        //     Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
-
-        //     // Query summary blobs from other nodes and store it
-        //     let activeNodes = NodeList.getActiveList()
-        //     for (let node of activeNodes) {
-        //       const queryRequest = createQueryRequest('SUMMARY_BLOB', summaryHashesForCycle.counter, node.publicKey)
-        //       sendDataQuery(node, queryRequest)
-        //     }
-        //   })
-        // }
         break
       }
       default: {
@@ -696,7 +582,11 @@ export async function processStateMetaData(STATE_METADATA: any) {
         for (let node of activeNodes) {
           const queryRequest = createQueryRequest('RECEIPT_MAP', receiptHashesForCycle.counter, node.publicKey)
           console.log('Sending RECEIPT QUERY for cycle', receiptHashesForCycle.counter)
-          sendDataQuery(node, queryRequest)
+          let isSuccess = await sendDataQuery(node, queryRequest)
+          if (isSuccess) {
+            console.log("Data query for receipt map is completed")
+            break
+          }
         }
     })
 
@@ -722,7 +612,11 @@ export async function processStateMetaData(STATE_METADATA: any) {
       let activeNodes = NodeList.getActiveList()
       for (let node of activeNodes) {
         const queryRequest = createQueryRequest('SUMMARY_BLOB', summaryHashesForCycle.counter, node.publicKey)
-        sendDataQuery(node, queryRequest)
+        let isSuccess = await sendDataQuery(node, queryRequest)
+        if (isSuccess) {
+          console.log("Data query for summary blob is completed")
+          break
+        }
       }
     })
   }
@@ -1159,25 +1053,32 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
 }
 
 async function queryDataFromNode (
-  newSenderInfo: NodeList.ConsensusNodeInfo,
+  consensorNode: NodeList.ConsensusNodeInfo,
   dataQuery: any
 ) {
   let request = {
     ...dataQuery,
     nodeInfo: State.getNodeInfo(),
   }
-  let response = await P2P.postJson(
-    `http://${newSenderInfo.ip}:${newSenderInfo.port}/querydata`,
-    request
-  )
-  if (response && request.type === 'RECEIPT_MAP') {
-    for (let counter in response.data) {
-      validateAndStoreReceiptMaps(response.data)
+  try {
+    let response = await P2P.postJson(
+      `http://${consensorNode.ip}:${consensorNode.port}/querydata`,
+      request
+    )
+    if (response && request.type === 'RECEIPT_MAP') {
+      for (let counter in response.data) {
+        await validateAndStoreReceiptMaps(response.data)
+      }
+    } else if (response && request.type === 'SUMMARY_BLOB') {
+      for (let counter in response.data) {
+        await validateAndStoreSummaryBlobs(Object.values(response.data))
+      }
     }
-  } else if (response && request.type === 'SUMMARY_BLOB') {
-    for (let counter in response.data) {
-      validateAndStoreSummaryBlobs(Object.values(response.data))
-    }
+    return true
+  } catch(e) {
+    console.log(e)
+    console.log("Unable to query receipt map and/or summary blob from node", consensorNode)
+    return false
   }
 }
 
