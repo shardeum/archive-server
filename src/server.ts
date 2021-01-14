@@ -55,21 +55,21 @@ async function syncAndStartServer() {
 
   // If there are active consensors in the network, sync cycle chain and state metadata from other archivers
   if (nodeList && nodeList.length > 0) {
-    const randomIndex = Math.floor(Math.random() * nodeList.length)
-    const randomConsensor: NodeList.ConsensusNodeInfo = nodeList[randomIndex]
-
-    // Set randomly selected consensors as dataSender
-    Data.addDataSenders({
-      nodeInfo: randomConsensor,
-      types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
-    })
-
+    const randomConsensor: NodeList.ConsensusNodeInfo = NodeList.getRandomNode(nodeList)
+    const newestCycleRecord = await Data.getNewestCycleRecord(randomConsensor)
     // Send a join request to a consensus node from the nodelist
-    Data.sendJoinRequest(randomConsensor)
+    await Data.sendJoinRequest(randomConsensor, newestCycleRecord)
     const cycleDuration = await Data.getCycleDuration()
 
     if (!cycleDuration) return
-    await Data.checkJoinStatus(cycleDuration)
+    let isJoined = false
+    
+    while(!isJoined) {
+      isJoined = await Data.checkJoinStatus(cycleDuration)
+      if (!isJoined) {
+        await Utils.sleep(5000)
+      }
+    }
     
     console.log('We have successfully joined the network')
 
@@ -78,6 +78,12 @@ async function syncAndStartServer() {
     // TODO: Sync all cycles until no older cycle is fetched from other archivers
 
     await Data.syncStateMetaData(State.activeArchivers)
+
+    // Set randomly selected consensors as dataSender
+    Data.addDataSenders({
+      nodeInfo: randomConsensor,
+      types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
+    })
 
     // wait for one cycle before sending data request
     Utils.sleep(cycleDuration * 1000)
@@ -325,10 +331,10 @@ function startServer() {
   // })
 
   // [TODO] Remove this before production
-  server.get('/exit', (_request, reply) => {
-    reply.send('Shutting down...')
-    process.exit()
-  })
+  // server.get('/exit', (_request, reply) => {
+  //   reply.send('Shutting down...')
+  //   process.exit()
+  // })
 
   // [TODO] Remove this before production
   server.get('/nodeids', (_request, reply) => {
@@ -343,6 +349,7 @@ function startServer() {
       process.exit(1)
     }
     console.log('Archive-server has started.')
+    State.addSigListeners()
   })
   return io
 }

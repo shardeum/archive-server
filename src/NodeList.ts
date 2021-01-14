@@ -183,6 +183,12 @@ export async function getActiveListFromArchivers(activeArchivers: State.Archiver
   return nodeList[0]
 }
 
+export function getRandomNode(nodeList: ConsensusNodeInfo[]): ConsensusNodeInfo {
+  const randomIndex = Math.floor(Math.random() * nodeList.length)
+  const randomConsensor: ConsensusNodeInfo = nodeList[randomIndex]
+  return randomConsensor
+}
+
 export function getSyncingList() {
   return [...syncingList.values()]
 }

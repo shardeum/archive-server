@@ -420,10 +420,99 @@ export function sendDataRequest(
   emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
 }
 
-export function sendJoinRequest (nodeInfo: NodeList.ConsensusNodeInfo) {
+export async function sendJoinRequest (
+  nodeInfo: NodeList.ConsensusNodeInfo,
+  cycle: Cycles.Cycle
+) {
   let joinRequest = P2P.createArchiverJoinRequest()
-  emitter.emit('submitJoinRequest', nodeInfo, joinRequest)
+  let nextQ1Start = cycle.start * 1000 + cycle.duration * 1000
+  let nextQ2Start = nextQ1Start + cycle.duration * 1000 * 0.25
+  let now = Date.now()
+
+  console.log('nextQ1Start', nextQ1Start, new Date(nextQ1Start))
+  console.log('nextQ2Start', nextQ2Start, new Date(nextQ2Start))
+  console.log('Now', now, new Date(now))
+
+  return new Promise((resolve: any) => {
+    if (nextQ1Start > now) {
+      let waitTime = nextQ1Start - now
+      console.log('waitTime', waitTime, `${waitTime / 1000} sec`)
+
+      if (waitTime > 0) {
+        setTimeout(() => {
+          emitter.emit('submitJoinRequest', nodeInfo, joinRequest)
+          resolve(true)
+        }, waitTime)
+      }
+    } else if (now > nextQ1Start && now < nextQ2Start) {
+      console.log(
+        'Now is within first quarter of cycle. Immediately submitting join request'
+      )
+      emitter.emit('submitJoinRequest', nodeInfo, joinRequest)
+      resolve(true)
+    } else {
+      let waitTime = nextQ1Start + (cycle.duration * 1000) - now
+      console.log('waitTime', waitTime, `${waitTime / 1000} sec`)
+      setTimeout(() => {
+        emitter.emit('submitJoinRequest', nodeInfo, joinRequest)
+        resolve(true)
+      }, waitTime)
+    }
+  })
 }
+
+export function sendLeaveRequest (
+  nodeInfo: NodeList.ConsensusNodeInfo,
+  cycle: Cycles.Cycle
+) {
+
+  let leaveRequest = P2P.createArchiverLeaveRequest()
+  console.log('Emitting submitLeaveRequest event')
+  emitter.emit('submitLeaveRequest', nodeInfo, leaveRequest)
+  return true
+
+  // let nextQ1Start = cycle.start * 1000 + cycle.duration * 1000
+  // let nextQ2Start = nextQ1Start + cycle.duration * 1000 * 0.25
+  // let now = Date.now()
+
+  // console.log('nextQ1Start', nextQ1Start, new Date(nextQ1Start))
+  // console.log('nextQ2Start', nextQ2Start, new Date(nextQ2Start))
+  // console.log('Now', now, new Date(now))
+
+  // return new Promise((resolve: any) => {
+  //   if (nextQ1Start > now) {
+  //     let waitTime = nextQ1Start - now
+  //     console.log('waitTime', waitTime, `${waitTime / 1000} sec`)
+  //     console.log('Case 1')
+  //     if (waitTime > 0) {
+  //       let timeout = setTimeout(() => {
+  //         console.log('Emitting submitLeaveRequest event')
+  //         emitter.emit('submitLeaveRequest', nodeInfo, leaveRequest)
+  //         resolve(true)
+  //       }, waitTime)
+  //       console.log('timeout', timeout)
+
+  //     }
+  //   } else if (now > nextQ1Start && now < nextQ2Start) {
+  //     console.log('Case 2')
+  //     console.log('Emitting submitLeaveRequest event')
+  //     emitter.emit('submitLeaveRequest', nodeInfo, leaveRequest)
+  //     resolve(true)
+  //   } else {
+  //     console.log('Case 3')
+
+  //     let waitTime = nextQ1Start + cycle.duration * 1000 - now
+  //     console.log('waitTime', waitTime, `${waitTime / 1000} sec`)
+  //     let timeout = setTimeout(function() {
+  //       console.log('Emitting submitLeaveRequest event')
+  //       emitter.emit('submitLeaveRequest', nodeInfo, leaveRequest)
+  //       resolve(true)
+  //     }, waitTime)
+  //     console.log('timeout', timeout)
+  //   }
+  // })
+}
+
 
 export async function getCycleDuration () {
   const randomIndex = Math.floor(Math.random() * State.activeArchivers.length)
@@ -435,7 +524,17 @@ export async function getCycleDuration () {
   }
 }
 
+export async function getNewestCycleRecord (nodeInfo: NodeList.ConsensusNodeInfo) {
+  if (!nodeInfo) return
+  let response: any = await P2P.getJson(
+    `http://${nodeInfo.ip}:${nodeInfo.port}/sync-newest-cycle`)
+  if (response && response.newestCycle) {
+    return response.newestCycle
+  }
+}
+
 export function checkJoinStatus (cycleDuration: number): Promise<boolean> {
+  console.log('Checking join status')
   if (!cycleDuration) {
     console.log('No cycle duration provided')
     throw new Error('No cycle duration provided')
@@ -444,32 +543,36 @@ export function checkJoinStatus (cycleDuration: number): Promise<boolean> {
   const randomIndex = Math.floor(Math.random() * State.activeArchivers.length)
   const randomArchiver = State.activeArchivers[randomIndex]
 
-  return new Promise(resolve => {
-    async function fetchJoinedArchiverList () {
-      let response: any = await P2P.getJson(
-        `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo/1`
-      )
-      try {
-        if (response && response.cycleInfo[0] && response.cycleInfo[0].joinedArchivers) {
-          let joinedArchivers = response.cycleInfo[0].joinedArchivers
-          console.log('Joined archivers', joinedArchivers)
-          let isJoind = joinedArchivers.includes(
-            (a: any) => a.publicKey === ourNodeInfo.publicKey
-          )
-          console.log('isJoind', isJoind)
-          resolve(true)
-        } else {
-          setTimeout(fetchJoinedArchiverList, cycleDuration * 1000 + Date.now())
-        }
-      } catch (e) {
-        console.log(e)
-        setTimeout(fetchJoinedArchiverList, cycleDuration * 1000 + Date.now())
+  return new Promise(async resolve => {
+    let response: any = await P2P.getJson(
+      `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo/1`
+    )
+    try {
+      if (
+        response &&
+        response.cycleInfo[0] &&
+        response.cycleInfo[0].joinedArchivers
+      ) {
+        let joinedArchivers = response.cycleInfo[0].joinedArchivers
+        let refreshedArchivers = response.cycleInfo[0].refreshedArchivers
+        console.log('cycle counter', response.cycleInfo[0].counter)
+        console.log('cycle record', response.cycleInfo[0])
+        console.log('Joined archivers', joinedArchivers)
+
+        let isJoind = [...joinedArchivers, ...refreshedArchivers].find(
+          (a: any) => a.publicKey === ourNodeInfo.publicKey
+        )
+        console.log('isJoind', isJoind)
+        resolve(isJoind)
+      } else {
+        resolve(false)
       }
+    } catch (e) {
+      console.log(e)
+      resolve(false)
     }
-    setTimeout(fetchJoinedArchiverList, cycleDuration * 1000 + Date.now())
   })
 }
-
 
 async function sendDataQuery(
   consensorNode: NodeList.ConsensusNodeInfo,
@@ -538,6 +641,10 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
 }
 
 export async function processStateMetaData(STATE_METADATA: any) {
+  if (!processStateMetaData) {
+    console.log('Invalid STATE_METADATA provided to processStateMetaData function', STATE_METADATA)
+    return
+  }
   for (let stateMetaData of STATE_METADATA) {
     let data, receipt, summary
     // [TODO] validate the state data by robust querying other nodes
@@ -1207,5 +1314,24 @@ emitter.on(
       request
     )
     console.log('Join request response:', response)
+  }
+)
+
+emitter.on(
+  'submitLeaveRequest',
+  async (
+    consensorInfo: NodeList.ConsensusNodeInfo,
+    leaveRequest: any
+  ) => {
+    let request = {
+      ...leaveRequest,
+      nodeInfo: State.getNodeInfo()
+    }
+    console.log('Sending leave request to: ', consensorInfo.port)
+    let response = await P2P.postJson(
+      `http://${consensorInfo.ip}:${consensorInfo.port}/leavingarchivers`,
+      request
+    )
+    console.log('Leave request response:', response)
   }
 )

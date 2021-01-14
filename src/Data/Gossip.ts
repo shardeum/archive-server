@@ -154,7 +154,11 @@ function processGossip(counter: number) {
     return
   }
   if (hashWithHighestCounter && hashWithHighestCounter !== Crypto.hashObj(ourHashes)) {
+    if (!gossipWithHighestCount) {
+      return
+    }
     console.log('our hash is different from other archivers hashes. Storing the correct hashes')
+    console.log('gossipWithHighestCount', gossipWithHighestCount)
     Data.processStateMetaData(gossipWithHighestCount)
     Data.replaceDataSender(Data.currentDataSender)
   }

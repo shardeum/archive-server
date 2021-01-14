@@ -17,6 +17,7 @@ export interface Cycle {
   syncing: number
   joined: string
   joinedArchivers: string
+  leavingArchivers: string
   joinedConsensors: string
   refreshedArchivers: string
   refreshedConsensors: string
@@ -186,5 +187,16 @@ function updateNodeList(cycle: Cycle) {
       console.log('New archiver added to active list', joinedArchiver)
     }
     console.log('active archiver list', State.activeArchivers)
+  }
+
+  const leavingArchivers = safeParse<State.ArchiverNodeState[]>(
+    [],
+    cycle.leavingArchivers,
+    `Error processing cycle ${cycle.counter}: failed to parse joinedArchivers`
+  )
+  for (let leavingArchiver of leavingArchivers) {
+    console.log('Removing levaing archivers', leavingArchiver)
+    State.removeActiveArchiver(leavingArchiver.publicKey)
+    console.log('active archiver list after', State.activeArchivers)
   }
 }

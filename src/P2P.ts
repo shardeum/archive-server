@@ -8,10 +8,18 @@ import { Cycle } from './Data/Cycles'
 import { StateHashes } from './Data/State'
 import { ReceiptHashes } from './Data/Receipt'
 
-export interface ArchiverJoinRequest {
-  nodeInfo: State.ArchiverNodeInfo
+export enum RequestTypes {
+  JOIN = 'JOIN',
+  LEAVE = 'LEAVE',
 }
-
+export interface ArchiverJoinRequest {
+  nodeInfo: State.ArchiverNodeInfo,
+  requestType: string
+}
+export interface ArchiverLeaveRequest {
+  nodeInfo: State.ArchiverNodeInfo,
+  requestType: string
+}
 export interface FirstNodeInfo {
   nodeInfo: {
     externalIp: string
@@ -19,7 +27,6 @@ export interface FirstNodeInfo {
     publicKey: string
   }
 }
-
 export interface FirstNodeResponse {
   nodeList: NodeList.ConsensusNodeInfo[]
   joinRequest?: ArchiverJoinRequest & Crypto.SignedMessage
@@ -30,8 +37,17 @@ export interface FirstNodeResponse {
 export function createArchiverJoinRequest() {
   const joinRequest: ArchiverJoinRequest = {
     nodeInfo: State.getNodeInfo(),
+    requestType: RequestTypes.JOIN
   }
   return Crypto.sign(joinRequest)
+}
+
+export function createArchiverLeaveRequest() {
+  const leaveRequest: ArchiverLeaveRequest = {
+    nodeInfo: State.getNodeInfo(),
+    requestType: RequestTypes.LEAVE
+  }
+  return Crypto.sign(leaveRequest)
 }
 
 export async function postJson(
