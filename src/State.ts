@@ -131,7 +131,7 @@ export function addSigListeners(sigint = true, sigterm = true) {
 }
 
 export function removeActiveArchiver(publicKey: string) {
-  activeArchivers = activeArchivers.filter((a: any) => a.publicKey === publicKey)
+  activeArchivers = activeArchivers.filter((a: any) => a.publicKey !== publicKey)
 }
 
 export function getNodeInfo(): ArchiverNodeInfo {
