@@ -196,7 +196,7 @@ function startServer() {
         nodeList = NodeList.getList().slice(0, 1)
       }
       const res = Crypto.sign({
-        nodeList: nodeList.sort((a: any, b: any) => a.id - b.id),
+        nodeList: nodeList.sort((a: any, b: any) => a.id > b.id ? 1 : -1),
       })
       reply.send(res)
     }
@@ -207,7 +207,7 @@ function startServer() {
     if (nodeList.length < 1) {
       nodeList = NodeList.getList().slice(0, 1)
     }
-    let sortedNodeList = [...nodeList].sort((a: any, b: any) => a.id - b.id)
+    let sortedNodeList = [...nodeList].sort((a: any, b: any) => a.id > b.id ? 1 : -1)
     console.log('nodeList', nodeList)
     console.log('sortedNodeList', sortedNodeList)
 

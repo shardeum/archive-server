@@ -556,7 +556,6 @@ export function checkJoinStatus (cycleDuration: number): Promise<boolean> {
         let joinedArchivers = response.cycleInfo[0].joinedArchivers
         let refreshedArchivers = response.cycleInfo[0].refreshedArchivers
         console.log('cycle counter', response.cycleInfo[0].counter)
-        console.log('cycle record', response.cycleInfo[0])
         console.log('Joined archivers', joinedArchivers)
 
         let isJoind = [...joinedArchivers, ...refreshedArchivers].find(
