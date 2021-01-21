@@ -99,6 +99,7 @@ export function addNodes(
 }
 
 export function removeNodes(publicKeys: string[]): string[] {
+  console.log('Removing nodes', publicKeys)
   // Efficiently remove nodes from nodelist
   const keysToDelete: Map<ConsensusNodeInfo['publicKey'], boolean> = new Map()
 
