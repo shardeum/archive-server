@@ -12,6 +12,7 @@ import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
 import * as Utils from './Utils'
 import { sendGossip, addHashesGossip } from './Data/Gossip'
+import { ENODATA } from 'constants'
 
 // Socket modules
 let io: SocketIO.Server
@@ -55,7 +56,7 @@ async function syncAndStartServer() {
 
   // If there are active consensors in the network, sync cycle chain and state metadata from other archivers
   if (nodeList && nodeList.length > 0) {
-    const randomConsensor: NodeList.ConsensusNodeInfo = NodeList.getRandomNode(nodeList)
+    const randomConsensor: NodeList.ConsensusNodeInfo = Utils.getRandomItemFromArr(nodeList)
     const newestCycleRecord = await Data.getNewestCycleRecord(randomConsensor)
     // Send a join request to a consensus node from the nodelist
     await Data.sendJoinRequest(randomConsensor, newestCycleRecord)
@@ -208,9 +209,6 @@ function startServer() {
       nodeList = NodeList.getList().slice(0, 1)
     }
     let sortedNodeList = [...nodeList].sort((a: any, b: any) => a.id > b.id ? 1 : -1)
-    console.log('nodeList', nodeList)
-    console.log('sortedNodeList', sortedNodeList)
-
     const res = Crypto.sign({
       nodeList: sortedNodeList,
     })
@@ -228,7 +226,22 @@ function startServer() {
   })
 
   server.get('/full-archive', async (_request, reply) => {
-    const archivedCycles = await Storage.queryAllArchivedCycles()
+    let err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
+    if (err) {
+      reply.send(Crypto.sign({ success: false, error: err }))
+      return
+    }
+    let { start, end } = _request.query
+    let from = parseInt(start)
+    let to = parseInt(end)
+    if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+      reply.send(
+        Crypto.sign({ success: false, error: `Invalid start and end counters` })
+      )
+      return
+    }
+    let archivedCycles = []
+    archivedCycles = await Storage.queryAllArchivedCyclesBetween(from, to)
     const res = Crypto.sign({
       archivedCycles,
     })
@@ -236,7 +249,20 @@ function startServer() {
   })
 
   server.get('/full-archive/:count', async (_request, reply) => {
-    let count = _request.params.count || 10
+    let err = Utils.validateTypes(_request.params, { count: 's' })
+    if (err) {
+      reply.send(Crypto.sign({ success: false, error: err }))
+      return
+    }
+
+    let count: number = parseInt(_request.params.count)
+    if (count <= 0 || Number.isNaN(count)) {
+      reply.send(
+        Crypto.sign({ success: false, error: `Invalid count` })
+      )
+      return
+    }
+    if (count > 100) count = 100 // return max 100 cycles
     const archivedCycles = await Storage.queryAllArchivedCycles(count)
     const res = Crypto.sign({
       archivedCycles,
@@ -244,23 +270,23 @@ function startServer() {
     reply.send(res)
   })
 
-  server.get('/debug', (_request, reply) => {
-    let nodeList = NodeList.getActiveList()
-    if (nodeList.length < 1) {
-      nodeList = NodeList.getList().slice(0, 1)
-    }
-    const nodes = nodeList.map((node) => node.port)
-    const senders = [...Data.dataSenders.values()].map(
-      (sender) => sender.nodeInfo.port
-    )
-    const lastData = Cycles.currentCycleCounter
+  // server.get('/debug', (_request, reply) => {
+  //   let nodeList = NodeList.getActiveList()
+  //   if (nodeList.length < 1) {
+  //     nodeList = NodeList.getList().slice(0, 1)
+  //   }
+  //   const nodes = nodeList.map((node) => node.port)
+  //   const senders = [...Data.dataSenders.values()].map(
+  //     (sender) => sender.nodeInfo.port
+  //   )
+  //   const lastData = Cycles.currentCycleCounter
 
-    reply.send({
-      lastData,
-      senders,
-      nodes,
-    })
-  })
+  //   reply.send({
+  //     lastData,
+  //     senders,
+  //     nodes,
+  //   })
+  // })
 
   server.get('/nodeinfo', (_request, reply) => {
     reply.send({
@@ -272,13 +298,25 @@ function startServer() {
   })
 
   server.get('/cycleinfo', async (_request, reply) => {
-    let cycleInfo = []
-    if (_request.query.start && _request.query.end) {
-      let { start, end } = _request.query
-      cycleInfo = await Storage.queryCycleRecordsBetween(start, end)
-    } else {
-      cycleInfo = await Storage.queryAllCycleRecords()
+    let err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
+    if (err) {
+      reply.send(Crypto.sign({ success: false, error: err }))
+      return
     }
+
+    let { start, end } = _request.query
+    let from = parseInt(start)
+    let to = parseInt(end)
+
+    if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+      console.log(`Invalid start and end counters`)
+      reply.send(
+        Crypto.sign({ success: false, error: `Invalid start and end counters` })
+      )
+      return
+    }
+    let cycleInfo = []
+    cycleInfo = await Storage.queryCycleRecordsBetween(from, to)
     const res = Crypto.sign({
       cycleInfo,
     })
@@ -286,7 +324,20 @@ function startServer() {
   })
 
   server.get('/cycleinfo/:count', async (_request, reply) => {
-    let count = _request.params.count
+    let err = Utils.validateTypes(_request.params, { count: 's' })
+    if (err) {
+      reply.send(Crypto.sign({ success: false, error: err }))
+      return
+    }
+    let count: number = parseInt(_request.params.count)
+    if (count <= 0 || Number.isNaN(count)) {
+      reply.send(
+        Crypto.sign({ success: false, error: `Invalid count` })
+      )
+      return
+    }
+    if (count > 100) count = 100 // return max 100 cycles
+
     let cycleInfo = await Storage.queryLatestCycleRecords(count)
     const res = Crypto.sign({
       cycleInfo,
@@ -304,31 +355,6 @@ function startServer() {
     reply.send(res)
   })
 
-  // server.get('/statehashes', async (_request, reply) => {
-  //   let stateHashes = await Storage.queryAllStateHashes()
-  //   const res = Crypto.sign({
-  //     stateHashes,
-  //   })
-  //   reply.send(res)
-  // })
-
-  // server.get('/statehashes/:count', async (_request, reply) => {
-  //   let count = _request.params.count
-  //   console.log(_request.params)
-  //   let stateHashes = await Storage.queryLatestStateHash(count)
-  //   const res = Crypto.sign({
-  //     stateHashes,
-  //   })
-  //   reply.send(res)
-  // })
-
-  // server.get('/download/receipt', async (_request, reply) => {
-  //   let receiptMap = await Storage.queryAllReceipts()
-  //   const res = Crypto.sign({
-  //     receiptMap
-  //   })
-  //   reply.send(res)
-  // })
 
   // [TODO] Remove this before production
   // server.get('/exit', (_request, reply) => {

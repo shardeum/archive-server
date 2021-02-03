@@ -99,7 +99,7 @@ export function addNodes(
 }
 
 export function removeNodes(publicKeys: string[]): string[] {
-  console.log('Removing nodes', publicKeys)
+  if(publicKeys.length > 0) console.log('Removing nodes', publicKeys)
   // Efficiently remove nodes from nodelist
   const keysToDelete: Map<ConsensusNodeInfo['publicKey'], boolean> = new Map()
 
@@ -184,9 +184,9 @@ export async function getActiveListFromArchivers(activeArchivers: State.Archiver
   return nodeList[0]
 }
 
-export function getRandomNode(nodeList: ConsensusNodeInfo[]): ConsensusNodeInfo {
-  const randomIndex = Math.floor(Math.random() * nodeList.length)
-  const randomConsensor: ConsensusNodeInfo = nodeList[randomIndex]
+export function getRandomActiveNode(): ConsensusNodeInfo {
+  let nodeList = getActiveList()
+  const randomConsensor: ConsensusNodeInfo = Utils.getRandomItemFromArr(nodeList)
   return randomConsensor
 }
 

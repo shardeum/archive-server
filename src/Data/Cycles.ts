@@ -195,8 +195,6 @@ function updateNodeList(cycle: Cycle) {
     `Error processing cycle ${cycle.counter}: failed to parse joinedArchivers`
   )
   for (let leavingArchiver of leavingArchivers) {
-    console.log('Removing levaing archivers', leavingArchiver)
     State.removeActiveArchiver(leavingArchiver.publicKey)
-    console.log('active archiver list after', State.activeArchivers)
   }
 }

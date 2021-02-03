@@ -36,6 +36,7 @@ export async function updateReceiptMap (
   receiptMapResult: Data.ReceiptMapResult
 ) {
   if (!receiptMapResult) return
+  // console.log(`Updating receipt map for cycle ${receiptMapResult.cycle}, partition ${receiptMapResult.partition}`, receiptMapResult.receiptMap)
   try {
     let parentCycle = CycleChain.get(receiptMapResult.cycle)
 
@@ -147,6 +148,38 @@ export async function queryAllArchivedCycles (count?: number) {
   return archivedCycles
 }
 
+export async function queryAllArchivedCyclesBetween (start: number, end: number) {
+  let archivedCycles = await Collection.find({
+    filter: {
+      $and: [
+        { 'cycleRecord.counter': { $gte: start } },
+        { 'cycleRecord.counter': { $lte: end } },
+      ],
+    },
+    sort: {
+      'cycleRecord.counter': -1,
+    },
+    limit: 100,
+    project: {
+      _id: 0,
+    },
+  })
+
+  let cycleRecords = await Collection.find({
+    filter: {
+      $and: [
+        { 'cycleRecord.counter': { $gte: start } },
+        { 'cycleRecord.counter': { $lte: end } },
+      ],
+    },
+    sort: {
+      'cycleRecord.counter': -1,
+    },
+  })
+
+  return archivedCycles
+}
+
 export async function queryAllCycleRecords () {
   let cycleRecords = await Collection.find({
     filter: {},
@@ -182,12 +215,12 @@ export async function queryLatestCycleRecords (count: number = 1) {
   return cycleRecords.map((item: any) => item.cycleRecord)
 }
 
-export async function queryCycleRecordsBetween (start: string, end: string) {
+export async function queryCycleRecordsBetween (start: number, end: number) {
   let cycleRecords = await Collection.find({
     filter: {
       $and: [
-        { 'cycleRecord.counter': { $gte: parseInt(start) } },
-        { 'cycleRecord.counter': { $lte: parseInt(end) } },
+        { 'cycleRecord.counter': { $gte: start } },
+        { 'cycleRecord.counter': { $lte: end } },
       ],
     },
     sort: {

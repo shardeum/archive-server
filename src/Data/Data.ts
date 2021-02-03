@@ -167,6 +167,8 @@ export function unsubscribeDataSender() {
   console.log('Disconnecting previous connection')
   socketClient.emit('UNSUBSCRIBE', config.ARCHIVER_PUBLIC_KEY);
   socketClient.disconnect()
+  dataSenders.delete(currentDataSender)
+  currentDataSender = ''
 }
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
@@ -181,8 +183,13 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
 
 
   socketClient.on('DATA', (newData: any) => {
-    if (newData.responses) {
-      console.log('New DATA from consensor COMBINED', newData.publicKey, newData.responses)
+    if (!newData || !newData.responses) return
+    if(newData.responses.STATE_METADATA.length > 0) console.log('New STATEMETADATA', newData.responses.STATE_METADATA[0].summaryHashes)
+    // If tag is invalid, dont keepAlive, END
+    if (Crypto.authenticate(newData) === false) {
+      console.log('Invalid tag. Data received from archiver cannot be authenticated', newData)
+      unsubscribeDataSender()
+      return
     }
     currentDataSender = newData.publicKey
     if (newData.responses && newData.responses.STATE_METADATA) {
@@ -214,14 +221,6 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
         return
       }
     }
-
-    // If tag is invalid, dont keepAlive, END
-    // TODO: to check this block
-    // if (Crypto.authenticate(newData) === false) {
-    //   console.log('Invalid tag. Data received from archiver cannot be authenticated', newData)
-    //   return
-    // }
-
     setImmediate(processData, newData)
   })
 }
@@ -470,53 +469,11 @@ export function sendLeaveRequest (
   console.log('Emitting submitLeaveRequest event')
   emitter.emit('submitLeaveRequest', nodeInfo, leaveRequest)
   return true
-
-  // let nextQ1Start = cycle.start * 1000 + cycle.duration * 1000
-  // let nextQ2Start = nextQ1Start + cycle.duration * 1000 * 0.25
-  // let now = Date.now()
-
-  // console.log('nextQ1Start', nextQ1Start, new Date(nextQ1Start))
-  // console.log('nextQ2Start', nextQ2Start, new Date(nextQ2Start))
-  // console.log('Now', now, new Date(now))
-
-  // return new Promise((resolve: any) => {
-  //   if (nextQ1Start > now) {
-  //     let waitTime = nextQ1Start - now
-  //     console.log('waitTime', waitTime, `${waitTime / 1000} sec`)
-  //     console.log('Case 1')
-  //     if (waitTime > 0) {
-  //       let timeout = setTimeout(() => {
-  //         console.log('Emitting submitLeaveRequest event')
-  //         emitter.emit('submitLeaveRequest', nodeInfo, leaveRequest)
-  //         resolve(true)
-  //       }, waitTime)
-  //       console.log('timeout', timeout)
-
-  //     }
-  //   } else if (now > nextQ1Start && now < nextQ2Start) {
-  //     console.log('Case 2')
-  //     console.log('Emitting submitLeaveRequest event')
-  //     emitter.emit('submitLeaveRequest', nodeInfo, leaveRequest)
-  //     resolve(true)
-  //   } else {
-  //     console.log('Case 3')
-
-  //     let waitTime = nextQ1Start + cycle.duration * 1000 - now
-  //     console.log('waitTime', waitTime, `${waitTime / 1000} sec`)
-  //     let timeout = setTimeout(function() {
-  //       console.log('Emitting submitLeaveRequest event')
-  //       emitter.emit('submitLeaveRequest', nodeInfo, leaveRequest)
-  //       resolve(true)
-  //     }, waitTime)
-  //     console.log('timeout', timeout)
-  //   }
-  // })
 }
 
 
 export async function getCycleDuration () {
-  const randomIndex = Math.floor(Math.random() * State.activeArchivers.length)
-  const randomArchiver = State.activeArchivers[randomIndex]
+  const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)
   let response: any = await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo/1`)
   if (response && response.cycleInfo) {
@@ -540,8 +497,7 @@ export function checkJoinStatus (cycleDuration: number): Promise<boolean> {
     throw new Error('No cycle duration provided')
   }
   const ourNodeInfo = State.getNodeInfo()
-  const randomIndex = Math.floor(Math.random() * State.activeArchivers.length)
-  const randomArchiver = State.activeArchivers[randomIndex]
+  const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)
 
   return new Promise(async resolve => {
     let response: any = await P2P.getJson(
@@ -589,8 +545,12 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
 
   // If no sender entry, remove publicKey from senders, END
   if (!sender) {
-    console.log('No sender found')
+    console.log('No sender found for this data')
     return
+  }
+
+  if (sender.nodeInfo.publicKey !== currentDataSender) {
+    console.log(`Sender ${sender.nodeInfo.publicKey} is not current data sender.`)
   }
 
   // Clear senders contactTimeout, if it has one
@@ -639,9 +599,12 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
   }
 }
 
-export async function processStateMetaData(STATE_METADATA: any) {
+export async function processStateMetaData (STATE_METADATA: any) {
   if (!processStateMetaData) {
-    console.log('Invalid STATE_METADATA provided to processStateMetaData function', STATE_METADATA)
+    console.log(
+      'Invalid STATE_METADATA provided to processStateMetaData function',
+      STATE_METADATA
+    )
     return
   }
   for (let stateMetaData of STATE_METADATA) {
@@ -652,7 +615,10 @@ export async function processStateMetaData(STATE_METADATA: any) {
     stateMetaData.stateHashes.forEach(async (stateHashesForCycle: any) => {
       let parentCycle = Cycles.CycleChain.get(stateHashesForCycle.counter)
       if (!parentCycle) {
-        console.log('Unable to find parent cycle for cycle', stateHashesForCycle.counter)
+        console.log(
+          'Unable to find parent cycle for cycle',
+          stateHashesForCycle.counter
+        )
         return
       }
       data = {
@@ -663,14 +629,15 @@ export async function processStateMetaData(STATE_METADATA: any) {
       await Storage.updateArchivedCycle(data.parentCycle, 'data', data)
       Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
     })
-    
+
     // store receipt hashes to archivedCycle
     stateMetaData.receiptHashes.forEach(async (receiptHashesForCycle: any) => {
-      let parentCycle = Cycles.CycleChain.get(
-        receiptHashesForCycle.counter
-      )
+      let parentCycle = Cycles.CycleChain.get(receiptHashesForCycle.counter)
       if (!parentCycle) {
-        console.log('Unable to find parent cycle for cycle', receiptHashesForCycle.counter)
+        console.log(
+          'Unable to find parent cycle for cycle',
+          receiptHashesForCycle.counter
+        )
         return
       }
       receipt = {
@@ -681,29 +648,34 @@ export async function processStateMetaData(STATE_METADATA: any) {
         partitionTxs: {},
       }
       await Storage.updateArchivedCycle(receipt.parentCycle, 'receipt', receipt)
-      console.log('receipt hashes are stored for cycle', receiptHashesForCycle.counter)
       Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
 
       // Query receipt maps from other nodes and store it
-        let activeNodes = NodeList.getActiveList()
-        for (let node of activeNodes) {
-          const queryRequest = createQueryRequest('RECEIPT_MAP', receiptHashesForCycle.counter, node.publicKey)
-          console.log('Sending RECEIPT QUERY for cycle', receiptHashesForCycle.counter)
-          let isSuccess = await sendDataQuery(node, queryRequest)
-          if (isSuccess) {
-            console.log("Data query for receipt map is completed")
-            break
+      if (receiptHashesForCycle.receiptMapHashes) {
+        let querySuccess = false
+        while(!querySuccess) {
+          let randomConsensor = NodeList.getRandomActiveNode()
+          const queryRequest = createQueryRequest(
+            'RECEIPT_MAP',
+            receiptHashesForCycle.counter - 1,
+            randomConsensor.publicKey
+          )
+          querySuccess = await sendDataQuery(randomConsensor, queryRequest)
+          if (querySuccess) {
+            console.log('Data query for receipt map is completed')
           }
         }
+      }
     })
 
     // store summary hashes to archivedCycle
     stateMetaData.summaryHashes.forEach(async (summaryHashesForCycle: any) => {
-      let parentCycle = Cycles.CycleChain.get(
-        summaryHashesForCycle.counter
-      )
+      let parentCycle = Cycles.CycleChain.get(summaryHashesForCycle.counter)
       if (!parentCycle) {
-        console.log('Unable to find parent cycle for cycle', summaryHashesForCycle.counter)
+        console.log(
+          'Unable to find parent cycle for cycle',
+          summaryHashesForCycle.counter
+        )
         return
       }
       summary = {
@@ -718,16 +690,21 @@ export async function processStateMetaData(STATE_METADATA: any) {
       // Query summary blobs from other nodes and store it
       let activeNodes = NodeList.getActiveList()
       for (let node of activeNodes) {
-        const queryRequest = createQueryRequest('SUMMARY_BLOB', summaryHashesForCycle.counter, node.publicKey)
+        const queryRequest = createQueryRequest(
+          'SUMMARY_BLOB',
+          summaryHashesForCycle.counter,
+          node.publicKey
+        )
         let isSuccess = await sendDataQuery(node, queryRequest)
         if (isSuccess) {
-          console.log("Data query for summary blob is completed")
+          console.log('Data query for summary blob is completed')
           break
         }
       }
     })
   }
 }
+
 
 export async function fetchStateHashes (archivers: any) {
   function _isSameStateHashes (info1: any, info2: any ) {
@@ -1087,8 +1064,7 @@ async function downloadArchivedCycles(archiver: State.ArchiverNodeInfo) {
 }
 
 export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo[]) {
-  const randomIndex = Math.floor(Math.random() * activeArchivers.length)
-  const randomArchiver = activeArchivers[randomIndex]
+  const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)
   let downloadedArchivedCycles = await downloadArchivedCycles(randomArchiver)
   let allCycleRecords = await Storage.queryAllCycleRecords()
   let networkReceiptHashesFromRecords = new Map()
@@ -1195,7 +1171,7 @@ async function queryDataFromNode (
     return true
   } catch(e) {
     console.log(e)
-    console.log("Unable to query receipt map and/or summary blob from node", consensorNode)
+    console.log(`Unable to query complete querying ${request.type} from node`, consensorNode)
     return false
   }
 }
@@ -1211,17 +1187,20 @@ async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
       let reciptMapHash = await Storage.queryReceiptMapHash(parseInt(counter), partition)
       if (!reciptMapHash) {
         console.log(`Unable to find receipt hash for counter ${counter}, partition ${partition}`)
+        // throw new Error(`Unable to find receipt hash for counter ${counter}, partition ${partition}`)
         continue
       }
       let calculatedReceiptMapHash = Crypto.hashObj(partitionBlock)
       if (calculatedReceiptMapHash === reciptMapHash) {
         await Storage.updateReceiptMap(partitionBlock)
+        socketServer.emit('RECEIPT_MAP', partitionBlock)
       } else {
-        console.log(calculatedReceiptMapHash === reciptMapHash)
+        console.log('calculatedReceiptMapHash === reciptMapHash', calculatedReceiptMapHash === reciptMapHash)
+        throw new Error('Different hash while downloading receipt maps')
       }
+      // console.log(`Validated and stored receipt maps for cycle ${counter}, partition ${partition}`, )
     }
   }
-  // console.log("Validated and stored receipt maps", )
 }
 
 async function validateAndStoreSummaryBlobs (
@@ -1229,7 +1208,7 @@ async function validateAndStoreSummaryBlobs (
 ) {
   for (let statsClump of statsClumpForCycles) {
     let { cycle, dataStats, txStats, covered } = statsClump
-    let blobsToForward = []
+    let blobsToForward: any = []
     for (let partition of covered) {
       let summaryBlob
       let dataBlob = dataStats.find(d => d.partition === partition)
@@ -1237,13 +1216,17 @@ async function validateAndStoreSummaryBlobs (
       let summaryHash = await Storage.querySummaryHash(cycle, partition)
       if (!summaryHash) {
         console.log(`Unable to find summary hash for counter ${cycle}, partition ${partition}`)
+        // throw new Error(`Unable to find receipt hash for counter ${cycle}, partition ${partition}`)
         continue
       }
       let calculatedSummaryHash = Crypto.hashObj({
         dataStat: dataBlob,
         txStats: txBlob,
       })
-      if (summaryHash !== calculatedSummaryHash) return
+      if (summaryHash !== calculatedSummaryHash) {
+        console.log('Summary hash is different from calculatedSummaryHash', summaryHash, calculatedSummaryHash)
+        continue
+      }
       if (dataBlob) {
         summaryBlob = {
           ...dataBlob,
@@ -1268,10 +1251,13 @@ async function validateAndStoreSummaryBlobs (
           await Storage.updateSummaryBlob(summaryBlob, cycle)
         } catch (e) {
           console.log('Unable to store summary blob', e)
+          throw new Error('Unable to store summary blob')
         }
       }
     }
-    socketServer.emit('SUMMARY_BLOB', {blobs: blobsToForward, cycle})
+    if (blobsToForward.length > 0) {
+      socketServer.emit('SUMMARY_BLOB', {blobs: blobsToForward, cycle})
+    }
   }
   // console.log("Validated and stored summary blobs", )
 }
