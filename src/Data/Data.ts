@@ -187,7 +187,6 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
     if(newData.responses.STATE_METADATA.length > 0) console.log('New STATEMETADATA', newData.responses.STATE_METADATA[0].summaryHashes)
     // If tag is invalid, dont keepAlive, END
     if (Crypto.authenticate(newData) === false) {
-      console.log('Invalid tag. Data received from archiver cannot be authenticated', newData)
       unsubscribeDataSender()
       return
     }
@@ -288,7 +287,6 @@ export function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicK
   if (removedSenders.length < 1) {
     // throw new Error('replaceDataSender failed: old sender not removed')
     console.log('replaceDataSender failed: old sender not removed')
-    return
   }
 
   // Pick a new dataSender
@@ -600,7 +598,7 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
 }
 
 export async function processStateMetaData (STATE_METADATA: any) {
-  if (!processStateMetaData) {
+  if (!STATE_METADATA) {
     console.log(
       'Invalid STATE_METADATA provided to processStateMetaData function',
       STATE_METADATA
@@ -732,10 +730,13 @@ export async function fetchStateHashes (archivers: any) {
 
 export async function fetchCycleRecords(activeArchivers: State.ArchiverNodeInfo[], start:number, end: number): Promise<any> {
   function isSameCyceInfo (info1: any, info2: any) {
+    // console.log(info1, info2)
     const cm1 = Utils.deepCopy(info1)
     const cm2 = Utils.deepCopy(info2)
     delete cm1.currentTime
     delete cm2.currentTime
+    // console.log(JSON.stringify(cm1), JSON.stringify(cm2))
+    // console.log(JSON.stringify(cm1) === JSON.stringify(cm2))
     const equivalent = isDeepStrictEqual(cm1, cm2)
     return equivalent
   }
@@ -756,6 +757,9 @@ export async function getNewestCycle(activeArchivers: State.ArchiverNodeInfo[]):
     const cm2 = Utils.deepCopy(info2)
     delete cm1.currentTime
     delete cm2.currentTime
+    // console.log('cm1', cm1)
+    // console.log('cm2', cm2)
+    // console.log(JSON.stringify(cm1) === JSON.stringify(cm2))
     const equivalent = isDeepStrictEqual(cm1, cm2)
     return equivalent
   }
@@ -977,8 +981,10 @@ export async function syncCyclesAndNodeList (activeArchivers: State.ArchiverNode
 
   do {
     // Get prevCycles from the network
-    const end: number = CycleChain[0].counter - 1
-    const start: number = end - cyclesToGet
+    let end: number = CycleChain[0].counter - 1
+    let start: number = end - cyclesToGet
+    if (start < 0) start = 0
+    if (end < start) end = start
     console.log(`Getting cycles ${start} - ${end}...`)
     const prevCycles = await fetchCycleRecords(activeArchivers, start, end)
 
@@ -1055,18 +1061,38 @@ function createArchivedCycle(cycleRecord: Cycle) {
   return archivedCycle
 }
 
-async function downloadArchivedCycles(archiver: State.ArchiverNodeInfo) {
-  let response: any = await P2P.getJson(
-    `http://${archiver.ip}:${archiver.port}/full-archive`)
-  if (response && response.archivedCycles) {
-    return response.archivedCycles
+async function downloadArchivedCycles(archiver: State.ArchiverNodeInfo, cycleToSyncTo: number, startCycle: number = 0) {
+  let complete = false
+  let lastData = startCycle
+  let collector: any = []
+  let count = 0
+  let maxCount = Math.ceil((cycleToSyncTo - startCycle) / 5)
+  while (!complete && count < maxCount) {
+    console.log(`Downloading archive from cycle ${lastData} to cycle ${lastData + 5}`)
+    let response: any = await P2P.getJson(
+      `http://${archiver.ip}:${archiver.port}/full-archive?start=${lastData}&end=${lastData + 5}`)
+    if (response && response.archivedCycles) {
+      collector = collector.concat(response.archivedCycles)
+      if (response.archivedCycles.length < 5) {
+        complete = true
+        console.log('Download completed')
+      }
+    } else {
+      console.log('Invalid download response')
+    }
+    count += 1
+    lastData += 5
   }
+  console.log(`Downloaded archived cycles`, collector.length)
+  return collector
 }
 
-export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo[]) {
+export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo[], cycleToSyncTo: number) {
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)
-  let downloadedArchivedCycles = await downloadArchivedCycles(randomArchiver)
   let allCycleRecords = await Storage.queryAllCycleRecords()
+  let lastCycleCounter = allCycleRecords[0].counter
+  let downloadedArchivedCycles = await downloadArchivedCycles(randomArchiver, lastCycleCounter)
+
   let networkReceiptHashesFromRecords = new Map()
   let networkDataHashesFromRecords = new Map()
   let networkSummaryHashesFromRecords = new Map()
@@ -1089,16 +1115,14 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
     }
   })
 
-  for (let i = 0; i < allCycleRecords.length; i++) {
-    let marker = allCycleRecords[i].marker
-    let counter = allCycleRecords[i].counter
-    let foundArchiveCycle = downloadedArchivedCycles.find(
-      (archive: any) => archive.cycleMarker === marker
-    )
+  for (let i = 0; i < downloadedArchivedCycles.length; i++) {
+    let marker = downloadedArchivedCycles[i].cycleRecord.marker
+    let counter = downloadedArchivedCycles[i].cycleRecord.counter
+    let foundArchiveCycle = downloadedArchivedCycles[i]
 
     if (!foundArchiveCycle) {
       console.log('Unable to download archivedCycle for counter', counter)
-      return
+      continue
     }
 
     let isDataSynced = false
@@ -1111,6 +1135,8 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
       if (downloadedNetworkDataHash === networkDataHashesFromRecords.get(counter)) {
         await Storage.updateArchivedCycle(marker, 'data', foundArchiveCycle.data)
         isDataSynced = true
+      } else {
+        console.log('different network data hash  for cycle', counter)
       }
     } else {
       console.log(`ArchivedCycle ${foundArchiveCycle.cycleRecord.counter}, ${foundArchiveCycle.cycleMarker} does not have data field`)
@@ -1141,9 +1167,13 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
     }
     if (isDataSynced && isReceiptSynced && isSummarySynced) {
       console.log(`Successfully synced statemetadata for counter ${counter}`)
-      if(counter > Cycles.lastProcessedMetaData) Cycles.setLastProcessedMetaDataCounter(counter)
+      if(counter > Cycles.lastProcessedMetaData) {
+        Cycles.setLastProcessedMetaDataCounter(counter)
+        return true
+      }
     }
   }
+  return false
 }
 
 async function queryDataFromNode (
@@ -1186,8 +1216,7 @@ async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
       let { partition } = partitionBlock
       let reciptMapHash = await Storage.queryReceiptMapHash(parseInt(counter), partition)
       if (!reciptMapHash) {
-        console.log(`Unable to find receipt hash for counter ${counter}, partition ${partition}`)
-        // throw new Error(`Unable to find receipt hash for counter ${counter}, partition ${partition}`)
+        // console.log(`Unable to find receipt hash for counter ${counter}, partition ${partition}`)
         continue
       }
       let calculatedReceiptMapHash = Crypto.hashObj(partitionBlock)
@@ -1195,7 +1224,7 @@ async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
         await Storage.updateReceiptMap(partitionBlock)
         socketServer.emit('RECEIPT_MAP', partitionBlock)
       } else {
-        console.log('calculatedReceiptMapHash === reciptMapHash', calculatedReceiptMapHash === reciptMapHash)
+        // console.log('calculatedReceiptMapHash === reciptMapHash', calculatedReceiptMapHash === reciptMapHash)
         throw new Error('Different hash while downloading receipt maps')
       }
       // console.log(`Validated and stored receipt maps for cycle ${counter}, partition ${partition}`, )
@@ -1215,7 +1244,7 @@ async function validateAndStoreSummaryBlobs (
       let txBlob = txStats.find(t => t.partition === partition)
       let summaryHash = await Storage.querySummaryHash(cycle, partition)
       if (!summaryHash) {
-        console.log(`Unable to find summary hash for counter ${cycle}, partition ${partition}`)
+        // console.log(`Unable to find summary hash for counter ${cycle}, partition ${partition}`)
         // throw new Error(`Unable to find receipt hash for counter ${cycle}, partition ${partition}`)
         continue
       }
@@ -1224,7 +1253,7 @@ async function validateAndStoreSummaryBlobs (
         txStats: txBlob,
       })
       if (summaryHash !== calculatedSummaryHash) {
-        console.log('Summary hash is different from calculatedSummaryHash', summaryHash, calculatedSummaryHash)
+        // console.log(`Summary hash is different from calculatedSummaryHash: cycle ${cycle}, partition ${partition}`)
         continue
       }
       if (dataBlob) {

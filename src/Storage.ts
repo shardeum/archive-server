@@ -159,7 +159,7 @@ export async function queryAllArchivedCyclesBetween (start: number, end: number)
     sort: {
       'cycleRecord.counter': -1,
     },
-    limit: 100,
+    limit: 5,
     project: {
       _id: 0,
     },

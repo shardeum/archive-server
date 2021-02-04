@@ -52,11 +52,15 @@ async function tell (
   for (const node of nodes) {
     InternalTellCounter++
     const url = `http://${node.ip}:${node.port}/${route}`
-    const promise = P2P.postJson(url, message)
-    promise.catch(err => {
-      console.log(err)
-    })
-    promises.push(promise)
+    try {
+      const promise = P2P.postJson(url, message)
+      promise.catch(err => {
+        console.log(`Unable to tell node ${node.ip}: ${node.port}`, err)
+      })
+      promises.push(promise)
+    } catch(e) {
+      console.log('Error', e)
+    }
   }
   try {
     await Promise.all(promises)

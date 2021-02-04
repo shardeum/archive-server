@@ -76,10 +76,8 @@ async function syncAndStartServer() {
 
     await Data.syncCyclesAndNodeList(State.activeArchivers)
 
-    // TODO: Sync all cycles until no older cycle is fetched from other archivers
-
-    await Data.syncStateMetaData(State.activeArchivers)
-
+    // Sync all state metadata until no older data is fetched from other archivers
+    await Data.syncStateMetaData(State.activeArchivers, newestCycleRecord.counter)
     // Set randomly selected consensors as dataSender
     Data.addDataSenders({
       nodeInfo: randomConsensor,
