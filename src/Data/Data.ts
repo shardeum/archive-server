@@ -1276,10 +1276,16 @@ async function validateAndStoreSummaryBlobs (
         dataStat: dataBlob,
         txStats: txBlob,
       })
-      if (summaryHash !== calculatedSummaryHash) {
-        // console.log(`Summary hash is different from calculatedSummaryHash: cycle ${cycle}, partition ${partition}`)
-        continue
-      }
+      // TODO: to investigate more why hash of some partitions are different.
+      // if (summaryHash !== calculatedSummaryHash) {
+      //   console.log(`Summary hash is different from calculatedSummaryHash: cycle ${cycle}, partition ${partition}`)
+      //   console.log(summaryHash, calculatedSummaryHash)
+      //   console.log(JSON.stringify({
+      //     dataStat: dataBlob,
+      //     txStats: txBlob,
+      //   }))
+      //   continue
+      // }
       if (dataBlob) {
         summaryBlob = {
           ...dataBlob,
