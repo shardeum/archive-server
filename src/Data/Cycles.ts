@@ -40,7 +40,7 @@ export let CycleChain: Map<Cycle["counter"], any> = new Map()
 
 export function processCycles(cycles: Cycle[]) {
   for (const cycle of cycles) {
-    console.log('New Cycle received', cycle.counter)
+    console.log(new Date(), 'New Cycle received', cycle.counter)
     console.log('Current cycle counter', currentCycleCounter)
     // Skip if already processed [TODO] make this check more secure
     if (cycle.counter <= currentCycleCounter) continue

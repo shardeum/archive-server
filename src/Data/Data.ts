@@ -25,6 +25,7 @@ import { StateHashes } from './State'
 import { ReceiptHashes } from './Receipt'
 import { SummaryHashes } from './Summary'
 import { BaseModel } from 'tydb'
+import { time } from 'console'
 
 // Socket modules
 export let socketServer: SocketIO.Server
@@ -171,6 +172,9 @@ export function unsubscribeDataSender() {
   currentDataSender = ''
 }
 
+let receivedTimeTracker = new Map()
+
+
 export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   console.log(node)
   socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
@@ -184,12 +188,24 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
 
   socketClient.on('DATA', (newData: any) => {
     if (!newData || !newData.responses) return
-    if(newData.responses.STATE_METADATA.length > 0) console.log('New STATEMETADATA', newData.responses.STATE_METADATA[0].summaryHashes)
+    console.log((newData.recipient, State.getNodeInfo().publicKey))
+    console.log('newData.recipient', newData)
+    console.log('our node info', State.getNodeInfo())
+    if (newData.recipient !== State.getNodeInfo().publicKey) {
+      console.log('This data is not meant for this archiver')
+      return
+    }
+
     // If tag is invalid, dont keepAlive, END
     if (Crypto.authenticate(newData) === false) {
+      console.log('This data cannot be authenticated')
       unsubscribeDataSender()
       return
     }
+
+    if(newData.responses.STATE_METADATA.length > 0) console.log('New STATEMETADATA', newData.responses.STATE_METADATA[0])
+    else console.log('State metadata is empty')
+
     currentDataSender = newData.publicKey
     if (newData.responses && newData.responses.STATE_METADATA) {
       // console.log('New DATA from consensor STATE_METADATA', newData.publicKey, newData.responses.STATE_METADATA)
@@ -330,10 +346,14 @@ export function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicK
  * Select a new dataSender
  */
 export function createContactTimeout(
-  publicKey: NodeList.ConsensusNodeInfo['publicKey'], msg: string = '', timeout: number = 1 *  currentCycleDuration
+  publicKey: NodeList.ConsensusNodeInfo['publicKey'], msg: string = '', timeout: number | null = null
 ) {
   // TODO: check what is the best contact timeout
-  const ms = timeout ? timeout : 1 * currentCycleDuration || (1 * 30 * 1000) + timeoutPadding
+  let ms: number
+  if (timeout) ms = timeout
+  else if (currentCycleDuration > 0) ms = 1.5 * currentCycleDuration + timeoutPadding
+  else ms = 1.5 * 30 * 1000 + timeoutPadding
+  console.log('Contact timeout:', ms)
   const contactTimeout = setTimeout(() => {
     console.log('REPLACING sender due to CONTACT timeout', msg)
     replaceDataSender(publicKey)
@@ -348,9 +368,9 @@ export function createContactTimeout(
 export function createReplaceTimeout(
   publicKey: NodeList.ConsensusNodeInfo['publicKey']
 ) {
-  const ms = config.DATASENDER_TIMEOUT || 1000 * 60 * 20
+  const ms = config.DATASENDER_TIMEOUT || 1000 * 60 * 60
   const replaceTimeout = setTimeout(() => {
-    console.log('ROTATING sender due to REPLACE timeout')
+    console.log('ROTATING sender due to ROTATION timeout')
     replaceDataSender(publicKey)
   }, ms)
 
@@ -372,26 +392,27 @@ function removeDataSenders (
 ) {
   console.log(`${new Date()}: Removing data sender ${publicKey}`)
   const removedSenders = []
-  const sender = dataSenders.get(publicKey)
-  if (sender) {
-    // Clear contactTimeout associated with this sender
-    if (sender.contactTimeout) {
-      clearTimeout(sender.contactTimeout)
-      sender.contactTimeout = null
+  // const sender = dataSenders.get(publicKey)
+  for (let [key, sender] of dataSenders) {
+    if (sender) {
+      // Clear contactTimeout associated with this sender
+      if (sender.contactTimeout) {
+        clearTimeout(sender.contactTimeout)
+        sender.contactTimeout = null
+      }
+      if (sender.replaceTimeout) {
+        clearTimeout(sender.replaceTimeout)
+        sender.replaceTimeout = null
+      }
+  
+      // Record which sender was removed
+      removedSenders.push(sender)
+  
+      // Delete sender from dataSenders
+      dataSenders.delete(key)
     }
-    if (sender.replaceTimeout) {
-      clearTimeout(sender.replaceTimeout)
-      sender.replaceTimeout = null
-    }
-
-    // Record which sender was removed
-    removedSenders.push(sender)
-
-    // Delete sender from dataSenders
-    dataSenders.delete(publicKey)
-  } else {
-    console.log('Unable to find sender in the list', dataSenders)
   }
+
   return removedSenders
 }
 
@@ -567,11 +588,14 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
         processCycles(newData.responses.CYCLE as Cycle[])
         if (newData.responses.CYCLE.length > 0) {
           for (let cycle of newData.responses.CYCLE) {
+            receivedTimeTracker.set(cycle.counter, new Date())
+
             let archivedCycle: any = {}
             archivedCycle.cycleRecord = cycle
             archivedCycle.cycleMarker = cycle.marker
             Cycles.CycleChain.set(cycle.counter, cycle)
             await Storage.insertArchivedCycle(archivedCycle)
+            console.log('receivedTimeTracker', receivedTimeTracker)
           }
         } else {
           console.log('Recieved empty newData.responses.CYCLE', newData.responses)
