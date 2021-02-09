@@ -675,7 +675,8 @@ export async function processStateMetaData (STATE_METADATA: any) {
       // Query receipt maps from other nodes and store it
       if (receiptHashesForCycle.receiptMapHashes) {
         let querySuccess = false
-        while(!querySuccess) {
+        let retry = 0
+        while(!querySuccess && retry < 2 * NodeList.getActiveList().length) {
           let randomConsensor = NodeList.getRandomActiveNode()
           const queryRequest = createQueryRequest(
             'RECEIPT_MAP',
@@ -686,6 +687,7 @@ export async function processStateMetaData (STATE_METADATA: any) {
           if (querySuccess) {
             console.log('Data query for receipt map is completed')
           }
+          retry += 1
         }
       }
     })
@@ -710,19 +712,23 @@ export async function processStateMetaData (STATE_METADATA: any) {
       Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
 
       // Query summary blobs from other nodes and store it
-      let activeNodes = NodeList.getActiveList()
-      for (let node of activeNodes) {
-        const queryRequest = createQueryRequest(
-          'SUMMARY_BLOB',
-          summaryHashesForCycle.counter,
-          node.publicKey
-        )
-        let isSuccess = await sendDataQuery(node, queryRequest)
-        if (isSuccess) {
-          console.log('Data query for summary blob is completed')
-          break
+      if (summaryHashesForCycle.summaryHashes) {
+        let querySuccess = false
+        let retry = 0
+        while(!querySuccess && retry < 2 * NodeList.getActiveList().length) {
+          let randomConsensor = NodeList.getRandomActiveNode()
+          const queryRequest = createQueryRequest(
+            'SUMMARY_BLOB',
+            summaryHashesForCycle.counter - 1,
+            randomConsensor.publicKey
+          )
+          querySuccess = await sendDataQuery(randomConsensor, queryRequest)
+          if (querySuccess) {
+            console.log('Data query for summary blob is completed')
+          }
+          retry += 1
         }
-      }
+      }      
     })
   }
 }
@@ -1272,20 +1278,22 @@ async function validateAndStoreSummaryBlobs (
         // throw new Error(`Unable to find receipt hash for counter ${cycle}, partition ${partition}`)
         continue
       }
-      let calculatedSummaryHash = Crypto.hashObj({
-        dataStat: dataBlob,
-        txStats: txBlob,
-      })
-      // TODO: to investigate more why hash of some partitions are different.
-      // if (summaryHash !== calculatedSummaryHash) {
-      //   console.log(`Summary hash is different from calculatedSummaryHash: cycle ${cycle}, partition ${partition}`)
-      //   console.log(summaryHash, calculatedSummaryHash)
-      //   console.log(JSON.stringify({
-      //     dataStat: dataBlob,
-      //     txStats: txBlob,
-      //   }))
-      //   continue
-      // }
+      let summaryObj = {
+        dataStats: dataBlob ? dataBlob : {},
+        txStats: txBlob ? txBlob : {},
+      }
+      let calculatedSummaryHash = Crypto.hashObj(summaryObj)
+      if (summaryHash !== calculatedSummaryHash) {
+        console.log(`Summary hash is different from calculatedSummaryHash: cycle ${cycle}, partition ${partition}`)
+        // console.log(summaryHash, calculatedSummaryHash)
+        // console.log()
+        // if (summaryObj) {
+        //   console.log('summaryObj', summaryObj)
+        //   console.log('summaryObj stringified', JSON.stringify(summaryObj))
+        // }
+        // continue
+        throw new Error(`Summary hash is different from calculatedSummaryHash: cycle ${cycle}, partition ${partition}`)
+      }
       if (dataBlob) {
         summaryBlob = {
           ...dataBlob,
