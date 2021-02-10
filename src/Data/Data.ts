@@ -172,9 +172,6 @@ export function unsubscribeDataSender() {
   currentDataSender = ''
 }
 
-let receivedTimeTracker = new Map()
-
-
 export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   console.log(node)
   socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
@@ -588,14 +585,11 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
         processCycles(newData.responses.CYCLE as Cycle[])
         if (newData.responses.CYCLE.length > 0) {
           for (let cycle of newData.responses.CYCLE) {
-            receivedTimeTracker.set(cycle.counter, new Date())
-
             let archivedCycle: any = {}
             archivedCycle.cycleRecord = cycle
             archivedCycle.cycleMarker = cycle.marker
             Cycles.CycleChain.set(cycle.counter, cycle)
             await Storage.insertArchivedCycle(archivedCycle)
-            console.log('receivedTimeTracker', receivedTimeTracker)
           }
         } else {
           console.log('Recieved empty newData.responses.CYCLE', newData.responses)
@@ -1279,18 +1273,18 @@ async function validateAndStoreSummaryBlobs (
         continue
       }
       let summaryObj = {
-        dataStats: dataBlob ? dataBlob : {},
-        txStats: txBlob ? txBlob : {},
+        dataStats: dataBlob ? dataBlob.opaqueBlob : {},
+        txStats: txBlob ? txBlob.opaqueBlob : {},
       }
       let calculatedSummaryHash = Crypto.hashObj(summaryObj)
       if (summaryHash !== calculatedSummaryHash) {
         console.log(`Summary hash is different from calculatedSummaryHash: cycle ${cycle}, partition ${partition}`)
-        // console.log(summaryHash, calculatedSummaryHash)
-        // console.log()
-        // if (summaryObj) {
-        //   console.log('summaryObj', summaryObj)
-        //   console.log('summaryObj stringified', JSON.stringify(summaryObj))
-        // }
+        console.log(summaryHash, calculatedSummaryHash)
+        console.log()
+        if (summaryObj) {
+          console.log('summaryObj', summaryObj)
+          console.log('summaryObj stringified', JSON.stringify(summaryObj))
+        }
         // continue
         throw new Error(`Summary hash is different from calculatedSummaryHash: cycle ${cycle}, partition ${partition}`)
       }

@@ -238,6 +238,13 @@ function startServer() {
       )
       return
     }
+    let count = to - from
+    if (count > 100) {
+      reply.send(
+        Crypto.sign({ success: false, error: `Exceed maximum limit of 100 cycles` })
+      )
+      return
+    }
     let archivedCycles = []
     archivedCycles = await Storage.queryAllArchivedCyclesBetween(from, to)
     const res = Crypto.sign({
@@ -260,7 +267,12 @@ function startServer() {
       )
       return
     }
-    if (count > 100) count = 100 // return max 100 cycles
+    if (count > 100)  {
+      reply.send(
+        Crypto.sign({ success: false, error: `Max count is 100` })
+      )
+      return
+    }
     const archivedCycles = await Storage.queryAllArchivedCycles(count)
     const res = Crypto.sign({
       archivedCycles,
