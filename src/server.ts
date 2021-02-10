@@ -12,8 +12,6 @@ import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
 import * as Utils from './Utils'
 import { sendGossip, addHashesGossip } from './Data/Gossip'
-import { ENODATA } from 'constants'
-
 // Socket modules
 let io: SocketIO.Server
 
@@ -124,7 +122,10 @@ function startServer() {
   })
 
   server.register(fastifyCors)
-
+  server.register(require('fastify-rate-limit'), {
+    max: config.RATE_LIMIT,
+    timeWindow: 1000
+  })
 
   // Socket server instance
   io = (require('socket.io'))(server.server)
