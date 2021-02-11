@@ -547,12 +547,13 @@ export function checkJoinStatus (cycleDuration: number): Promise<boolean> {
 
 async function sendDataQuery(
   consensorNode: NodeList.ConsensusNodeInfo,
-  dataQuery: any
+  dataQuery: any,
+  validateFn: any
 ) {
   // TODO: crypto.tag cannot handle array type. To change something else
   const taggedDataQuery = Crypto.tag(dataQuery, consensorNode.publicKey)
-  let isSuccess = await queryDataFromNode(consensorNode, taggedDataQuery)
-  return isSuccess
+  let result = await queryDataFromNode(consensorNode, taggedDataQuery, validateFn)
+  return result
 }
 
 async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
@@ -668,22 +669,63 @@ export async function processStateMetaData (STATE_METADATA: any) {
 
       // Query receipt maps from other nodes and store it
       if (receiptHashesForCycle.receiptMapHashes) {
-        let querySuccess = false
+        let isDownloadSuccess = false
         let retry = 0
-        while(!querySuccess && retry < 2 * NodeList.getActiveList().length) {
+        let sleepCount = 0
+        let failedPartitions = new Map()
+        let coveredPartitions = new Map()
+        let downloadedReceiptMaps = new Map()
+
+        let shouldProcessBlob = (partition: number) => {
+          if (failedPartitions.has(partition) || !coveredPartitions.has(partition)) return true
+          return false
+        }
+
+        while(!isDownloadSuccess && sleepCount < 20) {
           let randomConsensor = NodeList.getRandomActiveNode()
           const queryRequest = createQueryRequest(
             'RECEIPT_MAP',
             receiptHashesForCycle.counter - 1,
             randomConsensor.publicKey
           )
-          querySuccess = await sendDataQuery(randomConsensor, queryRequest)
-          if (querySuccess) {
+          let { success, completed, failed, covered, blobs } = await sendDataQuery(randomConsensor, queryRequest, shouldProcessBlob)
+          for (let partition of failed) {
+            failedPartitions.set(partition, true)
+          }
+          for (let partition of completed) {
+            if(failedPartitions.has(partition)) failedPartitions.delete(partition)
+          }
+          for (let partition of covered) {
+            coveredPartitions.set(partition, true)
+          }
+          for (let partition in blobs) {
+            downloadedReceiptMaps.set(partition, blobs[partition])
+          }
+          isDownloadSuccess = failedPartitions.size === 0 && coveredPartitions.size === NodeList.getActiveList().length
+          if (isDownloadSuccess) {
             console.log('Data query for receipt map is completed')
+            console.log('Total downloaded receipts', downloadedReceiptMaps.size)
+            let receiptMapsToForward = []
+            for (let [partition, receiptMap] of downloadedReceiptMaps) {
+              receiptMapsToForward.push(receiptMap)
+            }
+            receiptMapsToForward = receiptMapsToForward.filter(receipt => receipt.cycle === parentCycle.counter)
+            console.log('receiptMapsToForward', receiptMapsToForward.length)
+            socketServer.emit('RECEIPT_MAP', receiptMapsToForward)
+            break
           }
           retry += 1
+          if (!isDownloadSuccess && retry >= NodeList.getActiveList().length) {
+            console.log('Sleeping for 5 sec before retrying download again for cycle', parentCycle.counter)
+            await Utils.sleep(5000)
+            retry = 0
+            sleepCount += 1
+          }
         }
-      }
+        if (!isDownloadSuccess) {
+          console.log(`Downloading receipt map for cycle ${parentCycle.counter} has failed.`)
+        }
+      }  
     })
 
     // store summary hashes to archivedCycle
@@ -707,20 +749,71 @@ export async function processStateMetaData (STATE_METADATA: any) {
 
       // Query summary blobs from other nodes and store it
       if (summaryHashesForCycle.summaryHashes) {
-        let querySuccess = false
+        let isDownloadSuccess = false
         let retry = 0
-        while(!querySuccess && retry < 2 * NodeList.getActiveList().length) {
+        let sleepCount = 0
+        let failedPartitions = new Map()
+        let coveredPartitions = new Map()
+        let downloadedBlobs = new Map()
+
+        let shouldProcessBlob = (partition: number) => {
+          if (failedPartitions.has(partition) || !coveredPartitions.has(partition)) return true
+          return false
+        }
+
+        while(!isDownloadSuccess && sleepCount < 20) {
           let randomConsensor = NodeList.getRandomActiveNode()
           const queryRequest = createQueryRequest(
             'SUMMARY_BLOB',
             summaryHashesForCycle.counter - 1,
             randomConsensor.publicKey
           )
-          querySuccess = await sendDataQuery(randomConsensor, queryRequest)
-          if (querySuccess) {
-            console.log('Data query for summary blob is completed')
+          let { success, completed, failed, covered, blobs } = await sendDataQuery(randomConsensor, queryRequest, shouldProcessBlob)
+          for (let partition of failed) {
+            failedPartitions.set(partition, true)
           }
+          for (let partition of completed) {
+            if(failedPartitions.has(partition)) failedPartitions.delete(partition)
+          }
+          for (let partition of covered) {
+            coveredPartitions.set(partition, true)
+          }
+          for (let partition in blobs) {
+            downloadedBlobs.set(partition, blobs[partition])
+          }
+          isDownloadSuccess = failedPartitions.size === 0 && coveredPartitions.size === 32
+          if (isDownloadSuccess) {
+            console.log('Data query for summary blob is completed')
+            console.log('Total downloaded blobs', downloadedBlobs.size)
+            let blobsToForward = []
+            for (let [partition, blob] of downloadedBlobs) {
+              blobsToForward.push(blob)
+            }
+            console.log('blobsToForward', blobsToForward.length)
+            socketServer.emit('SUMMARY_BLOB', {blobs: blobsToForward, cycle: parentCycle.counter})
+            break
+          }
+          // console.log('completed SUMMARY BLOB', completed)
+          // console.log('failed SUMMARY BLOB', failed)
+          // console.log(`failedPartitions for cycle ${parentCycle.counter}`, failedPartitions)
+          // console.log(`coveredPartitions for cycle ${parentCycle.counter}`, coveredPartitions)
+          // console.log('isDownloadSuccess', isDownloadSuccess)
+          // console.log('counter', parentCycle.counter)
+          // console.log('retry count', retry)
+          // console.log('sleep count', sleepCount)
+          // console.log('should sleep', !isDownloadSuccess && retry >= NodeList.getActiveList().length)
+          // console.log('Downloaded blob size', downloadedBlobs.size)
+
           retry += 1
+          if (!isDownloadSuccess && retry >= NodeList.getActiveList().length) {
+            console.log('Sleeping for 5 sec before retrying download again for cycle', parentCycle.counter)
+            await Utils.sleep(5000)
+            retry = 0
+            sleepCount += 1
+          }
+        }
+        if (!isDownloadSuccess) {
+          console.log(`Downloading summary blob for cycle ${parentCycle.counter} has failed.`)
         }
       }      
     })
@@ -1202,12 +1295,14 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
 
 async function queryDataFromNode (
   consensorNode: NodeList.ConsensusNodeInfo,
-  dataQuery: any
+  dataQuery: any,
+  validateFn: any
 ) {
   let request = {
     ...dataQuery,
     nodeInfo: State.getNodeInfo(),
   }
+  let result: any = { success: false, completed: []}
   try {
     let response = await P2P.postJson(
       `http://${consensorNode.ip}:${consensorNode.port}/querydata`,
@@ -1215,61 +1310,91 @@ async function queryDataFromNode (
     )
     if (response && request.type === 'RECEIPT_MAP') {
       for (let counter in response.data) {
-        await validateAndStoreReceiptMaps(response.data)
+        result = await validateAndStoreReceiptMaps(response.data, validateFn)
       }
     } else if (response && request.type === 'SUMMARY_BLOB') {
       for (let counter in response.data) {
-        await validateAndStoreSummaryBlobs(Object.values(response.data))
+        result = await validateAndStoreSummaryBlobs(Object.values(response.data), validateFn)
       }
     }
-    return true
+    return result
   } catch(e) {
     console.log(e)
     console.log(`Unable to query complete querying ${request.type} from node`, consensorNode)
-    return false
+    return result
   }
 }
 
 async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
   [key: number]: ReceiptMapResult[]
-}) {
+}, validateFn: any) {
+  let completed: number[] = []
+  let failed: number[] = []
+  let coveredPartitions: number[] = []
+  let receiptMaps: any = {}
   for (let counter in receiptMapResultsForCycles) {
     let receiptMapResults: ReceiptMapResult[] =
       receiptMapResultsForCycles[counter]
     for (let partitionBlock of receiptMapResults) {
       let { partition } = partitionBlock
+      if (validateFn) {
+        let shouldProcess = validateFn(partition)
+        if (!shouldProcess) {
+          continue
+        }
+      }
+      coveredPartitions.push(partition)
       let reciptMapHash = await Storage.queryReceiptMapHash(parseInt(counter), partition)
       if (!reciptMapHash) {
-        // console.log(`Unable to find receipt hash for counter ${counter}, partition ${partition}`)
+        console.log(`Unable to find receipt hash for counter ${counter}, partition ${partition}`)
         continue
       }
       let calculatedReceiptMapHash = Crypto.hashObj(partitionBlock)
       if (calculatedReceiptMapHash === reciptMapHash) {
         await Storage.updateReceiptMap(partitionBlock)
-        socketServer.emit('RECEIPT_MAP', partitionBlock)
+        completed.push(partition)
+        receiptMaps[partition] = partitionBlock
       } else {
         // console.log('calculatedReceiptMapHash === reciptMapHash', calculatedReceiptMapHash === reciptMapHash)
-        throw new Error('Different hash while downloading receipt maps')
+        console.log('Different hash while downloading receipt maps')
+        failed.push(partition)
       }
-      // console.log(`Validated and stored receipt maps for cycle ${counter}, partition ${partition}`, )
     }
+  }
+  return {
+    success: true,
+    completed,
+    failed,
+    covered: coveredPartitions,
+    blobs: receiptMaps
   }
 }
 
 async function validateAndStoreSummaryBlobs (
-  statsClumpForCycles: StatsClump[]
+  statsClumpForCycles: StatsClump[],
+  validateFn: any
 ) {
+  let completed: number[] = []
+  let failed: number[] = []
+  let coveredPartitions: number[] = []
+  let blobs: any = {}
+
   for (let statsClump of statsClumpForCycles) {
     let { cycle, dataStats, txStats, covered } = statsClump
-    let blobsToForward: any = []
     for (let partition of covered) {
+      if (validateFn) {
+        let shouldProcess = validateFn(partition)
+        if (!shouldProcess) {
+          continue
+        }
+      }
+      coveredPartitions.push(partition)
       let summaryBlob
       let dataBlob = dataStats.find(d => d.partition === partition)
       let txBlob = txStats.find(t => t.partition === partition)
       let summaryHash = await Storage.querySummaryHash(cycle, partition)
       if (!summaryHash) {
-        // console.log(`Unable to find summary hash for counter ${cycle}, partition ${partition}`)
-        // throw new Error(`Unable to find receipt hash for counter ${cycle}, partition ${partition}`)
+        console.log(`Unable to find summary hash for counter ${cycle}, partition ${partition}`)
         continue
       }
       let summaryObj = {
@@ -1279,15 +1404,15 @@ async function validateAndStoreSummaryBlobs (
       let calculatedSummaryHash = Crypto.hashObj(summaryObj)
       if (summaryHash !== calculatedSummaryHash) {
         console.log(`Summary hash is different from calculatedSummaryHash: cycle ${cycle}, partition ${partition}`)
-        console.log(summaryHash, calculatedSummaryHash)
-        console.log()
-        if (summaryObj) {
-          console.log('summaryObj', summaryObj)
-          console.log('summaryObj stringified', JSON.stringify(summaryObj))
-        }
-        // continue
-        throw new Error(`Summary hash is different from calculatedSummaryHash: cycle ${cycle}, partition ${partition}`)
+        // console.log(summaryHash, calculatedSummaryHash)
+        // if (summaryObj) {
+        //   console.log('summaryObj', summaryObj)
+        //   console.log('summaryObj stringified', JSON.stringify(summaryObj))
+        // }
+        failed.push(partition)
+        continue
       }
+      console.log('summaryObj', summaryObj)
       if (dataBlob) {
         summaryBlob = {
           ...dataBlob,
@@ -1306,21 +1431,28 @@ async function validateAndStoreSummaryBlobs (
           }
         }
       }
-      if (summaryBlob) {
-        blobsToForward.push(summaryBlob)
+      if (summaryBlob) { 
         try {
           await Storage.updateSummaryBlob(summaryBlob, cycle)
+          completed.push(partition)
+          blobs[partition] = summaryBlob
         } catch (e) {
           console.log('Unable to store summary blob', e)
           throw new Error('Unable to store summary blob')
         }
       }
     }
-    if (blobsToForward.length > 0) {
-      socketServer.emit('SUMMARY_BLOB', {blobs: blobsToForward, cycle})
-    }
+    // if (blobsToForward.length > 0) {
+    //   socketServer.emit('SUMMARY_BLOB', {blobs: blobsToForward, cycle})
+    // }
   }
-  // console.log("Validated and stored summary blobs", )
+  return {
+    success: true,
+    completed,
+    failed,
+    covered: coveredPartitions,
+    blobs
+  }
 }
 
 emitter.on(
