@@ -20,7 +20,7 @@ const file = join(process.cwd(), 'archiver-config.json')
 const env = process.env
 const args = process.argv
 
-async function start () {
+async function start() {
   overrideDefaultConfig(file, env, args)
 
   // Set crypto hash key from config
@@ -40,7 +40,9 @@ async function start () {
   await State.initFromConfig(config)
 
   if (State.isFirst === false) {
-    console.log('We are not first archiver. Syncing and starting archive-server')
+    console.log(
+      'We are not first archiver. Syncing and starting archive-server'
+    )
     syncAndStartServer()
   } else {
     console.log('We are first archiver. Starting archive-server')
@@ -50,11 +52,15 @@ async function start () {
 
 async function syncAndStartServer() {
   // If your not the first archiver node, get a nodelist from the others
-  const nodeList: any = await NodeList.getActiveListFromArchivers(State.activeArchivers)
+  const nodeList: any = await NodeList.getActiveListFromArchivers(
+    State.activeArchivers
+  )
 
   // If there are active consensors in the network, sync cycle chain and state metadata from other archivers
   if (nodeList && nodeList.length > 0) {
-    const randomConsensor: NodeList.ConsensusNodeInfo = Utils.getRandomItemFromArr(nodeList)
+    const randomConsensor: NodeList.ConsensusNodeInfo = Utils.getRandomItemFromArr(
+      nodeList
+    )
     const newestCycleRecord = await Data.getNewestCycleRecord(randomConsensor)
     // Send a join request to a consensus node from the nodelist
     await Data.sendJoinRequest(randomConsensor, newestCycleRecord)
@@ -62,20 +68,23 @@ async function syncAndStartServer() {
 
     if (!cycleDuration) return
     let isJoined = false
-    
-    while(!isJoined) {
+
+    while (!isJoined) {
       isJoined = await Data.checkJoinStatus(cycleDuration)
       if (!isJoined) {
         await Utils.sleep(5000)
       }
     }
-    
+
     console.log('We have successfully joined the network')
 
     await Data.syncCyclesAndNodeList(State.activeArchivers)
 
     // Sync all state metadata until no older data is fetched from other archivers
-    await Data.syncStateMetaData(State.activeArchivers, newestCycleRecord.counter)
+    await Data.syncStateMetaData(
+      State.activeArchivers,
+      newestCycleRecord.counter
+    )
     // Set randomly selected consensors as dataSender
     Data.addDataSenders({
       nodeInfo: randomConsensor,
@@ -110,7 +119,6 @@ async function syncAndStartServer() {
   io = startServer()
 }
 
-
 // Define all endpoints, all requests, and start REST server
 function startServer() {
   const server: fastify.FastifyInstance<
@@ -124,11 +132,11 @@ function startServer() {
   server.register(fastifyCors)
   server.register(require('fastify-rate-limit'), {
     max: config.RATE_LIMIT,
-    timeWindow: 1000
+    timeWindow: 1000,
   })
 
   // Socket server instance
-  io = (require('socket.io'))(server.server)
+  io = require('socket.io')(server.server)
   Data.initSocketServer(io)
 
   // ========== ENDPOINTS ==========
@@ -170,7 +178,7 @@ function startServer() {
       Data.addDataSenders({
         nodeInfo: firstNode,
         types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
-        replaceTimeout: Data.createReplaceTimeout(firstNode.publicKey)
+        replaceTimeout: Data.createReplaceTimeout(firstNode.publicKey),
       })
 
       const res = Crypto.sign<P2P.FirstNodeResponse>({
@@ -185,7 +193,7 @@ function startServer() {
           Data.TypeNames.STATE_METADATA,
           Cycles.lastProcessedMetaData,
           publicKey
-        )
+        ),
       })
 
       reply.send(res)
@@ -196,7 +204,7 @@ function startServer() {
         nodeList = NodeList.getList().slice(0, 1)
       }
       const res = Crypto.sign({
-        nodeList: nodeList.sort((a: any, b: any) => a.id > b.id ? 1 : -1),
+        nodeList: nodeList.sort((a: any, b: any) => (a.id > b.id ? 1 : -1)),
       })
       reply.send(res)
     }
@@ -207,7 +215,9 @@ function startServer() {
     if (nodeList.length < 1) {
       nodeList = NodeList.getList().slice(0, 1)
     }
-    let sortedNodeList = [...nodeList].sort((a: any, b: any) => a.id > b.id ? 1 : -1)
+    let sortedNodeList = [...nodeList].sort((a: any, b: any) =>
+      a.id > b.id ? 1 : -1
+    )
     const res = Crypto.sign({
       nodeList: sortedNodeList,
     })
@@ -242,7 +252,10 @@ function startServer() {
     let count = to - from
     if (count > 100) {
       reply.send(
-        Crypto.sign({ success: false, error: `Exceed maximum limit of 100 cycles` })
+        Crypto.sign({
+          success: false,
+          error: `Exceed maximum limit of 100 cycles`,
+        })
       )
       return
     }
@@ -263,15 +276,11 @@ function startServer() {
 
     let count: number = parseInt(_request.params.count)
     if (count <= 0 || Number.isNaN(count)) {
-      reply.send(
-        Crypto.sign({ success: false, error: `Invalid count` })
-      )
+      reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
       return
     }
-    if (count > 100)  {
-      reply.send(
-        Crypto.sign({ success: false, error: `Max count is 100` })
-      )
+    if (count > 100) {
+      reply.send(Crypto.sign({ success: false, error: `Max count is 100` }))
       return
     }
     const archivedCycles = await Storage.queryAllArchivedCycles(count)
@@ -342,9 +351,7 @@ function startServer() {
     }
     let count: number = parseInt(_request.params.count)
     if (count <= 0 || Number.isNaN(count)) {
-      reply.send(
-        Crypto.sign({ success: false, error: `Invalid count` })
-      )
+      reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
       return
     }
     if (count > 100) count = 100 // return max 100 cycles
@@ -365,7 +372,6 @@ function startServer() {
     })
     reply.send(res)
   })
-
 
   // [TODO] Remove this before production
   // server.get('/exit', (_request, reply) => {
