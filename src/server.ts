@@ -61,14 +61,27 @@ async function syncAndStartServer() {
     const randomConsensor: NodeList.ConsensusNodeInfo = Utils.getRandomItemFromArr(
       nodeList
     )
+    /** [NOTE] [AS] we should try to get newestCycleRecord with a robust query */
     const newestCycleRecord = await Data.getNewestCycleRecord(randomConsensor)
     // Send a join request to a consensus node from the nodelist
+    /**
+     * [NOTE] [AS] try to send the joinRequest to multiple consensors at once
+     * (like 5 of them, if possible) do decrease the chance of it getting missed
+     */
     await Data.sendJoinRequest(randomConsensor, newestCycleRecord)
     const cycleDuration = await Data.getCycleDuration()
 
     if (!cycleDuration) return
     let isJoined = false
 
+    /**
+     * [NOTE] [AS] There's a possibility that we could get stuck in this loop
+     * if the joinRequest was sent in the wrong cycle quarter (Q2, Q3, or Q4).
+     *
+     * Since we've dealt with this problem in shardus-global-server, it might be
+     * good to refactor this code to do what shardus-global-server does to join
+     * the network.
+     */
     while (!isJoined) {
       isJoined = await Data.checkJoinStatus(cycleDuration)
       if (!isJoined) {
