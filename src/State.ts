@@ -5,6 +5,7 @@ import * as NodeList from './NodeList'
 import * as Data from './Data/Data'
 import * as Utils from './Utils'
 import { isString } from 'util'
+import { Node } from 'tydb/dist/core'
 
 export interface ArchiverNodeState {
   ip: string
@@ -88,7 +89,7 @@ export async function exitArchiver () {
   try {
     const randomConsensor: NodeList.ConsensusNodeInfo = NodeList.getRandomActiveNode()
     if (randomConsensor) {
-      const newestCycleRecord = await Data.getNewestCycleRecord(randomConsensor)
+      const newestCycleRecord = await Data.getNewestCycleFromConsensors(NodeList.getActiveList())
       // Send a leave request to a random consensus node from the nodelist
       let isLeaveRequestSent = await Data.sendLeaveRequest(
         randomConsensor,

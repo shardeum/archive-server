@@ -12,6 +12,7 @@ import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
 import * as Utils from './Utils'
 import { sendGossip, addHashesGossip } from './Data/Gossip'
+import { Node } from 'tydb/dist/core'
 // Socket modules
 let io: SocketIO.Server
 
@@ -52,83 +53,79 @@ async function start() {
 
 async function syncAndStartServer() {
   // If your not the first archiver node, get a nodelist from the others
-  const nodeList: any = await NodeList.getActiveListFromArchivers(
+  let isJoined = false
+  let firstTime = true
+  let cycleDuration = await Data.getCycleDuration()
+  do {
+    try {
+      // Get active nodes from Archiver
+      const nodeList: any = await NodeList.getActiveListFromArchivers(
+        State.activeArchivers
+      )
+
+      // try to join the network
+      isJoined = await Data.joinNetwork(nodeList, firstTime)
+    } catch (err) {
+      console.log('Error while joining network:')
+      console.log(err)
+      console.log(err.stack)
+      console.log(
+        `Trying to join again in ${cycleDuration} seconds...`
+      )
+      await Utils.sleep(cycleDuration * 1000)
+    }
+    firstTime = false
+  } while (!isJoined)
+
+
+  /**
+   * [NOTE] [AS] There's a possibility that we could get stuck in this loop
+   * if the joinRequest was sent in the wrong cycle quarter (Q2, Q3, or Q4).
+   *
+   * Since we've dealt with this problem in shardus-global-server, it might be
+   * good to refactor this code to do what shardus-global-server does to join
+   * the network.
+   */
+
+  console.log('We have successfully joined the network')
+
+  await Data.syncCyclesAndNodeList(State.activeArchivers)
+
+  // Sync all state metadata until no older data is fetched from other archivers
+  await Data.syncStateMetaData(
     State.activeArchivers
   )
+  // Set randomly selected consensors as dataSender
+  let randomConsensor = NodeList.getRandomActiveNode()
+  Data.addDataSenders({
+    nodeInfo: randomConsensor,
+    types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
+  })
 
-  // If there are active consensors in the network, sync cycle chain and state metadata from other archivers
-  if (nodeList && nodeList.length > 0) {
-    const randomConsensor: NodeList.ConsensusNodeInfo = Utils.getRandomItemFromArr(
-      nodeList
-    )
-    /** [NOTE] [AS] we should try to get newestCycleRecord with a robust query */
-    const newestCycleRecord = await Data.getNewestCycleRecord(randomConsensor)
-    // Send a join request to a consensus node from the nodelist
-    /**
-     * [NOTE] [AS] try to send the joinRequest to multiple consensors at once
-     * (like 5 of them, if possible) do decrease the chance of it getting missed
-     */
-    await Data.sendJoinRequest(randomConsensor, newestCycleRecord)
-    const cycleDuration = await Data.getCycleDuration()
+  // wait for one cycle before sending data request
+  Utils.sleep(cycleDuration * 1000)
 
-    if (!cycleDuration) return
-    let isJoined = false
-
-    /**
-     * [NOTE] [AS] There's a possibility that we could get stuck in this loop
-     * if the joinRequest was sent in the wrong cycle quarter (Q2, Q3, or Q4).
-     *
-     * Since we've dealt with this problem in shardus-global-server, it might be
-     * good to refactor this code to do what shardus-global-server does to join
-     * the network.
-     */
-    while (!isJoined) {
-      isJoined = await Data.checkJoinStatus(cycleDuration)
-      if (!isJoined) {
-        await Utils.sleep(5000)
-      }
-    }
-
-    console.log('We have successfully joined the network')
-
-    await Data.syncCyclesAndNodeList(State.activeArchivers)
-
-    // Sync all state metadata until no older data is fetched from other archivers
-    await Data.syncStateMetaData(
-      State.activeArchivers,
-      newestCycleRecord.counter
-    )
-    // Set randomly selected consensors as dataSender
-    Data.addDataSenders({
-      nodeInfo: randomConsensor,
-      types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
-    })
-
-    // wait for one cycle before sending data request
-    Utils.sleep(cycleDuration * 1000)
-
-    // After we've joined, select a consensus node to be your dataSender
-    const dataRequest = Crypto.sign({
-      dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
-        Data.TypeNames.CYCLE,
-        Cycles.getCurrentCycleCounter(),
-        randomConsensor.publicKey
-      ),
-      dataRequestStateMetaData: Data.createDataRequest<Data.StateMetaData>(
-        Data.TypeNames.STATE_METADATA,
-        Cycles.lastProcessedMetaData,
-        randomConsensor.publicKey
-      ),
-    })
-    const newSender: Data.DataSender = {
-      nodeInfo: randomConsensor,
-      types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
-      contactTimeout: Data.createContactTimeout(randomConsensor.publicKey),
-      replaceTimeout: Data.createReplaceTimeout(randomConsensor.publicKey),
-    }
-    Data.sendDataRequest(newSender, dataRequest)
-    Data.initSocketClient(randomConsensor)
+  // After we've joined, select a consensus node as a dataSender
+  const dataRequest = Crypto.sign({
+    dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
+      Data.TypeNames.CYCLE,
+      Cycles.getCurrentCycleCounter(),
+      randomConsensor.publicKey
+    ),
+    dataRequestStateMetaData: Data.createDataRequest<Data.StateMetaData>(
+      Data.TypeNames.STATE_METADATA,
+      Cycles.lastProcessedMetaData,
+      randomConsensor.publicKey
+    ),
+  })
+  const newSender: Data.DataSender = {
+    nodeInfo: randomConsensor,
+    types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
+    contactTimeout: Data.createContactTimeout(randomConsensor.publicKey),
+    replaceTimeout: Data.createReplaceTimeout(randomConsensor.publicKey),
   }
+  Data.sendDataRequest(newSender, dataRequest)
+  Data.initSocketClient(randomConsensor)
   io = startServer()
 }
 

@@ -185,9 +185,6 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
 
   socketClient.on('DATA', (newData: any) => {
     if (!newData || !newData.responses) return
-    console.log((newData.recipient, State.getNodeInfo().publicKey))
-    console.log('newData.recipient', newData)
-    console.log('our node info', State.getNodeInfo())
     if (newData.recipient !== State.getNodeInfo().publicKey) {
       console.log('This data is not meant for this archiver')
       return
@@ -435,45 +432,74 @@ export function sendDataRequest(
   emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
 }
 
-export async function sendJoinRequest (
-  nodeInfo: NodeList.ConsensusNodeInfo,
-  cycle: Cycles.Cycle
-) {
-  let joinRequest = P2P.createArchiverJoinRequest()
-  let nextQ1Start = cycle.start * 1000 + cycle.duration * 1000
-  let nextQ2Start = nextQ1Start + cycle.duration * 1000 * 0.25
-  let now = Date.now()
+function calcIncomingTimes(record: Cycle) {
+  const SECOND = 1000
+  const cycleDuration = record.duration * SECOND
+  const quarterDuration = cycleDuration / 4
+  const start = record.start * SECOND + cycleDuration
 
-  console.log('nextQ1Start', nextQ1Start, new Date(nextQ1Start))
-  console.log('nextQ2Start', nextQ2Start, new Date(nextQ2Start))
-  console.log('Now', now, new Date(now))
+  const startQ1 = start
+  const startQ2 = start + 1 * quarterDuration
+  const startQ3 = start + 2 * quarterDuration
+  const startQ4 = start + 3 * quarterDuration
+  const end = start + cycleDuration
 
-  return new Promise((resolve: any) => {
-    if (nextQ1Start > now) {
-      let waitTime = nextQ1Start - now
-      console.log('waitTime', waitTime, `${waitTime / 1000} sec`)
+  return { quarterDuration, startQ1, startQ2, startQ3, startQ4, end }
+}
 
-      if (waitTime > 0) {
-        setTimeout(() => {
-          emitter.emit('submitJoinRequest', nodeInfo, joinRequest)
-          resolve(true)
-        }, waitTime)
-      }
-    } else if (now > nextQ1Start && now < nextQ2Start) {
-      console.log(
-        'Now is within first quarter of cycle. Immediately submitting join request'
-      )
-      emitter.emit('submitJoinRequest', nodeInfo, joinRequest)
-      resolve(true)
-    } else {
-      let waitTime = nextQ1Start + (cycle.duration * 1000) - now
-      console.log('waitTime', waitTime, `${waitTime / 1000} sec`)
-      setTimeout(() => {
-        emitter.emit('submitJoinRequest', nodeInfo, joinRequest)
-        resolve(true)
-      }, waitTime)
+export async function joinNetwork (
+  nodeList: NodeList.ConsensusNodeInfo[],
+  isFirstTime: boolean
+): Promise<boolean> {
+  console.log('Is firstTime', isFirstTime)
+  if (isFirstTime === false) {
+    const isJoined = await checkJoinStatus()
+    if (isJoined) {
+      return isJoined
     }
-  })
+  }
+  // try to get latestCycleRecord with a robust query
+  const latestCycle = await getNewestCycleFromConsensors(nodeList)
+
+  // Figure out when Q1 is from the latestCycle
+  const { startQ1 } = calcIncomingTimes(latestCycle)
+  let request = P2P.createArchiverJoinRequest()
+  let shuffledNodes = [...nodeList]
+  Utils.shuffleArray(shuffledNodes)
+
+  // Wait until a Q1 then send join request to active nodes
+  let untilQ1 = startQ1 - Date.now()
+  while (untilQ1 < 0) {
+    untilQ1 += latestCycle.duration * 1000
+  }
+
+  console.log(`Waiting ${untilQ1 + 500} ms for Q1 before sending join...`)
+  await Utils.sleep(untilQ1 + 500) // Not too early
+
+  await submitJoin(nodeList, request)
+
+  // Wait approx. one cycle then check again
+  console.log('Waiting approx. one cycle then checking again...')
+  await Utils.sleep(latestCycle.duration * 1000 + 500)
+  return false
+}
+
+export async function submitJoin(
+  nodes: NodeList.ConsensusNodeInfo[],
+  joinRequest: P2P.ArchiverJoinRequest & Crypto.types.SignedObject
+) {
+  // Send the join request to a handful of the active node all at once:w
+  const selectedNodes = Utils.getRandom(nodes, Math.min(nodes.length, 5))
+  console.log(
+    `Sending join request to ${selectedNodes.map((n) => `${n.ip}:${n.port}`)}`
+  )
+  for (const node of selectedNodes) {
+    let response = await P2P.postJson(
+      `http://${node.ip}:${node.port}/joinarchiver`,
+      joinRequest
+    )
+    console.log('Join request response:', response)
+  }
 }
 
 export function sendLeaveRequest (
@@ -497,21 +523,43 @@ export async function getCycleDuration () {
   }
 }
 
-export async function getNewestCycleRecord (nodeInfo: NodeList.ConsensusNodeInfo) {
-  if (!nodeInfo) return
-  let response: any = await P2P.getJson(
-    `http://${nodeInfo.ip}:${nodeInfo.port}/sync-newest-cycle`)
-  if (response && response.newestCycle) {
-    return response.newestCycle
+// export async function getNewestCycleRecord (nodeInfo: NodeList.ConsensusNodeInfo) {
+//   if (!nodeInfo) return
+//   let response: any = await P2P.getJson(
+//     `http://${nodeInfo.ip}:${nodeInfo.port}/sync-newest-cycle`)
+//   if (response && response.newestCycle) {
+//     return response.newestCycle
+//   }
+// }
+
+export async function getNewestCycleFromConsensors(activeNodes: NodeList.ConsensusNodeInfo[]): Promise<Cycle> {
+  function isSameCyceInfo (info1: any, info2: any) {
+    // console.log('info1', info1)
+    // console.log('info2', info2)
+    const cm1 = Utils.deepCopy(info1)
+    const cm2 = Utils.deepCopy(info2)
+    delete cm1.currentTime
+    delete cm2.currentTime
+    const equivalent = isDeepStrictEqual(cm1, cm2)
+    return equivalent
   }
+
+  const queryFn = async (node: any) => {
+    const response: any = await P2P.getJson(
+      `http://${node.ip}:${node.port}/sync-newest-cycle`
+    )
+    if(response.newestCycle) return response.newestCycle
+  }
+  let newestCycle: any = await Utils.robustQuery(
+    activeNodes,
+    queryFn,
+    isSameCyceInfo
+  )
+  return newestCycle[0]
 }
 
-export function checkJoinStatus (cycleDuration: number): Promise<boolean> {
+export function checkJoinStatus (): Promise<boolean> {
   console.log('Checking join status')
-  if (!cycleDuration) {
-    console.log('No cycle duration provided')
-    throw new Error('No cycle duration provided')
-  }
   const ourNodeInfo = State.getNodeInfo()
   const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)
 
@@ -868,7 +916,7 @@ export async function fetchCycleRecords(activeArchivers: State.ArchiverNodeInfo[
   return result
 }
 
-export async function getNewestCycle(activeArchivers: State.ArchiverNodeInfo[]): Promise<any> {
+export async function getNewestCycleFromArchivers(activeArchivers: State.ArchiverNodeInfo[]): Promise<any> {
   function isSameCyceInfo (info1: any, info2: any) {
     const cm1 = Utils.deepCopy(info1)
     const cm2 = Utils.deepCopy(info2)
@@ -1084,7 +1132,7 @@ function applyNodeListChange(change: Change) {
 export async function syncCyclesAndNodeList (activeArchivers: State.ArchiverNodeInfo[]) {
   // Get the networks newest cycle as the anchor point for sync
   console.log('Getting newest cycle...')
-  const [cycleToSyncTo] = await getNewestCycle(activeArchivers)
+  const [cycleToSyncTo] = await getNewestCycleFromArchivers(activeArchivers)
   console.log('cycleToSyncTo', cycleToSyncTo)
   console.log(`Syncing till cycle ${cycleToSyncTo.counter}...`)
   const cyclesToGet = 2 * Math.floor(Math.sqrt(cycleToSyncTo.active)) + 2
@@ -1204,7 +1252,7 @@ async function downloadArchivedCycles(archiver: State.ArchiverNodeInfo, cycleToS
   return collector
 }
 
-export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo[], cycleToSyncTo: number) {
+export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo[]) {
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)
   let allCycleRecords = await Storage.queryAllCycleRecords()
   let lastCycleCounter = allCycleRecords[0].counter
@@ -1394,7 +1442,7 @@ async function validateAndStoreSummaryBlobs (
       let txBlob = txStats.find(t => t.partition === partition)
       let summaryHash = await Storage.querySummaryHash(cycle, partition)
       if (!summaryHash) {
-        console.log(`Unable to find summary hash for counter ${cycle}, partition ${partition}`)
+        // console.log(`Unable to find summary hash for counter ${cycle}, partition ${partition}`)
         continue
       }
       let summaryObj = {
@@ -1403,16 +1451,10 @@ async function validateAndStoreSummaryBlobs (
       }
       let calculatedSummaryHash = Crypto.hashObj(summaryObj)
       if (summaryHash !== calculatedSummaryHash) {
-        console.log(`Summary hash is different from calculatedSummaryHash: cycle ${cycle}, partition ${partition}`)
-        // console.log(summaryHash, calculatedSummaryHash)
-        // if (summaryObj) {
-        //   console.log('summaryObj', summaryObj)
-        //   console.log('summaryObj stringified', JSON.stringify(summaryObj))
-        // }
+        // console.log(`Summary hash is different from calculatedSummaryHash: cycle ${cycle}, partition ${partition}`)
         failed.push(partition)
         continue
       }
-      console.log('summaryObj', summaryObj)
       if (dataBlob) {
         summaryBlob = {
           ...dataBlob,
@@ -1465,13 +1507,10 @@ emitter.on(
       ...dataRequest,
       nodeInfo: State.getNodeInfo()
     }
-    console.log('dataRequest', JSON.stringify(dataRequest))
-    // console.log('Sending data request to: ', newSenderInfo.port)
     let response = await P2P.postJson(
       `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
       request
     )
-    console.log('Data request response:', response)
   }
 )
 
@@ -1485,8 +1524,6 @@ emitter.on(
       ...joinRequest,
       nodeInfo: State.getNodeInfo()
     }
-    console.log('join request', request)
-    console.log('Sending join request to: ', newSenderInfo.port)
     let response = await P2P.postJson(
       `http://${newSenderInfo.ip}:${newSenderInfo.port}/joinarchiver`,
       request
