@@ -632,6 +632,7 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
       case TypeNames.CYCLE: {
         console.log('Processing CYCLE data')
         processCycles(newData.responses.CYCLE as Cycle[])
+        socketServer.emit('ARCHIVED_CYCLE', 'CYCLE')
         if (newData.responses.CYCLE.length > 0) {
           for (let cycle of newData.responses.CYCLE) {
             let archivedCycle: any = {}
@@ -837,8 +838,7 @@ export async function processStateMetaData (STATE_METADATA: any) {
             for (let [partition, blob] of downloadedBlobs) {
               blobsToForward.push(blob)
             }
-            console.log('blobsToForward', blobsToForward.length)
-            socketServer.emit('SUMMARY_BLOB', {blobs: blobsToForward, cycle: parentCycle.counter})
+            // socketServer.emit('SUMMARY_BLOB', {blobs: blobsToForward, cycle: parentCycle.counter})
             break
           }
           // console.log('completed SUMMARY BLOB', completed)

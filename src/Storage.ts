@@ -5,8 +5,6 @@ import knex = require('knex')
 import { DataQueryResponse, ReceiptMapResult, socketServer, SummaryBlob } from './Data/Data'
 import { Database, BaseModel, FS_Persistence_Adapter } from 'tydb'
 
-let db: knex
-
 export let Collection: any
 
 export async function initStorage (config: Config) {
@@ -22,12 +20,21 @@ export async function initStorage (config: Config) {
   await Collection.createIndex({ fieldName: 'cycleMarker', unique: true })
 }
 
-export async function insertArchivedCycle (archivedCycle: any) {
+export async function insertArchivedCycle(archivedCycle: any) {
   console.log('Inserting archived cycle', archivedCycle.cycleRecord.counter, archivedCycle.cycleMarker)
   try {
     await Collection.insert([Data.ArchivedCycle.new(archivedCycle)])
     console.log('Successfully inserted archivedCycle', archivedCycle.cycleRecord.counter)
+    let updatedArchivedCycle = await Collection.find({
+      filter: { cycleMarker: archivedCycle.cycleMarker },
+    })
+    // let dataToSend = [...updateArchivedCycle]
+    socketServer.emit('ARCHIVED_CYCLE', 'TEST')
+    if (updatedArchivedCycle) {
+        socketServer.emit('ARCHIVED_CYCLE', updatedArchivedCycle)
+    }
   } catch (e) {
+    console.log(e)
     console.log('Unable to insert archive cycle or it is already stored in to database', archivedCycle.cycleRecord.counter, archivedCycle.cycleMarker)
   }
 }
@@ -74,7 +81,12 @@ export async function updateReceiptMap (
       filter: { cycleMarker: parentCycle.marker },
       update: { $set: { 'receipt.partitionMaps': newPartitionMaps } },
     })
-  } catch (e) {
+    let updatedArchivedCycle = await Collection.find({
+      filter: { cycleMarker: parentCycle.marker },
+    })
+    if (updatedArchivedCycle) {
+      socketServer.emit('ARCHIVED_CYCLE', updatedArchivedCycle)
+  }  } catch (e) {
     console.log('Unable to update receipt maps in archived cycle')
     console.log(e)
   }
@@ -119,7 +131,12 @@ export async function updateSummaryBlob (
       filter: { cycleMarker: parentCycle.marker },
       update: { $set: { 'summary.partitionBlobs': newPartitionBlobs } },
     })
-  } catch (e) {
+    let updatedArchivedCycle = await Collection.find({
+      filter: { cycleMarker: parentCycle.marker },
+    })
+    if (updatedArchivedCycle) {
+      socketServer.emit('ARCHIVED_CYCLE', updatedArchivedCycle)
+  }  } catch (e) {
     console.log('Unable to update summary blobs in archived cycle')
     console.log(e)
   }
@@ -132,7 +149,12 @@ export async function updateArchivedCycle(marker: string, field: string, data: a
     filter: { cycleMarker: marker },
     update: { $set: updateObj },
   })
-}
+  let updatedArchivedCycle = await Collection.find({
+    filter: { cycleMarker: marker },
+  })
+  if (updatedArchivedCycle) {
+    socketServer.emit('ARCHIVED_CYCLE', updatedArchivedCycle)
+}}
 
 export async function queryAllArchivedCycles (count?: number) {
   let archivedCycles = await Collection.find({
