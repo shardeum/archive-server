@@ -4,6 +4,7 @@ import * as Data from './Data/Data'
 import knex = require('knex')
 import { DataQueryResponse, ReceiptMapResult, socketServer, SummaryBlob } from './Data/Data'
 import { Database, BaseModel, FS_Persistence_Adapter } from 'tydb'
+import * as Crypto from './Crypto'
 
 export let Collection: any
 
@@ -28,10 +29,11 @@ export async function insertArchivedCycle(archivedCycle: any) {
     let updatedArchivedCycle = await Collection.find({
       filter: { cycleMarker: archivedCycle.cycleMarker },
     })
-    // let dataToSend = [...updateArchivedCycle]
-    socketServer.emit('ARCHIVED_CYCLE', 'TEST')
+    let signedDataToSend = Crypto.sign({
+      archivedCycles: updatedArchivedCycle
+    })
     if (updatedArchivedCycle) {
-        socketServer.emit('ARCHIVED_CYCLE', updatedArchivedCycle)
+      socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
     }
   } catch (e) {
     console.log(e)
@@ -84,9 +86,13 @@ export async function updateReceiptMap (
     let updatedArchivedCycle = await Collection.find({
       filter: { cycleMarker: parentCycle.marker },
     })
+    let signedDataToSend = Crypto.sign({
+      archivedCycles: updatedArchivedCycle
+    })
     if (updatedArchivedCycle) {
-      socketServer.emit('ARCHIVED_CYCLE', updatedArchivedCycle)
-  }  } catch (e) {
+      socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+    }
+  } catch (e) {
     console.log('Unable to update receipt maps in archived cycle')
     console.log(e)
   }
@@ -134,9 +140,13 @@ export async function updateSummaryBlob (
     let updatedArchivedCycle = await Collection.find({
       filter: { cycleMarker: parentCycle.marker },
     })
+    let signedDataToSend = Crypto.sign({
+      archivedCycles: updatedArchivedCycle
+    })
     if (updatedArchivedCycle) {
-      socketServer.emit('ARCHIVED_CYCLE', updatedArchivedCycle)
-  }  } catch (e) {
+      socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+    }
+   } catch (e) {
     console.log('Unable to update summary blobs in archived cycle')
     console.log(e)
   }
@@ -152,9 +162,13 @@ export async function updateArchivedCycle(marker: string, field: string, data: a
   let updatedArchivedCycle = await Collection.find({
     filter: { cycleMarker: marker },
   })
+  let signedDataToSend = Crypto.sign({
+    archivedCycles: updatedArchivedCycle
+  })
   if (updatedArchivedCycle) {
-    socketServer.emit('ARCHIVED_CYCLE', updatedArchivedCycle)
-}}
+    socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+  }
+}
 
 export async function queryAllArchivedCycles (count?: number) {
   let archivedCycles = await Collection.find({
