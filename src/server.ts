@@ -12,7 +12,9 @@ import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
 import * as Utils from './Utils'
 import { sendGossip, addHashesGossip } from './Data/Gossip'
-import { Node } from 'tydb/dist/core'
+import * as Logger from './Logger'
+
+
 // Socket modules
 let io: SocketIO.Server
 
@@ -34,6 +36,12 @@ async function start() {
     config.ARCHIVER_SECRET_KEY = keypair.secretKey
   }
 
+  const logsConfig = require('../archiver-log.json')
+  const logDir = `archiver-logs/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
+  const baseDir = '.'
+  logsConfig.dir = logDir
+  Logger.initLogger(baseDir, logsConfig)
+
   // Initialize storage
   await Storage.initStorage(config)
 
@@ -41,12 +49,13 @@ async function start() {
   await State.initFromConfig(config)
 
   if (State.isFirst === false) {
-    console.log(
+    Logger.mainLogger.debug(
       'We are not first archiver. Syncing and starting archive-server'
     )
     syncAndStartServer()
   } else {
-    console.log('We are first archiver. Starting archive-server')
+    Logger.mainLogger.error('This is a bad error')
+    Logger.mainLogger.debug('We are first archiver. Starting archive-server')
     io = startServer()
   }
 }
@@ -66,10 +75,10 @@ async function syncAndStartServer() {
       // try to join the network
       isJoined = await Data.joinNetwork(nodeList, firstTime)
     } catch (err) {
-      console.log('Error while joining network:')
-      console.log(err)
-      console.log(err.stack)
-      console.log(
+      Logger.mainLogger.error('Error while joining network:')
+      Logger.mainLogger.error(err)
+      Logger.mainLogger.error(err.stack)
+      Logger.mainLogger.debug(
         `Trying to join again in ${cycleDuration} seconds...`
       )
       await Utils.sleep(cycleDuration * 1000)
@@ -87,7 +96,7 @@ async function syncAndStartServer() {
    * the network.
    */
 
-  console.log('We have successfully joined the network')
+  Logger.mainLogger.debug('We have successfully joined the network')
 
   await Data.syncCyclesAndNodeList(State.activeArchivers)
 
@@ -182,7 +191,6 @@ function startServer() {
       Data.initSocketClient(firstNode)
 
       // Add first node to NodeList
-      // NodeList.addNodes(NodeList.Statuses.SYNCING, firstCycleMarker, firstNode)
       NodeList.addNodes(NodeList.Statuses.SYNCING, 'bogus', [firstNode])
       // Set first node as dataSender
       Data.addDataSenders({
@@ -300,24 +308,6 @@ function startServer() {
     reply.send(res)
   })
 
-  // server.get('/debug', (_request, reply) => {
-  //   let nodeList = NodeList.getActiveList()
-  //   if (nodeList.length < 1) {
-  //     nodeList = NodeList.getList().slice(0, 1)
-  //   }
-  //   const nodes = nodeList.map((node) => node.port)
-  //   const senders = [...Data.dataSenders.values()].map(
-  //     (sender) => sender.nodeInfo.port
-  //   )
-  //   const lastData = Cycles.currentCycleCounter
-
-  //   reply.send({
-  //     lastData,
-  //     senders,
-  //     nodes,
-  //   })
-  // })
-
   server.get('/nodeinfo', (_request, reply) => {
     reply.send({
       publicKey: config.ARCHIVER_PUBLIC_KEY,
@@ -339,7 +329,7 @@ function startServer() {
     let to = parseInt(end)
 
     if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-      console.log(`Invalid start and end counters`)
+      Logger.mainLogger.error(`Invalid start and end counters`)
       reply.send(
         Crypto.sign({ success: false, error: `Invalid start and end counters` })
       )
@@ -375,7 +365,7 @@ function startServer() {
 
   server.post('/gossip-hashes', async (_request, reply) => {
     let gossipMessage = _request.body
-    console.log('Gossip received', JSON.stringify(gossipMessage))
+    Logger.mainLogger.debug('Gossip received', JSON.stringify(gossipMessage))
     addHashesGossip(gossipMessage.sender, gossipMessage.data)
     const res = Crypto.sign({
       success: true,
@@ -396,12 +386,12 @@ function startServer() {
 
   // Start server and bind to port on all interfaces
   server.listen(config.ARCHIVER_PORT, '0.0.0.0', (err, _address) => {
-    console.log('Listening3')
+    Logger.mainLogger.debug('Listening3')
     if (err) {
       server.log.error(err)
       process.exit(1)
     }
-    console.log('Archive-server has started.')
+    Logger.mainLogger.debug('Archive-server has started.')
     State.addSigListeners()
   })
   return io

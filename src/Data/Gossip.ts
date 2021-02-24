@@ -4,6 +4,7 @@ import * as Data from './Data'
 import * as State from '../State'
 import * as P2P from '../P2P'
 import { config, Config } from '../Config'
+import * as Logger from '../Logger'
 
 let gossipCollector = new Map()
 
@@ -13,8 +14,6 @@ export async function sendGossip (type: string, payload: any) {
   if (archivers.length === 0) return
   const gossipPayload = { type, data: payload, sender: config.ARCHIVER_PUBLIC_KEY }
 
-  // console.log(`Start of sendGossipIn(${JSON.stringify(gossipPayload)})`)
-
   archivers = archivers.sort((a: any, b: any) => a.publicKey - b.publicKey)
 
   // TODO: check if need to select random archivers instead of sending to all other archivers
@@ -23,22 +22,21 @@ export async function sendGossip (type: string, payload: any) {
   )
 
   if (recipients.length === 0) {
-    console.log('There is no other archivers to send our gossip')
+    Logger.mainLogger.debug('There is no other archivers to send our gossip')
     return
   }
 
   try {
-    console.log(
+    Logger.mainLogger.debug(
       `GossipingIn ${type} request to these nodes: ${JSON.stringify(
         recipients.map(node => node.ip + ':' + node.port + `/gossip-${type}`)
       )}`
     )
     await tell(recipients, `gossip-${type}`, gossipPayload, true)
   } catch (ex) {
-    console.log(ex)
-    console.log('Fail to gossip')
+    Logger.mainLogger.debug(ex)
+    Logger.mainLogger.debug('Fail to gossip')
   }
-  // console.log(`End of sendGossipIn(${JSON.stringify(payload)})`)
 }
 
 async function tell (
@@ -55,17 +53,17 @@ async function tell (
     try {
       const promise = P2P.postJson(url, message)
       promise.catch(err => {
-        console.log(`Unable to tell node ${node.ip}: ${node.port}`, err)
+        Logger.mainLogger.error(`Unable to tell node ${node.ip}: ${node.port}`, err)
       })
       promises.push(promise)
     } catch(e) {
-      console.log('Error', e)
+      Logger.mainLogger.error('Error', e)
     }
   }
   try {
     await Promise.all(promises)
   } catch (err) {
-    console.log('Network: ' + err)
+    Logger.mainLogger.error('Network: ' + err)
   }
 }
 
@@ -124,7 +122,7 @@ export function addHashesGossip (
 }
 
 function processGossip(counter: number) {
-  console.log('Processing gossips for counter', counter, gossipCollector.get(counter))
+  Logger.mainLogger.debug('Processing gossips for counter', counter, gossipCollector.get(counter))
   let gossips = gossipCollector.get(counter)
   if (!gossips) {
     return
@@ -141,7 +139,6 @@ function processGossip(counter: number) {
       gossipCounter[hashedGossip].count += 1
     }
   }
-  // console.log('gossipCounter', gossipCounter)
   let gossipWithHighestCount: any
   let highestCount = 0
   let hashWithHighestCounter: any
@@ -154,15 +151,15 @@ function processGossip(counter: number) {
   }
   let ourHashes = Data.StateMetaDataMap.get(counter)
   if (!ourHashes) {
-    console.log(`Unable to find our stored statemetadata hashes for counter ${counter}`)
+    Logger.mainLogger.error(`Unable to find our stored statemetadata hashes for counter ${counter}`)
     return
   }
   if (hashWithHighestCounter && hashWithHighestCounter !== Crypto.hashObj(ourHashes)) {
     if (!gossipWithHighestCount) {
       return
     }
-    console.log('our hash is different from other archivers hashes. Storing the correct hashes')
-    console.log('gossipWithHighestCount', gossipWithHighestCount)
+    Logger.mainLogger.error('our hash is different from other archivers hashes. Storing the correct hashes')
+    Logger.mainLogger.debug('gossipWithHighestCount', gossipWithHighestCount)
     Data.processStateMetaData(gossipWithHighestCount)
     Data.replaceDataSender(Data.currentDataSender)
   }

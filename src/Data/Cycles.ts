@@ -3,6 +3,7 @@ import * as NodeList from '../NodeList'
 import * as Crypto from '../Crypto'
 import { safeParse } from '../Utils'
 import * as State from '../State'
+import * as Logger from '../Logger'
 
 export interface Cycle {
   counter: number
@@ -40,8 +41,8 @@ export let CycleChain: Map<Cycle["counter"], any> = new Map()
 
 export function processCycles(cycles: Cycle[]) {
   for (const cycle of cycles) {
-    console.log(new Date(), 'New Cycle received', cycle.counter)
-    console.log('Current cycle counter', currentCycleCounter)
+    Logger.mainLogger.debug(new Date(), 'New Cycle received', cycle.counter)
+    Logger.mainLogger.debug('Current cycle counter', currentCycleCounter)
     // Skip if already processed [TODO] make this check more secure
     if (cycle.counter <= currentCycleCounter) continue
 
@@ -52,7 +53,7 @@ export function processCycles(cycles: Cycle[]) {
     currentCycleDuration = cycle.duration * 1000
     currentCycleCounter = cycle.counter
 
-    console.log(`Processed cycle ${cycle.counter}`)
+    Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
   }
 }
 
@@ -73,20 +74,12 @@ export function computeCycleMarker(fields: any) {
   return cycleMarker
 }
 
+// validation of cycle record against previous marker
 export function validateCycle(prev: Cycle, next: Cycle): boolean {
-  // let previousRecordWithoutMarker: any = {...prev}
-  // delete previousRecordWithoutMarker.marker
-
-  // for (let key in previousRecordWithoutMarker) {
-  //   try {
-  //     previousRecordWithoutMarker[key] = JSON.parse(previousRecordWithoutMarker[key])
-  //   } catch(e) {
-  //     console.log(e)
-  //     console.log('Unable to parse record field', key)
-  //   }
-  // }
-  // const prevMarker = computeCycleMarker(previousRecordWithoutMarker)
-  // if (next.previous !== prevMarker) return false
+  let previousRecordWithoutMarker: any = {...prev}
+  delete previousRecordWithoutMarker.marker
+  const prevMarker = computeCycleMarker(previousRecordWithoutMarker)
+  if (next.previous !== prevMarker) return false
   return true
 }
 
@@ -184,9 +177,9 @@ function updateNodeList(cycle: Cycle) {
     let foundArchiver = State.activeArchivers.find(a => a.publicKey === joinedArchiver.publicKey)
     if (!foundArchiver) {
       State.activeArchivers.push(joinedArchiver)
-      console.log('New archiver added to active list', joinedArchiver)
+      Logger.mainLogger.debug('New archiver added to active list', joinedArchiver)
     }
-    console.log('active archiver list', State.activeArchivers)
+    Logger.mainLogger.debug('active archiver list', State.activeArchivers)
   }
 
   const leavingArchivers = safeParse<State.ArchiverNodeState[]>(

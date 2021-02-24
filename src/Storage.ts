@@ -5,6 +5,7 @@ import knex = require('knex')
 import { DataQueryResponse, ReceiptMapResult, socketServer, SummaryBlob } from './Data/Data'
 import { Database, BaseModel, FS_Persistence_Adapter } from 'tydb'
 import * as Crypto from './Crypto'
+import * as Logger from './Logger'
 
 export let Collection: any
 
@@ -22,10 +23,10 @@ export async function initStorage (config: Config) {
 }
 
 export async function insertArchivedCycle(archivedCycle: any) {
-  console.log('Inserting archived cycle', archivedCycle.cycleRecord.counter, archivedCycle.cycleMarker)
+  Logger.mainLogger.debug('Inserting archived cycle', archivedCycle.cycleRecord.counter, archivedCycle.cycleMarker)
   try {
     await Collection.insert([Data.ArchivedCycle.new(archivedCycle)])
-    console.log('Successfully inserted archivedCycle', archivedCycle.cycleRecord.counter)
+    Logger.mainLogger.debug('Successfully inserted archivedCycle', archivedCycle.cycleRecord.counter)
     let updatedArchivedCycle = await Collection.find({
       filter: { cycleMarker: archivedCycle.cycleMarker },
     })
@@ -33,11 +34,11 @@ export async function insertArchivedCycle(archivedCycle: any) {
       archivedCycles: updatedArchivedCycle
     })
     if (updatedArchivedCycle) {
-      socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+      if(socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
     }
   } catch (e) {
-    console.log(e)
-    console.log('Unable to insert archive cycle or it is already stored in to database', archivedCycle.cycleRecord.counter, archivedCycle.cycleMarker)
+    Logger.mainLogger.error(e)
+    Logger.mainLogger.error('Unable to insert archive cycle or it is already stored in to database', archivedCycle.cycleRecord.counter, archivedCycle.cycleMarker)
   }
 }
 
@@ -45,12 +46,11 @@ export async function updateReceiptMap (
   receiptMapResult: Data.ReceiptMapResult
 ) {
   if (!receiptMapResult) return
-  // console.log(`Updating receipt map for cycle ${receiptMapResult.cycle}, partition ${receiptMapResult.partition}`, receiptMapResult.receiptMap)
   try {
     let parentCycle = CycleChain.get(receiptMapResult.cycle)
 
     if (!parentCycle) {
-      console.log(
+      Logger.mainLogger.error(
         'Unable find record with parent cycle with counter',
         receiptMapResult.cycle
       )
@@ -62,7 +62,7 @@ export async function updateReceiptMap (
     )
 
     if (!existingArchivedCycle) {
-      console.log(
+      Logger.mainLogger.error(
         'Unable find existing archived cycle with marker',
         parentCycle.marker
       )
@@ -90,11 +90,11 @@ export async function updateReceiptMap (
       archivedCycles: updatedArchivedCycle
     })
     if (updatedArchivedCycle) {
-      socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+      if(socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
     }
   } catch (e) {
-    console.log('Unable to update receipt maps in archived cycle')
-    console.log(e)
+    Logger.mainLogger.error('Unable to update receipt maps in archived cycle')
+    Logger.mainLogger.error(e)
   }
 }
 
@@ -107,7 +107,7 @@ export async function updateSummaryBlob (
     let parentCycle = CycleChain.get(cycle)
 
     if (!parentCycle) {
-      console.log('Unable find record with parent cycle with counter', cycle)
+      Logger.mainLogger.error('Unable find record with parent cycle with counter', cycle)
       return
     }
 
@@ -116,7 +116,7 @@ export async function updateSummaryBlob (
     )
 
     if (!existingArchivedCycle) {
-      console.log(
+      Logger.mainLogger.error(
         'Unable find existing archived cycle with marker',
         parentCycle.marker
       )
@@ -144,11 +144,11 @@ export async function updateSummaryBlob (
       archivedCycles: updatedArchivedCycle
     })
     if (updatedArchivedCycle) {
-      socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+      if(socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
     }
    } catch (e) {
-    console.log('Unable to update summary blobs in archived cycle')
-    console.log(e)
+    Logger.mainLogger.error('Unable to update summary blobs in archived cycle')
+    Logger.mainLogger.error(e)
   }
 }
 
@@ -166,7 +166,7 @@ export async function updateArchivedCycle(marker: string, field: string, data: a
     archivedCycles: updatedArchivedCycle
   })
   if (updatedArchivedCycle) {
-    socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+    if(socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
   }
 }
 

@@ -5,6 +5,8 @@ import * as P2P from './P2P'
 import * as Data from './Data/Data'
 import * as Utils from './Utils'
 import { isDeepStrictEqual } from 'util'
+import * as Logger from './Logger'
+
 // TYPES
 
 export enum Statuses {
@@ -58,9 +60,9 @@ export function addNodes(
   cycleMarkerJoined: string,
   nodes: ConsensusNodeInfo[] | Data.JoinedConsensor[]
 ) {
-  console.log('Typeof Nodes to add', typeof nodes)
-  console.log('Length of Nodes to add', nodes.length)
-  console.log('Nodes to add', nodes)
+  Logger.mainLogger.debug('Typeof Nodes to add', typeof nodes)
+  Logger.mainLogger.debug('Length of Nodes to add', nodes.length)
+  Logger.mainLogger.debug('Nodes to add', nodes)
   for (const node of nodes) {
     const ipPort = getIpPort(node)
 
@@ -69,7 +71,7 @@ export function addNodes(
       byPublicKey[node.publicKey] === undefined &&
       byIpPort[ipPort] === undefined
     ) {
-      console.log('adding new node', node.publicKey)
+      Logger.mainLogger.debug('adding new node', node.publicKey)
       list.push(node)
       if (status === Statuses.SYNCING) {
         syncingList.set(node.publicKey, node)
@@ -99,7 +101,7 @@ export function addNodes(
 }
 
 export function removeNodes(publicKeys: string[]): string[] {
-  if(publicKeys.length > 0) console.log('Removing nodes', publicKeys)
+  if(publicKeys.length > 0) Logger.mainLogger.debug('Removing nodes', publicKeys)
   // Efficiently remove nodes from nodelist
   const keysToDelete: Map<ConsensusNodeInfo['publicKey'], boolean> = new Map()
 
@@ -160,8 +162,6 @@ export function getActiveList() {
 
 export async function getActiveListFromArchivers(activeArchivers: State.ArchiverNodeInfo[]): Promise<ConsensusNodeInfo> {
   function isSameCyceInfo (info1: any, info2: any) {
-    // console.log('info1', info1)
-    // console.log('info2', info2)
     const cm1 = Utils.deepCopy(info1)
     const cm2 = Utils.deepCopy(info2)
     delete cm1.currentTime

@@ -1,4 +1,5 @@
 import * as util from 'util'
+import * as Logger from './Logger'
 
 export function safeParse<Type>(
   fallback: Type,
@@ -227,7 +228,7 @@ export async function robustQuery<Node = unknown, Response = unknown>(
     }
 
     for (const err of errs) {
-      console.log('p2p/Utils:robustQuery:queryNodes:', err)
+      Logger.mainLogger.error('p2p/Utils:robustQuery:queryNodes:', err)
       errors += 1
     }
 
@@ -241,26 +242,26 @@ export async function robustQuery<Node = unknown, Response = unknown>(
     tries += 1
     const toQuery = redundancy - responses.getHighestCount()
     if (nodes.length < toQuery){
-      console.log('In robustQuery stopping since we ran out of nodes to query.')
+      Logger.mainLogger.error('In robustQuery stopping since we ran out of nodes to query.')
       break
     }
     const nodesToQuery = nodes.splice(0, toQuery)
     finalResult = await queryNodes(nodesToQuery)
     if (tries>=20){
-      console.log('In robustQuery stopping after 20 tries.')
+      Logger.mainLogger.error('In robustQuery stopping after 20 tries.')
       console.trace()
       break
     }
   }
   if (finalResult) {
-   // console.log(`In robustQuery stopping since we got a finalResult:${JSON.stringify(finalResult)}`)
+   // Logger.mainLogger.debug(`In robustQuery stopping since we got a finalResult:${JSON.stringify(finalResult)}`)
     return finalResult
   }
   else{
   // TODO:  We return the item that had the most nodes reporting it. However, the caller should know
   //        what the count was. We should return [item, count] so that caller gets both.
   //        This change would require also changing all the places it is called.
-    console.log(
+    Logger.mainLogger.error(
     `Could not get ${redundancy} ${
       redundancy > 1 ? 'redundant responses' : 'response'
     } from ${nodeCount} ${
@@ -322,7 +323,7 @@ export function getRandomItemFromArr(arr: any[]): any {
   return arr[randomIndex]
 }
 export async function sleep(time: number) {
-  console.log('sleeping for', time)
+  Logger.mainLogger.debug('sleeping for', time)
   return new Promise((resolve: any) => {
     setTimeout(() => {
       resolve(true)

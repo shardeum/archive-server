@@ -6,6 +6,7 @@ import * as Data from './Data/Data'
 import * as Utils from './Utils'
 import { isString } from 'util'
 import { Node } from 'tydb/dist/core'
+import * as Logger from './Logger'
 
 export interface ArchiverNodeState {
   ip: string
@@ -58,7 +59,7 @@ export async function initFromConfig(config: Config) {
   let waitTime = 1000 * 60
 
   while(retryCount < 10 && activeArchivers.length === 0) {
-    console.log(`Getting consensor list from other achivers. [round: ${retryCount}]`)
+    Logger.mainLogger.debug(`Getting consensor list from other achivers. [round: ${retryCount}]`)
     for (let i = 0; i < existingArchivers.length; i++) {
       if (existingArchivers[i].publicKey === nodeState.publicKey) {
         continue
@@ -66,21 +67,21 @@ export async function initFromConfig(config: Config) {
       let response:any = await P2P.getJson(
         `http://${existingArchivers[i].ip}:${existingArchivers[i].port}/nodelist`
       )
-      console.log('response', `http://${existingArchivers[i].ip}:${existingArchivers[i].port}/nodelist`, response)
+      Logger.mainLogger.debug('response', `http://${existingArchivers[i].ip}:${existingArchivers[i].port}/nodelist`, response)
       if(response && response.nodeList && response.nodeList.length > 0) {
         // TODO: validate the reponse is from archiver
         activeArchivers.push(existingArchivers[i])
       }
     }
     if (activeArchivers.length === 0) {
-      console.log(`Unable to find active archivers. Waiting for ${waitTime} before trying again.`)
+      Logger.mainLogger.error(`Unable to find active archivers. Waiting for ${waitTime} before trying again.`)
       // wait for 1 min before retrying
       await Utils.sleep(waitTime)
       retryCount += 1
     }
   }
   if (activeArchivers.length === 0) {
-    console.log(`We have tried ${retryCount} times to get nodeList from other archivers. But got no response or empty list. About to exit now.`)
+    Logger.mainLogger.error(`We have tried ${retryCount} times to get nodeList from other archivers. But got no response or empty list. About to exit now.`)
     process.exit(0)
   }
 }
@@ -95,19 +96,19 @@ export async function exitArchiver () {
         randomConsensor,
         newestCycleRecord
       )
-      console.log('isLeaveRequestSent', isLeaveRequestSent)
+      Logger.mainLogger.debug('isLeaveRequestSent', isLeaveRequestSent)
       if (isLeaveRequestSent) {
-        console.log('Archiver will exit in 3 seconds.')
+        Logger.mainLogger.debug('Archiver will exit in 3 seconds.')
         setTimeout(process.exit, 3000)
       }
     } else {
-      console.log('Archiver will exit in 3 seconds.')
+      Logger.mainLogger.debug('Archiver will exit in 3 seconds.')
       setTimeout(() => {
         process.exit()
       }, 3000)
     }
   } catch (e) {
-    console.log(e)
+    Logger.mainLogger.error(e)
   }
 }
 
@@ -115,17 +116,17 @@ export async function exitArchiver () {
 export function addSigListeners(sigint = true, sigterm = true) {
   if (sigint) {
     process.on('SIGINT', async () => {
-      console.log('Exiting on SIGINT')
+      Logger.mainLogger.debug('Exiting on SIGINT')
       exitArchiver()
     })
   }
   if (sigterm) {
     process.on('SIGTERM', async () => {
-      console.log('Exiting on SIGTERM')
+      Logger.mainLogger.debug('Exiting on SIGTERM')
       exitArchiver()
     })
   }
-  console.log('Registerd exit signal listeners.')
+  Logger.mainLogger.debug('Registerd exit signal listeners.')
 }
 
 export function removeActiveArchiver(publicKey: string) {

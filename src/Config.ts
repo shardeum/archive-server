@@ -2,6 +2,7 @@ import { readFileSync } from 'fs'
 import merge = require('deepmerge')
 import minimist = require('minimist')
 import { ArchiverNodeInfo } from './State'
+import * as Logger from './Logger'
 
 export interface Config {
   [index: string]: object | string | number | boolean
@@ -67,8 +68,8 @@ export function overrideDefaultConfig(
               config[param] = parameterObj
             }
           } catch(e) {
-            console.log(e)
-            console.log('Unable to JSON parse', env[param])
+            Logger.mainLogger.error(e)
+            Logger.mainLogger.error('Unable to JSON parse', env[param])
           }
           break
         }
