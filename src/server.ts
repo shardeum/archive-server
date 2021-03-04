@@ -25,7 +25,7 @@ const args = process.argv
 
 async function start() {
   overrideDefaultConfig(file, env, args)
-
+ 
   // Set crypto hash key from config
   Crypto.setCryptoHashKey(config.ARCHIVER_HASH_KEY)
 
@@ -41,7 +41,6 @@ async function start() {
   const baseDir = '.'
   logsConfig.dir = logDir
   Logger.initLogger(baseDir, logsConfig)
-
   // Initialize storage
   await Storage.initStorage(config)
 
@@ -176,7 +175,15 @@ function startServer() {
 
     // [TODO] req type guard
     // [TODO] Verify req signature
-
+    try {
+        const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
+        if (!isSignatureValid) {
+            Logger.mainLogger.error("Invalid signature", signedFirstNodeInfo)
+            return
+        }
+    } catch(e) {
+        Logger.mainLogger.error(e)
+    }
     const ip = signedFirstNodeInfo.nodeInfo.externalIp
     const port = signedFirstNodeInfo.nodeInfo.externalPort
     const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
