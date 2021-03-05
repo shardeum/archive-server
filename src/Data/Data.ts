@@ -326,7 +326,7 @@ export function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicK
     ),
     dataRequestStateMetaData: createDataRequest<StateMetaData>(
       TypeNames.STATE_METADATA,
-      lastProcessedMetaData, // TODO: this is a bug
+      lastProcessedMetaData,
       publicKey
     )
   }
@@ -416,7 +416,6 @@ export function sendDataRequest(
   sender: DataSender,
   dataRequest: any
 ) {
-  // TODO: crypto.tag cannot handle array type. To change something else
   const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey)
   emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
 }
@@ -574,7 +573,6 @@ async function sendDataQuery(
   dataQuery: any,
   validateFn: any
 ) {
-  // TODO: crypto.tag cannot handle array type. To change something else
   const taggedDataQuery = Crypto.tag(dataQuery, consensorNode.publicKey)
   let result = await queryDataFromNode(consensorNode, taggedDataQuery, validateFn)
   return result
@@ -1242,9 +1240,9 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
   for (let i = 0; i < downloadedArchivedCycles.length; i++) {
     let marker = downloadedArchivedCycles[i].cycleRecord.marker
     let counter = downloadedArchivedCycles[i].cycleRecord.counter
-    let foundArchiveCycle = downloadedArchivedCycles[i]
+    let downloadedArchivedCycle = downloadedArchivedCycles[i]
 
-    if (!foundArchiveCycle) {
+    if (!downloadedArchivedCycle) {
       Logger.mainLogger.debug('Unable to download archivedCycle for counter', counter)
       continue
     }
@@ -1254,40 +1252,43 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
     let isSummarySynced = false
   
     // Check and store data hashes
-    if (foundArchiveCycle.data) {
-      let downloadedNetworkDataHash = foundArchiveCycle.data.networkHash
+    if (downloadedArchivedCycle.data) {
+      let downloadedNetworkDataHash = downloadedArchivedCycle.data.networkHash
       if (downloadedNetworkDataHash === networkDataHashesFromRecords.get(counter)) {
-        await Storage.updateArchivedCycle(marker, 'data', foundArchiveCycle.data)
+        await Storage.updateArchivedCycle(marker, 'data', downloadedArchivedCycle.data)
         isDataSynced = true
       } else {
         Logger.mainLogger.error('different network data hash  for cycle', counter)
       }
     } else {
-      Logger.mainLogger.error(`ArchivedCycle ${foundArchiveCycle.cycleRecord.counter}, ${foundArchiveCycle.cycleMarker} does not have data field`)
+      Logger.mainLogger.error(`ArchivedCycle ${downloadedArchivedCycle.cycleRecord.counter}, ${downloadedArchivedCycle.cycleMarker} does not have data field`)
     }
 
     // Check and store receipt hashes + receiptMap
-    if (foundArchiveCycle.receipt) {
+    if (downloadedArchivedCycle.receipt) {
       // TODO: calcuate the network hash by hashing downloaded receipt Map instead of using downloadedNetworkReceiptHash
-      let downloadedNetworkReceiptHash = foundArchiveCycle.receipt.networkHash
+      let downloadedNetworkReceiptHash = downloadedArchivedCycle.receipt.networkHash
+      let actualHash = Crypto.hashObj(downloadedArchivedCycle.receipt.partitionHashes)
+      console.log("actualHash", actualHash)
+      console.log("networkReceiptHashesFromRecords", networkReceiptHashesFromRecords.get(counter))
       if (downloadedNetworkReceiptHash === networkReceiptHashesFromRecords.get(counter)) {
-        await Storage.updateArchivedCycle(marker, 'receipt', foundArchiveCycle.receipt)
+        await Storage.updateArchivedCycle(marker, 'receipt', downloadedArchivedCycle.receipt)
         isReceiptSynced = true
       }
     } else {
-      Logger.mainLogger.error(`ArchivedCycle ${foundArchiveCycle.cycleRecord.counter}, ${foundArchiveCycle.cycleMarker} does not have receipt field`)
+      Logger.mainLogger.error(`ArchivedCycle ${downloadedArchivedCycle.cycleRecord.counter}, ${downloadedArchivedCycle.cycleMarker} does not have receipt field`)
     }
 
     // Check and store summary hashes
-    if (foundArchiveCycle.summary) {
+    if (downloadedArchivedCycle.summary) {
       // TODO: calcuate the network hash by hashing downloaded summary Blobs instead of using downloadedNetworkSummaryHash
-      let downloadedNetworkSummaryHash = foundArchiveCycle.summary.networkHash
+      let downloadedNetworkSummaryHash = downloadedArchivedCycle.summary.networkHash
       if (downloadedNetworkSummaryHash === networkSummaryHashesFromRecords.get(counter)) {
-        await Storage.updateArchivedCycle(marker, 'summary', foundArchiveCycle.summary)
+        await Storage.updateArchivedCycle(marker, 'summary', downloadedArchivedCycle.summary)
         isSummarySynced = true
       }
     } else {
-      Logger.mainLogger.error(`ArchivedCycle ${foundArchiveCycle.cycleRecord.counter}, ${foundArchiveCycle.cycleMarker} does not have summary field`)
+      Logger.mainLogger.error(`ArchivedCycle ${downloadedArchivedCycle.cycleRecord.counter}, ${downloadedArchivedCycle.cycleMarker} does not have summary field`)
     }
     if (isDataSynced && isReceiptSynced && isSummarySynced) {
       Logger.mainLogger.debug(`Successfully synced statemetadata for counter ${counter}`)
