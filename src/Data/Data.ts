@@ -166,7 +166,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
     }
 
     // If tag is invalid, dont keepAlive, END
-    if (Crypto.authenticate(newData) === false) {
+    if (Crypto.authenticate(newData, newData.publicKey) === false) {
       Logger.mainLogger.debug('This data cannot be authenticated')
       unsubscribeDataSender()
       return
@@ -303,7 +303,9 @@ export function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicK
       P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
       lastProcessedMetaData,
       publicKey
-    )
+    ),
+    publicKey: State.getNodeInfo().publicKey,
+    nodeInfo: State.getNodeInfo()
   }
   sendDataRequest(newSender, dataRequest)
 }
@@ -391,7 +393,9 @@ export function sendDataRequest(
   sender: DataSender,
   dataRequest: any
 ) {
-  const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey)
+  Logger.mainLogger.debug("Tagging with receiver's curve public key", dataRequest, sender.nodeInfo.publicKey, typeof sender.nodeInfo.publicKey)
+  const taggedDataRequest = Crypto.tag(dataRequest,  sender.nodeInfo.publicKey)
+  Logger.mainLogger.debug("tagged data", JSON.stringify(taggedDataRequest))
   emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
 }
 
@@ -1433,16 +1437,17 @@ emitter.on(
   'selectNewDataSender',
   async (
     newSenderInfo: NodeList.ConsensusNodeInfo,
-    dataRequest: any
+    taggedDataRequest: any
   ) => {
-    let request = {
-      ...dataRequest,
-      nodeInfo: State.getNodeInfo()
-    }
+    //let request = {
+      //...dataRequest,
+      //nodeInfo: State.getNodeInfo()
+    //}
     let response = await P2P.postJson(
       `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
-      request
+      taggedDataRequest
     )
+    Logger.mainLogger.debug("/requestdata response", response)
   }
 )
 
