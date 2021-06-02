@@ -166,7 +166,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
     }
 
     // If tag is invalid, dont keepAlive, END
-    if (Crypto.authenticate(newData, newData.publicKey) === false) {
+    if (Crypto.authenticate(newData) === false) {
       Logger.mainLogger.debug('This data cannot be authenticated')
       unsubscribeDataSender()
       return

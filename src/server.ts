@@ -122,6 +122,7 @@ async function syncAndStartServer() {
       Cycles.lastProcessedMetaData,
       randomConsensor.publicKey
     ),
+    nodeInfo: State.getNodeInfo()
   })
   const newSender: Data.DataSender = {
     nodeInfo: randomConsensor,
