@@ -21,53 +21,24 @@ import {
   lastProcessedMetaData,
   validateCycle
 } from './Cycles'
-import { StateHashes } from './State'
-import { ReceiptHashes } from './Receipt'
-import { SummaryHashes } from './Summary'
 import { BaseModel } from 'tydb'
+import { P2P as P2PTypes, StateManager } from 'shardus-types'
 import * as Logger from '../Logger'
 
 // Socket modules
 export let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic["Socket"]
-export interface StateMetaData {
-  counter: Cycle['counter']
-  stateHashes: StateHashes[],
-  receiptHashes: ReceiptHashes[],
-  summaryHashes: SummaryHashes[]
-}
-// Data types
-
-export type ValidTypes = Cycle | StateMetaData
-
-export enum TypeNames {
-  CYCLE = 'CYCLE',
-  STATE_METADATA = 'STATE_METADATA'
-}
-
-interface NamesToTypes {
-  CYCLE: Cycle
-  STATE_METADATA: StateMetaData
-}
-
-export type TypeName<T extends ValidTypes> = T extends Cycle
-  ? TypeNames.CYCLE
-  : TypeNames.STATE_METADATA
-
-export type TypeIndex<T extends ValidTypes> = T extends Cycle
-  ? Cycle['counter']
-  : StateMetaData['counter']
 
 // Data network messages
 
-export interface DataRequest<T extends ValidTypes> {
-  type: TypeName<T>
-  lastData: TypeIndex<T>
+export interface DataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes> {
+  type: P2PTypes.SnapshotTypes.TypeName<T>
+  lastData: P2PTypes.SnapshotTypes.TypeIndex<T>
 }
 
-interface DataResponse<T extends ValidTypes> {
-  type: TypeName<T>
+interface DataResponse<T extends P2PTypes.SnapshotTypes.ValidTypes> {
+  type: P2PTypes.SnapshotTypes.TypeName<T>
   data: T[]
 }
 
@@ -114,6 +85,10 @@ export type StatsClump = {
 export interface ReceiptMapQueryResponse {
   success: boolean
   data: { [key: number]: ReceiptMapResult[]}
+}
+export interface StatsClumpQueryResponse {
+  success: boolean
+  data: { [key: number]: StatsClump[]}
 }
 export interface SummaryBlobQueryResponse {
   success: boolean
@@ -183,7 +158,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   })
 
 
-  socketClient.on('DATA', (newData: any) => {
+  socketClient.on('DATA', (newData : DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage ) => {
     if (!newData || !newData.responses) return
     if (newData.recipient !== State.getNodeInfo().publicKey) {
       Logger.mainLogger.debug('This data is not meant for this archiver')
@@ -220,7 +195,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
 
     // If unexpected data type from sender, dont keepAlive, END
     const newDataTypes = Object.keys(newData.responses)
-    for (const type of newDataTypes as (keyof typeof TypeNames)[]) {
+    for (const type of newDataTypes as (keyof typeof P2PTypes.SnapshotTypes.TypeNames)[]) {
       if (sender.types.includes(type) === false) {
         Logger.mainLogger.debug(
           `NEW DATA type ${type} not included in sender's types: ${JSON.stringify(
@@ -234,9 +209,9 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   })
 }
 
-export function createDataRequest<T extends ValidTypes>(
-  type: TypeName<T>,
-  lastData: TypeIndex<T>,
+export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
+  type: P2PTypes.SnapshotTypes.TypeName<T>,
+  lastData: P2PTypes.SnapshotTypes.TypeIndex<T>,
   recipientPk: Crypto.types.publicKey
 ) {
   return Crypto.tag<DataRequest<T>>(
@@ -248,7 +223,7 @@ export function createDataRequest<T extends ValidTypes>(
   )
 }
 
-export function createQueryRequest<T extends ValidTypes>(
+export function createQueryRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
   type: string,
   lastData: number,
   recipientPk: Crypto.types.publicKey
@@ -265,7 +240,7 @@ export function createQueryRequest<T extends ValidTypes>(
 
 export interface DataSender {
   nodeInfo: NodeList.ConsensusNodeInfo
-  types: (keyof typeof TypeNames)[]
+  types: (keyof typeof P2PTypes.SnapshotTypes.TypeNames)[]
   contactTimeout?: NodeJS.Timeout | null
   replaceTimeout?: NodeJS.Timeout | null
 }
@@ -306,7 +281,7 @@ export function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicK
   }
   const newSender: DataSender = {
     nodeInfo: newSenderInfo,
-    types: [TypeNames.CYCLE, TypeNames.STATE_METADATA],
+    types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
     contactTimeout: createContactTimeout(newSenderInfo.publicKey, "This timeout is created during newSender selection", 2 * currentCycleDuration),
     replaceTimeout: createReplaceTimeout(newSenderInfo.publicKey),
   }
@@ -320,12 +295,12 @@ export function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicK
   // Send dataRequest to new dataSender
   const dataRequest = {
     dataRequestCycle: createDataRequest<Cycle>(
-      TypeNames.CYCLE,
+      P2PTypes.SnapshotTypes.TypeNames.CYCLE,
       currentCycleCounter,
       publicKey
     ),
-    dataRequestStateMetaData: createDataRequest<StateMetaData>(
-      TypeNames.STATE_METADATA,
+    dataRequestStateMetaData: createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
+      P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
       lastProcessedMetaData,
       publicKey
     )
@@ -578,7 +553,7 @@ async function sendDataQuery(
   return result
 }
 
-async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMessage) {
+async function processData(newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage) {
   // Get sender entry
   const sender = dataSenders.get(newData.publicKey)
 
@@ -599,11 +574,11 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
   }
 
   const newDataTypes = Object.keys(newData.responses)
-  for (const type of newDataTypes as (keyof typeof TypeNames)[]) {
+  for (const type of newDataTypes as (keyof typeof P2PTypes.SnapshotTypes.TypeNames)[]) {
 
     // Process data depending on type
     switch (type) {
-      case TypeNames.CYCLE: {
+      case P2PTypes.SnapshotTypes.TypeNames.CYCLE: {
         Logger.mainLogger.debug('Processing CYCLE data')
         processCycles(newData.responses.CYCLE as Cycle[])
         socketServer.emit('ARCHIVED_CYCLE', 'CYCLE')
@@ -620,7 +595,7 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
         }
         break
       }
-      case TypeNames.STATE_METADATA: {
+      case P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA: {
         Logger.mainLogger.debug('Processing STATE_METADATA')
         processStateMetaData(newData.responses.STATE_METADATA)
         break
@@ -639,7 +614,7 @@ async function processData(newData: DataResponse<ValidTypes> & Crypto.TaggedMess
   }
 }
 
-export async function processStateMetaData (STATE_METADATA: any) {
+export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTypes.StateMetaData[]) {
   if (!STATE_METADATA) {
     Logger.mainLogger.error(
       'Invalid STATE_METADATA provided to processStateMetaData function',
@@ -652,7 +627,7 @@ export async function processStateMetaData (STATE_METADATA: any) {
     // [TODO] validate the state data by robust querying other nodes
 
     // store state hashes to archivedCycle
-    stateMetaData.stateHashes.forEach(async (stateHashesForCycle: any) => {
+    stateMetaData.stateHashes.forEach(async (stateHashesForCycle: P2PTypes.SnapshotTypes.StateHashes) => {
       let parentCycle = Cycles.CycleChain.get(stateHashesForCycle.counter)
       if (!parentCycle) {
         Logger.mainLogger.error(
@@ -671,7 +646,7 @@ export async function processStateMetaData (STATE_METADATA: any) {
     })
 
     // store receipt hashes to archivedCycle
-    stateMetaData.receiptHashes.forEach(async (receiptHashesForCycle: any) => {
+    stateMetaData.receiptHashes.forEach(async (receiptHashesForCycle: P2PTypes.SnapshotTypes.ReceiptHashes) => {
       let parentCycle = Cycles.CycleChain.get(receiptHashesForCycle.counter)
       if (!parentCycle) {
         Logger.mainLogger.error(
@@ -752,7 +727,7 @@ export async function processStateMetaData (STATE_METADATA: any) {
     })
 
     // store summary hashes to archivedCycle
-    stateMetaData.summaryHashes.forEach(async (summaryHashesForCycle: any) => {
+    stateMetaData.summaryHashes.forEach(async (summaryHashesForCycle: P2PTypes.SnapshotTypes.SummaryHashes) => {
       let parentCycle = Cycles.CycleChain.get(summaryHashesForCycle.counter)
       if (!parentCycle) {
         Logger.mainLogger.error(
@@ -1301,6 +1276,8 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
   return false
 }
 
+export type QueryDataResponse = ReceiptMapQueryResponse | StatsClumpQueryResponse
+
 async function queryDataFromNode (
   consensorNode: NodeList.ConsensusNodeInfo,
   dataQuery: any,
@@ -1315,10 +1292,11 @@ async function queryDataFromNode (
     let response = await P2P.postJson(
       `http://${consensorNode.ip}:${consensorNode.port}/querydata`,
       request
-    )
+    ) as QueryDataResponse
     if (response && request.type === 'RECEIPT_MAP') {
+      let receiptMapData = response.data as ReceiptMapQueryResponse['data']
       for (let counter in response.data) {
-        result = await validateAndStoreReceiptMaps(response.data, validateFn)
+        result = await validateAndStoreReceiptMaps(receiptMapData, validateFn)
       }
     } else if (response && request.type === 'SUMMARY_BLOB') {
       for (let counter in response.data) {

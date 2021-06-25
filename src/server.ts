@@ -13,7 +13,7 @@ import * as Cycles from './Data/Cycles'
 import * as Utils from './Utils'
 import { sendGossip, addHashesGossip } from './Data/Gossip'
 import * as Logger from './Logger'
-
+import { P2P as P2PTypes } from 'shardus-types'
 
 // Socket modules
 let io: SocketIO.Server
@@ -25,7 +25,7 @@ const args = process.argv
 
 async function start() {
   overrideDefaultConfig(file, env, args)
- 
+
   // Set crypto hash key from config
   Crypto.setCryptoHashKey(config.ARCHIVER_HASH_KEY)
 
@@ -85,7 +85,6 @@ async function syncAndStartServer() {
     firstTime = false
   } while (!isJoined)
 
-
   /**
    * [NOTE] [AS] There's a possibility that we could get stuck in this loop
    * if the joinRequest was sent in the wrong cycle quarter (Q2, Q3, or Q4).
@@ -100,14 +99,12 @@ async function syncAndStartServer() {
   await Data.syncCyclesAndNodeList(State.activeArchivers)
 
   // Sync all state metadata until no older data is fetched from other archivers
-  await Data.syncStateMetaData(
-    State.activeArchivers
-  )
+  await Data.syncStateMetaData(State.activeArchivers)
   // Set randomly selected consensors as dataSender
   let randomConsensor = NodeList.getRandomActiveNode()
   Data.addDataSenders({
     nodeInfo: randomConsensor,
-    types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
+    types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
   })
 
   // wait for one cycle before sending data request
@@ -116,19 +113,19 @@ async function syncAndStartServer() {
   // After we've joined, select a consensus node as a dataSender
   const dataRequest = Crypto.sign({
     dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
-      Data.TypeNames.CYCLE,
+      P2PTypes.SnapshotTypes.TypeNames.CYCLE,
       Cycles.getCurrentCycleCounter(),
       randomConsensor.publicKey
     ),
-    dataRequestStateMetaData: Data.createDataRequest<Data.StateMetaData>(
-      Data.TypeNames.STATE_METADATA,
+    dataRequestStateMetaData: Data.createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
+      P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
       Cycles.lastProcessedMetaData,
       randomConsensor.publicKey
     ),
   })
   const newSender: Data.DataSender = {
     nodeInfo: randomConsensor,
-    types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
+    types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
     contactTimeout: Data.createContactTimeout(randomConsensor.publicKey),
     replaceTimeout: Data.createReplaceTimeout(randomConsensor.publicKey),
   }
@@ -176,13 +173,13 @@ function startServer() {
     // [TODO] req type guard
     // [TODO] Verify req signature
     try {
-        const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
-        if (!isSignatureValid) {
-            Logger.mainLogger.error("Invalid signature", signedFirstNodeInfo)
-            return
-        }
-    } catch(e) {
-        Logger.mainLogger.error(e)
+      const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
+      if (!isSignatureValid) {
+        Logger.mainLogger.error('Invalid signature', signedFirstNodeInfo)
+        return
+      }
+    } catch (e) {
+      Logger.mainLogger.error(e)
     }
     const ip = signedFirstNodeInfo.nodeInfo.externalIp
     const port = signedFirstNodeInfo.nodeInfo.externalPort
@@ -202,7 +199,7 @@ function startServer() {
       // Set first node as dataSender
       Data.addDataSenders({
         nodeInfo: firstNode,
-        types: [Data.TypeNames.CYCLE, Data.TypeNames.STATE_METADATA],
+        types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
         replaceTimeout: Data.createReplaceTimeout(firstNode.publicKey),
       })
 
@@ -210,12 +207,12 @@ function startServer() {
         nodeList: NodeList.getList(),
         joinRequest: P2P.createArchiverJoinRequest(),
         dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
-          Data.TypeNames.CYCLE,
+          P2PTypes.SnapshotTypes.TypeNames.CYCLE,
           Cycles.currentCycleCounter,
           publicKey
         ),
-        dataRequestStateMetaData: Data.createDataRequest<Data.StateMetaData>(
-          Data.TypeNames.STATE_METADATA,
+        dataRequestStateMetaData: Data.createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
+          P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
           Cycles.lastProcessedMetaData,
           publicKey
         ),

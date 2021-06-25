@@ -6,6 +6,7 @@ import * as Data from './Data/Data'
 import * as Utils from './Utils'
 import { isDeepStrictEqual } from 'util'
 import * as Logger from './Logger'
+import { P2P as P2PTypes } from 'shardus-types'
 
 // TYPES
 

@@ -54,6 +54,7 @@
     "minimist": "^1.2.0",
     "node-fetch": "^2.6.0",
     "shardus-crypto-utils": "git+https://gitlab.com/shardus/shardus-crypto-utils.git",
+    "shardus-types": "git+https://gitlab.com/shardus/shardus-types.git#semver:^1.0.0",
     "socket.io": "^2.3.0",
     "socket.io-client": "^2.3.0",
     "sqlite3": "^5.0.0",
