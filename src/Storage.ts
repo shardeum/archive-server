@@ -2,10 +2,11 @@ import { Cycle, CycleChain } from './Data/Cycles'
 import { Config } from './Config'
 import * as Data from './Data/Data'
 import knex = require('knex')
-import { DataQueryResponse, ReceiptMapResult, socketServer, SummaryBlob } from './Data/Data'
+import { socketServer } from './Data/Data'
 import { Database, BaseModel, FS_Persistence_Adapter } from 'tydb'
 import * as Crypto from './Crypto'
 import * as Logger from './Logger'
+import { StateManager } from 'shardus-types'
 
 export let Collection: any
 
@@ -43,7 +44,7 @@ export async function insertArchivedCycle(archivedCycle: any) {
 }
 
 export async function updateReceiptMap (
-  receiptMapResult: Data.ReceiptMapResult
+  receiptMapResult: StateManager.StateManagerTypes.ReceiptMapResult
 ) {
   if (!receiptMapResult) return
   try {
@@ -99,7 +100,7 @@ export async function updateReceiptMap (
 }
 
 export async function updateSummaryBlob (
-  summaryBlob: SummaryBlob,
+  summaryBlob: StateManager.StateManagerTypes.SummaryBlob,
   cycle: number
 ) {
   if (!summaryBlob) return

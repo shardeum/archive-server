@@ -46,87 +46,29 @@ interface DataKeepAlive {
   keepAlive: boolean
 }
 
-export type ReceiptMap = {[txId:string] : string[]  }
-
-export type ReceiptMapResult = {
-  cycle:number;
-  partition:number;
-  receiptMap:ReceiptMap;
-  txCount:number
-}
-
-type OpaqueBlob = any
-
-export type SummaryBlob = {
-  latestCycle: number; //The highest cycle that was used in this summary.  
-  counter:number; 
-  errorNull:number; 
-  partition:number; 
-  opaqueBlob:OpaqueBlob;
-}
-
-//A collection of blobs that share the same cycle.  For TX summaries
-type SummaryBlobCollection = {
-  cycle:number; 
-  blobsByPartition:Map<number, SummaryBlob>;
-}
-
-// Stats collected for a cycle
-export type StatsClump = {
-  error:boolean; 
-  cycle:number; 
-  dataStats:SummaryBlob[]; 
-  txStats:SummaryBlob[]; 
-  covered:number[];
-  coveredParititionCount:number;
-  skippedParitionCount:number; 
-}
-
 export interface ReceiptMapQueryResponse {
   success: boolean
-  data: { [key: number]: ReceiptMapResult[]}
+  data: { [key: number]: StateManager.StateManagerTypes.ReceiptMapResult[]}
 }
 export interface StatsClumpQueryResponse {
   success: boolean
-  data: { [key: number]: StatsClump[]}
+  data: { [key: number]: StateManager.StateManagerTypes.StatsClump}
 }
 export interface SummaryBlobQueryResponse {
   success: boolean
-  data: { [key: number]: SummaryBlob[]}
+  data: { [key: number]: StateManager.StateManagerTypes.SummaryBlob[]}
 }
 export interface DataQueryResponse {
   success: boolean
   data: any
 }
-type CycleMarker = string
-
-type StateData = {
-  parentCycle?: CycleMarker
-  networkHash?: string
-  partitionHashes?: string[]
-}
-
-type Receipt = {
-  parentCycle?: CycleMarker
-  networkHash?: string
-  partitionHashes?: string[]
-  partitionMaps?: { [partition: number]: ReceiptMapResult }
-  partitionTxs?: { [partition: number]: any }
-}
-
-type Summary = {
-  parentCycle?: CycleMarker
-  networkHash?: string
-  partitionHashes?: string[]
-  partitionBlobs?: { [partition: number]: SummaryBlob }
-}
 
 export class ArchivedCycle extends BaseModel {
   cycleRecord!: Cycle
-  cycleMarker!: CycleMarker
-  data!: StateData
-  receipt!: Receipt
-  summary!: Summary
+  cycleMarker!: StateManager.StateMetaDataTypes.CycleMarker
+  data!: StateManager.StateMetaDataTypes.StateData
+  receipt!: StateManager.StateMetaDataTypes.Receipt
+  summary!: StateManager.StateMetaDataTypes.Summary
 }
 
 export let StateMetaDataMap = new Map()
@@ -1304,7 +1246,8 @@ async function queryDataFromNode (
       }
     } else if (response && request.type === 'SUMMARY_BLOB') {
       for (let counter in response.data) {
-        result = await validateAndStoreSummaryBlobs(Object.values(response.data), validateFn)
+        let summaryBlobData = response.data as StatsClumpQueryResponse['data']
+        result = await validateAndStoreSummaryBlobs(Object.values(summaryBlobData), validateFn)
       }
     }
     return result
@@ -1316,14 +1259,14 @@ async function queryDataFromNode (
 }
 
 async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
-  [key: number]: ReceiptMapResult[]
+  [key: number]: StateManager.StateManagerTypes.ReceiptMapResult[]
 }, validateFn: any) {
   let completed: number[] = []
   let failed: number[] = []
   let coveredPartitions: number[] = []
   let receiptMaps: any = {}
   for (let counter in receiptMapResultsForCycles) {
-    let receiptMapResults: ReceiptMapResult[] =
+    let receiptMapResults: StateManager.StateManagerTypes.ReceiptMapResult[] =
       receiptMapResultsForCycles[counter]
     for (let partitionBlock of receiptMapResults) {
       let { partition } = partitionBlock
@@ -1360,7 +1303,7 @@ async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
 }
 
 async function validateAndStoreSummaryBlobs (
-  statsClumpForCycles: StatsClump[],
+  statsClumpForCycles: StateManager.StateManagerTypes.StatsClump[],
   validateFn: any
 ) {
   let completed: number[] = []
