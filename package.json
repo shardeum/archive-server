@@ -21,7 +21,8 @@
     "pretest": "npm run compile",
     "posttest": "npm run check",
     "update-docker": "docker build -t registry.gitlab.com/shardus/archive/archive-server . && docker push registry.gitlab.com/shardus/archive/archive-server",
-    "update-schemas": "typescript-json-schema tsconfig.json NewData -o src/Data/schemas/NewData.json & typescript-json-schema tsconfig.json DataResponse -o src/Data/schemas/DataResponse.json"
+    "update-schemas": "typescript-json-schema tsconfig.json NewData -o src/Data/schemas/NewData.json & typescript-json-schema tsconfig.json DataResponse -o src/Data/schemas/DataResponse.json",
+    "scrub": "rimraf ./archiver-db ./archiver-db.idx.db ./archiver-logs"
   },
   "repository": {
     "type": "git",
@@ -39,6 +40,7 @@
     "@types/socket.io": "^2.1.11",
     "@types/socket.io-client": "^1.4.33",
     "gts": "^2.0.0",
+    "rimraf": "^3.0.2",
     "typescript": "~3.5.0",
     "typescript-json-schema": "^0.41.0"
   },
