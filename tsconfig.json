@@ -4,8 +4,7 @@
     "rootDir": "src",
     "outDir": "build",
     "resolveJsonModule": true,
-    "skipLibCheck": true,
-    // "esModuleInterop": true
+    "skipLibCheck": true
   },
   "exclude": ["build"]
 }
