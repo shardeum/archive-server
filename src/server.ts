@@ -14,6 +14,8 @@ import * as Utils from './Utils'
 import { sendGossip, addHashesGossip } from './Data/Gossip'
 import * as Logger from './Logger'
 import { P2P as P2PTypes } from 'shardus-types'
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
 
 // Socket modules
 let io: SocketIO.Server
@@ -36,7 +38,9 @@ async function start() {
     config.ARCHIVER_SECRET_KEY = keypair.secretKey
   }
 
-  const logsConfig = require('../archiver-log.json')
+  const logsConfig = JSON.parse(
+    readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8')
+  )
   const logDir = `archiver-logs/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
   const baseDir = '.'
   logsConfig.dir = logDir
@@ -104,7 +108,10 @@ async function syncAndStartServer() {
   let randomConsensor = NodeList.getRandomActiveNode()
   Data.addDataSenders({
     nodeInfo: randomConsensor,
-    types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
+    types: [
+      P2PTypes.SnapshotTypes.TypeNames.CYCLE,
+      P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
+    ],
   })
 
   // wait for one cycle before sending data request
@@ -122,11 +129,14 @@ async function syncAndStartServer() {
       Cycles.lastProcessedMetaData,
       randomConsensor.publicKey
     ),
-    nodeInfo: State.getNodeInfo()
+    nodeInfo: State.getNodeInfo(),
   })
   const newSender: Data.DataSender = {
     nodeInfo: randomConsensor,
-    types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
+    types: [
+      P2PTypes.SnapshotTypes.TypeNames.CYCLE,
+      P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
+    ],
     contactTimeout: Data.createContactTimeout(randomConsensor.publicKey),
     replaceTimeout: Data.createReplaceTimeout(randomConsensor.publicKey),
   }
@@ -200,7 +210,10 @@ function startServer() {
       // Set first node as dataSender
       Data.addDataSenders({
         nodeInfo: firstNode,
-        types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
+        types: [
+          P2PTypes.SnapshotTypes.TypeNames.CYCLE,
+          P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
+        ],
         replaceTimeout: Data.createReplaceTimeout(firstNode.publicKey),
       })
 
