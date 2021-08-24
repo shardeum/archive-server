@@ -588,7 +588,7 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
         partitionHashes: stateHashesForCycle.partitionHashes,
       }
       await Storage.updateArchivedCycle(data.parentCycle, 'data', data)
-      Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
+      // Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
     })
 
     // store receipt hashes to archivedCycle
@@ -609,7 +609,7 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
         partitionTxs: {},
       }
       await Storage.updateArchivedCycle(receipt.parentCycle, 'receipt', receipt)
-      Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
+      // Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
 
       // Query receipt maps from other nodes and store it
       if (receiptHashesForCycle.receiptMapHashes) {
@@ -647,7 +647,7 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
           }
           isDownloadSuccess = failedPartitions.size === 0 && coveredPartitions.size === NodeList.getActiveList().length
           if (isDownloadSuccess) {
-            Logger.mainLogger.debug('Data query for receipt map is completed')
+            Logger.mainLogger.debug('Data query for receipt map is completed for cycle', parentCycle.counter, receiptHashesForCycle.counter - 1)
             Logger.mainLogger.debug('Total downloaded receipts', downloadedReceiptMaps.size)
             let receiptMapsToForward = []
             for (let [partition, receiptMap] of downloadedReceiptMaps) {
@@ -668,6 +668,7 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
         }
         if (!isDownloadSuccess) {
           Logger.mainLogger.debug(`Downloading receipt map for cycle ${parentCycle.counter} has failed.`)
+          Logger.mainLogger.debug(`There are ${failedPartitions.size} failed partitions in cycle ${parentCycle.counter}.`)
         }
       }  
     })
@@ -727,7 +728,7 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
           }
           isDownloadSuccess = failedPartitions.size === 0 && coveredPartitions.size === 32
           if (isDownloadSuccess) {
-            Logger.mainLogger.debug('Data query for summary blob is completed')
+            Logger.mainLogger.debug('Data query for summary blob is completed for cycle', parentCycle.counter)
             Logger.mainLogger.debug('Total downloaded blobs', downloadedBlobs.size)
             let blobsToForward = []
             for (let [partition, blob] of downloadedBlobs) {
@@ -746,6 +747,7 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
         }
         if (!isDownloadSuccess) {
           Logger.mainLogger.debug(`Downloading summary blob for cycle ${parentCycle.counter} has failed.`)
+          Logger.mainLogger.debug(`There are ${failedPartitions.size} failed partitions in cycle ${parentCycle.counter}.`)
         }
       }      
     })
@@ -1241,14 +1243,14 @@ async function queryDataFromNode (
     ) as QueryDataResponse
     if (response && request.type === 'RECEIPT_MAP') {
       let receiptMapData = response.data as ReceiptMapQueryResponse['data']
-      for (let counter in response.data) {
+      // for (let counter in response.data) {
         result = await validateAndStoreReceiptMaps(receiptMapData, validateFn)
-      }
+      // }
     } else if (response && request.type === 'SUMMARY_BLOB') {
-      for (let counter in response.data) {
+      // for (let counter in response.data) {
         let summaryBlobData = response.data as StatsClumpQueryResponse['data']
         result = await validateAndStoreSummaryBlobs(Object.values(summaryBlobData), validateFn)
-      }
+      // }
     }
     return result
   } catch(e) {
@@ -1288,7 +1290,7 @@ async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
         completed.push(partition)
         receiptMaps[partition] = partitionBlock
       } else {
-        Logger.mainLogger.error('Different hash while downloading receipt maps')
+        Logger.mainLogger.error(`Different hash while downloading receipt maps for counter ${counter}, partition ${partition}`)
         failed.push(partition)
       }
     }
