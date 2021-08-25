@@ -6,7 +6,8 @@
   "types": "./build/server.d.ts",
   "files": [
     "build/**/*",
-    "src/**/*"
+    "src/**/*",
+    "archiver-log.json"
   ],
   "bin": {
     "archive-server": "./build/server.js"
