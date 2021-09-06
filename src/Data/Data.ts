@@ -647,7 +647,7 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
           }
           isDownloadSuccess = failedPartitions.size === 0 && coveredPartitions.size === NodeList.getActiveList().length
           if (isDownloadSuccess) {
-            Logger.mainLogger.debug('Data query for receipt map is completed for cycle', parentCycle.counter, receiptHashesForCycle.counter - 1)
+            Logger.mainLogger.debug('Data query for receipt map is completed for cycle', parentCycle.counter)
             Logger.mainLogger.debug('Total downloaded receipts', downloadedReceiptMaps.size)
             let receiptMapsToForward = []
             for (let [partition, receiptMap] of downloadedReceiptMaps) {
@@ -701,8 +701,9 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
         let coveredPartitions = new Map()
         let downloadedBlobs = new Map()
 
-        let shouldProcessBlob = (partition: number) => {
-          if (failedPartitions.has(partition) || !coveredPartitions.has(partition)) return true
+        let shouldProcessBlob = (cycle: number,partition: number) => {
+          if (cycle === summaryHashesForCycle.counter - 1)
+            if (failedPartitions.has(partition) || !coveredPartitions.has(partition)) return true
           return false
         }
 
@@ -730,10 +731,10 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
           if (isDownloadSuccess) {
             Logger.mainLogger.debug('Data query for summary blob is completed for cycle', parentCycle.counter)
             Logger.mainLogger.debug('Total downloaded blobs', downloadedBlobs.size)
-            let blobsToForward = []
-            for (let [partition, blob] of downloadedBlobs) {
-              blobsToForward.push(blob)
-            }
+            // let blobsToForward = []
+            // for (let [partition, blob] of downloadedBlobs) {
+            //   blobsToForward.push(blob)
+            // }
             break
           }
 
@@ -1317,7 +1318,7 @@ async function validateAndStoreSummaryBlobs (
     let { cycle, dataStats, txStats, covered } = statsClump
     for (let partition of covered) {
       if (validateFn) {
-        let shouldProcess = validateFn(partition)
+        let shouldProcess = validateFn(cycle, partition)
         if (!shouldProcess) {
           continue
         }
