@@ -1,20 +1,25 @@
-import * as Storage from '../Storage'
 import * as NodeList from '../NodeList'
 import * as Crypto from '../Crypto'
-import { safeParse } from '../Utils'
 import * as State from '../State'
 import * as Logger from '../Logger'
-import { P2P } from 'shardus-types'
+import {P2P} from 'shardus-types'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
   marker: string
 }
 
+export interface LostNode {
+  counter: Cycle["counter"],
+  timestamp: number,
+  nodeInfo: NodeList.ConsensusNodeInfo
+}
+
 export let currentCycleDuration = 0
 export let currentCycleCounter = -1
 export let lastProcessedMetaData = -1
 export let CycleChain: Map<Cycle["counter"], any> = new Map()
+export let lostNodes: LostNode[] = []
 
 export function processCycles(cycles: Cycle[]) {
   for (const cycle of cycles) {
@@ -36,6 +41,12 @@ export function processCycles(cycles: Cycle[]) {
 
 export function getCurrentCycleCounter() {
   return currentCycleCounter
+}
+
+export function getLostNodes(from: number, to: number) {
+  return lostNodes.filter((node: LostNode) => {
+      return node.counter >= from && node.counter <= to
+  })
 }
 
 export function setCurrentCycleCounter(value: number) {
@@ -99,6 +110,16 @@ function updateNodeList(cycle: Cycle) {
     return keys
   }, [])
   NodeList.removeNodes(removedPks)
+
+  // add lost nodes to lostNodes collector
+  lost.forEach((id: string) => {
+      const nodeInfo = NodeList.getNodeInfoById(id)
+      lostNodes.push({
+          counter: cycle.counter,
+          timestamp: Date.now(),
+          nodeInfo,
+      })
+  })
 
   const lostPks = lost.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)

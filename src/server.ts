@@ -16,6 +16,7 @@ import * as Logger from './Logger'
 import { P2P as P2PTypes } from 'shardus-types'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
+import { Readable } from 'stream'
 
 // Socket modules
 let io: SocketIO.Server
@@ -303,6 +304,27 @@ function startServer() {
     reply.send(res)
   })
 
+  server.get('/lost', async (_request, reply) => {
+      let { start, end } = _request.query
+      if (!start) start = 0
+      if (!end) end = Cycles.currentCycleCounter
+
+      let from = parseInt(start)
+      let to = parseInt(end)
+      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+          reply.send(
+              Crypto.sign({ success: false, error: `Invalid start and end counters` })
+          )
+          return
+      }
+      let lostNodes = []
+      lostNodes = Cycles.getLostNodes(from, to)
+      const res = Crypto.sign({
+          lostNodes,
+      })
+      reply.send(res)
+  })
+
   server.get('/full-archive/:count', async (_request, reply) => {
     let err = Utils.validateTypes(_request.params, { count: 's' })
     if (err) {
@@ -342,9 +364,10 @@ function startServer() {
       return
     }
 
-    let { start, end } = _request.query
+    let { start, end, download } = _request.query
     let from = parseInt(start)
     let to = parseInt(end)
+    let isDownload: boolean = download === 'true'
 
     if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
       Logger.mainLogger.error(`Invalid start and end counters`)
@@ -355,10 +378,22 @@ function startServer() {
     }
     let cycleInfo = []
     cycleInfo = await Storage.queryCycleRecordsBetween(from, to)
-    const res = Crypto.sign({
-      cycleInfo,
-    })
-    reply.send(res)
+    if (isDownload) {
+        let dataInBuffer = Buffer.from(JSON.stringify(cycleInfo), "utf-8")
+        let dataInStream = Readable.from(dataInBuffer)
+        let filename = `cycle_records_from_${from}_to_${to}`
+
+        reply.headers({
+            'content-disposition': `attachment; filename="${filename}"`,
+            'content-type': 'application/octet-stream'
+        })
+        reply.send(dataInStream)
+    } else {
+        const res = Crypto.sign({
+            cycleInfo,
+        })
+        reply.send(res)
+    }
   })
 
   server.get('/cycleinfo/:count', async (_request, reply) => {
