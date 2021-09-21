@@ -358,13 +358,9 @@ function startServer() {
   })
 
   server.get('/cycleinfo', async (_request, reply) => {
-    let err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
-    if (err) {
-      reply.send(Crypto.sign({ success: false, error: err }))
-      return
-    }
-
     let { start, end, download } = _request.query
+    if (!start) start = 0
+    if (!end) end = Cycles.currentCycleCounter
     let from = parseInt(start)
     let to = parseInt(end)
     let isDownload: boolean = download === 'true'
