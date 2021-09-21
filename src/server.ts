@@ -17,8 +17,10 @@ import { P2P as P2PTypes } from 'shardus-types'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { Readable } from 'stream'
-import MemoryReporting from "./profiler/memoryReporting";
-import NestedCounters, { nestedCountersInstance } from "./profiler/nestedCounters";
+import MemoryReporting from './profiler/memoryReporting'
+import NestedCounters, {
+  nestedCountersInstance,
+} from './profiler/nestedCounters'
 import Profiler, { profilerInstance } from './profiler/profiler'
 
 // Socket modules
@@ -390,13 +392,14 @@ function startServer() {
     let cycleInfo = []
     cycleInfo = await Storage.queryCycleRecordsBetween(from, to)
     if (isDownload) {
-      let dataInBuffer = Buffer.from(JSON.stringify(cycleInfo), "utf-8")
+      let dataInBuffer = Buffer.from(JSON.stringify(cycleInfo), 'utf-8')
+      // @ts-ignore
       let dataInStream = Readable.from(dataInBuffer)
       let filename = `cycle_records_from_${from}_to_${to}`
 
       reply.headers({
         'content-disposition': `attachment; filename="${filename}"`,
-        'content-type': 'application/octet-stream'
+        'content-type': 'application/octet-stream',
       })
       reply.send(dataInStream)
     } else {
