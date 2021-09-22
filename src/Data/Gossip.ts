@@ -5,6 +5,7 @@ import * as State from '../State'
 import * as P2P from '../P2P'
 import { config, Config } from '../Config'
 import * as Logger from '../Logger'
+import { P2P as P2PTypes} from 'shardus-types'
 
 let gossipCollector = new Map()
 
@@ -139,12 +140,12 @@ function processGossip(counter: number) {
       gossipCounter[hashedGossip].count += 1
     }
   }
-  let gossipWithHighestCount: any
+  let gossipWithHighestCount: P2PTypes.SnapshotTypes.StateMetaData[] = []
   let highestCount = 0
   let hashWithHighestCounter: any
   for (let key in gossipCounter) {
     if (gossipCounter[key].count > highestCount) {
-      gossipWithHighestCount = gossipCounter[key].gossip
+      gossipWithHighestCount.push(gossipCounter[key].gossip)
       hashWithHighestCounter = key
       highestCount = gossipCounter[key].count 
     }
@@ -155,7 +156,7 @@ function processGossip(counter: number) {
     return
   }
   if (hashWithHighestCounter && hashWithHighestCounter !== Crypto.hashObj(ourHashes)) {
-    if (!gossipWithHighestCount) {
+    if (gossipWithHighestCount.length === 0) {
       return
     }
     Logger.mainLogger.error('our hash is different from other archivers hashes. Storing the correct hashes')

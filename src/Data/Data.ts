@@ -114,16 +114,16 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
       return
     }
 
-    if(newData.responses.STATE_METADATA.length > 0) Logger.mainLogger.debug('New STATEMETADATA', newData.responses.STATE_METADATA[0])
+    if(newData.responses.STATE_METADATA.length > 0) Logger.mainLogger.debug('New DATA', newData.responses)
     else Logger.mainLogger.debug('State metadata is empty')
 
     currentDataSender = newData.publicKey
     if (newData.responses && newData.responses.STATE_METADATA) {
       // Logger.mainLogger.debug('New DATA from consensor STATE_METADATA', newData.publicKey, newData.responses.STATE_METADATA)
-      let hashArray: any = Gossip.convertStateMetadataToHashArray(newData.responses.STATE_METADATA[0])
-      for (let stateMetadataHash of hashArray) {
-        StateMetaDataMap.set(stateMetadataHash.counter, stateMetadataHash)
-        Gossip.sendGossip('hashes', stateMetadataHash)
+      // let hashArray: any = Gossip.convertStateMetadataToHashArray(newData.responses.STATE_METADATA[0])
+      for (let stateMetadata of newData.responses.STATE_METADATA) {
+        StateMetaDataMap.set(stateMetadata.counter, stateMetadata)
+        Gossip.sendGossip('hashes', stateMetadata)
       }
     }
     
@@ -620,11 +620,12 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
         let coveredPartitions = new Map()
         let downloadedReceiptMaps = new Map()
 
-        let shouldProcessBlob = (partition: number) => {
-          if (failedPartitions.has(partition) || !coveredPartitions.has(partition)) return true
+        let shouldProcessReceipt = (cycle: number,partition: number) => {
+          if (cycle === receiptHashesForCycle.counter - 1)
+            if (failedPartitions.has(partition) || !coveredPartitions.has(partition)) return true
           return false
         }
-
+        const cycleActiveNodesSize = parentCycle.active + parentCycle.activated.length - parentCycle.removed.length;
         while(!isDownloadSuccess && sleepCount < 20) {
           let randomConsensor = NodeList.getRandomActiveNode()
           const queryRequest = createQueryRequest(
@@ -632,20 +633,22 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
             receiptHashesForCycle.counter - 1,
             randomConsensor.publicKey
           )
-          let { success, completed, failed, covered, blobs } = await sendDataQuery(randomConsensor, queryRequest, shouldProcessBlob)
-          for (let partition of failed) {
-            failedPartitions.set(partition, true)
+          let { success, completed, failed, covered, blobs } = await sendDataQuery(randomConsensor, queryRequest, shouldProcessReceipt)
+          if (success) {
+            for (let partition of failed) {
+              failedPartitions.set(partition, true)
+            }
+            for (let partition of completed) {
+              if(failedPartitions.has(partition)) failedPartitions.delete(partition)
+            }
+            for (let partition of covered) {
+              coveredPartitions.set(partition, true)
+            }
+            for (let partition in blobs) {
+              downloadedReceiptMaps.set(partition, blobs[partition])
+            }
           }
-          for (let partition of completed) {
-            if(failedPartitions.has(partition)) failedPartitions.delete(partition)
-          }
-          for (let partition of covered) {
-            coveredPartitions.set(partition, true)
-          }
-          for (let partition in blobs) {
-            downloadedReceiptMaps.set(partition, blobs[partition])
-          }
-          isDownloadSuccess = failedPartitions.size === 0 && coveredPartitions.size === NodeList.getActiveList().length
+          isDownloadSuccess = failedPartitions.size === 0 && coveredPartitions.size === cycleActiveNodesSize
           if (isDownloadSuccess) {
             Logger.mainLogger.debug('Data query for receipt map is completed for cycle', parentCycle.counter)
             Logger.mainLogger.debug('Total downloaded receipts', downloadedReceiptMaps.size)
@@ -715,17 +718,19 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
             randomConsensor.publicKey
           )
           let { success, completed, failed, covered, blobs } = await sendDataQuery(randomConsensor, queryRequest, shouldProcessBlob)
-          for (let partition of failed) {
-            failedPartitions.set(partition, true)
-          }
-          for (let partition of completed) {
-            if(failedPartitions.has(partition)) failedPartitions.delete(partition)
-          }
-          for (let partition of covered) {
-            coveredPartitions.set(partition, true)
-          }
-          for (let partition in blobs) {
-            downloadedBlobs.set(partition, blobs[partition])
+          if (success) {
+            for (let partition of failed) {
+              failedPartitions.set(partition, true)
+            }
+            for (let partition of completed) {
+              if(failedPartitions.has(partition)) failedPartitions.delete(partition)
+            }
+            for (let partition of covered) {
+              coveredPartitions.set(partition, true)
+            }
+            for (let partition in blobs) {
+              downloadedBlobs.set(partition, blobs[partition])
+            }
           }
           isDownloadSuccess = failedPartitions.size === 0 && coveredPartitions.size === 32
           if (isDownloadSuccess) {
@@ -1093,6 +1098,38 @@ export async function syncCyclesAndNodeList (activeArchivers: State.ArchiverNode
     Cycles.setCurrentCycleCounter(record.counter)
   }
   Logger.mainLogger.debug('Cycle chain is synced. Size of CycleChain', Cycles.CycleChain.size)
+
+  // Download old cycle Records
+  let endCycle = CycleChain[0].counter - 1;
+  if (endCycle > 0){
+    Logger.mainLogger.debug(`Downloading old cycles from cycles ${endCycle} to cycle 0!`)
+  }
+  let savedCycleRecord = CycleChain[0];
+  while (endCycle > 0) {
+    let nextEnd: number = endCycle - 10 // Downloading max 10 cycles each time
+    if (nextEnd < 0) nextEnd = 0;
+    Logger.mainLogger.debug(`Getting cycles ${endCycle} - ${nextEnd}...`)
+    const prevCycles = await fetchCycleRecords(activeArchivers, nextEnd, endCycle)
+
+    // If prevCycles is empty, start over
+    if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
+
+    // Add prevCycles to our cycle chain
+    for (const prevCycle of prevCycles) {
+      // Stop saving prevCycles if one of them is invalid
+      if (validateCycle(prevCycle, savedCycleRecord) === false) {
+        Logger.mainLogger.error(`Record ${prevCycle.counter} failed validation`)
+        Logger.mainLogger.debug('fail', prevCycle, savedCycleRecord)
+        break
+      }
+      savedCycleRecord = prevCycle;
+      Logger.mainLogger.debug('Inserting archived cycle for counter', prevCycle.counter)
+      const archivedCycle = createArchivedCycle(prevCycle)
+      await Storage.insertArchivedCycle(archivedCycle)
+    }
+    endCycle = nextEnd - 1
+  } 
+
   return true
 }
 
@@ -1177,12 +1214,16 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
   
     // Check and store data hashes
     if (downloadedArchivedCycle.data) {
-      let downloadedNetworkDataHash = downloadedArchivedCycle.data.networkHash
-      if (downloadedNetworkDataHash === networkDataHashesFromRecords.get(counter)) {
+      const downloadedNetworkDataHash = downloadedArchivedCycle.data.networkHash
+      const calculatedDataHash = calculateNetworkHash(downloadedArchivedCycle.data.partitionHashes)
+      if (downloadedNetworkDataHash === calculatedDataHash) {
+        if (downloadedNetworkDataHash !== networkDataHashesFromRecords.get(counter)) {
+          Logger.mainLogger.debug('Different with hash from downloaded Cycle Records', 'state data', counter)
+        } 
         await Storage.updateArchivedCycle(marker, 'data', downloadedArchivedCycle.data)
         isDataSynced = true
       } else {
-        Logger.mainLogger.error('different network data hash  for cycle', counter)
+        Logger.mainLogger.error('Different network data hash for cycle', counter)
       }
     } else {
       Logger.mainLogger.error(`ArchivedCycle ${downloadedArchivedCycle.cycleRecord.counter}, ${downloadedArchivedCycle.cycleMarker} does not have data field`)
@@ -1191,13 +1232,16 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
     // Check and store receipt hashes + receiptMap
     if (downloadedArchivedCycle.receipt) {
       // TODO: calcuate the network hash by hashing downloaded receipt Map instead of using downloadedNetworkReceiptHash
-      let downloadedNetworkReceiptHash = downloadedArchivedCycle.receipt.networkHash
-      let actualHash = Crypto.hashObj(downloadedArchivedCycle.receipt.partitionHashes)
-      console.log("actualHash", actualHash)
-      console.log("networkReceiptHashesFromRecords", networkReceiptHashesFromRecords.get(counter))
-      if (downloadedNetworkReceiptHash === networkReceiptHashesFromRecords.get(counter)) {
+      const downloadedNetworkReceiptHash = downloadedArchivedCycle.receipt.networkHash
+      const calculatedReceiptHash = calculateNetworkHash(downloadedArchivedCycle.receipt.partitionHashes)
+      if (downloadedNetworkReceiptHash === networkReceiptHashesFromRecords.get(counter) || downloadedNetworkReceiptHash === calculatedReceiptHash) {
+        if (downloadedNetworkReceiptHash !== networkReceiptHashesFromRecords.get(counter)) {
+          Logger.mainLogger.debug('Different with hash from downloaded Cycle Records', 'receipt', counter)
+        } 
         await Storage.updateArchivedCycle(marker, 'receipt', downloadedArchivedCycle.receipt)
         isReceiptSynced = true
+      } else {
+        Logger.mainLogger.error('Different network receipt hash for cycle', counter)
       }
     } else {
       Logger.mainLogger.error(`ArchivedCycle ${downloadedArchivedCycle.cycleRecord.counter}, ${downloadedArchivedCycle.cycleMarker} does not have receipt field`)
@@ -1206,10 +1250,16 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
     // Check and store summary hashes
     if (downloadedArchivedCycle.summary) {
       // TODO: calcuate the network hash by hashing downloaded summary Blobs instead of using downloadedNetworkSummaryHash
-      let downloadedNetworkSummaryHash = downloadedArchivedCycle.summary.networkHash
-      if (downloadedNetworkSummaryHash === networkSummaryHashesFromRecords.get(counter)) {
+      const downloadedNetworkSummaryHash = downloadedArchivedCycle.summary.networkHash
+      const calculatedSummaryHash = calculateNetworkHash(downloadedArchivedCycle.summary.partitionHashes)
+      if (downloadedNetworkSummaryHash === calculatedSummaryHash) {
+        if (downloadedNetworkSummaryHash !== networkSummaryHashesFromRecords.get(counter)) {
+          Logger.mainLogger.debug('Different with hash from downloaded Cycle Records', 'summary', counter)
+        } 
         await Storage.updateArchivedCycle(marker, 'summary', downloadedArchivedCycle.summary)
         isSummarySynced = true
+      } else {
+        Logger.mainLogger.error('Different network summary hash for cycle', counter)
       }
     } else {
       Logger.mainLogger.error(`ArchivedCycle ${downloadedArchivedCycle.cycleRecord.counter}, ${downloadedArchivedCycle.cycleMarker} does not have summary field`)
@@ -1218,11 +1268,20 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
       Logger.mainLogger.debug(`Successfully synced statemetadata for counter ${counter}`)
       if(counter > Cycles.lastProcessedMetaData) {
         Cycles.setLastProcessedMetaDataCounter(counter)
-        return true
       }
     }
   }
   return false
+}
+
+const calculateNetworkHash = (data: object): string => {
+  let hashArray = []
+  for (const hash of Object.values(data)) {
+    hashArray.push(hash)
+  }
+  hashArray = hashArray.sort()
+  const calculatedHash = Crypto.hashObj(hashArray)
+  return calculatedHash
 }
 
 export type QueryDataResponse = ReceiptMapQueryResponse | StatsClumpQueryResponse
@@ -1245,12 +1304,12 @@ async function queryDataFromNode (
     if (response && request.type === 'RECEIPT_MAP') {
       let receiptMapData = response.data as ReceiptMapQueryResponse['data']
       // for (let counter in response.data) {
-        result = await validateAndStoreReceiptMaps(receiptMapData, validateFn)
+      result = await validateAndStoreReceiptMaps(receiptMapData, validateFn)
       // }
     } else if (response && request.type === 'SUMMARY_BLOB') {
       // for (let counter in response.data) {
-        let summaryBlobData = response.data as StatsClumpQueryResponse['data']
-        result = await validateAndStoreSummaryBlobs(Object.values(summaryBlobData), validateFn)
+      let summaryBlobData = response.data as StatsClumpQueryResponse['data']
+      result = await validateAndStoreSummaryBlobs(Object.values(summaryBlobData), validateFn)
       // }
     }
     return result
@@ -1272,9 +1331,9 @@ async function validateAndStoreReceiptMaps (receiptMapResultsForCycles: {
     let receiptMapResults: StateManager.StateManagerTypes.ReceiptMapResult[] =
       receiptMapResultsForCycles[counter]
     for (let partitionBlock of receiptMapResults) {
-      let { partition } = partitionBlock
+      let { cycle, partition } = partitionBlock
       if (validateFn) {
-        let shouldProcess = validateFn(partition)
+        let shouldProcess = validateFn(cycle, partition)
         if (!shouldProcess) {
           continue
         }
