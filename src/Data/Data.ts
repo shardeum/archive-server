@@ -732,7 +732,7 @@ export async function processStateMetaData (STATE_METADATA: P2PTypes.SnapshotTyp
               downloadedBlobs.set(partition, blobs[partition])
             }
           }
-          isDownloadSuccess = failedPartitions.size === 0 && coveredPartitions.size === 32
+          isDownloadSuccess = failedPartitions.size === 0 && coveredPartitions.size === 4096
           if (isDownloadSuccess) {
             Logger.mainLogger.debug('Data query for summary blob is completed for cycle', parentCycle.counter)
             Logger.mainLogger.debug('Total downloaded blobs', downloadedBlobs.size)
