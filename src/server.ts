@@ -162,10 +162,10 @@ function startServer() {
   })
 
   server.register(fastifyCors)
-  server.register(require('fastify-rate-limit'), {
-    max: config.RATE_LIMIT,
-    timeWindow: 1000,
-  })
+  // server.register(require('fastify-rate-limit'), {
+  //   max: config.RATE_LIMIT,
+  //   timeWindow: 1000,
+  // })
 
   // Socket server instance
   io = require('socket.io')(server.server)
