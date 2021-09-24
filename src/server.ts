@@ -195,22 +195,20 @@ function startServer() {
     const signedFirstNodeInfo: P2P.FirstNodeInfo & Crypto.SignedMessage =
       request.body
 
-    // [TODO] req type guard
-    // [TODO] Verify req signature
-    try {
-      const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
-      if (!isSignatureValid) {
-        Logger.mainLogger.error('Invalid signature', signedFirstNodeInfo)
-        return
-      }
-    } catch (e) {
-      Logger.mainLogger.error(e)
-    }
-    const ip = signedFirstNodeInfo.nodeInfo.externalIp
-    const port = signedFirstNodeInfo.nodeInfo.externalPort
-    const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
-
     if (State.isFirst && NodeList.isEmpty()) {
+      try {
+        const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
+        if (!isSignatureValid) {
+          Logger.mainLogger.error('Invalid signature', signedFirstNodeInfo)
+          return
+        }
+      } catch (e) {
+        Logger.mainLogger.error(e)
+      }
+      const ip = signedFirstNodeInfo.nodeInfo.externalIp
+      const port = signedFirstNodeInfo.nodeInfo.externalPort
+      const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
+
       const firstNode: NodeList.ConsensusNodeInfo = {
         ip,
         port,
@@ -221,6 +219,7 @@ function startServer() {
 
       // Add first node to NodeList
       NodeList.addNodes(NodeList.Statuses.SYNCING, 'bogus', [firstNode])
+
       // Set first node as dataSender
       Data.addDataSenders({
         nodeInfo: firstNode,
