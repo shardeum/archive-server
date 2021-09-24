@@ -2,7 +2,9 @@ import * as NodeList from '../NodeList'
 import * as Crypto from '../Crypto'
 import * as State from '../State'
 import * as Logger from '../Logger'
-import {P2P} from 'shardus-types'
+import { P2P } from 'shardus-types'
+import { profilerInstance } from "../profiler/profiler";
+import { nestedCountersInstance } from "../profiler/nestedCounters";
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
@@ -22,6 +24,8 @@ export let CycleChain: Map<Cycle["counter"], any> = new Map()
 export let lostNodes: LostNode[] = []
 
 export function processCycles(cycles: Cycle[]) {
+  profilerInstance.profileSectionStart('process_cycle', false)
+  nestedCountersInstance.countEvent('cycle', 'process_cycle', 1)
   for (const cycle of cycles) {
     Logger.mainLogger.debug(new Date(), 'New Cycle received', cycle.counter)
     Logger.mainLogger.debug('Current cycle counter', currentCycleCounter)
@@ -37,6 +41,7 @@ export function processCycles(cycles: Cycle[]) {
 
     Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
   }
+  profilerInstance.profileSectionEnd('process_cycle', false)
 }
 
 export function getCurrentCycleCounter() {
@@ -45,7 +50,7 @@ export function getCurrentCycleCounter() {
 
 export function getLostNodes(from: number, to: number) {
   return lostNodes.filter((node: LostNode) => {
-      return node.counter >= from && node.counter <= to
+    return node.counter >= from && node.counter <= to
   })
 }
 
@@ -64,7 +69,7 @@ export function computeCycleMarker(fields: any) {
 
 // validation of cycle record against previous marker
 export function validateCycle(prev: Cycle, next: Cycle): boolean {
-  let previousRecordWithoutMarker: any = {...prev}
+  let previousRecordWithoutMarker: any = { ...prev }
   delete previousRecordWithoutMarker.marker
   const prevMarker = computeCycleMarker(previousRecordWithoutMarker)
   if (next.previous !== prevMarker) return false
@@ -113,12 +118,12 @@ function updateNodeList(cycle: Cycle) {
 
   // add lost nodes to lostNodes collector
   lost.forEach((id: string) => {
-      const nodeInfo = NodeList.getNodeInfoById(id)
-      lostNodes.push({
-          counter: cycle.counter,
-          timestamp: Date.now(),
-          nodeInfo,
-      })
+    const nodeInfo = NodeList.getNodeInfoById(id)
+    lostNodes.push({
+      counter: cycle.counter,
+      timestamp: Date.now(),
+      nodeInfo,
+    })
   })
 
   const lostPks = lost.reduce((keys: string[], id) => {

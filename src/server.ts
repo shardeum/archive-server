@@ -17,6 +17,9 @@ import { P2P as P2PTypes } from 'shardus-types'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { Readable } from 'stream'
+import MemoryReporting from "./profiler/memoryReporting";
+import NestedCounters, { nestedCountersInstance } from "./profiler/nestedCounters";
+import Profiler, { profilerInstance } from './profiler/profiler'
 
 // Socket modules
 let io: SocketIO.Server
@@ -165,8 +168,14 @@ function startServer() {
   // Socket server instance
   io = require('socket.io')(server.server)
   Data.initSocketServer(io)
+  let memoryReporter = new MemoryReporting(server)
+  let nestedCounter = new NestedCounters(server)
+  let profiler = new Profiler(server)
 
   // ========== ENDPOINTS ==========
+  memoryReporter.registerEndpoints()
+  nestedCounter.registerEndpoints()
+  profiler.registerEndpoints()
 
   /**
    * ENTRY POINT: New Shardus network
@@ -179,6 +188,8 @@ function startServer() {
    * CZ adds AZ's join reqeuest to cycle zero and sets AZ as cycleRecipient
    */
   server.post('/nodelist', (request, reply) => {
+    profilerInstance.profileSectionStart('POST_nodelist')
+    nestedCountersInstance.countEvent('consensor', 'POST_nodelist', 1)
     const signedFirstNodeInfo: P2P.FirstNodeInfo & Crypto.SignedMessage =
       request.body
 
@@ -245,9 +256,12 @@ function startServer() {
       })
       reply.send(res)
     }
+    profilerInstance.profileSectionEnd('POST_nodelist')
   })
 
   server.get('/nodelist', (_request, reply) => {
+    profilerInstance.profileSectionStart('GET_nodelist')
+    nestedCountersInstance.countEvent('consensor', 'GET_nodelist')
     let nodeList = NodeList.getActiveList()
     if (nodeList.length < 1) {
       nodeList = NodeList.getList().slice(0, 1)
@@ -258,6 +272,7 @@ function startServer() {
     const res = Crypto.sign({
       nodeList: sortedNodeList,
     })
+    profilerInstance.profileSectionEnd('GET_nodelist')
     reply.send(res)
   })
 
@@ -305,24 +320,24 @@ function startServer() {
   })
 
   server.get('/lost', async (_request, reply) => {
-      let { start, end } = _request.query
-      if (!start) start = 0
-      if (!end) end = Cycles.currentCycleCounter
+    let { start, end } = _request.query
+    if (!start) start = 0
+    if (!end) end = Cycles.currentCycleCounter
 
-      let from = parseInt(start)
-      let to = parseInt(end)
-      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-          reply.send(
-              Crypto.sign({ success: false, error: `Invalid start and end counters` })
-          )
-          return
-      }
-      let lostNodes = []
-      lostNodes = Cycles.getLostNodes(from, to)
-      const res = Crypto.sign({
-          lostNodes,
-      })
-      reply.send(res)
+    let from = parseInt(start)
+    let to = parseInt(end)
+    if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+      reply.send(
+        Crypto.sign({ success: false, error: `Invalid start and end counters` })
+      )
+      return
+    }
+    let lostNodes = []
+    lostNodes = Cycles.getLostNodes(from, to)
+    const res = Crypto.sign({
+      lostNodes,
+    })
+    reply.send(res)
   })
 
   server.get('/full-archive/:count', async (_request, reply) => {
@@ -375,20 +390,20 @@ function startServer() {
     let cycleInfo = []
     cycleInfo = await Storage.queryCycleRecordsBetween(from, to)
     if (isDownload) {
-        let dataInBuffer = Buffer.from(JSON.stringify(cycleInfo), "utf-8")
-        let dataInStream = Readable.from(dataInBuffer)
-        let filename = `cycle_records_from_${from}_to_${to}`
+      let dataInBuffer = Buffer.from(JSON.stringify(cycleInfo), "utf-8")
+      let dataInStream = Readable.from(dataInBuffer)
+      let filename = `cycle_records_from_${from}_to_${to}`
 
-        reply.headers({
-            'content-disposition': `attachment; filename="${filename}"`,
-            'content-type': 'application/octet-stream'
-        })
-        reply.send(dataInStream)
+      reply.headers({
+        'content-disposition': `attachment; filename="${filename}"`,
+        'content-type': 'application/octet-stream'
+      })
+      reply.send(dataInStream)
     } else {
-        const res = Crypto.sign({
-            cycleInfo,
-        })
-        reply.send(res)
+      const res = Crypto.sign({
+        cycleInfo,
+      })
+      reply.send(res)
     }
   })
 

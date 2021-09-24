@@ -61,6 +61,8 @@ declare module 'shardus-crypto-utils' {
       curveSk: CryptoTypes.curveSecretKey,
       curvePk: CryptoTypes.curvePublicKey
     ) => CryptoTypes.sharedKey
+
+    hash(input: string): CryptoTypes.hexstring;
   }
 
   const crypto: ShardusCrypto

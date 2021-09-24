@@ -45,7 +45,7 @@ export enum Comparison {
   BETTER,
   EQUAL,
   WORSE,
-  ABORT 
+  ABORT
 }
 
 export interface CompareQueryError<Node> {
@@ -69,7 +69,7 @@ export interface SequentialQueryResult<Node> {
 export function shuffleArray<T>(array: T[]) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
-    ;[array[i], array[j]] = [array[j], array[i]]
+      ;[array[i], array[j]] = [array[j], array[i]]
   }
 }
 
@@ -206,7 +206,7 @@ export async function robustQuery<Node = unknown, Response = unknown>(
 
   const queryNodes = async (nodes: Node[]) => {
     // Wrap the query so that we know which node it's coming from
-    const wrappedQuery = async (node:any) => {
+    const wrappedQuery = async (node: any) => {
       const response = await queryFn(node)
       return { response, node }
     }
@@ -241,32 +241,30 @@ export async function robustQuery<Node = unknown, Response = unknown>(
   while (!finalResult) {
     tries += 1
     const toQuery = redundancy - responses.getHighestCount()
-    if (nodes.length < toQuery){
+    if (nodes.length < toQuery) {
       Logger.mainLogger.error('In robustQuery stopping since we ran out of nodes to query.')
       break
     }
     const nodesToQuery = nodes.splice(0, toQuery)
     finalResult = await queryNodes(nodesToQuery)
-    if (tries>=20){
+    if (tries >= 20) {
       Logger.mainLogger.error('In robustQuery stopping after 20 tries.')
       console.trace()
       break
     }
   }
   if (finalResult) {
-   // Logger.mainLogger.debug(`In robustQuery stopping since we got a finalResult:${JSON.stringify(finalResult)}`)
+    // Logger.mainLogger.debug(`In robustQuery stopping since we got a finalResult:${JSON.stringify(finalResult)}`)
     return finalResult
   }
-  else{
-  // TODO:  We return the item that had the most nodes reporting it. However, the caller should know
-  //        what the count was. We should return [item, count] so that caller gets both.
-  //        This change would require also changing all the places it is called.
+  else {
+    // TODO:  We return the item that had the most nodes reporting it. However, the caller should know
+    //        what the count was. We should return [item, count] so that caller gets both.
+    //        This change would require also changing all the places it is called.
     Logger.mainLogger.error(
-    `Could not get ${redundancy} ${
-      redundancy > 1 ? 'redundant responses' : 'response'
-    } from ${nodeCount} ${
-      nodeCount !== 1 ? 'nodes' : 'node'
-    }. Encountered ${errors} query errors.`
+      `Could not get ${redundancy} ${redundancy > 1 ? 'redundant responses' : 'response'
+      } from ${nodeCount} ${nodeCount !== 1 ? 'nodes' : 'node'
+      }. Encountered ${errors} query errors.`
     )
     console.trace()
     return responses.getHighestCountItem()
