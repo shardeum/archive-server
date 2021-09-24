@@ -128,6 +128,7 @@ function processGossip(counter: number) {
   if (!gossips) {
     return
   }
+  let ourHashes = Data.StateMetaDataMap.get(counter)
   let gossipCounter: any = {}
   for (let sender in gossips) {
     let hashedGossip = Crypto.hashObj(gossips[sender])
@@ -135,7 +136,11 @@ function processGossip(counter: number) {
       gossipCounter[hashedGossip] = {
         count: 1,
         gossip: gossips[sender]
-      } 
+      }
+      // To count our StateMetaData also
+      if (hashedGossip === Crypto.hashObj(ourHashes)) {
+        gossipCounter[hashedGossip].count += 1
+      }
     } else {
       gossipCounter[hashedGossip].count += 1
     }
@@ -150,7 +155,7 @@ function processGossip(counter: number) {
       highestCount = gossipCounter[key].count 
     }
   }
-  let ourHashes = Data.StateMetaDataMap.get(counter)
+  
   if (!ourHashes) {
     Logger.mainLogger.error(`Unable to find our stored statemetadata hashes for counter ${counter}`)
     return
@@ -160,7 +165,7 @@ function processGossip(counter: number) {
       return
     }
     Logger.mainLogger.error('our hash is different from other archivers hashes. Storing the correct hashes')
-    Logger.mainLogger.debug('gossipWithHighestCount', gossipWithHighestCount)
+    Logger.mainLogger.debug('gossipWithHighestCount', gossipWithHighestCount[0].summaryHashes)
     Data.processStateMetaData(gossipWithHighestCount)
     Data.replaceDataSender(Data.currentDataSender)
   }

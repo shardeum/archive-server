@@ -1276,8 +1276,10 @@ export async function syncStateMetaData (activeArchivers: State.ArchiverNodeInfo
 
 const calculateNetworkHash = (data: object): string => {
   let hashArray = []
-  for (const hash of Object.values(data)) {
-    hashArray.push(hash)
+  if (data) {
+    for (const hash of Object.values(data)) {
+      hashArray.push(hash)
+    }
   }
   hashArray = hashArray.sort()
   const calculatedHash = Crypto.hashObj(hashArray)
