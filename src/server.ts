@@ -17,11 +17,12 @@ import { P2P as P2PTypes } from 'shardus-types'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { Readable } from 'stream'
-import MemoryReporting from './profiler/memoryReporting'
+import MemoryReporting, { memoryReportingInstance } from './profiler/memoryReporting'
 import NestedCounters, {
   nestedCountersInstance,
 } from './profiler/nestedCounters'
 import Profiler, { profilerInstance } from './profiler/profiler'
+import Statistics from "./statistics";
 
 // Socket modules
 let io: SocketIO.Server
@@ -30,6 +31,7 @@ let io: SocketIO.Server
 const file = join(process.cwd(), 'archiver-config.json')
 const env = process.env
 const args = process.argv
+let logDir: string
 
 async function start() {
   overrideDefaultConfig(file, env, args)
@@ -47,7 +49,7 @@ async function start() {
   const logsConfig = JSON.parse(
     readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8')
   )
-  const logDir = `archiver-logs/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
+  logDir = `archiver-logs/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
   const baseDir = '.'
   logsConfig.dir = logDir
   Logger.initLogger(baseDir, logsConfig)
@@ -173,6 +175,22 @@ function startServer() {
   let memoryReporter = new MemoryReporting(server)
   let nestedCounter = new NestedCounters(server)
   let profiler = new Profiler(server)
+  let statistics = new Statistics(
+    logDir,
+    config.STATISTICS,
+    {
+      counters: [
+      ],
+      watchers: {
+
+      },
+      timers: [],
+      manualStats: ['cpuPercent'],
+    },
+    {}
+  )
+  statistics.startSnapshots()
+  statistics.on('snapshot', memoryReportingInstance.updateCpuPercent)
 
   // ========== ENDPOINTS ==========
   memoryReporter.registerEndpoints()

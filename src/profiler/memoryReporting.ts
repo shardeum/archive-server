@@ -1,3 +1,5 @@
+import { statisticsInstance } from "../statistics";
+
 const NS_PER_SEC = 1e9
 
 const os = require('os')
@@ -7,7 +9,7 @@ const process = require('process')
 
 // process.hrtime.bigint()
 
-interface MemoryReporting {}
+interface MemoryReporting { }
 
 type CounterMap = Map<string, CounterNode>
 interface CounterNode {
@@ -71,6 +73,11 @@ class MemoryReporting {
     // })
   }
 
+  updateCpuPercent() {
+    let cpuPercent = memoryReportingInstance.cpuPercent()
+    statisticsInstance.setManualStat('cpuPercent', cpuPercent)
+  }
+
   addToReport(
     category: string,
     subcat: string,
@@ -86,6 +93,7 @@ class MemoryReporting {
     for (let item of report) {
       let { category, subcat, itemKey, count } = item
       let countStr = `${count}`
+      if (itemKey === 'cpuPercent' || itemKey === 'cpuAVGPercent') countStr += ' %'
       outputStr += `${countStr.padStart(10)} ${category} ${subcat} ${itemKey}\n`
     }
     return outputStr
@@ -147,9 +155,9 @@ class MemoryReporting {
   }
 
   systemProcessReport() {
-    this.addToReport('Process', 'CPU', 'cpuPercent', this.cpuPercent())
-    // let avgCPU = this.shardus.statistics.getAverage('cpuPercent')
-    // this.addToReport('Process','CPU', 'cpuAVGPercent', avgCPU )
+    this.addToReport('Process', 'CPU', 'cpuPercent', this.cpuPercent() * 100)
+    let avgCPU = statisticsInstance.getAverage('cpuPercent')
+    this.addToReport('Process', 'CPU', 'cpuAVGPercent', avgCPU * 100)
     let report = process.resourceUsage()
     for (const [key, value] of Object.entries(report)) {
       this.addToReport('Process', 'Details', key, value as number)

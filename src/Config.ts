@@ -14,7 +14,11 @@ export interface Config {
   ARCHIVER_EXISTING: ArchiverNodeInfo[]
   ARCHIVER_DB: string
   DATASENDER_TIMEOUT: number
-  RATE_LIMIT: number // number of allowed request per second
+  RATE_LIMIT: number // number of allowed request per second,
+  STATISTICS: {
+    save: boolean,
+    interval: number
+  }
 }
 
 let config: Config = {
@@ -29,7 +33,11 @@ let config: Config = {
   ARCHIVER_EXISTING: [],
   ARCHIVER_DB: 'archiver-db',
   DATASENDER_TIMEOUT: 1000 * 60 * 5,
-  RATE_LIMIT: 100 // 100 req per second
+  RATE_LIMIT: 100, // 100 req per second,
+  STATISTICS: {
+    save: true,
+    interval: 1
+  }
 }
 
 export function overrideDefaultConfig(
@@ -63,11 +71,11 @@ export function overrideDefaultConfig(
         case 'object': {
           try {
             var parameterStr = env[param]
-            if(parameterStr) {
+            if (parameterStr) {
               let parameterObj = JSON.parse(parameterStr)
               config[param] = parameterObj
             }
-          } catch(e) {
+          } catch (e) {
             Logger.mainLogger.error(e)
             Logger.mainLogger.error('Unable to JSON parse', env[param])
           }

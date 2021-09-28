@@ -314,6 +314,68 @@ export const deepCopy = (obj: any) => {
   return JSON.parse(JSON.stringify(obj))
 }
 
+export const insertSorted = function (arr: any[], item: any, comparator?: Function) {
+  let i = binarySearch(arr, item, comparator)
+  if (i < 0) {
+    i = -1 - i
+  }
+  arr.splice(i, 0, item)
+}
+
+export const computeMedian = (arr: number[] = [], sort = true) => {
+  if (sort) {
+    arr.sort((a: any, b: any) => a - b)
+  }
+  const len = arr.length
+  switch (len) {
+    case 0: {
+      return 0
+    }
+    case 1: {
+      return arr[0]
+    }
+    default: {
+      const mid = len / 2
+      if (len % 2 === 0) {
+        return arr[mid]
+      } else {
+        return (arr[Math.floor(mid)] + arr[Math.ceil(mid)]) / 2
+      }
+    }
+  }
+}
+
+export const binarySearch = function (
+  arr: any[],
+  el: any,
+  comparator?: Function
+) {
+  if (comparator == null) {
+    // Emulate the default Array.sort() comparator
+    comparator = (a: any, b: any) => {
+      return a.toString() > b.toString()
+        ? 1
+        : a.toString() < b.toString()
+          ? -1
+          : 0
+    }
+  }
+  let m = 0
+  let n = arr.length - 1
+  while (m <= n) {
+    const k = (n + m) >> 1
+    const cmp = comparator(el, arr[k])
+    if (cmp > 0) {
+      m = k + 1
+    } else if (cmp < 0) {
+      n = k - 1
+    } else {
+      return k
+    }
+  }
+  return -m - 1
+}
+
 export function getRandomItemFromArr(arr: any[]): any {
   if (!Array.isArray(arr)) return
   if (arr.length === 0) return
