@@ -41,6 +41,10 @@ const byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
 export const byId: { [id: string]: ConsensusNodeInfo } = {}
 const publicKeyToId: { [publicKey: string]: string } = {}
 
+export const cache: Map<string, object> = new Map()
+export const cacheUpdatedTimes: Map<string, number> = new Map()
+export const realUpdatedTimes: Map<string, number> = new Map()
+
 // METHODS
 
 function getIpPort(node: any) {
@@ -99,10 +103,16 @@ export function addNodes(
       cycleMarkerJoined,
     })
   }
+
+  // Set updated time for cache
+  if (nodes.length > 0) {
+    realUpdatedTimes.set('/nodelist', Date.now())
+  }
 }
 
 export function removeNodes(publicKeys: string[]): string[] {
-  if(publicKeys.length > 0) Logger.mainLogger.debug('Removing nodes', publicKeys)
+  if (publicKeys.length > 0)
+    Logger.mainLogger.debug('Removing nodes', publicKeys)
   // Efficiently remove nodes from nodelist
   const keysToDelete: Map<ConsensusNodeInfo['publicKey'], boolean> = new Map()
 
@@ -129,6 +139,9 @@ export function removeNodes(publicKeys: string[]): string[] {
         else if (activeList.has(key)) activeList.delete(key)
       }
     }
+
+    // Set updated time for cache
+    realUpdatedTimes.set('/nodelist', Date.now())
   }
 
   return [...keysToDelete.keys()]
@@ -151,6 +164,11 @@ export function setStatus(status: Statuses, ...publicKeys: string[]) {
       activeList.set(key, node)
     }
   }
+
+  // Set updated time for cache
+  if (publicKeys.length > 0) {
+    realUpdatedTimes.set('/nodelist', Date.now())
+  }
 }
 
 export function getList() {
@@ -161,8 +179,10 @@ export function getActiveList() {
   return [...activeList.values()]
 }
 
-export async function getActiveListFromArchivers(activeArchivers: State.ArchiverNodeInfo[]): Promise<ConsensusNodeInfo> {
-  function isSameCyceInfo (info1: any, info2: any) {
+export async function getActiveListFromArchivers(
+  activeArchivers: State.ArchiverNodeInfo[]
+): Promise<ConsensusNodeInfo> {
+  function isSameCyceInfo(info1: any, info2: any) {
     const cm1 = Utils.deepCopy(info1)
     const cm2 = Utils.deepCopy(info2)
     delete cm1.currentTime
@@ -175,7 +195,10 @@ export async function getActiveListFromArchivers(activeArchivers: State.Archiver
     const response: any = await P2P.getJson(
       `http://${node.ip}:${node.port}/nodelist`
     )
-    if(response.nodeList) return response.nodeList.sort((a: any, b: any) => a.publicKey - b.publicKey)
+    if (response.nodeList)
+      return response.nodeList.sort(
+        (a: any, b: any) => a.publicKey - b.publicKey
+      )
   }
   let nodeList: any = await Utils.robustQuery(
     activeArchivers,
@@ -187,7 +210,9 @@ export async function getActiveListFromArchivers(activeArchivers: State.Archiver
 
 export function getRandomActiveNode(): ConsensusNodeInfo {
   let nodeList = getActiveList()
-  const randomConsensor: ConsensusNodeInfo = Utils.getRandomItemFromArr(nodeList)
+  const randomConsensor: ConsensusNodeInfo = Utils.getRandomItemFromArr(
+    nodeList
+  )
   return randomConsensor
 }
 

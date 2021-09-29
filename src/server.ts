@@ -247,15 +247,39 @@ function startServer() {
 
       reply.send(res)
     } else {
-      let nodeList = NodeList.getActiveList()
-      // If we dont have any active nodes, send back the first node in our list
-      if (nodeList.length < 1) {
-        nodeList = NodeList.getList().slice(0, 1)
+      const cacheUpdatedTime = NodeList.cacheUpdatedTimes.get('/nodelist')
+      const realUpdatedTime = NodeList.realUpdatedTimes.get('/nodelist')
+      const cached = NodeList.cache.get('/nodelist')
+      if (
+        cached &&
+        cacheUpdatedTime &&
+        realUpdatedTime &&
+        cacheUpdatedTime > realUpdatedTime
+      ) {
+        // cache is hot, send cache
+
+        reply.send(cached)
+      } else {
+        // cache is cold, remake cache
+
+        let nodeList = NodeList.getActiveList()
+        // If we dont have any active nodes, send back the first node in our list
+        if (nodeList.length < 1) {
+          nodeList = NodeList.getList().slice(0, 1)
+        }
+        const res = Crypto.sign({
+          nodeList: nodeList.sort((a: any, b: any) => (a.id > b.id ? 1 : -1)),
+        })
+
+        // Update cache
+        if (NodeList.realUpdatedTimes.get('/nodelist') === undefined) {
+          NodeList.realUpdatedTimes.set('/nodelist', 0)
+        }
+        NodeList.cache.set('/nodelist', res)
+        NodeList.cacheUpdatedTimes.set('/nodelist', Date.now())
+
+        reply.send(res)
       }
-      const res = Crypto.sign({
-        nodeList: nodeList.sort((a: any, b: any) => (a.id > b.id ? 1 : -1)),
-      })
-      reply.send(res)
     }
     profilerInstance.profileSectionEnd('POST_nodelist')
   })
