@@ -158,6 +158,15 @@ class Statistics extends EventEmitter {
         return ringHolder.ring.average()
     }
 
+
+    getMultiStatReport(name: string) {
+        const ringHolder =
+            this.counters[name] || this.watchers[name] || this.timers[name] || this.manualStats[name]
+        if (!ringHolder.ring) throw new Error(`Ring holder '${name}' is undefined.`)
+
+        return ringHolder.ring.multiStats()
+    }
+
     // Returns the value of the last element of the given WatcherRing, CounterRing, or TimerRing
     getPreviousElement(name: string) {
         const ringHolder =
@@ -251,6 +260,30 @@ class Ring {
     constructor(length: number) {
         this.elements = new Array(length)
         this.index = 0
+    }
+    multiStats() {
+        let sum = 0
+        let total = 0
+        let min = Number.MAX_VALUE
+        let max = Number.MIN_VALUE
+        let allVals = []
+        for (const element of this.elements) {
+            if (_exists(element)) {
+                let val = Number(element)
+                sum += val
+                total++
+
+                if(val < min) {
+                    min = val
+                }
+                if(val > max){
+                    max = val
+                }
+                allVals.push(val)
+            }
+        }
+        let avg =  total > 0 ? sum / total : 0
+        return {min, max, avg, allVals}
     }
     save(value: any) {
         this.elements[this.index] = value
