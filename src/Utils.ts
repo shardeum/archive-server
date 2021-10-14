@@ -294,7 +294,7 @@ export async function sequentialQuery<Node = unknown, Response = unknown>(
         continue
       }
       result = response
-    } catch (error) {
+    } catch (error: any) {
       errors.push({
         node,
         error,

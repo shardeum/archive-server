@@ -1,7 +1,6 @@
 import { Cycle, CycleChain } from './Data/Cycles'
 import { Config } from './Config'
 import * as Data from './Data/Data'
-import knex = require('knex')
 import { socketServer } from './Data/Data'
 import { Database, BaseModel, FS_Persistence_Adapter } from 'tydb'
 import * as Crypto from './Crypto'

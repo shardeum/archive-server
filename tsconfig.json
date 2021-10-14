@@ -1,6 +1,7 @@
 {
   "extends": "./node_modules/gts/tsconfig-google.json",
   "compilerOptions": {
+    "target": "ES2021",
     "rootDir": "src",
     "outDir": "build",
     "resolveJsonModule": true,

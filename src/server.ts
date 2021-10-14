@@ -83,7 +83,7 @@ async function syncAndStartServer() {
 
       // try to join the network
       isJoined = await Data.joinNetwork(nodeList, firstTime)
-    } catch (err) {
+    } catch (err: any) {
       Logger.mainLogger.error('Error while joining network:')
       Logger.mainLogger.error(err)
       Logger.mainLogger.error(err.stack)
