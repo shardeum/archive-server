@@ -25,7 +25,7 @@ export let lostNodes: LostNode[] = []
 
 export function processCycles(cycles: Cycle[]) {
   profilerInstance.profileSectionStart('process_cycle', false)
-  nestedCountersInstance.countEvent('cycle', 'process_cycle', 1)
+  nestedCountersInstance.countEvent('cycle', 'process', 1)
   for (const cycle of cycles) {
     Logger.mainLogger.debug(new Date(), 'New Cycle received', cycle.counter)
     Logger.mainLogger.debug('Current cycle counter', currentCycleCounter)

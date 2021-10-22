@@ -153,7 +153,7 @@ class NestedCounters {
             let countStr = `${count}`
             outputStr += `${countStr.padStart(10)} ${indentText} ${key}\n`
             if (subArray != null && subArray.length > 0) {
-                this.printArrayReport(subArray, outputStr, indent + 1)
+                outputStr = this.printArrayReport(subArray, outputStr, indent + 1)
             }
         }
         return outputStr
