@@ -1,6 +1,6 @@
 {
   "name": "archive-server",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "",
   "main": "./build/server.js",
   "types": "./build/server.d.ts",
@@ -55,8 +55,8 @@
     "log4js-extend": "^0.2.1",
     "minimist": "^1.2.0",
     "node-fetch": "^2.6.0",
-    "shardus-crypto-utils": "git+https://gitlab.com/shardus/shardus-crypto-utils.git#node-v16",
-    "shardus-types": "git+https://gitlab.com/shardus/shardus-types.git#node-v16",
+    "shardus-crypto-utils": "git+https://gitlab.com/shardus/shardus-crypto-utils.git#semver:^3.0.2",
+    "shardus-types": "git+https://gitlab.com/shardus/shardus-types.git#semver:^1.0.2",
     "socket.io": "^2.3.0",
     "socket.io-client": "^2.3.0",
     "sqlite3": "^5.0.0",
