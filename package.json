@@ -1,18 +1,17 @@
 {
-  "name": "archive-server",
+  "name": "@shardus/archive-server",
   "version": "3.2.0",
   "description": "",
   "main": "./build/server.js",
   "types": "./build/server.d.ts",
   "files": [
-    "build/**/*",
-    "src/**/*",
-    "archiver-log.json"
+    "build/**/*"
   ],
   "bin": {
     "archive-server": "./build/server.js"
   },
   "scripts": {
+    "release": "np --no-cleanup --no-tests --no-yarn",
     "test": "echo \"Error: no test specified\" && exit 1",
     "check": "gts check",
     "clean": "gts clean",
@@ -28,6 +27,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://gitlab.com/shardus/archive/archive-server.git"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "author": "",
   "license": "ISC",
