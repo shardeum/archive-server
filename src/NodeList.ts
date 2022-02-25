@@ -6,7 +6,7 @@ import * as Data from './Data/Data'
 import * as Utils from './Utils'
 import { isDeepStrictEqual } from 'util'
 import * as Logger from './Logger'
-import { P2P as P2PTypes } from 'shardus-types'
+import { P2P as P2PTypes } from '@shardus/types'
 
 // TYPES
 
@@ -210,9 +210,8 @@ export async function getActiveListFromArchivers(
 
 export function getRandomActiveNode(): ConsensusNodeInfo {
   let nodeList = getActiveList()
-  const randomConsensor: ConsensusNodeInfo = Utils.getRandomItemFromArr(
-    nodeList
-  )
+  const randomConsensor: ConsensusNodeInfo =
+    Utils.getRandomItemFromArr(nodeList)
   return randomConsensor
 }
 

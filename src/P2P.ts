@@ -5,18 +5,18 @@ import * as NodeList from './NodeList'
 import 'node-fetch'
 import fetch from 'node-fetch'
 import { Cycle } from './Data/Cycles'
-import { P2P as P2PTypes, StateManager } from 'shardus-types'
+import { P2P as P2PTypes, StateManager } from '@shardus/types'
 
 export enum RequestTypes {
   JOIN = 'JOIN',
   LEAVE = 'LEAVE',
 }
 export interface ArchiverJoinRequest {
-  nodeInfo: State.ArchiverNodeInfo,
+  nodeInfo: State.ArchiverNodeInfo
   requestType: string
 }
 export interface ArchiverLeaveRequest {
-  nodeInfo: State.ArchiverNodeInfo,
+  nodeInfo: State.ArchiverNodeInfo
   requestType: string
 }
 export interface FirstNodeInfo {
@@ -30,13 +30,14 @@ export interface FirstNodeResponse {
   nodeList: NodeList.ConsensusNodeInfo[]
   joinRequest?: ArchiverJoinRequest & Crypto.SignedMessage
   dataRequestCycle?: Data.DataRequest<Cycle> & Crypto.TaggedMessage
-  dataRequestStateMetaData?: Data.DataRequest<P2PTypes.SnapshotTypes.StateMetaData> & Crypto.TaggedMessage
+  dataRequestStateMetaData?: Data.DataRequest<P2PTypes.SnapshotTypes.StateMetaData> &
+    Crypto.TaggedMessage
 }
 
 export function createArchiverJoinRequest() {
   const joinRequest: ArchiverJoinRequest = {
     nodeInfo: State.getNodeInfo(),
-    requestType: RequestTypes.JOIN
+    requestType: RequestTypes.JOIN,
   }
   return Crypto.sign(joinRequest)
 }
@@ -44,7 +45,7 @@ export function createArchiverJoinRequest() {
 export function createArchiverLeaveRequest() {
   const leaveRequest: ArchiverLeaveRequest = {
     nodeInfo: State.getNodeInfo(),
-    requestType: RequestTypes.LEAVE
+    requestType: RequestTypes.LEAVE,
   }
   return Crypto.sign(leaveRequest)
 }
@@ -75,9 +76,7 @@ export async function postJson(
   }
 }
 
-export async function getJson(
-  url: string,
-): Promise<object | null> {
+export async function getJson(url: string): Promise<object | null> {
   try {
     const res = await fetch(url, {
       method: 'get',

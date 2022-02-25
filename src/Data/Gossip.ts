@@ -5,21 +5,25 @@ import * as State from '../State'
 import * as P2P from '../P2P'
 import { config, Config } from '../Config'
 import * as Logger from '../Logger'
-import { P2P as P2PTypes} from 'shardus-types'
+import { P2P as P2PTypes } from '@shardus/types'
 
 let gossipCollector = new Map()
 
-export async function sendGossip (type: string, payload: any) {
+export async function sendGossip(type: string, payload: any) {
   let archivers: State.ArchiverNodeInfo[] = [...State.activeArchivers]
 
   if (archivers.length === 0) return
-  const gossipPayload = { type, data: payload, sender: config.ARCHIVER_PUBLIC_KEY }
+  const gossipPayload = {
+    type,
+    data: payload,
+    sender: config.ARCHIVER_PUBLIC_KEY,
+  }
 
   archivers = archivers.sort((a: any, b: any) => a.publicKey - b.publicKey)
 
   // TODO: check if need to select random archivers instead of sending to all other archivers
   let recipients: State.ArchiverNodeInfo[] = archivers.filter(
-    a => a.publicKey !== config.ARCHIVER_PUBLIC_KEY
+    (a) => a.publicKey !== config.ARCHIVER_PUBLIC_KEY
   )
 
   if (recipients.length === 0) {
@@ -30,7 +34,7 @@ export async function sendGossip (type: string, payload: any) {
   try {
     Logger.mainLogger.debug(
       `GossipingIn ${type} request to these nodes: ${JSON.stringify(
-        recipients.map(node => node.ip + ':' + node.port + `/gossip-${type}`)
+        recipients.map((node) => node.ip + ':' + node.port + `/gossip-${type}`)
       )}`
     )
     await tell(recipients, `gossip-${type}`, gossipPayload, true)
@@ -40,7 +44,7 @@ export async function sendGossip (type: string, payload: any) {
   }
 }
 
-async function tell (
+async function tell(
   nodes: State.ArchiverNodeInfo[],
   route: string,
   message: any,
@@ -53,11 +57,14 @@ async function tell (
     const url = `http://${node.ip}:${node.port}/${route}`
     try {
       const promise = P2P.postJson(url, message)
-      promise.catch(err => {
-        Logger.mainLogger.error(`Unable to tell node ${node.ip}: ${node.port}`, err)
+      promise.catch((err) => {
+        Logger.mainLogger.error(
+          `Unable to tell node ${node.ip}: ${node.port}`,
+          err
+        )
       })
       promises.push(promise)
-    } catch(e) {
+    } catch (e) {
       Logger.mainLogger.error('Error', e)
     }
   }
@@ -70,26 +77,26 @@ async function tell (
 
 export function convertStateMetadataToHashArray(STATE_METATDATA: any) {
   let hashCollector: any = {}
-  STATE_METATDATA.stateHashes.forEach((h:any) => {
+  STATE_METATDATA.stateHashes.forEach((h: any) => {
     if (!hashCollector[h.counter]) {
       hashCollector[h.counter] = {
-        counter: h.counter
+        counter: h.counter,
       }
     }
     hashCollector[h.counter]['stateHashes'] = h
   })
-  STATE_METATDATA.receiptHashes.forEach((h:any) => {
+  STATE_METATDATA.receiptHashes.forEach((h: any) => {
     if (!hashCollector[h.counter]) {
       hashCollector[h.counter] = {
-        counter: h.counter
+        counter: h.counter,
       }
     }
     hashCollector[h.counter]['receiptHashes'] = h
   })
-  STATE_METATDATA.summaryHashes.forEach((h:any) => {
+  STATE_METATDATA.summaryHashes.forEach((h: any) => {
     if (!hashCollector[h.counter]) {
       hashCollector[h.counter] = {
-        counter: h.counter
+        counter: h.counter,
       }
     }
     hashCollector[h.counter]['summaryHashes'] = h
@@ -97,10 +104,7 @@ export function convertStateMetadataToHashArray(STATE_METATDATA: any) {
   return Object.values(hashCollector)
 }
 
-export function addHashesGossip (
-  sender: string,
-  gossip: any
-) {
+export function addHashesGossip(sender: string, gossip: any) {
   let counter = gossip.counter
   if (gossipCollector.has(counter)) {
     let existingGossips = gossipCollector.get(counter)
@@ -123,7 +127,11 @@ export function addHashesGossip (
 }
 
 function processGossip(counter: number) {
-  Logger.mainLogger.debug('Processing gossips for counter', counter, gossipCollector.get(counter))
+  Logger.mainLogger.debug(
+    'Processing gossips for counter',
+    counter,
+    gossipCollector.get(counter)
+  )
   let gossips = gossipCollector.get(counter)
   if (!gossips) {
     return
@@ -132,10 +140,10 @@ function processGossip(counter: number) {
   let gossipCounter: any = {}
   for (let sender in gossips) {
     let hashedGossip = Crypto.hashObj(gossips[sender])
-    if(!gossipCounter[hashedGossip]) {
+    if (!gossipCounter[hashedGossip]) {
       gossipCounter[hashedGossip] = {
         count: 1,
-        gossip: gossips[sender]
+        gossip: gossips[sender],
       }
       // To count our StateMetaData also
       if (hashedGossip === Crypto.hashObj(ourHashes)) {
@@ -152,20 +160,30 @@ function processGossip(counter: number) {
     if (gossipCounter[key].count > highestCount) {
       gossipWithHighestCount.push(gossipCounter[key].gossip)
       hashWithHighestCounter = key
-      highestCount = gossipCounter[key].count 
+      highestCount = gossipCounter[key].count
     }
   }
-  
+
   if (!ourHashes) {
-    Logger.mainLogger.error(`Unable to find our stored statemetadata hashes for counter ${counter}`)
+    Logger.mainLogger.error(
+      `Unable to find our stored statemetadata hashes for counter ${counter}`
+    )
     return
   }
-  if (hashWithHighestCounter && hashWithHighestCounter !== Crypto.hashObj(ourHashes)) {
+  if (
+    hashWithHighestCounter &&
+    hashWithHighestCounter !== Crypto.hashObj(ourHashes)
+  ) {
     if (gossipWithHighestCount.length === 0) {
       return
     }
-    Logger.mainLogger.error('our hash is different from other archivers hashes. Storing the correct hashes')
-    Logger.mainLogger.debug('gossipWithHighestCount', gossipWithHighestCount[0].summaryHashes)
+    Logger.mainLogger.error(
+      'our hash is different from other archivers hashes. Storing the correct hashes'
+    )
+    Logger.mainLogger.debug(
+      'gossipWithHighestCount',
+      gossipWithHighestCount[0].summaryHashes
+    )
     Data.processStateMetaData(gossipWithHighestCount)
     Data.replaceDataSender(Data.currentDataSender)
   }

@@ -1,4 +1,4 @@
-import * as core from 'shardus-crypto-utils'
+import * as core from '@shardus/crypto-utils'
 import * as cryptoTypes from './shardus-crypto-types'
 import * as State from './State'
 
@@ -29,10 +29,8 @@ export interface TaggedMessage extends cryptoTypes.TaggedObject {
   publicKey: cryptoTypes.publicKey
 }
 
-const curvePublicKeys: Map<
-  cryptoTypes.publicKey,
-  cryptoTypes.curvePublicKey
-> = new Map()
+const curvePublicKeys: Map<cryptoTypes.publicKey, cryptoTypes.curvePublicKey> =
+  new Map()
 const sharedKeys: Map<cryptoTypes.publicKey, cryptoTypes.sharedKey> = new Map()
 
 function getOrCreateCurvePk(

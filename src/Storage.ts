@@ -5,11 +5,11 @@ import { socketServer } from './Data/Data'
 import { Database, BaseModel, FS_Persistence_Adapter } from 'tydb'
 import * as Crypto from './Crypto'
 import * as Logger from './Logger'
-import { StateManager } from 'shardus-types'
+import { StateManager } from '@shardus/types'
 
 export let Collection: any
 
-export async function initStorage (config: Config) {
+export async function initStorage(config: Config) {
   // Get db file location from config
   let dbFile = config.ARCHIVER_DB
 
@@ -23,26 +23,37 @@ export async function initStorage (config: Config) {
 }
 
 export async function insertArchivedCycle(archivedCycle: any) {
-  Logger.mainLogger.debug('Inserting archived cycle', archivedCycle.cycleRecord.counter, archivedCycle.cycleMarker)
+  Logger.mainLogger.debug(
+    'Inserting archived cycle',
+    archivedCycle.cycleRecord.counter,
+    archivedCycle.cycleMarker
+  )
   try {
     await Collection.insert([Data.ArchivedCycle.new(archivedCycle)])
-    Logger.mainLogger.debug('Successfully inserted archivedCycle', archivedCycle.cycleRecord.counter)
+    Logger.mainLogger.debug(
+      'Successfully inserted archivedCycle',
+      archivedCycle.cycleRecord.counter
+    )
     let updatedArchivedCycle = await Collection.find({
       filter: { cycleMarker: archivedCycle.cycleMarker },
     })
     let signedDataToSend = Crypto.sign({
-      archivedCycles: updatedArchivedCycle
+      archivedCycles: updatedArchivedCycle,
     })
     if (updatedArchivedCycle) {
-      if(socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+      if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
     }
   } catch (e) {
     Logger.mainLogger.error(e)
-    Logger.mainLogger.error('Unable to insert archive cycle or it is already stored in to database', archivedCycle.cycleRecord.counter, archivedCycle.cycleMarker)
+    Logger.mainLogger.error(
+      'Unable to insert archive cycle or it is already stored in to database',
+      archivedCycle.cycleRecord.counter,
+      archivedCycle.cycleMarker
+    )
   }
 }
 
-export async function updateReceiptMap (
+export async function updateReceiptMap(
   receiptMapResult: StateManager.StateManagerTypes.ReceiptMapResult
 ) {
   if (!receiptMapResult) return
@@ -87,10 +98,10 @@ export async function updateReceiptMap (
       filter: { cycleMarker: parentCycle.marker },
     })
     let signedDataToSend = Crypto.sign({
-      archivedCycles: updatedArchivedCycle
+      archivedCycles: updatedArchivedCycle,
     })
     if (updatedArchivedCycle) {
-      if(socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+      if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
     }
   } catch (e) {
     Logger.mainLogger.error('Unable to update receipt maps in archived cycle')
@@ -98,7 +109,7 @@ export async function updateReceiptMap (
   }
 }
 
-export async function updateSummaryBlob (
+export async function updateSummaryBlob(
   summaryBlob: StateManager.StateManagerTypes.SummaryBlob,
   cycle: number
 ) {
@@ -107,7 +118,10 @@ export async function updateSummaryBlob (
     let parentCycle = CycleChain.get(cycle)
 
     if (!parentCycle) {
-      Logger.mainLogger.error('Unable find record with parent cycle with counter', cycle)
+      Logger.mainLogger.error(
+        'Unable find record with parent cycle with counter',
+        cycle
+      )
       return
     }
 
@@ -141,18 +155,22 @@ export async function updateSummaryBlob (
       filter: { cycleMarker: parentCycle.marker },
     })
     let signedDataToSend = Crypto.sign({
-      archivedCycles: updatedArchivedCycle
+      archivedCycles: updatedArchivedCycle,
     })
     if (updatedArchivedCycle) {
-      if(socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+      if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
     }
-   } catch (e) {
+  } catch (e) {
     Logger.mainLogger.error('Unable to update summary blobs in archived cycle')
     Logger.mainLogger.error(e)
   }
 }
 
-export async function updateArchivedCycle(marker: string, field: string, data: any) {
+export async function updateArchivedCycle(
+  marker: string,
+  field: string,
+  data: any
+) {
   let updateObj: any = {}
   updateObj[field] = data
   await Collection.update({
@@ -163,14 +181,14 @@ export async function updateArchivedCycle(marker: string, field: string, data: a
     filter: { cycleMarker: marker },
   })
   let signedDataToSend = Crypto.sign({
-    archivedCycles: updatedArchivedCycle
+    archivedCycles: updatedArchivedCycle,
   })
   if (updatedArchivedCycle) {
-    if(socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+    if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
   }
 }
 
-export async function queryAllArchivedCycles (count?: number) {
+export async function queryAllArchivedCycles(count?: number) {
   let archivedCycles = await Collection.find({
     filter: {},
     sort: {
@@ -184,7 +202,10 @@ export async function queryAllArchivedCycles (count?: number) {
   return archivedCycles
 }
 
-export async function queryAllArchivedCyclesBetween (start: number, end: number) {
+export async function queryAllArchivedCyclesBetween(
+  start: number,
+  end: number
+) {
   let archivedCycles = await Collection.find({
     filter: {
       $and: [
@@ -216,7 +237,7 @@ export async function queryAllArchivedCyclesBetween (start: number, end: number)
   return archivedCycles
 }
 
-export async function queryAllCycleRecords () {
+export async function queryAllCycleRecords() {
   let cycleRecords = await Collection.find({
     filter: {},
     sort: {
@@ -233,7 +254,7 @@ export async function queryAllCycleRecords () {
   return cycleRecords.map((item: any) => item.cycleRecord)
 }
 
-export async function queryLatestCycleRecords (count: number = 1) {
+export async function queryLatestCycleRecords(count: number = 1) {
   let cycleRecords = await Collection.find({
     filter: {},
     sort: {
@@ -251,7 +272,7 @@ export async function queryLatestCycleRecords (count: number = 1) {
   return cycleRecords.map((item: any) => item.cycleRecord)
 }
 
-export async function queryCycleRecordsBetween (start: number, end: number) {
+export async function queryCycleRecordsBetween(start: number, end: number) {
   let cycleRecords = await Collection.find({
     filter: {
       $and: [
@@ -266,31 +287,36 @@ export async function queryCycleRecordsBetween (start: number, end: number) {
   return cycleRecords.map((item: any) => item.cycleRecord)
 }
 
-
-export async function queryArchivedCycleByMarker (marker: string) {
+export async function queryArchivedCycleByMarker(marker: string) {
   let archivedCycles = await Collection.find({
     filter: { cycleMarker: marker },
   })
   if (archivedCycles.length > 0) return archivedCycles[0]
 }
 
-export async function queryReceiptMapHash (counter: number, partition: number) {
+export async function queryReceiptMapHash(counter: number, partition: number) {
   let foundArchivedCycles = await Collection.find({
     filter: { 'cycleRecord.counter': counter },
   })
   if (foundArchivedCycles.length > 0) {
-    if (foundArchivedCycles[0].receipt && foundArchivedCycles[0].receipt.partitionHashes) {
+    if (
+      foundArchivedCycles[0].receipt &&
+      foundArchivedCycles[0].receipt.partitionHashes
+    ) {
       return foundArchivedCycles[0].receipt.partitionHashes[partition]
     }
   }
 }
 
-export async function querySummaryHash (counter: number, partition: number) {
+export async function querySummaryHash(counter: number, partition: number) {
   let foundArchivedCycles = await Collection.find({
     filter: { 'cycleRecord.counter': counter },
   })
   if (foundArchivedCycles.length > 0) {
-    if (foundArchivedCycles[0].summary && foundArchivedCycles[0].summary.partitionHashes) {
+    if (
+      foundArchivedCycles[0].summary &&
+      foundArchivedCycles[0].summary.partitionHashes
+    ) {
       return foundArchivedCycles[0].summary.partitionHashes[partition]
     }
   }

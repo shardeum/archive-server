@@ -2,9 +2,9 @@ import * as NodeList from '../NodeList'
 import * as Crypto from '../Crypto'
 import * as State from '../State'
 import * as Logger from '../Logger'
-import { P2P } from 'shardus-types'
-import { profilerInstance } from "../profiler/profiler";
-import { nestedCountersInstance } from "../profiler/nestedCounters";
+import { P2P } from '@shardus/types'
+import { profilerInstance } from '../profiler/profiler'
+import { nestedCountersInstance } from '../profiler/nestedCounters'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
@@ -12,15 +12,15 @@ export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
 }
 
 export interface LostNode {
-  counter: Cycle["counter"],
-  timestamp: number,
+  counter: Cycle['counter']
+  timestamp: number
   nodeInfo: NodeList.ConsensusNodeInfo
 }
 
 export let currentCycleDuration = 0
 export let currentCycleCounter = -1
 export let lastProcessedMetaData = -1
-export let CycleChain: Map<Cycle["counter"], any> = new Map()
+export let CycleChain: Map<Cycle['counter'], any> = new Map()
 export let lostNodes: LostNode[] = []
 
 export function processCycles(cycles: Cycle[]) {
@@ -93,8 +93,15 @@ export interface JoinedConsensor extends P2PNode {
 }
 
 function updateNodeList(cycle: Cycle) {
-
-  const { joinedConsensors, activatedPublicKeys, removed, lost, apoptosized, joinedArchivers, leavingArchivers, } = cycle
+  const {
+    joinedConsensors,
+    activatedPublicKeys,
+    removed,
+    lost,
+    apoptosized,
+    joinedArchivers,
+    leavingArchivers,
+  } = cycle
 
   const consensorInfos = joinedConsensors.map((jc) => ({
     ip: jc.externalIp,
@@ -145,10 +152,15 @@ function updateNodeList(cycle: Cycle) {
   NodeList.removeNodes(apoptosizedPks)
 
   for (let joinedArchiver of joinedArchivers) {
-    let foundArchiver = State.activeArchivers.find(a => a.publicKey === joinedArchiver.publicKey)
+    let foundArchiver = State.activeArchivers.find(
+      (a) => a.publicKey === joinedArchiver.publicKey
+    )
     if (!foundArchiver) {
       State.activeArchivers.push(joinedArchiver)
-      Logger.mainLogger.debug('New archiver added to active list', joinedArchiver)
+      Logger.mainLogger.debug(
+        'New archiver added to active list',
+        joinedArchiver
+      )
     }
     Logger.mainLogger.debug('active archiver list', State.activeArchivers)
   }

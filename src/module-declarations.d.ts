@@ -29,7 +29,7 @@ declare module 'shardus-crypto-types' {
   }
 }
 
-declare module 'shardus-crypto-utils' {
+declare module '@shardus/crypto-utils' {
   import * as CryptoTypes from 'shardus-crypto-types'
 
   interface ShardusCrypto {
@@ -62,7 +62,7 @@ declare module 'shardus-crypto-utils' {
       curvePk: CryptoTypes.curvePublicKey
     ) => CryptoTypes.sharedKey
 
-    hash(input: string): CryptoTypes.hexstring;
+    hash(input: string): CryptoTypes.hexstring
   }
 
   const crypto: ShardusCrypto
