@@ -1,5 +1,5 @@
 {
-  "name": "@shardus/archive-server",
+  "name": "@shardus/archiver",
   "version": "3.2.1",
   "description": "",
   "main": "./build/server.js",
