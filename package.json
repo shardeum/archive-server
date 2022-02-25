@@ -1,6 +1,6 @@
 {
   "name": "@shardus/archiver",
-  "version": "3.2.3",
+  "version": "3.2.4",
   "description": "",
   "main": "./build/server.js",
   "types": "./build/server.d.ts",
