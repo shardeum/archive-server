@@ -54,7 +54,7 @@ export async function insertArchivedCycle(archivedCycle: any) {
 }
 
 export async function updateReceiptMap(
-  receiptMapResult: StateManager.StateManagerTypes.ReceiptMapResult
+  receiptMapResult: StateManager.StateManagerTypes.ReceiptMapResult | any
 ) {
   if (!receiptMapResult) return
   try {
@@ -90,9 +90,19 @@ export async function updateReceiptMap(
 
     newPartitionMaps[receiptMapResult.partition] = receiptMapResult.receiptMap
 
+    let newPartitionTxs: any = {}
+    if (
+      existingArchivedCycle.receipt &&
+      existingArchivedCycle.receipt.partitionTxs
+    ) {
+      newPartitionTxs = { ...existingArchivedCycle.receipt.partitionTxs }
+    }
+
+    newPartitionTxs[receiptMapResult.partition] = receiptMapResult.txsMap
+
     await Collection.update({
       filter: { cycleMarker: parentCycle.marker },
-      update: { $set: { 'receipt.partitionMaps': newPartitionMaps } },
+      update: { $set: { 'receipt.partitionMaps': newPartitionMaps, 'receipt.partitionTxs': newPartitionTxs } },
     })
     let updatedArchivedCycle = await Collection.find({
       filter: { cycleMarker: parentCycle.marker },
