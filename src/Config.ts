@@ -19,6 +19,11 @@ export interface Config {
     save: boolean,
     interval: number
   }
+  MODE: string
+  DEBUG: {
+    hashedDevAuth?: string
+    devPublicKey?: string
+  }
 }
 
 let config: Config = {
@@ -37,7 +42,12 @@ let config: Config = {
   STATISTICS: {
     save: true,
     interval: 1
-  }
+  },
+  MODE: 'debug', // 'debug'/'release'
+  DEBUG: {
+    hashedDevAuth:'',
+    devPublicKey: '',
+  },
 }
 
 export function overrideDefaultConfig(

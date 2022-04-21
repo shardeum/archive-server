@@ -5,7 +5,8 @@
     "rootDir": "src",
     "outDir": "build",
     "resolveJsonModule": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "strict": false,
   },
   "exclude": ["build"]
 }

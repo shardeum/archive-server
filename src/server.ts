@@ -181,6 +181,72 @@ async function syncAndStartServer() {
   Data.initSocketClient(randomConsensor)
 }
 
+export function isDebugMode(): boolean {
+  return !!(config && config.MODE && config.MODE === 'debug')
+}
+
+export function getHashedDevKey(): string {
+  console.log(config)
+  if (config && config.DEBUG && config.DEBUG.hashedDevAuth) {
+    return config.DEBUG.hashedDevAuth
+  }
+  return ''
+}
+export function getDevPublicKey(): string {
+  if (config && config.DEBUG && config.DEBUG.devPublicKey) {
+    return config.DEBUG.devPublicKey
+  }
+  return ''
+}
+
+let lastCounter = 0
+
+export const isDebugMiddleware = (_req, res) => {
+  const isDebug = isDebugMode()
+  if (!isDebug) {
+    try {
+      //auth with by checking a password against a hash
+      if (_req.query.auth != null) {
+        const hashedAuth = Crypto.hashObj({ key: _req.query.auth })
+        const hashedDevKey = getHashedDevKey()
+        // can get a hash back if no key is set
+        if (hashedDevKey === '' || hashedDevKey !== hashedAuth) {
+          throw new Error('FORBIDDEN. HashedDevKey authentication is failed.')
+        }
+        return
+      }
+      //auth my by checking a signature
+      if (_req.query.sig != null && _req.query.sig_counter != null) {
+        const ownerPk = getDevPublicKey()
+        let requestSig = _req.query.sig
+        //check if counter is valid
+        let sigObj = {
+          route: _req.route,
+          count: _req.query.sig_counter,
+          sign: { owner: ownerPk, sig: requestSig },
+        }
+
+        //reguire a larger counter than before.
+        if (sigObj.count < lastCounter) {
+          let verified = Crypto.verify(sigObj)
+          if (!verified) {
+            throw new Error('FORBIDDEN. signature authentication is failed.')
+          }
+        } else {
+          throw new Error('FORBIDDEN. signature counter is failed.')
+        }
+        lastCounter = sigObj.count //update counter so we can't use it again
+        return
+      }
+      throw new Error('FORBIDDEN. Endpoint is only available in debug mode.')
+    } catch (error) {
+      // console.log(error)
+      // throw new Error('FORBIDDEN. Endpoint is only available in debug mode.')
+      res.code(401).send(error)
+    }
+  }
+}
+
 // Define all endpoints, all requests, and start REST server
 function startServer() {
   const server: fastify.FastifyInstance<
@@ -326,15 +392,23 @@ function startServer() {
     reply.send(res)
   })
 
-  server.get('/full-nodelist', (_request, reply) => {
-    const activeNodeList = NodeList.getActiveList()
-    const syncingNodeList = NodeList.getSyncingList()
-    const fullNodeList = activeNodeList.concat(syncingNodeList)
-    const res = Crypto.sign({
-      nodeList: fullNodeList,
-    })
-    reply.send(res)
-  })
+  server.get(
+    '/full-nodelist',
+    {
+      preHandler: async (_request, reply) => {
+        isDebugMiddleware(_request, reply)
+      },
+    },
+    (_request, reply) => {
+      const activeNodeList = NodeList.getActiveList()
+      const syncingNodeList = NodeList.getSyncingList()
+      const fullNodeList = activeNodeList.concat(syncingNodeList)
+      const res = Crypto.sign({
+        nodeList: fullNodeList,
+      })
+      reply.send(res)
+    }
+  )
 
   server.get('/full-archive', async (_request, reply) => {
     let err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
@@ -495,9 +569,17 @@ function startServer() {
   // })
 
   // [TODO] Remove this before production
-  server.get('/nodeids', (_request, reply) => {
-    reply.send(NodeList.byId)
-  })
+  server.get(
+    '/nodeids',
+    {
+      preHandler: async (_request, reply) => {
+        isDebugMiddleware(_request, reply)
+      },
+    },
+    (_request, reply) => {
+      reply.send(NodeList.byId)
+    }
+  )
 
   // Start server and bind to port on all interfaces
   server.listen(config.ARCHIVER_PORT, '0.0.0.0', (err, _address) => {

@@ -55,5 +55,10 @@
         "port": 4009,
         "publicKey": "aec5d2b663869d9c22ba99d8de76f3bff0f54fa5e39d2899ec1f3f4543422ec7"
       }
-    ]
+    ],
+    "MODE": "debug",
+    "DEBUG": {
+      "hashedDevAuth": "",
+      "devPublicKey": ""
+    }
   }

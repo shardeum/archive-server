@@ -1473,7 +1473,7 @@ export async function syncStateMetaData(
   return false
 }
 
-const calculateNetworkHash = (data: object): string => {
+export const calculateNetworkHash = (data: object): string => {
   let hashArray = []
   if (data) {
     for (const hash of Object.values(data)) {
@@ -1594,6 +1594,7 @@ async function validateAndStoreSummaryBlobs(
 
   for (let statsClump of statsClumpForCycles) {
     let { cycle, dataStats, txStats, covered } = statsClump
+    if (!covered) continue
     for (let partition of covered) {
       if (validateFn) {
         let shouldProcess = validateFn(cycle, partition)

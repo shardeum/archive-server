@@ -102,7 +102,12 @@ export async function updateReceiptMap(
 
     await Collection.update({
       filter: { cycleMarker: parentCycle.marker },
-      update: { $set: { 'receipt.partitionMaps': newPartitionMaps, 'receipt.partitionTxs': newPartitionTxs } },
+      update: {
+        $set: {
+          'receipt.partitionMaps': newPartitionMaps,
+          'receipt.partitionTxs': newPartitionTxs,
+        },
+      },
     })
     let updatedArchivedCycle = await Collection.find({
       filter: { cycleMarker: parentCycle.marker },
@@ -226,7 +231,7 @@ export async function queryAllArchivedCyclesBetween(
     sort: {
       'cycleRecord.counter': -1,
     },
-    limit: 5,
+    limit: end - start,
     project: {
       _id: 0,
     },
