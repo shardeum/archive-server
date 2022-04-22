@@ -97,9 +97,18 @@ export async function updateReceiptMap(
     ) {
       newPartitionTxs = { ...existingArchivedCycle.receipt.partitionTxs }
     }
-
-    newPartitionTxs[receiptMapResult.partition] = receiptMapResult.txsMap
-
+    if (receiptMapResult.txsMapEVMReceipt) {
+      for (let id of Object.keys(receiptMapResult.txsMapEVMReceipt)) {
+        receiptMapResult.txsMap[id] = [
+          ...receiptMapResult.txsMap[id],
+          receiptMapResult.txsMapEVMReceipt[id],
+        ]
+      }
+      newPartitionTxs[receiptMapResult.partition] = receiptMapResult.txsMap
+    } else {
+      newPartitionTxs[receiptMapResult.partition] = receiptMapResult.txsMap
+    }
+    // console.log('TxsMap', receiptMapResult.txsMap)
     await Collection.update({
       filter: { cycleMarker: parentCycle.marker },
       update: {
