@@ -1542,8 +1542,8 @@ async function validateAndStoreReceiptMaps(
   for (let counter in receiptMapResultsForCycles) {
     let receiptMapResults: StateManager.StateManagerTypes.ReceiptMapResult[] =
       receiptMapResultsForCycles[counter]
-    for (let partitionBlock of receiptMapResults) {
-      let { cycle, partition } = partitionBlock
+    for (let receiptMap of receiptMapResults) {
+      let { cycle, partition } = receiptMap
       if (validateFn) {
         let shouldProcess = validateFn(cycle, partition)
         if (!shouldProcess) {
@@ -1561,11 +1561,11 @@ async function validateAndStoreReceiptMaps(
         )
         continue
       }
-      let calculatedReceiptMapHash = Crypto.hashObj(partitionBlock)
+      let calculatedReceiptMapHash = Crypto.hashObj(receiptMap)
       if (calculatedReceiptMapHash === reciptMapHash) {
-        await Storage.updateReceiptMap(partitionBlock)
+        await Storage.updateReceiptMap(receiptMap)
         completed.push(partition)
-        receiptMaps[partition] = partitionBlock
+        receiptMaps[partition] = receiptMap
       } else {
         Logger.mainLogger.error(
           `Different hash while downloading receipt maps for counter ${counter}, partition ${partition}`

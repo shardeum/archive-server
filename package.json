@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "@shardus/crypto-utils": "^4.0.4",
-    "@shardus/types": "^1.0.5",
+    "@shardus/types": "^1.0.8",
     "deepmerge": "^4.2.2",
     "eslint": "^7.20.0",
     "fastify": "^2.4.0",
