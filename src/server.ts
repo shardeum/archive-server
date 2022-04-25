@@ -51,7 +51,7 @@ async function start() {
   const logsConfig = JSON.parse(
     readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8')
   )
-  logDir = `archiver-logs/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
+  logDir = `${config.ARCHIVER_LOGS}/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
   const baseDir = '.'
   logsConfig.dir = logDir
   Logger.initLogger(baseDir, logsConfig)

@@ -15,15 +15,16 @@
     "release": "np --no-cleanup --no-tests --no-yarn",
     "test": "echo \"Error: no test specified\" && exit 1",
     "check": "gts check",
-    "clean": "gts clean",
+    "clean": "npm-run-all clean:*",
+    "clean:typescript": "gts clean",
+    "clean:artifacts": "shx rm -rf logs/ db/",
     "compile": "tsc -p .",
     "fix": "gts fix",
     "prepare": "npm run compile",
     "pretest": "npm run compile",
     "posttest": "npm run check",
     "update-docker": "docker build -t registry.gitlab.com/shardus/archive/archive-server . && docker push registry.gitlab.com/shardus/archive/archive-server",
-    "update-schemas": "typescript-json-schema tsconfig.json NewData -o src/Data/schemas/NewData.json & typescript-json-schema tsconfig.json DataResponse -o src/Data/schemas/DataResponse.json",
-    "scrub": "rimraf ./archiver-db ./archiver-db.idx.db ./archiver-logs"
+    "update-schemas": "typescript-json-schema tsconfig.json NewData -o src/Data/schemas/NewData.json & typescript-json-schema tsconfig.json DataResponse -o src/Data/schemas/DataResponse.json"
   },
   "repository": {
     "type": "git",
@@ -45,7 +46,8 @@
     "@types/socket.io-client": "^1.4.33",
     "gts": "^3.1.0",
     "np": "^7.6.0",
-    "rimraf": "^3.0.2",
+    "npm-run-all": "^4.1.5",
+    "shx": "^0.3.4",
     "typescript": "^4.4.4",
     "typescript-json-schema": "^0.51.0"
   },

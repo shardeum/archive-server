@@ -16,7 +16,7 @@ export interface Config {
   DATASENDER_TIMEOUT: number
   RATE_LIMIT: number // number of allowed request per second,
   STATISTICS: {
-    save: boolean,
+    save: boolean
     interval: number
   }
   MODE: string
@@ -36,16 +36,17 @@ let config: Config = {
   ARCHIVER_SECRET_KEY:
     '3be00019f23847529bd63e41124864983175063bb524bd54ea3c155f2fa12969758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3',
   ARCHIVER_EXISTING: [],
-  ARCHIVER_DB: 'archiver-db',
+  ARCHIVER_LOGS: 'logs',
+  ARCHIVER_DB: 'db/archiver-db',
   DATASENDER_TIMEOUT: 1000 * 60 * 5,
   RATE_LIMIT: 100, // 100 req per second,
   STATISTICS: {
     save: true,
-    interval: 1
+    interval: 1,
   },
   MODE: 'debug', // 'debug'/'release'
   DEBUG: {
-    hashedDevAuth:'',
+    hashedDevAuth: '',
     devPublicKey: '',
   },
 }
