@@ -36,6 +36,9 @@ export async function insertArchivedCycle(archivedCycle: any) {
     )
     let updatedArchivedCycle = await Collection.find({
       filter: { cycleMarker: archivedCycle.cycleMarker },
+      project: {
+        _id: 0,
+      },
     })
     let signedDataToSend = Crypto.sign({
       archivedCycles: updatedArchivedCycle,
@@ -108,7 +111,7 @@ export async function updateReceiptMap(
     } else {
       newPartitionTxs[receiptMapResult.partition] = receiptMapResult.txsMap
     }
-    // console.log('TxsMap', receiptMapResult.txsMap)
+    console.log('TxsMap', receiptMapResult.txsMap)
     await Collection.update({
       filter: { cycleMarker: parentCycle.marker },
       update: {
@@ -120,6 +123,9 @@ export async function updateReceiptMap(
     })
     let updatedArchivedCycle = await Collection.find({
       filter: { cycleMarker: parentCycle.marker },
+      project: {
+        _id: 0,
+      },
     })
     let signedDataToSend = Crypto.sign({
       archivedCycles: updatedArchivedCycle,
@@ -177,6 +183,9 @@ export async function updateSummaryBlob(
     })
     let updatedArchivedCycle = await Collection.find({
       filter: { cycleMarker: parentCycle.marker },
+      project: {
+        _id: 0,
+      },
     })
     let signedDataToSend = Crypto.sign({
       archivedCycles: updatedArchivedCycle,
@@ -203,6 +212,9 @@ export async function updateArchivedCycle(
   })
   let updatedArchivedCycle = await Collection.find({
     filter: { cycleMarker: marker },
+    project: {
+      _id: 0,
+    },
   })
   let signedDataToSend = Crypto.sign({
     archivedCycles: updatedArchivedCycle,
@@ -246,17 +258,17 @@ export async function queryAllArchivedCyclesBetween(
     },
   })
 
-  let cycleRecords = await Collection.find({
-    filter: {
-      $and: [
-        { 'cycleRecord.counter': { $gte: start } },
-        { 'cycleRecord.counter': { $lte: end } },
-      ],
-    },
-    sort: {
-      'cycleRecord.counter': -1,
-    },
-  })
+  // let cycleRecords = await Collection.find({
+  //   filter: {
+  //     $and: [
+  //       { 'cycleRecord.counter': { $gte: start } },
+  //       { 'cycleRecord.counter': { $lte: end } },
+  //     ],
+  //   },
+  //   sort: {
+  //     'cycleRecord.counter': -1,
+  //   },
+  // })
 
   return archivedCycles
 }
