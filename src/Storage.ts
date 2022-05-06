@@ -40,12 +40,12 @@ export async function insertArchivedCycle(archivedCycle: any) {
         _id: 0,
       },
     })
-    let signedDataToSend = Crypto.sign({
-      archivedCycles: updatedArchivedCycle,
-    })
-    if (updatedArchivedCycle) {
-      if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
-    }
+    // let signedDataToSend = Crypto.sign({
+    //   archivedCycles: updatedArchivedCycle,
+    // })
+    // if (updatedArchivedCycle) {
+    //   if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+    // }
   } catch (e) {
     Logger.mainLogger.error(e)
     Logger.mainLogger.error(
@@ -111,7 +111,7 @@ export async function updateReceiptMap(
     } else {
       newPartitionTxs[receiptMapResult.partition] = receiptMapResult.txsMap
     }
-    console.log('TxsMap', receiptMapResult.txsMap)
+    // console.log('TxsMap', receiptMapResult.txsMap)
     await Collection.update({
       filter: { cycleMarker: parentCycle.marker },
       update: {
@@ -127,12 +127,12 @@ export async function updateReceiptMap(
         _id: 0,
       },
     })
-    let signedDataToSend = Crypto.sign({
-      archivedCycles: updatedArchivedCycle,
-    })
-    if (updatedArchivedCycle) {
-      if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
-    }
+    // let signedDataToSend = Crypto.sign({
+    //   archivedCycles: updatedArchivedCycle,
+    // })
+    // if (updatedArchivedCycle) {
+    //   if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+    // }
   } catch (e) {
     Logger.mainLogger.error('Unable to update receipt maps in archived cycle')
     Logger.mainLogger.error(e)
@@ -187,12 +187,12 @@ export async function updateSummaryBlob(
         _id: 0,
       },
     })
-    let signedDataToSend = Crypto.sign({
-      archivedCycles: updatedArchivedCycle,
-    })
-    if (updatedArchivedCycle) {
-      if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
-    }
+    // let signedDataToSend = Crypto.sign({
+    //   archivedCycles: updatedArchivedCycle,
+    // })
+    // if (updatedArchivedCycle) {
+    //   if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+    // }
   } catch (e) {
     Logger.mainLogger.error('Unable to update summary blobs in archived cycle')
     Logger.mainLogger.error(e)
@@ -216,12 +216,12 @@ export async function updateArchivedCycle(
       _id: 0,
     },
   })
-  let signedDataToSend = Crypto.sign({
-    archivedCycles: updatedArchivedCycle,
-  })
-  if (updatedArchivedCycle) {
-    if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
-  }
+  // let signedDataToSend = Crypto.sign({
+  //   archivedCycles: updatedArchivedCycle,
+  // })
+  // if (updatedArchivedCycle) {
+  //   if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+  // }
 }
 
 export async function queryAllArchivedCycles(count?: number) {
@@ -252,7 +252,7 @@ export async function queryAllArchivedCyclesBetween(
     sort: {
       'cycleRecord.counter': -1,
     },
-    limit: end - start,
+    limit: end - start + 1,
     project: {
       _id: 0,
     },

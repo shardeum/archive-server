@@ -22,11 +22,14 @@ import { P2P as P2PTypes, StateManager } from '@shardus/types'
 import * as Logger from '../Logger'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
+import {queryArchivedCycleByMarker} from "../Storage";
+import { queryArchivedCycles } from '../test/api/archivedCycles'
 
 // Socket modules
 export let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic['Socket']
+let lastSentCycleCounterToExplorer = 0
 
 // Data network messages
 
@@ -558,7 +561,7 @@ async function processData(
       case P2PTypes.SnapshotTypes.TypeNames.CYCLE: {
         Logger.mainLogger.debug('Processing CYCLE data')
         processCycles(newData.responses.CYCLE as Cycle[])
-        socketServer.emit('ARCHIVED_CYCLE', 'CYCLE')
+        // socketServer.emit('ARCHIVED_CYCLE', 'CYCLE')
         if (newData.responses.CYCLE.length > 0) {
           for (let cycle of newData.responses.CYCLE) {
             let archivedCycle: any = {}
@@ -577,7 +580,7 @@ async function processData(
       }
       case P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA: {
         Logger.mainLogger.debug('Processing STATE_METADATA')
-        processStateMetaData(newData.responses.STATE_METADATA)
+        processStateMetaData(newData.responses)
         break
       }
       default: {
@@ -599,9 +602,11 @@ async function processData(
 }
 
 export async function processStateMetaData(
-  STATE_METADATA: P2PTypes.SnapshotTypes.StateMetaData[]
+  response: any
 ) {
-  if (!STATE_METADATA) {
+  Logger.mainLogger.error("response", response)
+  let STATE_METADATA = response.STATE_METADATA
+  if (!STATE_METADATA || STATE_METADATA.length === 0) {
     Logger.mainLogger.error(
       'Invalid STATE_METADATA provided to processStateMetaData function',
       STATE_METADATA
@@ -609,6 +614,7 @@ export async function processStateMetaData(
     return
   }
   profilerInstance.profileSectionStart('state_metadata')
+  let processedCounters = {}
   for (let stateMetaData of STATE_METADATA) {
     let data, receipt, summary
     // [TODO] validate the state data by robust querying other nodes
@@ -629,6 +635,9 @@ export async function processStateMetaData(
         partitionHashes: stateHashesForCycle.partitionHashes,
       }
       await Storage.updateArchivedCycle(data.parentCycle, 'data', data)
+      if (!processedCounters[parentCycle.counter]) {
+        processedCounters[parentCycle.counter] = true
+      }
       // Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
     }
 
@@ -714,6 +723,7 @@ export async function processStateMetaData(
               'Total downloaded receipts',
               downloadedReceiptMaps.size
             )
+
             let receiptMapsToForward = []
             for (let [partition, receiptMap] of downloadedReceiptMaps) {
               receiptMapsToForward.push(receiptMap)
@@ -747,6 +757,9 @@ export async function processStateMetaData(
             `There are ${failedPartitions.size} failed partitions in cycle ${parentCycle.counter}.`
           )
         }
+      }
+      if (!processedCounters[parentCycle.counter]) {
+        processedCounters[parentCycle.counter] = true
       }
     }
 
@@ -850,6 +863,28 @@ export async function processStateMetaData(
           )
         }
       }
+      if (!processedCounters[parentCycle.counter]) {
+        processedCounters[parentCycle.counter] = true
+      }
+    }
+  }
+  if (socketServer)  {
+    Logger.mainLogger.debug('Finished processing state metadata...', processedCounters, lastSentCycleCounterToExplorer)
+    for (let counter of Object.keys(processedCounters)) {
+      let start = parseInt(counter)
+      let end = parseInt(counter)
+      if (lastSentCycleCounterToExplorer == null || parseInt(counter) > lastSentCycleCounterToExplorer + 1) {
+        start = lastSentCycleCounterToExplorer + 1
+      }
+      Logger.mainLogger.debug('start, end', start, end)
+      let completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(start, end)
+      Logger.mainLogger.debug('completedArchivedCycle', completedArchivedCycle.length, completedArchivedCycle)
+      let signedDataToSend = Crypto.sign({
+        archivedCycles: completedArchivedCycle,
+      })
+      Logger.mainLogger.debug('Sending completed archived_cycle to explorer', signedDataToSend)
+      lastSentCycleCounterToExplorer = end
+      if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
     }
   }
   profilerInstance.profileSectionEnd('state_metadata')
