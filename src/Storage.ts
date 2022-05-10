@@ -34,12 +34,12 @@ export async function insertArchivedCycle(archivedCycle: any) {
       'Successfully inserted archivedCycle',
       archivedCycle.cycleRecord.counter
     )
-    let updatedArchivedCycle = await Collection.find({
-      filter: { cycleMarker: archivedCycle.cycleMarker },
-      project: {
-        _id: 0,
-      },
-    })
+    // let updatedArchivedCycle = await Collection.find({
+    //   filter: { cycleMarker: archivedCycle.cycleMarker },
+    //   project: {
+    //     _id: 0,
+    //   },
+    // })
     // let signedDataToSend = Crypto.sign({
     //   archivedCycles: updatedArchivedCycle,
     // })
@@ -121,12 +121,12 @@ export async function updateReceiptMap(
         },
       },
     })
-    let updatedArchivedCycle = await Collection.find({
-      filter: { cycleMarker: parentCycle.marker },
-      project: {
-        _id: 0,
-      },
-    })
+    // let updatedArchivedCycle = await Collection.find({
+    //   filter: { cycleMarker: parentCycle.marker },
+    //   project: {
+    //     _id: 0,
+    //   },
+    // })
     // let signedDataToSend = Crypto.sign({
     //   archivedCycles: updatedArchivedCycle,
     // })
@@ -181,12 +181,12 @@ export async function updateSummaryBlob(
       filter: { cycleMarker: parentCycle.marker },
       update: { $set: { 'summary.partitionBlobs': newPartitionBlobs } },
     })
-    let updatedArchivedCycle = await Collection.find({
-      filter: { cycleMarker: parentCycle.marker },
-      project: {
-        _id: 0,
-      },
-    })
+    // let updatedArchivedCycle = await Collection.find({
+    //   filter: { cycleMarker: parentCycle.marker },
+    //   project: {
+    //     _id: 0,
+    //   },
+    // })
     // let signedDataToSend = Crypto.sign({
     //   archivedCycles: updatedArchivedCycle,
     // })
@@ -210,12 +210,12 @@ export async function updateArchivedCycle(
     filter: { cycleMarker: marker },
     update: { $set: updateObj },
   })
-  let updatedArchivedCycle = await Collection.find({
-    filter: { cycleMarker: marker },
-    project: {
-      _id: 0,
-    },
-  })
+  // let updatedArchivedCycle = await Collection.find({
+  //   filter: { cycleMarker: marker },
+  //   project: {
+  //     _id: 0,
+  //   },
+  // })
   // let signedDataToSend = Crypto.sign({
   //   archivedCycles: updatedArchivedCycle,
   // })

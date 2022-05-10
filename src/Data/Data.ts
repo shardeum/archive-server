@@ -22,14 +22,15 @@ import { P2P as P2PTypes, StateManager } from '@shardus/types'
 import * as Logger from '../Logger'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
-import {queryArchivedCycleByMarker} from "../Storage";
+import { queryArchivedCycleByMarker } from '../Storage'
 import { queryArchivedCycles } from '../test/api/archivedCycles'
 
 // Socket modules
 export let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic['Socket']
-let lastSentCycleCounterToExplorer = 0
+let lastSentCycleCounterToExplorer = null
+let processedCounters = {}
 
 // Data network messages
 
@@ -601,10 +602,8 @@ async function processData(
   }
 }
 
-export async function processStateMetaData(
-  response: any
-) {
-  Logger.mainLogger.error("response", response)
+export async function processStateMetaData(response: any) {
+  Logger.mainLogger.error('response', response)
   let STATE_METADATA = response.STATE_METADATA
   if (!STATE_METADATA || STATE_METADATA.length === 0) {
     Logger.mainLogger.error(
@@ -614,7 +613,6 @@ export async function processStateMetaData(
     return
   }
   profilerInstance.profileSectionStart('state_metadata')
-  let processedCounters = {}
   for (let stateMetaData of STATE_METADATA) {
     let data, receipt, summary
     // [TODO] validate the state data by robust querying other nodes
@@ -635,9 +633,9 @@ export async function processStateMetaData(
         partitionHashes: stateHashesForCycle.partitionHashes,
       }
       await Storage.updateArchivedCycle(data.parentCycle, 'data', data)
-      if (!processedCounters[parentCycle.counter]) {
-        processedCounters[parentCycle.counter] = true
-      }
+      // if (!processedCounters[parentCycle.counter]) {
+      //   processedCounters[parentCycle.counter] = true
+      // }
       // Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
     }
 
@@ -723,19 +721,22 @@ export async function processStateMetaData(
               'Total downloaded receipts',
               downloadedReceiptMaps.size
             )
-
-            let receiptMapsToForward = []
-            for (let [partition, receiptMap] of downloadedReceiptMaps) {
-              receiptMapsToForward.push(receiptMap)
+            if (!processedCounters[receiptHashesForCycle.counter - 1]) {
+              processedCounters[receiptHashesForCycle.counter - 1] = true
             }
-            receiptMapsToForward = receiptMapsToForward.filter(
-              (receipt) => receipt.cycle === parentCycle.counter
-            )
-            Logger.mainLogger.debug(
-              'receiptMapsToForward',
-              receiptMapsToForward.length
-            )
-            socketServer.emit('RECEIPT_MAP', receiptMapsToForward)
+            
+            // let receiptMapsToForward = []
+            // for (let [partition, receiptMap] of downloadedReceiptMaps) {
+            //   receiptMapsToForward.push(receiptMap)
+            // }
+            // receiptMapsToForward = receiptMapsToForward.filter(
+            //   (receipt) => receipt.cycle === parentCycle.counter
+            // )
+            // Logger.mainLogger.debug(
+            //   'receiptMapsToForward',
+            //   receiptMapsToForward.length
+            // )
+            // socketServer.emit('RECEIPT_MAP', receiptMapsToForward)
             break
           }
           retry += 1
@@ -758,9 +759,6 @@ export async function processStateMetaData(
           )
         }
       }
-      if (!processedCounters[parentCycle.counter]) {
-        processedCounters[parentCycle.counter] = true
-      }
     }
 
     // store summary hashes to archivedCycle
@@ -782,90 +780,90 @@ export async function processStateMetaData(
       await Storage.updateArchivedCycle(summary.parentCycle, 'summary', summary)
       Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
 
-      // Query summary blobs from other nodes and store it
-      if (summaryHashesForCycle.summaryHashes) {
-        let isDownloadSuccess = false
-        let retry = 0
-        let sleepCount = 0
-        let failedPartitions = new Map()
-        let coveredPartitions = new Map()
-        let downloadedBlobs = new Map()
+      // // Query summary blobs from other nodes and store it
+      // if (summaryHashesForCycle.summaryHashes) {
+      //   let isDownloadSuccess = false
+      //   let retry = 0
+      //   let sleepCount = 0
+      //   let failedPartitions = new Map()
+      //   let coveredPartitions = new Map()
+      //   let downloadedBlobs = new Map()
 
-        let shouldProcessBlob = (cycle: number, partition: number) => {
-          if (cycle === summaryHashesForCycle.counter - 1)
-            if (
-              failedPartitions.has(partition) ||
-              !coveredPartitions.has(partition)
-            )
-              return true
-          return false
-        }
+      //   let shouldProcessBlob = (cycle: number, partition: number) => {
+      //     if (cycle === summaryHashesForCycle.counter - 1)
+      //       if (
+      //         failedPartitions.has(partition) ||
+      //         !coveredPartitions.has(partition)
+      //       )
+      //         return true
+      //     return false
+      //   }
 
-        while (!isDownloadSuccess && sleepCount < 20) {
-          let randomConsensor = NodeList.getRandomActiveNode()
-          const queryRequest = createQueryRequest(
-            'SUMMARY_BLOB',
-            summaryHashesForCycle.counter - 1,
-            randomConsensor.publicKey
-          )
-          let { success, completed, failed, covered, blobs } =
-            await sendDataQuery(
-              randomConsensor,
-              queryRequest,
-              shouldProcessBlob
-            )
-          if (success) {
-            for (let partition of failed) {
-              failedPartitions.set(partition, true)
-            }
-            for (let partition of completed) {
-              if (failedPartitions.has(partition))
-                failedPartitions.delete(partition)
-            }
-            for (let partition of covered) {
-              coveredPartitions.set(partition, true)
-            }
-            for (let partition in blobs) {
-              downloadedBlobs.set(partition, blobs[partition])
-            }
-          }
-          isDownloadSuccess =
-            failedPartitions.size === 0 && coveredPartitions.size === 4096
-          if (isDownloadSuccess) {
-            Logger.mainLogger.debug(
-              'Data query for summary blob is completed for cycle',
-              parentCycle.counter
-            )
-            Logger.mainLogger.debug(
-              'Total downloaded blobs',
-              downloadedBlobs.size
-            )
-            break
-          }
+      //   while (!isDownloadSuccess && sleepCount < 20) {
+      //     let randomConsensor = NodeList.getRandomActiveNode()
+      //     const queryRequest = createQueryRequest(
+      //       'SUMMARY_BLOB',
+      //       summaryHashesForCycle.counter - 1,
+      //       randomConsensor.publicKey
+      //     )
+      //     let { success, completed, failed, covered, blobs } =
+      //       await sendDataQuery(
+      //         randomConsensor,
+      //         queryRequest,
+      //         shouldProcessBlob
+      //       )
+      //     if (success) {
+      //       for (let partition of failed) {
+      //         failedPartitions.set(partition, true)
+      //       }
+      //       for (let partition of completed) {
+      //         if (failedPartitions.has(partition))
+      //           failedPartitions.delete(partition)
+      //       }
+      //       for (let partition of covered) {
+      //         coveredPartitions.set(partition, true)
+      //       }
+      //       for (let partition in blobs) {
+      //         downloadedBlobs.set(partition, blobs[partition])
+      //       }
+      //     }
+      //     isDownloadSuccess =
+      //       failedPartitions.size === 0 && coveredPartitions.size === 4096
+      //     if (isDownloadSuccess) {
+      //       Logger.mainLogger.debug(
+      //         'Data query for summary blob is completed for cycle',
+      //         parentCycle.counter
+      //       )
+      //       Logger.mainLogger.debug(
+      //         'Total downloaded blobs',
+      //         downloadedBlobs.size
+      //       )
+      //       break
+      //     }
 
-          retry += 1
-          if (!isDownloadSuccess && retry >= NodeList.getActiveList().length) {
-            Logger.mainLogger.debug(
-              'Sleeping for 5 sec before retrying download again for cycle',
-              parentCycle.counter
-            )
-            await Utils.sleep(5000)
-            retry = 0
-            sleepCount += 1
-          }
-        }
-        if (!isDownloadSuccess) {
-          Logger.mainLogger.debug(
-            `Downloading summary blob for cycle ${parentCycle.counter} has failed.`
-          )
-          Logger.mainLogger.debug(
-            `There are ${failedPartitions.size} failed partitions in cycle ${parentCycle.counter}.`
-          )
-        }
-      }
-      if (!processedCounters[parentCycle.counter]) {
-        processedCounters[parentCycle.counter] = true
-      }
+      //     retry += 1
+      //     if (!isDownloadSuccess && retry >= NodeList.getActiveList().length) {
+      //       Logger.mainLogger.debug(
+      //         'Sleeping for 5 sec before retrying download again for cycle',
+      //         parentCycle.counter
+      //       )
+      //       await Utils.sleep(5000)
+      //       retry = 0
+      //       sleepCount += 1
+      //     }
+      //   }
+      //   if (!isDownloadSuccess) {
+      //     Logger.mainLogger.debug(
+      //       `Downloading summary blob for cycle ${parentCycle.counter} has failed.`
+      //     )
+      //     Logger.mainLogger.debug(
+      //       `There are ${failedPartitions.size} failed partitions in cycle ${parentCycle.counter}.`
+      //     )
+      //   }
+      // }
+      // if (!processedCounters[parentCycle.counter]) {
+      //   processedCounters[parentCycle.counter] = true
+      // }
     }
   }
   if (socketServer)  {
