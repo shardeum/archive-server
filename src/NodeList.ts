@@ -109,6 +109,50 @@ export function addNodes(
     realUpdatedTimes.set('/nodelist', Date.now())
   }
 }
+export function refreshNodes(
+  status: Statuses,
+  cycleMarkerJoined: string,
+  nodes: ConsensusNodeInfo[] | Data.JoinedConsensor[]
+) {
+  Logger.mainLogger.debug('Typeof Nodes to refresh', typeof nodes)
+  Logger.mainLogger.debug('Length of Nodes to refresh', nodes.length)
+  Logger.mainLogger.debug('Nodes to refresh', nodes)
+  for (const node of nodes) {
+    const ipPort = getIpPort(node)
+
+    // If node not in lists, add it
+    if (
+      byPublicKey[node.publicKey] === undefined &&
+      byIpPort[ipPort] === undefined
+    ) {
+      Logger.mainLogger.debug('adding new node during refresh', node.publicKey)
+      list.push(node)
+      if (status === Statuses.SYNCING) {
+        syncingList.set(node.publicKey, node)
+      } else if (status === Statuses.ACTIVE) {
+        activeList.set(node.publicKey, node)
+      }
+
+      byPublicKey[node.publicKey] = node
+      byIpPort[ipPort] = node
+    }
+
+    // If an id is given, update its id
+    if (node.id) {
+      const entry = byPublicKey[node.publicKey]
+      if (entry) {
+        entry.id = node.id
+        publicKeyToId[node.publicKey] = node.id
+        byId[node.id] = node
+      }
+    }
+  }
+
+  // Set updated time for cache
+  if (nodes.length > 0) {
+    realUpdatedTimes.set('/nodelist', Date.now())
+  }
+}
 
 export function removeNodes(publicKeys: string[]): string[] {
   if (publicKeys.length > 0)

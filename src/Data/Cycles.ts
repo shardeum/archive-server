@@ -110,9 +110,18 @@ function updateNodeList(cycle: Cycle) {
     id: jc.id,
   }))
 
+  const refreshedConsensorInfos = joinedConsensors.map((jc) => ({
+    ip: jc.externalIp,
+    port: jc.externalPort,
+    publicKey: jc.publicKey,
+    id: jc.id,
+  }))
+
   NodeList.addNodes(NodeList.Statuses.SYNCING, cycle.marker, consensorInfos)
 
   NodeList.setStatus(NodeList.Statuses.ACTIVE, ...activatedPublicKeys)
+
+  NodeList.refreshNodes(NodeList.Statuses.ACTIVE, cycle.marker, refreshedConsensorInfos)
 
   const removedPks = removed.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)
