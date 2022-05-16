@@ -29,8 +29,8 @@ import { queryArchivedCycles } from '../test/api/archivedCycles'
 export let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic['Socket']
-let lastSentCycleCounterToExplorer = null
-let processedCounters = {}
+let lastSentCycleCounterToExplorer = 0
+// let processedCounters = {}
 
 // Data network messages
 
@@ -721,10 +721,11 @@ export async function processStateMetaData(response: any) {
               'Total downloaded receipts',
               downloadedReceiptMaps.size
             )
-            if (!processedCounters[receiptHashesForCycle.counter - 1]) {
-              processedCounters[receiptHashesForCycle.counter - 1] = true
-            }
-            
+            // if (!processedCounters[receiptHashesForCycle.counter - 1]) {
+            //   processedCounters[receiptHashesForCycle.counter - 1] = true
+            // }
+            sendToExplorer(receiptHashesForCycle.counter - 1)
+
             // let receiptMapsToForward = []
             // for (let [partition, receiptMap] of downloadedReceiptMaps) {
             //   receiptMapsToForward.push(receiptMap)
@@ -866,26 +867,48 @@ export async function processStateMetaData(response: any) {
       // }
     }
   }
-  if (socketServer)  {
-    Logger.mainLogger.debug('Finished processing state metadata...', processedCounters, lastSentCycleCounterToExplorer)
-    for (let counter of Object.keys(processedCounters)) {
-      let start = parseInt(counter)
-      let end = parseInt(counter)
-      if (lastSentCycleCounterToExplorer == null || parseInt(counter) > lastSentCycleCounterToExplorer + 1) {
-        start = lastSentCycleCounterToExplorer + 1
-      }
-      Logger.mainLogger.debug('start, end', start, end)
-      let completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(start, end)
-      Logger.mainLogger.debug('completedArchivedCycle', completedArchivedCycle.length, completedArchivedCycle)
-      let signedDataToSend = Crypto.sign({
-        archivedCycles: completedArchivedCycle,
-      })
-      Logger.mainLogger.debug('Sending completed archived_cycle to explorer', signedDataToSend)
-      lastSentCycleCounterToExplorer = end
-      if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
-    }
-  }
+  // if (socketServer)  {
+  //   Logger.mainLogger.debug('Finished processing state metadata...', processedCounters, lastSentCycleCounterToExplorer)
+  //   for (let counter of Object.keys(processedCounters)) {
+  //     let start = parseInt(counter)
+  //     let end = parseInt(counter)
+  //     if (lastSentCycleCounterToExplorer === 0 || parseInt(counter) > lastSentCycleCounterToExplorer + 1) {
+  //       start = lastSentCycleCounterToExplorer + 1
+  //     } else {
+  //       continue
+  //     }
+  //     Logger.mainLogger.debug('start, end', start, end)
+  //     console.log(start,end)
+  //     let completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(start, end)
+  //     Logger.mainLogger.debug('completedArchivedCycle', completedArchivedCycle.length, completedArchivedCycle)
+  //     let signedDataToSend = Crypto.sign({
+  //       archivedCycles: completedArchivedCycle,
+  //     })
+  //     Logger.mainLogger.debug('Sending completed archived_cycle to explorer', signedDataToSend)
+  //     lastSentCycleCounterToExplorer = end
+  //     if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+  //   }
+  // }
   profilerInstance.profileSectionEnd('state_metadata')
+}
+
+export async function sendToExplorer(counter) {
+  if (socketServer) {
+    let completedArchivedCycle
+    if (lastSentCycleCounterToExplorer === 0) {
+      completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(lastSentCycleCounterToExplorer, counter)
+      Logger.mainLogger.debug('start, end', lastSentCycleCounterToExplorer, counter)
+    } else {
+      completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(counter, counter)
+      Logger.mainLogger.debug('start, end', counter, counter)
+    }
+    let signedDataToSend = Crypto.sign({
+      archivedCycles: completedArchivedCycle,
+    })
+    Logger.mainLogger.debug('Sending completed archived_cycle to explorer', signedDataToSend)
+    lastSentCycleCounterToExplorer = counter
+    if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
+  }
 }
 
 export async function fetchStateHashes(archivers: any) {
@@ -1202,8 +1225,7 @@ export async function syncCyclesAndNodeList(
     }
 
     Logger.mainLogger.debug(
-      `Got ${
-        squasher.final.updated.length
+      `Got ${squasher.final.updated.length
       } active nodes, need ${activeNodeCount(cycleToSyncTo)}`
     )
     Logger.mainLogger.debug(
@@ -1214,7 +1236,7 @@ export async function syncCyclesAndNodeList(
     if (squasher.final.added.length < totalNodeCount(cycleToSyncTo))
       Logger.mainLogger.debug(
         'Short on nodes. Need to get more cycles. Cycle:' +
-          cycleToSyncTo.counter
+        cycleToSyncTo.counter
       )
 
     // If you weren't able to prepend any of the prevCycles, start over
@@ -1312,8 +1334,7 @@ async function downloadArchivedCycles(
       `Downloading archive from cycle ${lastData} to cycle ${lastData + 5}`
     )
     let response: any = await P2P.getJson(
-      `http://${archiver.ip}:${
-        archiver.port
+      `http://${archiver.ip}:${archiver.port
       }/full-archive?start=${lastData}&end=${lastData + 5}`
     )
     if (response && response.archivedCycles) {
@@ -1427,7 +1448,7 @@ export async function syncStateMetaData(
       )
       if (
         downloadedNetworkReceiptHash ===
-          networkReceiptHashesFromRecords.get(counter) ||
+        networkReceiptHashesFromRecords.get(counter) ||
         downloadedNetworkReceiptHash === calculatedReceiptHash
       ) {
         if (
