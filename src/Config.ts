@@ -50,7 +50,7 @@ let config: Config = {
     hashedDevAuth: '',
     devPublicKey: '',
   },
-  experimentalSnapshot: true
+  experimentalSnapshot: true,
 }
 
 export function overrideDefaultConfig(

@@ -58,7 +58,7 @@ async function start() {
   Logger.initLogger(baseDir, logsConfig)
   // Initialize storage
   if (config.experimentalSnapshot) {
-    await dbstore.initializeDB();
+    await dbstore.initializeDB()
   } else {
     await Storage.initStorage(config)
   }
