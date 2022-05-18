@@ -1,6 +1,6 @@
-import * as Account from "../db/accounts"
-import * as Transaction from "../db/transactions"
-import * as Cycle from "../db/cycles"
+import * as Account from "../dbstore/accounts"
+import * as Transaction from "../dbstore/transactions"
+import * as Cycle from "../dbstore/cycles"
 
 export const processReceiptData = async (receipts = []) => {
     if (receipts && receipts.length <= 0) return
