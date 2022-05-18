@@ -25,6 +25,7 @@ import NestedCounters, {
 } from './profiler/nestedCounters'
 import Profiler, { profilerInstance } from './profiler/profiler'
 import Statistics from './statistics'
+import * as db from './db'
 
 // Socket modules
 let io: SocketIO.Server
@@ -56,7 +57,11 @@ async function start() {
   logsConfig.dir = logDir
   Logger.initLogger(baseDir, logsConfig)
   // Initialize storage
-  await Storage.initStorage(config)
+  if (config.experimentalSnapshot) {
+    await db.initializeDB();
+  } else {
+    await Storage.initStorage(config)
+  }
 
   // Initialize state from config
   await State.initFromConfig(config)

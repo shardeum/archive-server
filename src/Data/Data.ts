@@ -24,6 +24,7 @@ import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
 import { queryArchivedCycleByMarker } from '../Storage'
 import { queryArchivedCycles } from '../test/api/archivedCycles'
+import { processReceiptData, processCycleData } from './Receipt'
 
 // Socket modules
 export let socketServer: SocketIO.Server
@@ -117,6 +118,21 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
       if (Crypto.authenticate(newData) === false) {
         Logger.mainLogger.debug('This data cannot be authenticated')
         unsubscribeDataSender()
+        return
+      }
+
+      if (config.experimentalSnapshot) {
+        // Get sender entry
+        const sender = dataSenders.get(newData.publicKey)
+        // If no sender entry, remove publicKey from senders, END
+        if (!sender) {
+          Logger.mainLogger.error('No sender found for this data')
+          return
+        }
+        if (newData.responses && newData.responses.RECEIPT)
+          processReceiptData(newData.responses.RECEIPT)
+        if (newData.responses && newData.responses.CYCLE)
+          processCycleData(newData.responses.CYCLE)
         return
       }
 

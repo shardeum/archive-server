@@ -24,6 +24,7 @@ export interface Config {
     hashedDevAuth?: string
     devPublicKey?: string
   }
+  experimentalSnapshot: boolean
 }
 
 let config: Config = {
@@ -49,6 +50,7 @@ let config: Config = {
     hashedDevAuth: '',
     devPublicKey: '',
   },
+  experimentalSnapshot: true
 }
 
 export function overrideDefaultConfig(

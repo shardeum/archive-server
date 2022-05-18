@@ -56,6 +56,7 @@
     "@shardus/types": "^1.0.8",
     "deepmerge": "^4.2.2",
     "eslint": "^7.20.0",
+    "ethereumjs-util": "^7.1.4",
     "fastify": "^2.4.0",
     "fastify-cors": "^2.2.0",
     "fastify-rate-limit": "^5.0.1",
@@ -63,9 +64,9 @@
     "log4js-extend": "^0.2.1",
     "minimist": "^1.2.0",
     "node-fetch": "^2.6.0",
-    "socket.io": "^2.3.0",
+    "socket.io": "^4.5.1",
     "socket.io-client": "^2.3.0",
-    "sqlite3": "^5.0.0",
+    "sqlite3": "^5.0.6",
     "tydb": "^0.1.5"
   }
 }
