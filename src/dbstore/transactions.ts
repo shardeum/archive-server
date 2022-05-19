@@ -48,3 +48,41 @@ export async function insertTransaction(transaction: Transaction) {
         );
     }
 }
+
+export async function queryLatestTransactions(count) {
+    try {
+        const sql = `SELECT * FROM transactions ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${count ? count : 100
+            }`;
+        const transactions: any = await db.all(sql);
+        console.log('Account latest', transactions);
+        return transactions;
+    } catch (e) {
+        console.log(e);
+    }
+}
+
+export async function queryTransactions(skip = 0, limit = 10000) {
+    let transactions
+    try {
+        const sql = `SELECT * FROM transactions ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+        transactions = await db.all(sql)
+    } catch (e) {
+        console.log(e)
+    }
+    console.log('Transaction transactions', transactions ? transactions.length : transactions, 'skip', skip)
+    return transactions
+}
+
+export async function queryTransactionCount() {
+    let transactions;
+    try {
+        const sql = `SELECT COUNT(*) FROM transactions`;
+        transactions = await db.get(sql, []);
+    } catch (e) {
+        console.log(e);
+    }
+    console.log('Transaction count', transactions);
+    if (transactions) transactions = transactions['COUNT(*)'];
+    else transactions = 0;
+    return transactions;
+}

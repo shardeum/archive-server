@@ -24,7 +24,8 @@ import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
 import { queryArchivedCycleByMarker } from '../Storage'
 import { queryArchivedCycles } from '../test/api/archivedCycles'
-import { processReceiptData, processCycleData } from './Receipt'
+import { storeReceiptData, storeCycleData } from './Collector'
+import * as CycleDB from '../dbstore/cycles'
 
 // Socket modules
 export let socketServer: SocketIO.Server
@@ -129,10 +130,31 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
           Logger.mainLogger.error('No sender found for this data')
           return
         }
+        // Clear senders contactTimeout, if it has one
+        if (sender.contactTimeout) {
+          Logger.mainLogger.debug('Clearing contact timeout.')
+          clearTimeout(sender.contactTimeout)
+          sender.contactTimeout = null
+          nestedCountersInstance.countEvent('archiver', 'clear_contact_timeout')
+        }
+
         if (newData.responses && newData.responses.RECEIPT)
-          processReceiptData(newData.responses.RECEIPT)
-        if (newData.responses && newData.responses.CYCLE)
-          processCycleData(newData.responses.CYCLE)
+          storeReceiptData(newData.responses.RECEIPT)
+        if (newData.responses && newData.responses.CYCLE) {
+          processCycles(newData.responses.CYCLE as Cycle[])
+          storeCycleData(newData.responses.CYCLE)
+        }
+        // Set new contactTimeout for sender. Postpone sender removal because data is still received from consensor
+        if (currentCycleDuration > 0) {
+          nestedCountersInstance.countEvent(
+            'archiver',
+            'postpone_contact_timeout'
+          )
+          sender.contactTimeout = createContactTimeout(
+            sender.nodeInfo.publicKey,
+            'This timeout is created after processing data'
+          )
+        }
         return
       }
 
@@ -1219,6 +1241,10 @@ export async function syncCyclesAndNodeList(
     // If prevCycles is empty, start over
     if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
 
+    prevCycles.sort((a, b) =>
+      a.counter > b.counter ? -1 : 1
+    );
+
     // Add prevCycles to our cycle chain
     let prepended = 0
     for (const prevCycle of prevCycles) {
@@ -1272,8 +1298,12 @@ export async function syncCyclesAndNodeList(
       record.counter
     )
     Cycles.CycleChain.set(record.counter, { ...record })
-    const archivedCycle = createArchivedCycle(record)
-    await Storage.insertArchivedCycle(archivedCycle)
+    if (config.experimentalSnapshot) {
+      storeCycleData([record])
+    } else {
+      const archivedCycle = createArchivedCycle(record)
+      await Storage.insertArchivedCycle(archivedCycle)
+    }
     Cycles.setCurrentCycleCounter(record.counter)
   }
   Logger.mainLogger.debug(
@@ -1290,7 +1320,7 @@ export async function syncCyclesAndNodeList(
   }
   let savedCycleRecord = CycleChain[0]
   while (endCycle > 0) {
-    let nextEnd: number = endCycle - 10 // Downloading max 10 cycles each time
+    let nextEnd: number = endCycle - 10 // Downloading max 10000 cycles each time
     if (nextEnd < 0) nextEnd = 0
     Logger.mainLogger.debug(`Getting cycles ${endCycle} - ${nextEnd}...`)
     const prevCycles = await fetchCycleRecords(
@@ -1299,6 +1329,9 @@ export async function syncCyclesAndNodeList(
       endCycle
     )
 
+    prevCycles.sort((a, b) =>
+      a.counter > b.counter ? -1 : 1
+    );
     // If prevCycles is empty, start over
     if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
 
@@ -1315,8 +1348,12 @@ export async function syncCyclesAndNodeList(
         'Inserting archived cycle for counter',
         prevCycle.counter
       )
-      const archivedCycle = createArchivedCycle(prevCycle)
-      await Storage.insertArchivedCycle(archivedCycle)
+      if (config.experimentalSnapshot) {
+        storeCycleData([prevCycle])
+      } else {
+        const archivedCycle = createArchivedCycle(prevCycle)
+        await Storage.insertArchivedCycle(archivedCycle)
+      }
     }
     endCycle = nextEnd - 1
   }
@@ -1368,6 +1405,69 @@ async function downloadArchivedCycles(
   Logger.mainLogger.debug(`Downloaded archived cycles`, collector.length)
   return collector
 }
+
+export async function syncAccountAndTransactionData(
+  activeArchivers: State.ArchiverNodeInfo[]
+) {
+  const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)
+  let response: any = await P2P.getJson(
+    `http://${randomArchiver.ip}:${randomArchiver.port
+    }/totalData`
+  )
+  if (!response || response.totalCycles < 0 || response.totalAccounts < 0 || response.totalTransactions < 0) {
+    return false
+  }
+  const { totalCycles, totalAccounts, totalTransactions } = response
+
+  return false
+}
+
+// export const downloadAndSaveAccounts = async (
+//   to: number,
+//   from: number = 0,
+//   archiver: State.ArchiverNodeInfo
+// ) => {
+//   let complete = false;
+//   let start = from;
+//   let end = start + 10;
+//   while (!complete) {
+//     if (end >= to) {
+//       let res: any = await P2P.getJson(
+//         `http://${archiver.ip}:${archiver.port
+//         }/totalData`
+//       )
+//       if (res && res.totalAccounts >= 0
+//       ) {
+//         to = res.totalAccounts;
+//         console.log('totalAccountsToSync', to);
+//       }
+//     }
+//     console.log(`Downloading accounts from ${start} to  ${end}`);
+//     const response = await axios.get(
+//       `${ARCHIVER_URL}/full-archive?start=${start}&end=${end}`
+//     );
+//     if (response && response.data && response.data.archivedCycles) {
+//       // collector = collector.concat(response.data.archivedCycles);
+//       if (response.data.archivedCycles.length < 100) {
+//         complete = true;
+//         console.log('Download completed');
+//       }
+//       const downloadedArchivedCycles = response.data.archivedCycles;
+//       console.log(
+//         `Downloaded archived cycles`,
+//         downloadedArchivedCycles.length
+//       );
+//       downloadedArchivedCycles.sort((a, b) =>
+//         a.cycleRecord.counter > b.cycleRecord.counter ? 1 : -1
+//       );
+//       await insertArchivedCycleData(downloadedArchivedCycles);
+//     } else {
+//       console.log('Invalid download response');
+//     }
+//     start = end;
+//     end += 10;
+//   }
+// };
 
 export async function syncStateMetaData(
   activeArchivers: State.ArchiverNodeInfo[]

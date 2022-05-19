@@ -26,6 +26,10 @@ import NestedCounters, {
 import Profiler, { profilerInstance } from './profiler/profiler'
 import Statistics from './statistics'
 import * as dbstore from './dbstore'
+import * as CycleDB from './dbstore/cycles'
+import * as AccountDB from './dbstore/accounts'
+import * as TransactionDB from './dbstore/transactions'
+import * as ReceiptDB from './dbstore/receipts'
 
 // Socket modules
 let io: SocketIO.Server
@@ -140,8 +144,12 @@ async function syncAndStartServer() {
 
   await Data.syncCyclesAndNodeList(State.activeArchivers)
 
-  // Sync all state metadata until no older data is fetched from other archivers
-  await Data.syncStateMetaData(State.activeArchivers)
+  if (config.experimentalSnapshot) {
+    await Data.syncAccountAndTransactionData(State.activeArchivers)
+  } else {
+    // Sync all state metadata until no older data is fetched from other archivers
+    await Data.syncStateMetaData(State.activeArchivers)
+  }
   // Set randomly selected consensors as dataSender
   let randomConsensor = NodeList.getRandomActiveNode()
   Data.addDataSenders({
@@ -517,7 +525,9 @@ function startServer() {
       return
     }
     let cycleInfo = []
-    cycleInfo = await Storage.queryCycleRecordsBetween(from, to)
+    if (config.experimentalSnapshot)
+      cycleInfo = await CycleDB.queryCycleRecordsBetween(from, to)
+    else cycleInfo = await Storage.queryCycleRecordsBetween(from, to)
     if (isDownload) {
       let dataInBuffer = Buffer.from(JSON.stringify(cycleInfo), 'utf-8')
       // @ts-ignore
@@ -549,12 +559,195 @@ function startServer() {
       return
     }
     if (count > 100) count = 100 // return max 100 cycles
-
-    let cycleInfo = await Storage.queryLatestCycleRecords(count)
+    let cycleInfo
+    if (config.experimentalSnapshot)
+      cycleInfo = await CycleDB.queryLatestCycleRecords(count)
+    else cycleInfo = await Storage.queryLatestCycleRecords(count)
     const res = Crypto.sign({
       cycleInfo,
     })
     reply.send(res)
+  })
+
+  server.get('/receipt', async (_request, reply) => {
+    let err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
+    if (err) {
+      reply.send(Crypto.sign({ success: false, error: err }))
+      return
+    }
+    let { start, end } = _request.query
+    let from = parseInt(start)
+    let to = parseInt(end)
+    if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+      reply.send(
+        Crypto.sign({ success: false, error: `Invalid start and end counters` })
+      )
+      return
+    }
+    let count = to - from
+    if (count > 10000) {
+      reply.send(
+        Crypto.sign({
+          success: false,
+          error: `Exceed maximum limit of 10000 receipts`,
+        })
+      )
+      return
+    }
+    let receipts = []
+    receipts = await ReceiptDB.queryReceipts(from, count)
+    const res = Crypto.sign({
+      receipts,
+    })
+    reply.send(res)
+  })
+
+  server.get('/receipt/:count', async (_request, reply) => {
+    let err = Utils.validateTypes(_request.params, { count: 's' })
+    if (err) {
+      reply.send(Crypto.sign({ success: false, error: err }))
+      return
+    }
+
+    let count: number = parseInt(_request.params.count)
+    if (count <= 0 || Number.isNaN(count)) {
+      reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
+      return
+    }
+    if (count > 100) {
+      reply.send(Crypto.sign({ success: false, error: `Max count is 100` }))
+      return
+    }
+    const receipts = await ReceiptDB.queryLatestReceipts(count)
+    const res = Crypto.sign({
+      receipts,
+    })
+    reply.send(res)
+  })
+
+  server.get('/account', async (_request, reply) => {
+    let err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
+    if (err) {
+      reply.send(Crypto.sign({ success: false, error: err }))
+      return
+    }
+    let { start, end } = _request.query
+    let from = parseInt(start)
+    let to = parseInt(end)
+    if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+      reply.send(
+        Crypto.sign({ success: false, error: `Invalid start and end counters` })
+      )
+      return
+    }
+    let count = to - from
+    if (count > 10000) {
+      reply.send(
+        Crypto.sign({
+          success: false,
+          error: `Exceed maximum limit of 10000 accounts`,
+        })
+      )
+      return
+    }
+    let accounts = []
+    accounts = await AccountDB.queryAccounts(from, count)
+    const res = Crypto.sign({
+      accounts,
+    })
+    reply.send(res)
+  })
+
+  server.get('/account/:count', async (_request, reply) => {
+    let err = Utils.validateTypes(_request.params, { count: 's' })
+    if (err) {
+      reply.send(Crypto.sign({ success: false, error: err }))
+      return
+    }
+
+    let count: number = parseInt(_request.params.count)
+    if (count <= 0 || Number.isNaN(count)) {
+      reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
+      return
+    }
+    if (count > 100) {
+      reply.send(Crypto.sign({ success: false, error: `Max count is 100` }))
+      return
+    }
+    const accounts = await AccountDB.queryLatestAccounts(count)
+    const res = Crypto.sign({
+      accounts,
+    })
+    reply.send(res)
+  })
+
+  server.get('/transaction', async (_request, reply) => {
+    let err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
+    if (err) {
+      reply.send(Crypto.sign({ success: false, error: err }))
+      return
+    }
+    let { start, end } = _request.query
+    let from = parseInt(start)
+    let to = parseInt(end)
+    if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+      reply.send(
+        Crypto.sign({ success: false, error: `Invalid start and end counters` })
+      )
+      return
+    }
+    let count = to - from
+    if (count > 10000) {
+      reply.send(
+        Crypto.sign({
+          success: false,
+          error: `Exceed maximum limit of 10000 transactions`,
+        })
+      )
+      return
+    }
+    let transactions = []
+    transactions = await TransactionDB.queryTransactions(from, count)
+    const res = Crypto.sign({
+      transactions,
+    })
+    reply.send(res)
+  })
+
+  server.get('/transaction/:count', async (_request, reply) => {
+    let err = Utils.validateTypes(_request.params, { count: 's' })
+    if (err) {
+      reply.send(Crypto.sign({ success: false, error: err }))
+      return
+    }
+
+    let count: number = parseInt(_request.params.count)
+    if (count <= 0 || Number.isNaN(count)) {
+      reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
+      return
+    }
+    if (count > 100) {
+      reply.send(Crypto.sign({ success: false, error: `Max count is 100` }))
+      return
+    }
+    const transactions = await TransactionDB.queryLatestTransactions(count)
+    const res = Crypto.sign({
+      transactions,
+    })
+    reply.send(res)
+  })
+
+  server.get('/totalData', async (_request, reply) => {
+    const totalCycles = await CycleDB.queryCyleCount();
+    const totalAccounts = await AccountDB.queryAccountCount();
+    const totalTransactions = await TransactionDB.queryTransactionCount();
+    const totalReceipts = await ReceiptDB.queryReceiptCount();
+    reply.send({
+      totalCycles,
+      totalAccounts,
+      totalTransactions,
+      totalReceipts
+    })
   })
 
   server.post('/gossip-hashes', async (_request, reply) => {

@@ -1,10 +1,11 @@
 import * as Account from '../dbstore/accounts'
 import * as Transaction from '../dbstore/transactions'
 import * as Cycle from '../dbstore/cycles'
+import * as Receipt from '../dbstore/receipts'
 import * as Crypto from '../Crypto'
 import { socketServer } from './Data'
 
-export const processReceiptData = async (receipts = []) => {
+export const storeReceiptData = async (receipts = []) => {
   if (receipts && receipts.length <= 0) return
   if (socketServer) {
     let signedDataToSend = Crypto.sign({
@@ -14,6 +15,7 @@ export const processReceiptData = async (receipts = []) => {
   }
   for (let i = 0; i < receipts.length; i++) {
     const { accounts, cycle, result, sign, tx } = receipts[i]
+    await Receipt.insertReceipt({ ...receipts[i], receiptId: tx.txId, timestamp: tx.timestamp })
     for (let j = 0; j < accounts.length; j++) {
       const account = accounts[j]
       const accObj: Account.AccountCopy = {
@@ -46,7 +48,7 @@ export const processReceiptData = async (receipts = []) => {
   }
 }
 
-export const processCycleData = async (cycles = []) => {
+export const storeCycleData = async (cycles = []) => {
   if (cycles && cycles.length <= 0) return
   for (let i = 0; i < cycles.length; i++) {
     const cycleRecord = cycles[i]

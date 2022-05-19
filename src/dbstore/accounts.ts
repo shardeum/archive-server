@@ -66,3 +66,41 @@ export async function queryAccountByAccountId(accountId: string) {
         console.log(e);
     }
 }
+
+export async function queryLatestAccounts(count) {
+    try {
+        const sql = `SELECT * FROM accounts ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${count ? count : 100
+            }`;
+        const accounts: any = await db.all(sql);
+        console.log('Account latest', accounts);
+        return accounts;
+    } catch (e) {
+        console.log(e);
+    }
+}
+
+export async function queryAccounts(skip = 0, limit = 10000) {
+    let accounts
+    try {
+        const sql = `SELECT * FROM accounts ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+        accounts = await db.all(sql)
+    } catch (e) {
+        console.log(e)
+    }
+    console.log('Account accounts', accounts ? accounts.length : accounts, 'skip', skip)
+    return accounts
+}
+
+export async function queryAccountCount() {
+    let accounts;
+    try {
+        const sql = `SELECT COUNT(*) FROM accounts`;
+        accounts = await db.get(sql, []);
+    } catch (e) {
+        console.log(e);
+    }
+    console.log('Account count', accounts);
+    if (accounts) accounts = accounts['COUNT(*)'];
+    else accounts = 0;
+    return accounts;
+}
