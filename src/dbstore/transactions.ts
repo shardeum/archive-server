@@ -1,6 +1,8 @@
 import { Signature } from "shardus-crypto-types";
 import * as db from './sqlite3storage';
 import { extractValues } from './sqlite3storage';
+import * as Logger from '../Logger'
+import { config } from '../Config'
 
 export interface Transaction {
     txId: string;
@@ -36,13 +38,15 @@ export async function insertTransaction(transaction: Transaction) {
             placeholders +
             ')';
         await db.run(sql, values);
-        console.log(
-            'Successfully inserted Transaction',
-            transaction.txId,
-        );
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug(
+                'Successfully inserted Transaction',
+                transaction.txId,
+            );
+        }
     } catch (e) {
-        console.log(e);
-        console.log(
+        Logger.mainLogger.error(e);
+        Logger.mainLogger.error(
             'Unable to insert Transaction or it is already stored in to database',
             transaction.txId
         );
@@ -54,10 +58,12 @@ export async function queryLatestTransactions(count) {
         const sql = `SELECT * FROM transactions ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${count ? count : 100
             }`;
         const transactions: any = await db.all(sql);
-        console.log('Account latest', transactions);
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug('Account latest', transactions);
+        }
         return transactions;
     } catch (e) {
-        console.log(e);
+        Logger.mainLogger.error(e);
     }
 }
 
@@ -67,9 +73,11 @@ export async function queryTransactions(skip = 0, limit = 10000) {
         const sql = `SELECT * FROM transactions ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
         transactions = await db.all(sql)
     } catch (e) {
-        console.log(e)
+        Logger.mainLogger.error(e)
     }
-    console.log('Transaction transactions', transactions ? transactions.length : transactions, 'skip', skip)
+    if (config.VERBOSE) {
+        Logger.mainLogger.debug('Transaction transactions', transactions ? transactions.length : transactions, 'skip', skip)
+    }
     return transactions
 }
 
@@ -79,9 +87,11 @@ export async function queryTransactionCount() {
         const sql = `SELECT COUNT(*) FROM transactions`;
         transactions = await db.get(sql, []);
     } catch (e) {
-        console.log(e);
+        Logger.mainLogger.error(e);
     }
-    console.log('Transaction count', transactions);
+    if (config.VERBOSE) {
+        Logger.mainLogger.debug('Transaction count', transactions);
+    }
     if (transactions) transactions = transactions['COUNT(*)'];
     else transactions = 0;
     return transactions;

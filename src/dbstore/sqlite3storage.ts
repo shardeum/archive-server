@@ -1,8 +1,9 @@
 const sqlite3 = require('sqlite3').verbose();
 let db: any;
 
-export async function init() {
-    db = new sqlite3.Database('db.sqlite3');
+export async function init(config) {
+    const dbName = `archiverdb-${config.ARCHIVER_PORT}.sqlite3`;
+    db = new sqlite3.Database(dbName);
     // await run('PRAGMA journal_mode=WAL');
     console.log('Database initialized.');
 }

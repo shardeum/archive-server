@@ -1,5 +1,7 @@
 import * as db from './sqlite3storage';
 import { extractValues } from './sqlite3storage';
+import * as Logger from '../Logger'
+import { config } from '../Config'
 
 export type AccountCopy = {
     accountId: string;
@@ -22,12 +24,14 @@ export async function insertAccount(account: AccountCopy) {
             placeholders +
             ')';
         await db.run(sql, values);
-        console.log(
-            'Successfully inserted Account', account.accountId
-        );
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug(
+                'Successfully inserted Account', account.accountId
+            );
+        }
     } catch (e) {
-        console.log(e);
-        console.log(
+        Logger.mainLogger.error(e);
+        Logger.mainLogger.error(
             'Unable to insert Account or it is already stored in to database',
             account.accountId
         );
@@ -44,12 +48,14 @@ export async function updateAccount(accountId: string, account: AccountCopy) {
             $hash: account.hash,
             $accountId: account.accountId,
         });
-        console.log(
-            'Successfully updated Account', account.accountId
-        );
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug(
+                'Successfully updated Account', account.accountId
+            );
+        }
     } catch (e) {
-        console.log(e);
-        console.log('Unable to update Account', account);
+        Logger.mainLogger.error(e);
+        Logger.mainLogger.error('Unable to update Account', account);
     }
 }
 
@@ -60,10 +66,12 @@ export async function queryAccountByAccountId(accountId: string) {
         if (account)
             if (account && account.data)
                 account.data = JSON.parse(account.data);
-        console.log('Account accountId', account);
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug('Account accountId', account);
+        }
         return account;
     } catch (e) {
-        console.log(e);
+        Logger.mainLogger.error(e);
     }
 }
 
@@ -72,10 +80,12 @@ export async function queryLatestAccounts(count) {
         const sql = `SELECT * FROM accounts ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${count ? count : 100
             }`;
         const accounts: any = await db.all(sql);
-        console.log('Account latest', accounts);
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug('Account latest', accounts);
+        }
         return accounts;
     } catch (e) {
-        console.log(e);
+        Logger.mainLogger.error(e);
     }
 }
 
@@ -85,9 +95,11 @@ export async function queryAccounts(skip = 0, limit = 10000) {
         const sql = `SELECT * FROM accounts ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
         accounts = await db.all(sql)
     } catch (e) {
-        console.log(e)
+        Logger.mainLogger.error(e)
     }
-    console.log('Account accounts', accounts ? accounts.length : accounts, 'skip', skip)
+    if (config.VERBOSE) {
+        Logger.mainLogger.debug('Account accounts', accounts ? accounts.length : accounts, 'skip', skip)
+    }
     return accounts
 }
 
@@ -97,9 +109,11 @@ export async function queryAccountCount() {
         const sql = `SELECT COUNT(*) FROM accounts`;
         accounts = await db.get(sql, []);
     } catch (e) {
-        console.log(e);
+        Logger.mainLogger.error(e);
     }
-    console.log('Account count', accounts);
+    if (config.VERBOSE) {
+        Logger.mainLogger.debug('Account count', accounts);
+    }
     if (accounts) accounts = accounts['COUNT(*)'];
     else accounts = 0;
     return accounts;

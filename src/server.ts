@@ -62,7 +62,7 @@ async function start() {
   Logger.initLogger(baseDir, logsConfig)
   // Initialize storage
   if (config.experimentalSnapshot) {
-    await dbstore.initializeDB()
+    await dbstore.initializeDB(config)
   } else {
     await Storage.initStorage(config)
   }
@@ -145,7 +145,7 @@ async function syncAndStartServer() {
   await Data.syncCyclesAndNodeList(State.activeArchivers)
 
   if (config.experimentalSnapshot) {
-    await Data.syncAccountAndTransactionData(State.activeArchivers)
+    await Data.syncReceipt(State.activeArchivers)
   } else {
     // Sync all state metadata until no older data is fetched from other archivers
     await Data.syncStateMetaData(State.activeArchivers)
@@ -781,7 +781,7 @@ function startServer() {
 
   // Start server and bind to port on all interfaces
   server.listen(config.ARCHIVER_PORT, '0.0.0.0', (err, _address) => {
-    Logger.mainLogger.debug('Listening3')
+    Logger.mainLogger.debug('Listening3', config.ARCHIVER_PORT)
     if (err) {
       server.log.error(err)
       process.exit(1)

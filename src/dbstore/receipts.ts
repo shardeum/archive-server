@@ -1,6 +1,8 @@
 import { Signature } from 'shardus-crypto-types';
 import * as db from './sqlite3storage';
 import { extractValues } from './sqlite3storage';
+import * as Logger from '../Logger'
+import { config } from '../Config'
 
 export interface Receipt {
     receiptId: string,
@@ -24,12 +26,14 @@ export async function insertReceipt(receipt: Receipt) {
             placeholders +
             ')';
         await db.run(sql, values);
-        console.log(
-            'Successfully inserted Receipt', receipt.receiptId
-        );
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug(
+                'Successfully inserted Receipt', receipt.receiptId
+            );
+        }
     } catch (e) {
-        console.log(e);
-        console.log(
+        Logger.mainLogger.error(e);
+        Logger.mainLogger.error(
             'Unable to insert Receipt or it is already stored in to database',
             receipt.receiptId
         );
@@ -50,10 +54,12 @@ export async function queryReceiptByReceiptId(receiptId: string) {
             if (receipt.sign)
                 receipt.sign = JSON.parse(receipt.sign);
         }
-        console.log('Receipt receiptId', receipt);
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug('Receipt receiptId', receipt);
+        }
         return receipt;
     } catch (e) {
-        console.log(e);
+        Logger.mainLogger.error(e);
     }
 }
 
@@ -74,10 +80,12 @@ export async function queryLatestReceipts(count) {
                 return receipt;
             });
         }
-        console.log('Receipt latest', receipts);
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug('Receipt latest', receipts);
+        }
         return receipts;
     } catch (e) {
-        console.log(e);
+        Logger.mainLogger.error(e);
     }
 }
 
@@ -101,9 +109,11 @@ export async function queryReceipts(skip = 0, limit = 10000) {
             });
         }
     } catch (e) {
-        console.log(e)
+        Logger.mainLogger.error(e)
     }
-    console.log('Receipt receipts', receipts ? receipts.length : receipts, 'skip', skip)
+    if (config.VERBOSE) {
+        Logger.mainLogger.debug('Receipt receipts', receipts ? receipts.length : receipts, 'skip', skip)
+    }
     return receipts
 }
 
@@ -113,9 +123,11 @@ export async function queryReceiptCount() {
         const sql = `SELECT COUNT(*) FROM receipts`;
         receipts = await db.get(sql, []);
     } catch (e) {
-        console.log(e);
+        Logger.mainLogger.error(e);
     }
-    console.log('Receipt count', receipts);
+    if (config.VERBOSE) {
+        Logger.mainLogger.debug('Receipt count', receipts);
+    }
     if (receipts) receipts = receipts['COUNT(*)'];
     else receipts = 0;
     return receipts;

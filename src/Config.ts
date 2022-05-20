@@ -25,6 +25,7 @@ export interface Config {
     devPublicKey?: string
   }
   experimentalSnapshot: boolean
+  VERBOSE: boolean
 }
 
 let config: Config = {
@@ -51,6 +52,7 @@ let config: Config = {
     devPublicKey: '',
   },
   experimentalSnapshot: true,
+  VERBOSE: false
 }
 
 export function overrideDefaultConfig(

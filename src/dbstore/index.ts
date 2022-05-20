@@ -1,7 +1,7 @@
 import * as db from './sqlite3storage';
 
-export const initializeDB = async () => {
-  await db.init();
+export const initializeDB = async (config) => {
+  await db.init(config);
   await db.runCreate(
     'CREATE TABLE if not exists `transactions` (`txId` TEXT NOT NULL UNIQUE PRIMARY KEY, `timestamp` BIGINT NOT NULL, `cycleNumber` NUMBER NOT NULL, `data` JSON NOT NULL, `keys` JSON NOT NULL, `result` JSON NOT NULL, `sign` JSON NOT NULL)'
   );

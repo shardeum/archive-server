@@ -1,6 +1,8 @@
 import * as db from './sqlite3storage';
 import { extractValues } from './sqlite3storage';
 import { P2P, StateManager } from '@shardus/types';
+import * as Logger from '../Logger'
+import { config } from '../Config'
 
 export interface Cycle {
     counter: number;
@@ -20,14 +22,14 @@ export async function insertCycle(cycle: Cycle) {
             placeholders +
             ')';
         await db.run(sql, values);
-        console.log(
+        Logger.mainLogger.debug(
             'Successfully inserted Cycle',
             cycle.cycleRecord.counter,
             cycle.cycleMarker
         );
     } catch (e) {
-        console.log(e);
-        console.log(
+        Logger.mainLogger.error(e);
+        Logger.mainLogger.error(
             'Unable to insert cycle or it is already stored in to database',
             cycle.cycleRecord.counter,
             cycle.cycleMarker
@@ -43,14 +45,16 @@ export async function updateCycle(marker: string, cycle: Cycle) {
             $cycleRecord: cycle.cycleRecord && JSON.stringify(cycle.cycleRecord),
             $marker: marker,
         });
-        console.log(
-            'Updated cycle for counter',
-            cycle.cycleRecord.counter,
-            cycle.cycleMarker
-        );
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug(
+                'Updated cycle for counter',
+                cycle.cycleRecord.counter,
+                cycle.cycleMarker
+            );
+        }
     } catch (e) {
-        console.log(e);
-        console.log('Unable to update Cycle', cycle.cycleMarker);
+        Logger.mainLogger.error(e);
+        Logger.mainLogger.error('Unable to update Cycle', cycle.cycleMarker);
     }
 }
 
@@ -62,10 +66,12 @@ export async function queryCycleByMarker(marker: string) {
             if (cycle.cycleRecord)
                 cycle.cycleRecord = JSON.parse(cycle.cycleRecord);
         }
-        console.log('cycle marker', cycle)
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug('cycle marker', cycle)
+        }
         return cycle;
     } catch (e) {
-        console.log(e);
+        Logger.mainLogger.error(e);
     }
 }
 
@@ -80,10 +86,12 @@ export async function queryLatestCycleRecords(count) {
                 return cycleRecord.cycleRecord;
             });
         }
-        console.log('cycle latest', cycleRecords);
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug('cycle latest', cycleRecords);
+        }
         return cycleRecords;
     } catch (e) {
-        console.log(e);
+        Logger.mainLogger.error(e);
     }
 }
 
@@ -98,10 +106,12 @@ export async function queryCycleRecordsBetween(start: number, end: number) {
                 return cycleRecord.cycleRecord;
             });
         }
-        console.log('cycle between', cycleRecords);
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug('cycle between', cycleRecords);
+        }
         return cycleRecords;
     } catch (e) {
-        console.log(e);
+        Logger.mainLogger.error(e);
     }
 }
 
@@ -111,9 +121,11 @@ export async function queryCyleCount() {
         const sql = `SELECT COUNT(*) FROM cycles`;
         cycles = await db.get(sql, []);
     } catch (e) {
-        console.log(e);
+        Logger.mainLogger.error(e);
     }
-    console.log('Cycle count', cycles);
+    if (config.VERBOSE) {
+        Logger.mainLogger.debug('Cycle count', cycles);
+    }
     if (cycles) cycles = cycles['COUNT(*)'];
     else cycles = 0;
     return cycles;

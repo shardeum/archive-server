@@ -324,10 +324,11 @@ export function createContactTimeout(
 ) {
   // TODO: check what is the best contact timeout
   let ms: number
-  if (timeout) ms = timeout
-  else if (currentCycleDuration > 0)
-    ms = 1.5 * currentCycleDuration + timeoutPadding
-  else ms = 1.5 * 60 * 1000 + timeoutPadding
+  // if (timeout) ms = timeout
+  // else if (currentCycleDuration > 0)
+  //   ms = 1.5 * currentCycleDuration + timeoutPadding
+  // else ms = 1.5 * 60 * 1000 + timeoutPadding
+  ms = 15 * 1000 // Change contact timeout to 15s for now
   Logger.mainLogger.debug('Created contact timeout: ' + ms)
   nestedCountersInstance.countEvent('archiver', 'contact_timeout_created')
   return setTimeout(() => {
@@ -916,7 +917,7 @@ export async function processStateMetaData(response: any) {
   //       continue
   //     }
   //     Logger.mainLogger.debug('start, end', start, end)
-  //     console.log(start,end)
+  //     Logger.mainLogger.debug(start,end)
   //     let completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(start, end)
   //     Logger.mainLogger.debug('completedArchivedCycle', completedArchivedCycle.length, completedArchivedCycle)
   //     let signedDataToSend = Crypto.sign({
@@ -1406,7 +1407,7 @@ async function downloadArchivedCycles(
   return collector
 }
 
-export async function syncAccountAndTransactionData(
+export async function syncReceipt(
   activeArchivers: State.ArchiverNodeInfo[]
 ) {
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)
@@ -1414,13 +1415,60 @@ export async function syncAccountAndTransactionData(
     `http://${randomArchiver.ip}:${randomArchiver.port
     }/totalData`
   )
-  if (!response || response.totalCycles < 0 || response.totalAccounts < 0 || response.totalTransactions < 0) {
+  if (!response || response.totalCycles < 0 || response.totalAccounts < 0 || response.totalTransactions < 0 || response.totalReceipts < 0) {
     return false
   }
-  const { totalCycles, totalAccounts, totalTransactions } = response
-
+  const { totalCycles, totalAccounts, totalTransactions, totalReceipts } = response
+  await downloadReceipts(totalReceipts, 0, randomArchiver)
+  Logger.mainLogger.debug('Sync receipts data completed!');
   return false
 }
+
+
+export const downloadReceipts = async (
+  to: number,
+  from: number = 0,
+  archiver: State.ArchiverNodeInfo
+) => {
+  let complete = false;
+  let start = from;
+  let end = start + 10;
+  while (!complete) {
+    if (end >= to) {
+      let res: any = await P2P.getJson(
+        `http://${archiver.ip}:${archiver.port
+        }/totalData`
+      )
+      if (res && res.totalReceipts < 0) {
+        if (res.totalReceipts > to)
+          to = res.totalReceipts;
+        Logger.mainLogger.debug('totalReceiptsToSync', to);
+      }
+    }
+    Logger.mainLogger.debug(`Downloading receipts from ${start} to  ${end}`);
+    let response: any = await P2P.getJson(
+      `http://${archiver.ip}:${archiver.port
+      }/receipt?start=${start}&end=${end}`
+    )
+    if (response && response.receipts) {
+      if (response.receipts.length < 10) {
+        complete = true;
+        Logger.mainLogger.debug('Download receipts completed');
+      }
+      const downloadedReceipts = response.receipts;
+      Logger.mainLogger.debug(
+        `Downloaded receipts`,
+        downloadedReceipts.length
+      );
+      await storeReceiptData(downloadedReceipts)
+    } else {
+      Logger.mainLogger.debug('Invalid download response');
+    }
+    start = end;
+    end += 10;
+  }
+
+};
 
 // export const downloadAndSaveAccounts = async (
 //   to: number,
@@ -1439,10 +1487,10 @@ export async function syncAccountAndTransactionData(
 //       if (res && res.totalAccounts >= 0
 //       ) {
 //         to = res.totalAccounts;
-//         console.log('totalAccountsToSync', to);
+//         Logger.mainLogger.debug('totalAccountsToSync', to);
 //       }
 //     }
-//     console.log(`Downloading accounts from ${start} to  ${end}`);
+//     Logger.mainLogger.debug(`Downloading accounts from ${start} to  ${end}`);
 //     const response = await axios.get(
 //       `${ARCHIVER_URL}/full-archive?start=${start}&end=${end}`
 //     );
@@ -1450,10 +1498,10 @@ export async function syncAccountAndTransactionData(
 //       // collector = collector.concat(response.data.archivedCycles);
 //       if (response.data.archivedCycles.length < 100) {
 //         complete = true;
-//         console.log('Download completed');
+//         Logger.mainLogger.debug('Download completed');
 //       }
 //       const downloadedArchivedCycles = response.data.archivedCycles;
-//       console.log(
+//       Logger.mainLogger.debug(
 //         `Downloaded archived cycles`,
 //         downloadedArchivedCycles.length
 //       );
@@ -1462,7 +1510,7 @@ export async function syncAccountAndTransactionData(
 //       );
 //       await insertArchivedCycleData(downloadedArchivedCycles);
 //     } else {
-//       console.log('Invalid download response');
+//       Logger.mainLogger.debug('Invalid download response');
 //     }
 //     start = end;
 //     end += 10;
