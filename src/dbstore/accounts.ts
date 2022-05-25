@@ -94,6 +94,12 @@ export async function queryAccounts(skip = 0, limit = 10000) {
     try {
         const sql = `SELECT * FROM accounts ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
         accounts = await db.all(sql)
+        if (accounts.lenth > 0) {
+            accounts.map((account: any) => {
+                if (account && account.data)
+                    account.data = JSON.parse(account.data);
+            })
+        }
     } catch (e) {
         Logger.mainLogger.error(e)
     }
@@ -117,4 +123,40 @@ export async function queryAccountCount() {
     if (accounts) accounts = accounts['COUNT(*)'];
     else accounts = 0;
     return accounts;
+}
+
+export async function queryAccountCountBetweenCycles(startCycleNumber: number, endCycleNumber: number) {
+    let accounts;
+    try {
+        const sql = `SELECT COUNT(*) FROM accounts WHERE cycleNumber BETWEEN ? AND ?`;
+        accounts = await db.get(sql, [startCycleNumber, endCycleNumber]);
+    } catch (e) {
+        Logger.mainLogger.error(e);
+    }
+    if (config.VERBOSE) {
+        Logger.mainLogger.debug('Account count between cycles', accounts);
+    }
+    if (accounts) accounts = accounts['COUNT(*)'];
+    else accounts = 0;
+    return accounts;
+}
+
+export async function queryAccountsBetweenCycles(skip = 0, limit = 10000, startCycleNumber: number, endCycleNumber: number) {
+    let accounts
+    try {
+        const sql = `SELECT * FROM accounts WHERE cycleNumber BETWEEN ? AND ? ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+        accounts = await db.all(sql, [startCycleNumber, endCycleNumber])
+        if (accounts.lenth > 0) {
+            accounts.map((account: any) => {
+                if (account && account.data)
+                    account.data = JSON.parse(account.data);
+            })
+        }
+    } catch (e) {
+        Logger.mainLogger.error(e)
+    }
+    if (config.VERBOSE) {
+        Logger.mainLogger.debug('Account accounts between cycles', accounts ? accounts.length : accounts, 'skip', skip)
+    }
+    return accounts
 }

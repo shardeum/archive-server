@@ -627,35 +627,84 @@ function startServer() {
   })
 
   server.get('/account', async (_request, reply) => {
-    let err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
+    let err = Utils.validateTypes(_request.query, { start: 's?', end: 's?', startCycle: 's?', endCycle: 's?', page: 's?' })
     if (err) {
       reply.send(Crypto.sign({ success: false, error: err }))
       return
     }
-    let { start, end } = _request.query
-    let from = parseInt(start)
-    let to = parseInt(end)
-    if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-      reply.send(
-        Crypto.sign({ success: false, error: `Invalid start and end counters` })
-      )
-      return
-    }
-    let count = to - from
-    if (count > 10000) {
-      reply.send(
-        Crypto.sign({
-          success: false,
-          error: `Exceed maximum limit of 10000 accounts`,
-        })
-      )
-      return
-    }
     let accounts = []
-    accounts = await AccountDB.queryAccounts(from, count)
-    const res = Crypto.sign({
-      accounts,
-    })
+    let totalAccounts = 0
+    let res;
+    let { start, end, startCycle, endCycle, page } = _request.query
+    if (start && end) {
+      let from = parseInt(start)
+      let to = parseInt(end)
+      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+        reply.send(
+          Crypto.sign({ success: false, error: `Invalid start and end counters` })
+        )
+        return
+      }
+      let count = to - from
+      if (count > 10000) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Exceed maximum limit of 10000 accounts`,
+          })
+        )
+        return
+      }
+      accounts = await AccountDB.queryAccounts(from, count)
+      res = Crypto.sign({
+        accounts,
+      })
+    } else if (startCycle && endCycle) {
+      let from = parseInt(startCycle)
+      let to = parseInt(endCycle)
+      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+        reply.send(
+          Crypto.sign({ success: false, error: `Invalid start and end counters` })
+        )
+        return
+      }
+      let count = to - from
+      if (count > 100) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Exceed maximum limit of 100 cycles to query accounts Count`,
+          })
+        )
+        return
+      }
+      totalAccounts = await AccountDB.queryAccountCountBetweenCycles(from, to)
+      if (page) {
+        let offset = parseInt(page)
+        if (offset < 0) {
+          reply.send(
+            Crypto.sign({ success: false, error: `Invalid page number` })
+          )
+          return
+        }
+        let skip = 0;
+        let limit = 10000; // query 10000 accounts
+        if (offset > 0) {
+          skip = offset * 10000
+        }
+        accounts = await AccountDB.queryAccountsBetweenCycles(skip, limit, from, to)
+      }
+      res = Crypto.sign({
+        accounts,
+        totalAccounts
+      })
+    } else {
+      reply.send({
+        success: false,
+        error: 'not specified which account to show',
+      });
+      return;
+    }
     reply.send(res)
   })
 

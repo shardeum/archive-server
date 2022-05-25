@@ -74,3 +74,29 @@ export const storeCycleData = async (cycles = []) => {
     }
   }
 }
+
+
+export const storeAccountData = async (accounts = []) => {
+  if (accounts && accounts.length <= 0) return
+  if (socketServer) {
+    let signedDataToSend = Crypto.sign({
+      accounts: accounts,
+    })
+    socketServer.emit('RECEIPT', signedDataToSend)
+  }
+  console.log(accounts.length)
+  for (let i = 0; i < accounts.length; i++) {
+    for (let j = 0; j < accounts.length; j++) {
+      const account = accounts[j]
+      const accountExist = await Account.queryAccountByAccountId(
+        account.accountId
+      )
+      if (accountExist) {
+        if (account.timestamp > accountExist.timestamp)
+          await Account.updateAccount(account.accountId, account)
+      } else {
+        await Account.insertAccount(account)
+      }
+    }
+  }
+}

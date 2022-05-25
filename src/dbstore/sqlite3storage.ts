@@ -5,6 +5,7 @@ export async function init(config) {
     const dbName = `archiverdb-${config.ARCHIVER_PORT}.sqlite3`;
     db = new sqlite3.Database(dbName);
     // await run('PRAGMA journal_mode=WAL');
+    await run('PRAGMA journal_mode = WAL');
     console.log('Database initialized.');
 }
 

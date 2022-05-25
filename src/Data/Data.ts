@@ -24,7 +24,7 @@ import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
 import { queryArchivedCycleByMarker } from '../Storage'
 import { queryArchivedCycles } from '../test/api/archivedCycles'
-import { storeReceiptData, storeCycleData } from './Collector'
+import { storeReceiptData, storeCycleData, storeAccountData } from './Collector'
 import * as CycleDB from '../dbstore/cycles'
 
 // Socket modules
@@ -146,6 +146,12 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
           processCycles(newData.responses.CYCLE as Cycle[])
           storeCycleData(newData.responses.CYCLE)
         }
+        if (newData.responses && newData.responses.ACCOUNT) {
+          console.log('RECEIVED ACCOUNTS DATA', sender.nodeInfo.publicKey, sender.nodeInfo.ip, sender.nodeInfo.port)
+          // console.log(newData.responses.ACCOUNT)
+          storeAccountData(newData.responses.ACCOUNT)
+        }
+
         // Set new contactTimeout for sender. Postpone sender removal because data is still received from consensor
         if (currentCycleDuration > 0) {
           nestedCountersInstance.countEvent(
