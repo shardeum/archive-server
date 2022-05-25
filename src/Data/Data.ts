@@ -138,6 +138,8 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
           nestedCountersInstance.countEvent('archiver', 'clear_contact_timeout')
         }
 
+        if (config.VERBOSE) console.log('RECEIPT RECEIPT', sender.nodeInfo.publicKey, sender.nodeInfo.ip, sender.nodeInfo.port)
+
         if (newData.responses && newData.responses.RECEIPT)
           storeReceiptData(newData.responses.RECEIPT)
         if (newData.responses && newData.responses.CYCLE) {
@@ -1321,7 +1323,7 @@ export async function syncCyclesAndNodeList(
   }
   let savedCycleRecord = CycleChain[0]
   while (endCycle > 0) {
-    let nextEnd: number = endCycle - 10 // Downloading max 10000 cycles each time
+    let nextEnd: number = endCycle - 1000 // Downloading max 10000 cycles each time
     if (nextEnd < 0) nextEnd = 0
     Logger.mainLogger.debug(`Getting cycles ${endCycle} - ${nextEnd}...`)
     const prevCycles = await fetchCycleRecords(
@@ -1432,7 +1434,7 @@ export const downloadReceipts = async (
 ) => {
   let complete = false;
   let start = from;
-  let end = start + 10;
+  let end = start + 1000;
   while (!complete) {
     if (end >= to) {
       let res: any = await P2P.getJson(
@@ -1451,7 +1453,7 @@ export const downloadReceipts = async (
       }/receipt?start=${start}&end=${end}`
     )
     if (response && response.receipts) {
-      if (response.receipts.length < 10) {
+      if (response.receipts.length < 1000) {
         complete = true;
         Logger.mainLogger.debug('Download receipts completed');
       }
@@ -1465,7 +1467,7 @@ export const downloadReceipts = async (
       Logger.mainLogger.debug('Invalid download response');
     }
     start = end;
-    end += 10;
+    end += 1000;
   }
 
 };

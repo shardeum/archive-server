@@ -4,6 +4,7 @@ import * as Cycle from '../dbstore/cycles'
 import * as Receipt from '../dbstore/receipts'
 import * as Crypto from '../Crypto'
 import { socketServer } from './Data'
+import { config } from '../Config'
 
 export const storeReceiptData = async (receipts = []) => {
   if (receipts && receipts.length <= 0) return
@@ -15,6 +16,7 @@ export const storeReceiptData = async (receipts = []) => {
   }
   for (let i = 0; i < receipts.length; i++) {
     const { accounts, cycle, result, sign, tx } = receipts[i]
+    if (config.VERBOSE) console.log(tx.txId)
     await Receipt.insertReceipt({ ...receipts[i], receiptId: tx.txId, timestamp: tx.timestamp })
     for (let j = 0; j < accounts.length; j++) {
       const account = accounts[j]

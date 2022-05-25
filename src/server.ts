@@ -160,8 +160,9 @@ async function syncAndStartServer() {
     ],
   })
 
-  // wait for one cycle before sending data request
-  await Utils.sleep(cycleDuration * 1000)
+  if (!config.experimentalSnapshot)
+    // wait for one cycle before sending data request
+    await Utils.sleep(cycleDuration * 1000)
 
   // start fastify server
   io = startServer()
