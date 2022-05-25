@@ -39,7 +39,7 @@ let config: Config = {
     '3be00019f23847529bd63e41124864983175063bb524bd54ea3c155f2fa12969758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3',
   ARCHIVER_EXISTING: [],
   ARCHIVER_LOGS: 'logs',
-  ARCHIVER_DB: 'db/archiver-db',
+  ARCHIVER_DB: 'db/archiver-db.sqlite',
   DATASENDER_TIMEOUT: 1000 * 60 * 5,
   RATE_LIMIT: 100, // 100 req per second,
   STATISTICS: {
@@ -52,7 +52,7 @@ let config: Config = {
     devPublicKey: '',
   },
   experimentalSnapshot: true,
-  VERBOSE: false
+  VERBOSE: false,
 }
 
 export function overrideDefaultConfig(
