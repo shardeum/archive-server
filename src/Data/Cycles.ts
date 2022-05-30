@@ -101,6 +101,7 @@ function updateNodeList(cycle: Cycle) {
     apoptosized,
     joinedArchivers,
     leavingArchivers,
+    refreshedConsensors,
   } = cycle
 
   const consensorInfos = joinedConsensors.map((jc) => ({
@@ -110,7 +111,7 @@ function updateNodeList(cycle: Cycle) {
     id: jc.id,
   }))
 
-  const refreshedConsensorInfos = joinedConsensors.map((jc) => ({
+  const refreshedConsensorInfos = refreshedConsensors.map((jc) => ({
     ip: jc.externalIp,
     port: jc.externalPort,
     publicKey: jc.publicKey,
