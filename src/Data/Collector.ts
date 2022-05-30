@@ -5,6 +5,7 @@ import * as Receipt from '../dbstore/receipts'
 import * as Crypto from '../Crypto'
 import { socketServer } from './Data'
 import { config } from '../Config'
+import * as Logger from '../Logger'
 
 export const storeReceiptData = async (receipts = []) => {
   if (receipts && receipts.length <= 0) return
@@ -85,6 +86,7 @@ export const storeAccountData = async (accounts = []) => {
     socketServer.emit('RECEIPT', signedDataToSend)
   }
   console.log(accounts.length)
+  Logger.mainLogger.debug('Received Accounts Size', accounts.length)
   for (let i = 0; i < accounts.length; i++) {
     for (let j = 0; j < accounts.length; j++) {
       const account = accounts[j]
