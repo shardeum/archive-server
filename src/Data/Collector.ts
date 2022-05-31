@@ -3,9 +3,12 @@ import * as Transaction from '../dbstore/transactions'
 import * as Cycle from '../dbstore/cycles'
 import * as Receipt from '../dbstore/receipts'
 import * as Crypto from '../Crypto'
-import { socketServer } from './Data'
+import { clearCombinedAccountsData, combineAccountsData, socketServer } from './Data'
 import { config } from '../Config'
 import * as Logger from '../Logger'
+import { profilerInstance } from '../profiler/profiler'
+
+export let storingAccountData = false
 
 export const storeReceiptData = async (receipts = []) => {
   if (receipts && receipts.length <= 0) return
@@ -78,6 +81,8 @@ export const storeCycleData = async (cycles = []) => {
 
 
 export const storeAccountData = async (accounts = []) => {
+  profilerInstance.profileSectionStart('store_account_data')
+  storingAccountData = true
   if (accounts && accounts.length <= 0) return
   if (socketServer) {
     let signedDataToSend = Crypto.sign({
@@ -88,17 +93,27 @@ export const storeAccountData = async (accounts = []) => {
   console.log(accounts.length)
   Logger.mainLogger.debug('Received Accounts Size', accounts.length)
   for (let i = 0; i < accounts.length; i++) {
-    for (let j = 0; j < accounts.length; j++) {
-      const account = accounts[j]
-      const accountExist = await Account.queryAccountByAccountId(
-        account.accountId
-      )
-      if (accountExist) {
-        if (account.timestamp > accountExist.timestamp)
-          await Account.updateAccount(account.accountId, account)
-      } else {
-        await Account.insertAccount(account)
-      }
-    }
+    const account = accounts[i]
+    await Account.insertAccount(account)
+    // const accountExist = await Account.queryAccountByAccountId(
+    //   account.accountId
+    // )
+    // if (accountExist) {
+    //   if (account.timestamp > accountExist.timestamp)
+    //     await Account.updateAccount(account.accountId, account)
+    // } else {
+    //   await Account.insertAccount(account)
+    // }
   }
+  profilerInstance.profileSectionEnd('store_account_data')
+  console.log('Combined Accounts Data', combineAccountsData.length)
+  Logger.mainLogger.debug('Combined Accounts Data', combineAccountsData.length)
+  if (combineAccountsData.length > 0) {
+    let accountData = [...combineAccountsData]
+    clearCombinedAccountsData()
+    storeAccountData(accountData)
+  } else {
+    storingAccountData = false
+  }
+
 }

@@ -24,7 +24,7 @@ import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
 import { queryArchivedCycleByMarker } from '../Storage'
 import { queryArchivedCycles } from '../test/api/archivedCycles'
-import { storeReceiptData, storeCycleData, storeAccountData } from './Collector'
+import { storeReceiptData, storeCycleData, storeAccountData, storingAccountData } from './Collector'
 import * as CycleDB from '../dbstore/cycles'
 
 // Socket modules
@@ -32,6 +32,7 @@ export let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic['Socket']
 let lastSentCycleCounterToExplorer = 0
+export let combineAccountsData = []
 // let processedCounters = {}
 
 // Data network messages
@@ -148,8 +149,13 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
         }
         if (newData.responses && newData.responses.ACCOUNT) {
           console.log('RECEIVED ACCOUNTS DATA', sender.nodeInfo.publicKey, sender.nodeInfo.ip, sender.nodeInfo.port)
-          // console.log(newData.responses.ACCOUNT)
-          storeAccountData(newData.responses.ACCOUNT)
+          Logger.mainLogger.debug('RECEIVED ACCOUNTS DATA', sender.nodeInfo.publicKey, sender.nodeInfo.ip, sender.nodeInfo.port)
+          nestedCountersInstance.countEvent('genesis', 'accounts', 1)
+          if (storingAccountData) {
+            combineAccountsData = [...combineAccountsData, ...newData.responses.ACCOUNT]
+          } else
+            // console.log(newData.responses.ACCOUNT)
+            storeAccountData(newData.responses.ACCOUNT)
         }
 
         // Set new contactTimeout for sender. Postpone sender removal because data is still received from consensor
@@ -203,6 +209,10 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
       setImmediate(processData, newData)
     }
   )
+}
+
+export function clearCombinedAccountsData() {
+  combineAccountsData = []
 }
 
 export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(

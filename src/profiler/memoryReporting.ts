@@ -1,11 +1,12 @@
-import { statisticsInstance } from "../statistics";
+import { statisticsInstance } from '../statistics'
 
 const NS_PER_SEC = 1e9
 
 const os = require('os')
 import * as fastify from 'fastify'
-import {resourceUsage} from "process";
-import {getActiveList} from "../NodeList";
+import { resourceUsage } from 'process'
+import { getActiveList } from '../NodeList'
+import { spawn } from 'child_process'
 
 const process = require('process')
 
@@ -73,6 +74,38 @@ class MemoryReporting {
         //     }
         //     res.end()
         // })
+
+        this.server.get('/top', (req, res) => {
+            const top = spawn('top', ['-n', '10'])
+            top.stdout.on('data', (dataBuffer) => {
+                res.send(dataBuffer.toString())
+                top.kill()
+            })
+            top.on('close', (code) => {
+                console.log(`child process exited with code ${code}`)
+            })
+            top.stderr.on('data', (data) => {
+                console.log('top command error', data)
+                res.send('top command error')
+                top.kill()
+            })
+        })
+
+        this.server.get('/df', (req, res) => {
+            const df = spawn('df')
+            df.stdout.on('data', (dataBuffer) => {
+                res.send(dataBuffer.toString())
+                df.kill()
+            })
+            df.on('close', (code) => {
+                console.log(`child process exited with code ${code}`)
+            })
+            df.stderr.on('data', (data) => {
+                console.log('df command error', data)
+                res.send('df command error')
+                df.kill()
+            })
+        })
     }
 
     updateCpuPercent() {
@@ -95,7 +128,8 @@ class MemoryReporting {
         for (let item of report) {
             let { category, subcat, itemKey, count } = item
             let countStr = `${count}`
-            if (itemKey === 'cpuPercent' || itemKey === 'cpuAVGPercent') countStr += ' %'
+            if (itemKey === 'cpuPercent' || itemKey === 'cpuAVGPercent')
+                countStr += ' %'
             outputStr += `${countStr.padStart(10)} ${category} ${subcat} ${itemKey}\n`
         }
         return outputStr
@@ -157,34 +191,44 @@ class MemoryReporting {
         return percentUsed
     }
 
-    roundTo3decimals(num: number){
+    roundTo3decimals(num: number) {
         return Math.round((num + Number.EPSILON) * 1000) / 1000
     }
 
     stateReport() {
         let numActiveNodes = getActiveList().length
-        this.addToReport('P2P','Nodelist', 'numActiveNodes', numActiveNodes )
+        this.addToReport('P2P', 'Nodelist', 'numActiveNodes', numActiveNodes)
     }
 
     systemProcessReport() {
-        this.addToReport('Process','CPU', 'cpuPercent', this.roundTo3decimals(this.cpuPercent() * 100) )
+        this.addToReport(
+            'Process',
+            'CPU',
+            'cpuPercent',
+            this.roundTo3decimals(this.cpuPercent() * 100)
+        )
 
         let avgCPU = statisticsInstance.getAverage('cpuPercent')
-        this.addToReport('Process','CPU', 'cpuAVGPercent', this.roundTo3decimals(avgCPU * 100) )
+        this.addToReport(
+            'Process',
+            'CPU',
+            'cpuAVGPercent',
+            this.roundTo3decimals(avgCPU * 100)
+        )
         let multiStats = statisticsInstance.getMultiStatReport('cpuPercent')
 
-        multiStats.allVals.forEach(function(val: number, index: number) {
-            multiStats.allVals[index] = Math.round(val * 100);
+        multiStats.allVals.forEach(function (val: number, index: number) {
+            multiStats.allVals[index] = Math.round(val * 100)
         })
         multiStats.min = this.roundTo3decimals(multiStats.min * 100)
         multiStats.max = this.roundTo3decimals(multiStats.max * 100)
         multiStats.avg = this.roundTo3decimals(multiStats.avg * 100)
 
-        this.addToReport('Process','CPU', `cpu: ${JSON.stringify(multiStats)}`, 1)
+        this.addToReport('Process', 'CPU', `cpu: ${JSON.stringify(multiStats)}`, 1)
 
         let report = resourceUsage()
         for (const [key, value] of Object.entries(report)) {
-            this.addToReport('Process','Details', key, value )
+            this.addToReport('Process', 'Details', key, value)
         }
     }
 }
