@@ -34,6 +34,7 @@ let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic['Socket']
 let lastSentCycleCounterToExplorer = 0
 export let combineAccountsData = []
+let forwardGenesisAccounts = false
 // let processedCounters = {}
 
 // Data network messages
@@ -152,11 +153,17 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
           console.log('RECEIVED ACCOUNTS DATA', sender.nodeInfo.publicKey, sender.nodeInfo.ip, sender.nodeInfo.port)
           Logger.mainLogger.debug('RECEIVED ACCOUNTS DATA', sender.nodeInfo.publicKey, sender.nodeInfo.ip, sender.nodeInfo.port)
           nestedCountersInstance.countEvent('genesis', 'accounts', 1)
-          if (storingAccountData) {
-            combineAccountsData = [...combineAccountsData, ...newData.responses.ACCOUNT]
-          } else
-            // console.log(newData.responses.ACCOUNT)
-            storeAccountData(newData.responses.ACCOUNT)
+          if (!forwardGenesisAccounts) {
+            console.log('Genesis Accounts To Sycn', newData.responses.ACCOUNT)
+            Logger.mainLogger.debug('Genesis Accounts To Sycn', newData.responses.ACCOUNT)
+            syncGenesisAccountsFromConsensor(newData.responses.ACCOUNT, sender.nodeInfo)
+          } else {
+            if (storingAccountData) {
+              combineAccountsData = [...combineAccountsData, ...newData.responses.ACCOUNT]
+            } else
+              // console.log(newData.responses.ACCOUNT)
+              storeAccountData(newData.responses.ACCOUNT)
+          }
         }
 
         // Set new contactTimeout for sender. Postpone sender removal because data is still received from consensor
@@ -1232,7 +1239,7 @@ function applyNodeListChange(change: Change) {
   }
 }
 
-export async function syncGenesisAccounts(activeArchivers: State.ArchiverNodeInfo[]) {
+export async function syncGenesisAccountsFromArchiver(activeArchivers: State.ArchiverNodeInfo[]) {
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)
   let complete = false;
   let startAccount = 0;
@@ -1263,7 +1270,6 @@ export async function syncGenesisAccounts(activeArchivers: State.ArchiverNodeInf
       `http://${randomArchiver.ip}:${randomArchiver.port}/account?startCycle=0&endCycle=5&page=${page}`
     )
     if (response && response.accounts) {
-      // collector = collector.concat(response.archivedCycles);
       if (response.accounts.length < 10000) {
         complete = true;
         Logger.mainLogger.debug('Download completed for accounts');
@@ -1276,6 +1282,33 @@ export async function syncGenesisAccounts(activeArchivers: State.ArchiverNodeInf
     startAccount = endAccount;
     endAccount += 10000;
     page++;
+    // await sleep(1000);
+  }
+  await storeAccountData(combineAccountsData);
+  Logger.mainLogger.debug('Sync genesis accounts completed!');
+};
+
+export async function syncGenesisAccountsFromConsensor(totalGenesisAccounts = 0, firstConsensor: NodeList.ConsensusNodeInfo) {
+  if (totalGenesisAccounts <= 0) return;
+  let complete = false;
+  let startAccount = 0;
+  let combineAccountsData = [];
+  while (startAccount <= totalGenesisAccounts) {
+    Logger.mainLogger.debug(`Downloading accounts from ${startAccount}`);
+    let response: any = await P2P.getJson(
+      `http://${firstConsensor.ip}:${firstConsensor.port}/genesis_accounts?start=${startAccount}`
+    )
+    if (response && response.accounts) {
+      if (response.accounts.length < 1000) {
+        complete = true;
+        Logger.mainLogger.debug('Download completed for accounts');
+      }
+      Logger.mainLogger.debug(`Downloaded accounts`, response.accounts.length);
+      combineAccountsData = [...combineAccountsData, ...response.accounts];
+    } else {
+      Logger.mainLogger.debug('Genesis Accounts Query', 'Invalid download response');
+    }
+    startAccount += 1000;
     // await sleep(1000);
   }
   await storeAccountData(combineAccountsData);
