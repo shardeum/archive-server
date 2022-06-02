@@ -26,6 +26,7 @@ import { queryArchivedCycleByMarker } from '../Storage'
 import { queryArchivedCycles } from '../test/api/archivedCycles'
 import { storeReceiptData, storeCycleData, storeAccountData, storingAccountData } from './Collector'
 import * as CycleDB from '../dbstore/cycles'
+import * as AccountDB from '../dbstore/accounts'
 
 // Socket modules
 export let socketServer: SocketIO.Server
@@ -1230,6 +1231,56 @@ function applyNodeListChange(change: Change) {
     NodeList.removeNodes(change.removed)
   }
 }
+
+export async function syncGenesisAccounts(activeArchivers: State.ArchiverNodeInfo[]) {
+  const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)
+  let complete = false;
+  let startAccount = 0;
+  let endAccount = startAccount + 10000;
+  let combineAccountsData = [];
+  let totalGenesisAccounts = 0;
+  const totalExistingGenesisAccounts =
+    await AccountDB.queryAccountCountBetweenCycles(0, 5);
+  if (totalExistingGenesisAccounts > 0) {
+    // Let's assume it has synced data for now, update to sync account count between them
+    return;
+  }
+  let res: any = await P2P.getJson(
+    `http://${randomArchiver.ip}:${randomArchiver.port}/account?startCycle=0&endCycle=5`
+  )
+  if (res && res.totalAccounts) {
+    totalGenesisAccounts = res.totalAccounts;
+    Logger.mainLogger.debug('TotalGenesis Accounts', totalGenesisAccounts)
+  } else {
+    Logger.mainLogger.error('Genesis Total Accounts Query', 'Invalid download response');
+    return;
+  }
+  if (totalGenesisAccounts <= 0) return;
+  let page = 0;
+  while (!complete) {
+    Logger.mainLogger.debug(`Downloading accounts from ${startAccount} to ${endAccount}`);
+    let response: any = await P2P.getJson(
+      `http://${randomArchiver.ip}:${randomArchiver.port}/account?startCycle=0&endCycle=5&page=${page}`
+    )
+    if (response && response.accounts) {
+      // collector = collector.concat(response.archivedCycles);
+      if (response.accounts.length < 10000) {
+        complete = true;
+        Logger.mainLogger.debug('Download completed for accounts');
+      }
+      Logger.mainLogger.debug(`Downloaded accounts`, response.accounts.length);
+      combineAccountsData = [...combineAccountsData, ...response.accounts];
+    } else {
+      Logger.mainLogger.debug('Genesis Accounts Query', 'Invalid download response');
+    }
+    startAccount = endAccount;
+    endAccount += 10000;
+    page++;
+    // await sleep(1000);
+  }
+  await storeAccountData(combineAccountsData);
+  Logger.mainLogger.debug('Sync genesis accounts completed!');
+};
 
 export async function syncCyclesAndNodeList(
   activeArchivers: State.ArchiverNodeInfo[]

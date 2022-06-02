@@ -142,6 +142,8 @@ async function syncAndStartServer() {
 
   Logger.mainLogger.debug('We have successfully joined the network')
 
+  await Data.syncGenesisAccounts(State.activeArchivers) // Sync Genesis Accounts that the network start with.
+
   await Data.syncCyclesAndNodeList(State.activeArchivers)
 
   if (config.experimentalSnapshot) {
