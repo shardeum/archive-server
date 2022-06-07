@@ -1,5 +1,5 @@
 import * as db from './sqlite3storage';
-import { extractValues } from './sqlite3storage';
+import { extractValues, extractValuesFromArray } from './sqlite3storage';
 import * as Logger from '../Logger'
 import { config } from '../Config'
 
@@ -34,6 +34,34 @@ export async function insertAccount(account: AccountCopy) {
         Logger.mainLogger.error(
             'Unable to insert Account or it is already stored in to database',
             account.accountId
+        );
+    }
+}
+
+export async function bulkInsertAccounts(accounts: AccountCopy[]) {
+    try {
+        const fields = Object.keys(accounts[0]).join(', ');
+        const placeholders = Object.keys(accounts[0]).fill('?').join(', ');
+        const values = extractValuesFromArray(accounts);
+        let sql =
+            'INSERT OR REPLACE INTO accounts (' +
+            fields +
+            ') VALUES (' +
+            placeholders +
+            ')';
+        for (let i = 1; i < accounts.length; i++) {
+            sql = sql + ', (' + placeholders +
+                ')';
+        }
+        await db.run(sql, values);
+        Logger.mainLogger.debug(
+            'Successfully inserted Accounts', accounts.length
+        );
+    } catch (e) {
+        Logger.mainLogger.error(e);
+        Logger.mainLogger.error(
+            'Unable to bulk insert Accounts',
+            accounts.length
         );
     }
 }

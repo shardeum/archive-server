@@ -74,6 +74,22 @@ export function extractValues(object: any): any {
   }
 }
 
+export function extractValuesFromArray(arr: any): any {
+  try {
+    const inputs = []
+    for (const object of arr) {
+      for (const column of Object.keys(object)) {
+        let value = object[column]
+        if (typeof value === 'object') value = JSON.stringify(value)
+        inputs.push(value)
+      }
+    }
+    return inputs
+  } catch (e) {
+    console.log(e)
+  }
+}
+
 function createDirectories(pathname) {
   const __dirname = path.resolve()
   pathname = pathname.replace(/^\.*\/|\/?[^\/]+\.[a-z]+|\/$/g, '') // Remove leading directory markers, and remove ending /file-name.extension

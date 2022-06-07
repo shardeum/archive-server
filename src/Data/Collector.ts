@@ -93,19 +93,20 @@ export const storeAccountData = async (accounts = []) => {
   }
   console.log(accounts.length)
   Logger.mainLogger.debug('Received Accounts Size', accounts.length)
-  for (let i = 0; i < accounts.length; i++) {
-    const account = accounts[i]
-    await Account.insertAccount(account)
-    // const accountExist = await Account.queryAccountByAccountId(
-    //   account.accountId
-    // )
-    // if (accountExist) {
-    //   if (account.timestamp > accountExist.timestamp)
-    //     await Account.updateAccount(account.accountId, account)
-    // } else {
-    //   await Account.insertAccount(account)
-    // }
-  }
+  // for (let i = 0; i < accounts.length; i++) {
+  //   const account = accounts[i]
+  //   await Account.insertAccount(account)
+  //   // const accountExist = await Account.queryAccountByAccountId(
+  //   //   account.accountId
+  //   // )
+  //   // if (accountExist) {
+  //   //   if (account.timestamp > accountExist.timestamp)
+  //   //     await Account.updateAccount(account.accountId, account)
+  //   // } else {
+  //   //   await Account.insertAccount(account)
+  //   // }
+  // }
+  await Account.bulkInsertAccounts(accounts)
   if (profilerInstance)
     profilerInstance.profileSectionEnd('store_account_data')
   console.log('Combined Accounts Data', combineAccountsData.length)
