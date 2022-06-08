@@ -106,6 +106,42 @@ function initProfiler(server: fastify.FastifyInstance) {
 }
 
 async function syncAndStartServer() {
+
+  // Validate data if there is any in db
+  let lastStoredReceiptCount = await ReceiptDB.queryReceiptCount();
+  let lastStoredCycleCount = await CycleDB.queryCyleCount();
+  const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)
+  let response: any = await P2P.getJson(
+    `http://${randomArchiver.ip}:${randomArchiver.port
+    }/totalData`
+  )
+  if (!response || response.totalCycles < 0 || response.totalAccounts < 0 || response.totalTransactions < 0 || response.totalReceipts < 0) {
+    throw Error(`Can't fetch data from the archiver ${randomArchiver.ip}:${randomArchiver.port}`)
+  }
+  const { totalCycles, totalAccounts, totalTransactions, totalReceipts } = response
+  if (lastStoredReceiptCount > totalReceipts || lastStoredCycleCount > totalCycles) {
+    throw Error('The existing db has more data than the network data! Clear the DB and start the server again!')
+  }
+  if (lastStoredCycleCount > 0) {
+    const cycleResult = await Data.compareWithOldCyclesData(randomArchiver, lastStoredCycleCount)
+    if (!cycleResult.success) {
+      throw Error(
+        'The last saved 10 cycles data does not match with the archiver data! Clear the DB and start the server again!'
+      );
+    }
+    lastStoredCycleCount = cycleResult.cycle;
+  }
+  if (lastStoredCycleCount > 0) {
+    const receiptResult = await Data.compareWithOldReceiptsData(randomArchiver, lastStoredReceiptCount)
+    if (!receiptResult.success) {
+      throw Error(
+        'The last saved 10 receipts data does not match with the archiver data! Clear the DB and start the server again!'
+      );
+    }
+    lastStoredReceiptCount = lastStoredReceiptCount - receiptResult.receiptsToMatchCount;
+  }
+
+  Logger.mainLogger.debug('lastStoredCycleCount', lastStoredCycleCount, 'lastStoredReceiptCount', lastStoredReceiptCount)
   // If your not the first archiver node, get a nodelist from the others
   let isJoined = false
   let firstTime = true
@@ -144,10 +180,10 @@ async function syncAndStartServer() {
 
   await Data.syncGenesisAccountsFromArchiver(State.activeArchivers) // Sync Genesis Accounts that the network start with.
 
-  await Data.syncCyclesAndNodeList(State.activeArchivers)
+  await Data.syncCyclesAndNodeList(State.activeArchivers, lastStoredCycleCount)
 
   if (config.experimentalSnapshot) {
-    await Data.syncReceipt(State.activeArchivers)
+    await Data.syncReceipt(State.activeArchivers, lastStoredReceiptCount)
   } else {
     // Sync all state metadata until no older data is fetched from other archivers
     await Data.syncStateMetaData(State.activeArchivers)

@@ -27,6 +27,7 @@ import { queryArchivedCycles } from '../test/api/archivedCycles'
 import { storeReceiptData, storeCycleData, storeAccountData, storingAccountData } from './Collector'
 import * as CycleDB from '../dbstore/cycles'
 import * as AccountDB from '../dbstore/accounts'
+import * as ReceiptDB from '../dbstore/receipts'
 
 // Socket modules
 export let socketServer: SocketIO.Server
@@ -1246,12 +1247,12 @@ export async function syncGenesisAccountsFromArchiver(activeArchivers: State.Arc
   let endAccount = startAccount + 10000;
   let combineAccountsData = [];
   let totalGenesisAccounts = 0;
-  const totalExistingGenesisAccounts =
-    await AccountDB.queryAccountCountBetweenCycles(0, 5);
-  if (totalExistingGenesisAccounts > 0) {
-    // Let's assume it has synced data for now, update to sync account count between them
-    return;
-  }
+  // const totalExistingGenesisAccounts =
+  //   await AccountDB.queryAccountCountBetweenCycles(0, 5);
+  // if (totalExistingGenesisAccounts > 0) {
+  //   // Let's assume it has synced data for now, update to sync account count between them
+  //   return;
+  // }
   let res: any = await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port}/account?startCycle=0&endCycle=5`
   )
@@ -1316,7 +1317,7 @@ export async function syncGenesisAccountsFromConsensor(totalGenesisAccounts = 0,
 };
 
 export async function syncCyclesAndNodeList(
-  activeArchivers: State.ArchiverNodeInfo[]
+  activeArchivers: State.ArchiverNodeInfo[], lastStoredCycleCount: number = 0
 ) {
   // Get the networks newest cycle as the anchor point for sync
   Logger.mainLogger.debug('Getting newest cycle...')
@@ -1396,14 +1397,14 @@ export async function syncCyclesAndNodeList(
 
   for (let i = 0; i < CycleChain.length; i++) {
     let record = CycleChain[i]
-    Logger.mainLogger.debug(
-      'Inserting archived cycle for counter',
-      record.counter
-    )
     Cycles.CycleChain.set(record.counter, { ...record })
     if (config.experimentalSnapshot) {
       storeCycleData([record])
     } else {
+      Logger.mainLogger.debug(
+        'Inserting archived cycle for counter',
+        record.counter
+      )
       const archivedCycle = createArchivedCycle(record)
       await Storage.insertArchivedCycle(archivedCycle)
     }
@@ -1416,15 +1417,15 @@ export async function syncCyclesAndNodeList(
 
   // Download old cycle Records
   let endCycle = CycleChain[0].counter - 1
-  if (endCycle > 0) {
+  if (endCycle > lastStoredCycleCount) {
     Logger.mainLogger.debug(
-      `Downloading old cycles from cycles ${endCycle} to cycle 0!`
+      `Downloading old cycles from cycles ${endCycle} to cycle ${lastStoredCycleCount}!`
     )
   }
   let savedCycleRecord = CycleChain[0]
-  while (endCycle > 0) {
+  while (endCycle >= lastStoredCycleCount) {
     let nextEnd: number = endCycle - 1000 // Downloading max 10000 cycles each time
-    if (nextEnd < 0) nextEnd = 0
+    if (nextEnd < 0) nextEnd = -1
     Logger.mainLogger.debug(`Getting cycles ${endCycle} - ${nextEnd}...`)
     const prevCycles = await fetchCycleRecords(
       activeArchivers,
@@ -1447,13 +1448,13 @@ export async function syncCyclesAndNodeList(
         break
       }
       savedCycleRecord = prevCycle
-      Logger.mainLogger.debug(
-        'Inserting archived cycle for counter',
-        prevCycle.counter
-      )
       if (config.experimentalSnapshot) {
         storeCycleData([prevCycle])
       } else {
+        Logger.mainLogger.debug(
+          'Inserting archived cycle for counter',
+          prevCycle.counter
+        )
         const archivedCycle = createArchivedCycle(prevCycle)
         await Storage.insertArchivedCycle(archivedCycle)
       }
@@ -1510,7 +1511,7 @@ async function downloadArchivedCycles(
 }
 
 export async function syncReceipt(
-  activeArchivers: State.ArchiverNodeInfo[]
+  activeArchivers: State.ArchiverNodeInfo[], lastStoredReceiptCount: number = 0
 ) {
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)
   let response: any = await P2P.getJson(
@@ -1521,7 +1522,7 @@ export async function syncReceipt(
     return false
   }
   const { totalCycles, totalAccounts, totalTransactions, totalReceipts } = response
-  await downloadReceipts(totalReceipts, 0, randomArchiver)
+  await downloadReceipts(totalReceipts, lastStoredReceiptCount, randomArchiver)
   Logger.mainLogger.debug('Sync receipts data completed!');
   return false
 }
@@ -1618,6 +1619,91 @@ export const downloadReceipts = async (
 //     end += 10;
 //   }
 // };
+
+export async function compareWithOldReceiptsData(archiver: State.ArchiverNodeInfo, lastReceiptCount = 0) {
+  let downloadedReceipts;
+  const response: any = await P2P.getJson(
+    `http://${archiver.ip}:${archiver.port
+    }/receipt?start=${lastReceiptCount - 10}&end=${lastReceiptCount}`
+  )
+  if (response && response.receipts) {
+    downloadedReceipts = response.receipts;
+  } else {
+    throw Error(
+      `Can't fetch data from receipt ${lastReceiptCount - 10
+      } to receipt ${lastReceiptCount}  from archiver ${archiver}`
+    );
+  }
+  let oldReceipts = await ReceiptDB.queryReceipts(
+    lastReceiptCount - 10,
+    lastReceiptCount
+  );
+  // downloadedReceipts.sort((a, b) =>
+  //   a.cycleRecord.counter > b.cycleRecord.counter ? 1 : -1
+  // );
+  // oldReceipts.sort((a, b) =>
+  //   a.cycleRecord.counter > b.cycleRecord.counter ? 1 : -1
+  // );
+  let success = false;
+  let receiptsToMatchCount = 10;
+  for (let i = 0; i < downloadedReceipts.length; i++) {
+    let downloadedReceipt = downloadedReceipts[i];
+    const oldReceipt = oldReceipts[i];
+    if (oldReceipt.counter) delete oldReceipt.counter;
+    console.log(downloadedReceipt.receiptId, oldReceipt.receiptId);
+    if (downloadedReceipt.receiptId !== oldReceipt.receiptId) {
+      return {
+        success,
+        receiptsToMatchCount,
+      };
+    }
+    success = true;
+    receiptsToMatchCount++;
+  }
+  return { success, receiptsToMatchCount };
+}
+
+export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo, lastCycleCounter = 0) {
+  let downloadedCycles;
+  const response: any = await P2P.getJson(
+    `http://${archiver.ip}:${archiver.port
+    }/cycleinfo?start=${lastCycleCounter - 10}&end=${lastCycleCounter - 1}`
+  )
+  if (response && response.cycleInfo) {
+    downloadedCycles = response.cycleInfo;
+  } else {
+    throw Error(
+      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${lastCycleCounter - 1
+      }  from archiver ${archiver}`
+    );
+  }
+  let oldCycles = await CycleDB.queryCycleRecordsBetween(
+    lastCycleCounter - 10,
+    lastCycleCounter + 1
+  );
+  downloadedCycles.sort((a, b) => (a.counter > b.counter ? 1 : -1));
+  oldCycles.sort((a, b) =>
+    a.counter > b.counter ? 1 : -1
+  );
+  let success = false;
+  let cycle = 0;
+  for (let i = 0; i < downloadedCycles.length; i++) {
+    let downloadedCycle = downloadedCycles[i];
+    const oldCycle = oldCycles[i];
+    console.log(downloadedCycle, oldCycle);
+    if (
+      JSON.stringify(downloadedCycle) !== JSON.stringify(oldCycle)
+    ) {
+      return {
+        success,
+        cycle,
+      };
+    }
+    success = true;
+    cycle = downloadedCycle.counter;
+  }
+  return { success, cycle };
+}
 
 export async function syncStateMetaData(
   activeArchivers: State.ArchiverNodeInfo[]
