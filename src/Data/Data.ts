@@ -1293,7 +1293,8 @@ export async function syncGenesisAccountsFromConsensor(totalGenesisAccounts = 0,
   if (totalGenesisAccounts <= 0) return;
   let complete = false;
   let startAccount = 0;
-  let combineAccountsData = [];
+  // let combineAccountsData = [];
+  let totalDownloadedAccounts = 0;
   while (startAccount <= totalGenesisAccounts) {
     Logger.mainLogger.debug(`Downloading accounts from ${startAccount}`);
     let response: any = await P2P.getJson(
@@ -1305,14 +1306,17 @@ export async function syncGenesisAccountsFromConsensor(totalGenesisAccounts = 0,
         Logger.mainLogger.debug('Download completed for accounts');
       }
       Logger.mainLogger.debug(`Downloaded accounts`, response.accounts.length);
-      combineAccountsData = [...combineAccountsData, ...response.accounts];
+      await storeAccountData(response.accounts);
+      // combineAccountsData = [...combineAccountsData, ...response.accounts];
+      totalDownloadedAccounts += response.accounts.length;
     } else {
       Logger.mainLogger.debug('Genesis Accounts Query', 'Invalid download response');
     }
     startAccount += 1000;
     // await sleep(1000);
   }
-  await storeAccountData(combineAccountsData);
+  Logger.mainLogger.debug(`Total downloaded accounts`, totalDownloadedAccounts);
+  // await storeAccountData(combineAccountsData);
   Logger.mainLogger.debug('Sync genesis accounts completed!');
 };
 
