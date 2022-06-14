@@ -430,10 +430,11 @@ function startServer() {
   server.get('/nodelist', (_request, reply) => {
     profilerInstance.profileSectionStart('GET_nodelist')
     nestedCountersInstance.countEvent('consensor', 'GET_nodelist')
-    let nodeList = NodeList.getActiveList()
-    if (nodeList.length < 1) {
-      nodeList = NodeList.getList().slice(0, 1)
-    }
+    
+    const NODE_COUNT = Math.min(config.N_NODELIST, NodeList.getActiveList().length)
+    let nodeList: NodeList.ConsensusNodeInfo[] = 
+      (NODE_COUNT < 1) ? NodeList.getList().slice(0, 1) : NodeList.getRandomActiveNode(NODE_COUNT);
+
     let sortedNodeList = [...nodeList].sort((a: any, b: any) =>
       a.id > b.id ? 1 : -1
     )
