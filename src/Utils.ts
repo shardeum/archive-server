@@ -376,12 +376,32 @@ export const binarySearch = function (
   return -m - 1
 }
 
-export function getRandomItemFromArr(arr: any[]): any {
-  if (!Array.isArray(arr)) return
-  if (arr.length === 0) return
-  const randomIndex = Math.floor(Math.random() * arr.length)
-  return arr[randomIndex]
+// fail safe and fast
+// this function will pick non-repeating multiple random elements from an array if given amount n > 1
+//(partial) fisher-yates shuffle 
+export function getRandomItemFromArr<T>(arr: T[], n: number = 1):  T[] | undefined {
+  if (!Array.isArray(arr)) return undefined
+  if (arr.length === 0) return undefined
+
+  let result: T[] = new Array(n),
+      len: number = arr.length,
+      taken: number[] = new Array(len);
+
+  if (n > len || n <= 1){
+    const randomIndex = Math.floor(Math.random() * arr.length)
+    return [arr[randomIndex]]
+    // we can throw an error but no
+    // let's just return one random item in this case for the safety 
+  }
+
+  while (n--) {
+      const x = Math.floor(Math.random() * len);
+      result[n] = arr[x in taken ? taken[x] : x];
+      taken[x] = --len in taken ? taken[len] : len;
+  }
+  return result;
 }
+
 export async function sleep(time: number) {
   Logger.mainLogger.debug('sleeping for', time)
   return new Promise((resolve: any) => {

@@ -511,7 +511,7 @@ export function sendLeaveRequest(
 }
 
 export async function getCycleDuration() {
-  const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)
+  const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
   let response: any = await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo/1`
   )
@@ -548,7 +548,7 @@ export async function getNewestCycleFromConsensors(
 export function checkJoinStatus(): Promise<boolean> {
   Logger.mainLogger.debug('Checking join status')
   const ourNodeInfo = State.getNodeInfo()
-  const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)
+  const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
 
   return new Promise(async (resolve) => {
     let response: any = await P2P.getJson(
@@ -748,7 +748,7 @@ export async function processStateMetaData(response: any) {
           parentCycle.activated.length -
           parentCycle.removed.length
         while (!isDownloadSuccess && sleepCount < 20) {
-          let randomConsensor = NodeList.getRandomActiveNode()
+          let randomConsensor = NodeList.getRandomActiveNode()[0]
           const queryRequest = createQueryRequest(
             'RECEIPT_MAP',
             receiptHashesForCycle.counter - 1,
@@ -1241,7 +1241,7 @@ function applyNodeListChange(change: Change) {
 }
 
 export async function syncGenesisAccountsFromArchiver(activeArchivers: State.ArchiverNodeInfo[]) {
-  const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)
+  const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
   let complete = false;
   let startAccount = 0;
   let endAccount = startAccount + 10000;
@@ -1517,7 +1517,7 @@ async function downloadArchivedCycles(
 export async function syncReceipt(
   activeArchivers: State.ArchiverNodeInfo[], lastStoredReceiptCount: number = 0
 ) {
-  const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)
+  const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
   let response: any = await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port
     }/totalData`
@@ -1712,7 +1712,7 @@ export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo,
 export async function syncStateMetaData(
   activeArchivers: State.ArchiverNodeInfo[]
 ) {
-  const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)
+  const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
   let allCycleRecords = await Storage.queryAllCycleRecords()
   let lastCycleCounter = allCycleRecords[0].counter
   let downloadedArchivedCycles = await downloadArchivedCycles(

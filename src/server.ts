@@ -110,7 +110,7 @@ async function syncAndStartServer() {
   // Validate data if there is any in db
   let lastStoredReceiptCount = await ReceiptDB.queryReceiptCount();
   let lastStoredCycleCount = await CycleDB.queryCyleCount();
-  const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)
+  const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
   let response: any = await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port
     }/totalData`
@@ -189,7 +189,7 @@ async function syncAndStartServer() {
     await Data.syncStateMetaData(State.activeArchivers)
   }
   // Set randomly selected consensors as dataSender
-  let randomConsensor = NodeList.getRandomActiveNode()
+  let randomConsensor = NodeList.getRandomActiveNode()[0]
   Data.addDataSenders({
     nodeInfo: randomConsensor,
     types: [

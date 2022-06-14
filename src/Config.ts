@@ -15,6 +15,7 @@ export interface Config {
   ARCHIVER_DB: string
   DATASENDER_TIMEOUT: number
   RATE_LIMIT: number // number of allowed request per second,
+  N_NODELIST: number
   STATISTICS: {
     save: boolean
     interval: number
@@ -42,6 +43,7 @@ let config: Config = {
   ARCHIVER_DB: 'db/archiver-db.sqlite',
   DATASENDER_TIMEOUT: 1000 * 60 * 5,
   RATE_LIMIT: 100, // 100 req per second,
+  N_NODELIST: 5, // number of active node list GET /nodelist should emit but if the total active nodelist is less than said value it will emit all the node list.
   STATISTICS: {
     save: true,
     interval: 1,
