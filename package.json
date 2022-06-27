@@ -46,7 +46,7 @@
     "@types/socket.io": "^2.1.11",
     "@types/socket.io-client": "^1.4.33",
     "gts": "^3.1.0",
-    "np": "^7.6.0",
+    "np": "^7.6.2",
     "npm-run-all": "^4.1.5",
     "shx": "^0.3.4",
     "typescript": "^4.4.4",
@@ -64,7 +64,7 @@
     "log4js-extend": "^0.2.1",
     "minimist": "^1.2.0",
     "node-fetch": "^2.6.0",
-    "socket.io": "^2.3.0",
+    "socket.io": "^4.5.1",
     "socket.io-client": "^2.3.0",
     "sqlite3": "^5.0.0",
     "tydb": "^0.1.5"
