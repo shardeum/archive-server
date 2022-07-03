@@ -8,3 +8,11 @@
 include:
 - template: Security/Dependency-Scanning.gitlab-ci.yml
 - template: Security/Secret-Detection.gitlab-ci.yml
+- template: Security/SAST.gitlab-ci.yml
+stages:
+- test
+sast:
+  variables:
+    SAST_EXCLUDED_ANALYZERS: bandit, brakeman, flawfinder, gosec, kubesec, phpcs-security-audit,
+      pmd-apex, security-code-scan, semgrep, sobelow, spotbugs
+  stage: test
