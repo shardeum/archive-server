@@ -7,3 +7,4 @@
 # See https://docs.gitlab.com/ee/ci/variables/#cicd-variable-precedence
 include:
 - template: Security/Dependency-Scanning.gitlab-ci.yml
+- template: Security/Secret-Detection.gitlab-ci.yml
