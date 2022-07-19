@@ -13,9 +13,10 @@ import * as Logger from '../Logger'
 import { profilerInstance } from '../profiler/profiler'
 
 export let storingAccountData = false
-export let receiptMap: Map<string, boolean> = new Map()
-// export let newestReceiptMap: Map<string, boolean> = new Map()
+export let receiptsMap: Map<string, boolean> = new Map()
+export let newestReceiptsMap: Map<string, boolean> = new Map()
 export let lastReceiptMapResetTimestamp = 0
+export let newestReceiptsMapIsReset = false
 
 export const storeReceiptData = async (receipts = []) => {
   if (receipts && receipts.length <= 0) return
@@ -25,10 +26,20 @@ export const storeReceiptData = async (receipts = []) => {
     })
     socketServer.emit('RECEIPT', signedDataToSend)
   }
+  let currentTime = Date.now()
+  if (
+    currentTime - lastReceiptMapResetTimestamp >= 30000 &&
+    !newestReceiptsMapIsReset
+  ) {
+    newestReceiptsMap = new Map() // To save 30s data; So even when receiptMap is reset, this still has the record and will skip saving if it finds one
+    newestReceiptsMapIsReset = true
+    console.log('Newest Receipts Map Reset!', newestReceiptsMap)
+  }
   for (let i = 0; i < receipts.length; i++) {
     const { accounts, cycle, result, sign, tx } = receipts[i]
     if (config.VERBOSE) console.log(tx.txId)
-    if (receiptMap.has(tx.txId)) {
+    if (receiptsMap.has(tx.txId) || newestReceiptsMap.has(tx.txId)) {
+      console.log('Skip', tx.txId)
       continue
     }
     await Receipt.insertReceipt({
@@ -36,7 +47,9 @@ export const storeReceiptData = async (receipts = []) => {
       receiptId: tx.txId,
       timestamp: tx.timestamp,
     })
-    receiptMap.set(tx.txId, true)
+    receiptsMap.set(tx.txId, true)
+    newestReceiptsMap.set(tx.txId, true)
+    console.log('Save', tx.txId)
     for (let j = 0; j < accounts.length; j++) {
       const account = accounts[j]
       const accObj: Account.AccountCopy = {
@@ -136,8 +149,10 @@ export const storeAccountData = async (accounts = []) => {
 
 export function resetReceiptsMap() {
   if (Date.now() - lastReceiptMapResetTimestamp >= 60000) {
-    receiptMap = new Map()
+    receiptsMap = new Map()
     lastReceiptMapResetTimestamp = Date.now()
-    console.log('Receipt Map Reset!', receiptMap)
+    newestReceiptsMapIsReset = false
+    console.log('Receipts Map Reset!', receiptsMap)
+    Logger.mainLogger.debug('Receipts Map Reset!', receiptsMap)
   }
 }
