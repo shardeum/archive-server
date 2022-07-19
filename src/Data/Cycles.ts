@@ -122,7 +122,11 @@ function updateNodeList(cycle: Cycle) {
 
   NodeList.setStatus(NodeList.Statuses.ACTIVE, ...activatedPublicKeys)
 
-  NodeList.refreshNodes(NodeList.Statuses.ACTIVE, cycle.marker, refreshedConsensorInfos)
+  NodeList.refreshNodes(
+    NodeList.Statuses.ACTIVE,
+    cycle.marker,
+    refreshedConsensorInfos
+  )
 
   const removedPks = removed.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)

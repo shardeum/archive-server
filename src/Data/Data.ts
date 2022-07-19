@@ -24,7 +24,12 @@ import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
 import { queryArchivedCycleByMarker } from '../Storage'
 import { queryArchivedCycles } from '../test/api/archivedCycles'
-import { storeReceiptData, storeCycleData, storeAccountData, storingAccountData } from './Collector'
+import {
+  storeReceiptData,
+  storeCycleData,
+  storeAccountData,
+  storingAccountData,
+} from './Collector'
 import * as CycleDB from '../dbstore/cycles'
 import * as AccountDB from '../dbstore/accounts'
 import * as ReceiptDB from '../dbstore/receipts'
@@ -33,9 +38,12 @@ import * as ReceiptDB from '../dbstore/receipts'
 export let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic['Socket']
+let socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
 let lastSentCycleCounterToExplorer = 0
 export let combineAccountsData = []
 let forwardGenesisAccounts = false
+let multipleDataSenders = true
+let consensorsCountToSubscribe = 3
 // let processedCounters = {}
 
 // Data network messages
@@ -81,6 +89,7 @@ export class ArchivedCycle extends BaseModel {
 
 export let StateMetaDataMap = new Map()
 export let currentDataSender: string = ''
+export let currentDataSenders: string[] = []
 
 export function initSocketServer(io: SocketIO.Server) {
   socketServer = io
@@ -89,22 +98,34 @@ export function initSocketServer(io: SocketIO.Server) {
   })
 }
 
-export function unsubscribeDataSender() {
+export function unsubscribeDataSender(
+  publicKey: NodeList.ConsensusNodeInfo['publicKey']
+) {
   Logger.mainLogger.debug('Disconnecting previous connection')
+  if (multipleDataSenders) socketClient = socketClients.get(publicKey)
   socketClient.emit('UNSUBSCRIBE', config.ARCHIVER_PUBLIC_KEY)
   socketClient.disconnect()
-  dataSenders.delete(currentDataSender)
+  dataSenders.delete(publicKey)
+  if (multipleDataSenders) {
+    socketClients.delete(publicKey)
+    currentDataSenders = currentDataSenders.filter((item) => item !== publicKey)
+    if (config.VERBOSE) console.log('sockerClients', socketClients)
+  }
   currentDataSender = ''
 }
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   Logger.mainLogger.debug(node)
-  socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
+  const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
 
   socketClient.on('connect', () => {
     Logger.mainLogger.debug('Connection to consensus node was made')
     // Send ehlo event right after connect:
     socketClient.emit('ARCHIVER_PUBLIC_KEY', config.ARCHIVER_PUBLIC_KEY)
+    if (multipleDataSenders) {
+      socketClients.set(node.publicKey, socketClient)
+      if (config.VERBOSE) console.log('sockerClients', socketClients)
+    }
   })
 
   socketClient.on(
@@ -122,7 +143,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
       // If tag is invalid, dont keepAlive, END
       if (Crypto.authenticate(newData) === false) {
         Logger.mainLogger.debug('This data cannot be authenticated')
-        unsubscribeDataSender()
+        unsubscribeDataSender(node.publicKey)
         return
       }
 
@@ -142,7 +163,13 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
           nestedCountersInstance.countEvent('archiver', 'clear_contact_timeout')
         }
 
-        if (config.VERBOSE) console.log('RECEIPT RECEIPT', sender.nodeInfo.publicKey, sender.nodeInfo.ip, sender.nodeInfo.port)
+        if (config.VERBOSE)
+          console.log(
+            'RECEIPT RECEIPT',
+            sender.nodeInfo.publicKey,
+            sender.nodeInfo.ip,
+            sender.nodeInfo.port
+          )
 
         if (newData.responses && newData.responses.RECEIPT)
           storeReceiptData(newData.responses.RECEIPT)
@@ -151,19 +178,38 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
           storeCycleData(newData.responses.CYCLE)
         }
         if (newData.responses && newData.responses.ACCOUNT) {
-          console.log('RECEIVED ACCOUNTS DATA', sender.nodeInfo.publicKey, sender.nodeInfo.ip, sender.nodeInfo.port)
-          Logger.mainLogger.debug('RECEIVED ACCOUNTS DATA', sender.nodeInfo.publicKey, sender.nodeInfo.ip, sender.nodeInfo.port)
+          console.log(
+            'RECEIVED ACCOUNTS DATA',
+            sender.nodeInfo.publicKey,
+            sender.nodeInfo.ip,
+            sender.nodeInfo.port
+          )
+          Logger.mainLogger.debug(
+            'RECEIVED ACCOUNTS DATA',
+            sender.nodeInfo.publicKey,
+            sender.nodeInfo.ip,
+            sender.nodeInfo.port
+          )
           nestedCountersInstance.countEvent('genesis', 'accounts', 1)
           if (!forwardGenesisAccounts) {
             console.log('Genesis Accounts To Sycn', newData.responses.ACCOUNT)
-            Logger.mainLogger.debug('Genesis Accounts To Sycn', newData.responses.ACCOUNT)
-            syncGenesisAccountsFromConsensor(newData.responses.ACCOUNT, sender.nodeInfo)
+            Logger.mainLogger.debug(
+              'Genesis Accounts To Sycn',
+              newData.responses.ACCOUNT
+            )
+            syncGenesisAccountsFromConsensor(
+              newData.responses.ACCOUNT,
+              sender.nodeInfo
+            )
           } else {
             if (storingAccountData) {
-              combineAccountsData = [...combineAccountsData, ...newData.responses.ACCOUNT]
-            } else
-              // console.log(newData.responses.ACCOUNT)
-              storeAccountData(newData.responses.ACCOUNT)
+              combineAccountsData = [
+                ...combineAccountsData,
+                ...newData.responses.ACCOUNT,
+              ]
+            }
+            // console.log(newData.responses.ACCOUNT)
+            else storeAccountData(newData.responses.ACCOUNT)
           }
         }
 
@@ -185,6 +231,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
         Logger.mainLogger.debug('New DATA', newData.responses)
       else Logger.mainLogger.debug('State metadata is empty')
 
+      if (multipleDataSenders) currentDataSenders.push(newData.publicKey)
       currentDataSender = newData.publicKey
       if (newData.responses && newData.responses.STATE_METADATA) {
         // Logger.mainLogger.debug('New DATA from consensor STATE_METADATA', newData.publicKey, newData.responses.STATE_METADATA)
@@ -269,7 +316,7 @@ const timeoutPadding = 1000
 
 export const emitter = new EventEmitter()
 
-export function replaceDataSender(
+export async function replaceDataSender(
   publicKey: NodeList.ConsensusNodeInfo['publicKey']
 ) {
   nestedCountersInstance.countEvent('archiver', 'replace_data_sender')
@@ -295,11 +342,21 @@ export function replaceDataSender(
   }
 
   // Pick a new dataSender
-  const newSenderInfo = selectNewDataSender()
+  const newSenderInfo = selectNewDataSender(publicKey)
   if (!newSenderInfo) {
     Logger.mainLogger.error('Unable to select a new data sender.')
     return
   }
+  if (multipleDataSenders && socketClients.size >= consensorsCountToSubscribe) {
+    Logger.mainLogger.error(
+      `There are already ${socketClients.size} nodes that the archiver has picked.`
+    )
+    console.log(
+      `There are already ${socketClients.size} nodes that the archiver has picked.`
+    )
+    return
+  }
+  initSocketClient(newSenderInfo)
   const newSender: DataSender = {
     nodeInfo: newSenderInfo,
     types: [
@@ -337,6 +394,16 @@ export function replaceDataSender(
     nodeInfo: State.getNodeInfo(),
   }
   sendDataRequest(newSender, dataRequest)
+  if (multipleDataSenders) {
+    await Utils.sleep(1000)
+    const activeList = NodeList.getActiveList()
+    if (
+      activeList.length >= consensorsCountToSubscribe &&
+      socketClients.size < consensorsCountToSubscribe
+    ) {
+      subscribeMoreConsensors(consensorsCountToSubscribe - socketClients.size)
+    }
+  }
 }
 
 /**
@@ -351,11 +418,11 @@ export function createContactTimeout(
 ) {
   // TODO: check what is the best contact timeout
   let ms: number
-  // if (timeout) ms = timeout
-  // else if (currentCycleDuration > 0)
-  //   ms = 1.5 * currentCycleDuration + timeoutPadding
-  // else ms = 1.5 * 60 * 1000 + timeoutPadding
-  ms = 15 * 1000 // Change contact timeout to 15s for now
+  if (timeout) ms = timeout
+  else if (currentCycleDuration > 0)
+    ms = 1.5 * currentCycleDuration + timeoutPadding
+  else ms = 1.5 * 60 * 1000 + timeoutPadding
+  if (config.experimentalSnapshot) ms = 15 * 1000 // Change contact timeout to 15s for now
   Logger.mainLogger.debug('Created contact timeout: ' + ms)
   nestedCountersInstance.countEvent('archiver', 'contact_timeout_created')
   return setTimeout(() => {
@@ -381,6 +448,7 @@ export function createReplaceTimeout(
 export function addDataSenders(...senders: DataSender[]) {
   for (const sender of senders) {
     dataSenders.set(sender.nodeInfo.publicKey, sender)
+    if (multipleDataSenders) currentDataSenders.push(sender.nodeInfo.publicKey)
     currentDataSender = sender.nodeInfo.publicKey
   }
 }
@@ -389,7 +457,7 @@ function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   Logger.mainLogger.debug(`${new Date()}: Removing data sender ${publicKey}`)
   const removedSenders = []
   for (let [key, sender] of dataSenders) {
-    if (sender) {
+    if (key === publicKey && sender) {
       // Clear contactTimeout associated with this sender
       if (sender.contactTimeout) {
         clearTimeout(sender.contactTimeout)
@@ -412,14 +480,29 @@ function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   return removedSenders
 }
 
-function selectNewDataSender() {
+function selectNewDataSender(publicKey) {
   // Randomly pick an active node
   const activeList = NodeList.getActiveList()
-  const newSender = activeList[Math.floor(Math.random() * activeList.length)]
+  let newSender = activeList[Math.floor(Math.random() * activeList.length)]
+  if (multipleDataSenders) {
+    let retry = 0
+    while (true && retry < 5) {
+      // Retry 5 times to get the new Sender
+      if (!socketClients.has(newSender.publicKey)) {
+        break
+      }
+      newSender = activeList[Math.floor(Math.random() * activeList.length)]
+      retry++
+    }
+    if (socketClients.has(newSender.publicKey)) {
+      // if there is still not new node to subscribe, just connect with the current one then
+      newSender = activeList.find((node) => node.publicKey === publicKey)
+    }
+  }
   Logger.mainLogger.debug('New data sender is selected', newSender)
   if (newSender) {
-    unsubscribeDataSender()
-    initSocketClient(newSender)
+    unsubscribeDataSender(publicKey)
+    // initSocketClient(newSender)
   }
   return newSender
 }
@@ -428,6 +511,87 @@ export function sendDataRequest(sender: DataSender, dataRequest: any) {
   const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey)
   Logger.mainLogger.info('Sending tagged data request to consensor.', sender)
   emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
+}
+
+export async function subscribeMoreConsensors(numbersToSubscribe: number) {
+  Logger.mainLogger.info(
+    `Subscribing ${numbersToSubscribe} more consensors for tagged data request`
+  )
+  console.log('numbersToSubscribe', numbersToSubscribe)
+  for (let i = 0; i < numbersToSubscribe; i++) {
+    // Pick a new dataSender
+    const activeList = NodeList.getActiveList()
+    let newSenderInfo =
+      activeList[Math.floor(Math.random() * activeList.length)]
+    if (multipleDataSenders) {
+      let retry = 0
+      while (true && retry < 5) {
+        // Retry 5 times to get the new Sender
+        if (!socketClients.has(newSenderInfo.publicKey)) {
+          break
+        }
+        newSenderInfo =
+          activeList[Math.floor(Math.random() * activeList.length)]
+        retry++
+      }
+    }
+    Logger.mainLogger.debug('New data sender is selected', newSenderInfo)
+    initSocketClient(newSenderInfo)
+    if (!newSenderInfo) {
+      Logger.mainLogger.error('Unable to select a new data sender.')
+      continue
+    }
+    if (
+      multipleDataSenders &&
+      socketClients.size > consensorsCountToSubscribe
+    ) {
+      Logger.mainLogger.error(
+        `There are already ${socketClients.size} nodes that the archiver has picked.`
+      )
+      console.log(
+        `There are already ${socketClients.size} nodes that the archiver has picked.`
+      )
+      continue
+    }
+    const newSender: DataSender = {
+      nodeInfo: newSenderInfo,
+      types: [
+        P2PTypes.SnapshotTypes.TypeNames.CYCLE,
+        P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
+      ],
+      contactTimeout: createContactTimeout(
+        newSenderInfo.publicKey,
+        'This timeout is created during newSender selection',
+        2 * currentCycleDuration
+      ),
+      replaceTimeout: createReplaceTimeout(newSenderInfo.publicKey),
+    }
+
+    // Add new dataSender to dataSenders
+    addDataSenders(newSender)
+    Logger.mainLogger.debug(
+      `replaceDataSender: added new sender ${newSenderInfo.publicKey} to dataSenders`
+    )
+
+    // Send dataRequest to new dataSender
+    const dataRequest = {
+      dataRequestCycle: createDataRequest<Cycle>(
+        P2PTypes.SnapshotTypes.TypeNames.CYCLE,
+        currentCycleCounter,
+        State.getNodeInfo().publicKey
+      ),
+      dataRequestStateMetaData:
+        createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
+          P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
+          lastProcessedMetaData,
+          State.getNodeInfo().publicKey
+        ),
+      publicKey: State.getNodeInfo().publicKey,
+      nodeInfo: State.getNodeInfo(),
+    }
+    sendDataRequest(newSender, dataRequest)
+    await Utils.sleep(1000)
+  }
 }
 
 function calcIncomingTimes(record: Cycle) {
@@ -607,7 +771,15 @@ async function processData(
     return
   }
 
-  if (sender.nodeInfo.publicKey !== currentDataSender) {
+  if (
+    multipleDataSenders &&
+    !currentDataSenders.includes(sender.nodeInfo.publicKey)
+  ) {
+    Logger.mainLogger.error(
+      `Sender ${sender.nodeInfo.publicKey} is not in the data sender list.`
+    )
+  }
+  if (!multipleDataSenders && sender.nodeInfo.publicKey !== currentDataSender) {
     Logger.mainLogger.error(
       `Sender ${sender.nodeInfo.publicKey} is not current data sender.`
     )
@@ -962,16 +1134,29 @@ export async function sendToExplorer(counter) {
   if (socketServer) {
     let completedArchivedCycle
     if (lastSentCycleCounterToExplorer === 0) {
-      completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(lastSentCycleCounterToExplorer, counter)
-      Logger.mainLogger.debug('start, end', lastSentCycleCounterToExplorer, counter)
+      completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(
+        lastSentCycleCounterToExplorer,
+        counter
+      )
+      Logger.mainLogger.debug(
+        'start, end',
+        lastSentCycleCounterToExplorer,
+        counter
+      )
     } else {
-      completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(counter, counter)
+      completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(
+        counter,
+        counter
+      )
       Logger.mainLogger.debug('start, end', counter, counter)
     }
     let signedDataToSend = Crypto.sign({
       archivedCycles: completedArchivedCycle,
     })
-    Logger.mainLogger.debug('Sending completed archived_cycle to explorer', signedDataToSend)
+    Logger.mainLogger.debug(
+      'Sending completed archived_cycle to explorer',
+      signedDataToSend
+    )
     lastSentCycleCounterToExplorer = counter
     if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
   }
@@ -1240,13 +1425,15 @@ function applyNodeListChange(change: Change) {
   }
 }
 
-export async function syncGenesisAccountsFromArchiver(activeArchivers: State.ArchiverNodeInfo[]) {
+export async function syncGenesisAccountsFromArchiver(
+  activeArchivers: State.ArchiverNodeInfo[]
+) {
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
-  let complete = false;
-  let startAccount = 0;
-  let endAccount = startAccount + 10000;
-  let combineAccountsData = [];
-  let totalGenesisAccounts = 0;
+  let complete = false
+  let startAccount = 0
+  let endAccount = startAccount + 10000
+  let combineAccountsData = []
+  let totalGenesisAccounts = 0
   // const totalExistingGenesisAccounts =
   //   await AccountDB.queryAccountCountBetweenCycles(0, 5);
   // if (totalExistingGenesisAccounts > 0) {
@@ -1257,71 +1444,86 @@ export async function syncGenesisAccountsFromArchiver(activeArchivers: State.Arc
     `http://${randomArchiver.ip}:${randomArchiver.port}/account?startCycle=0&endCycle=5`
   )
   if (res && res.totalAccounts) {
-    totalGenesisAccounts = res.totalAccounts;
+    totalGenesisAccounts = res.totalAccounts
     Logger.mainLogger.debug('TotalGenesis Accounts', totalGenesisAccounts)
   } else {
-    Logger.mainLogger.error('Genesis Total Accounts Query', 'Invalid download response');
-    return;
+    Logger.mainLogger.error(
+      'Genesis Total Accounts Query',
+      'Invalid download response'
+    )
+    return
   }
-  if (totalGenesisAccounts <= 0) return;
-  let page = 0;
+  if (totalGenesisAccounts <= 0) return
+  let page = 0
   while (!complete) {
-    Logger.mainLogger.debug(`Downloading accounts from ${startAccount} to ${endAccount}`);
+    Logger.mainLogger.debug(
+      `Downloading accounts from ${startAccount} to ${endAccount}`
+    )
     let response: any = await P2P.getJson(
       `http://${randomArchiver.ip}:${randomArchiver.port}/account?startCycle=0&endCycle=5&page=${page}`
     )
     if (response && response.accounts) {
       if (response.accounts.length < 10000) {
-        complete = true;
-        Logger.mainLogger.debug('Download completed for accounts');
+        complete = true
+        Logger.mainLogger.debug('Download completed for accounts')
       }
-      Logger.mainLogger.debug(`Downloaded accounts`, response.accounts.length);
-      combineAccountsData = [...combineAccountsData, ...response.accounts];
+      Logger.mainLogger.debug(`Downloaded accounts`, response.accounts.length)
+      combineAccountsData = [...combineAccountsData, ...response.accounts]
     } else {
-      Logger.mainLogger.debug('Genesis Accounts Query', 'Invalid download response');
+      Logger.mainLogger.debug(
+        'Genesis Accounts Query',
+        'Invalid download response'
+      )
     }
-    startAccount = endAccount;
-    endAccount += 10000;
-    page++;
+    startAccount = endAccount
+    endAccount += 10000
+    page++
     // await sleep(1000);
   }
-  await storeAccountData(combineAccountsData);
-  Logger.mainLogger.debug('Sync genesis accounts completed!');
-};
+  await storeAccountData(combineAccountsData)
+  Logger.mainLogger.debug('Sync genesis accounts completed!')
+}
 
-export async function syncGenesisAccountsFromConsensor(totalGenesisAccounts = 0, firstConsensor: NodeList.ConsensusNodeInfo) {
-  if (totalGenesisAccounts <= 0) return;
-  let complete = false;
-  let startAccount = 0;
+export async function syncGenesisAccountsFromConsensor(
+  totalGenesisAccounts = 0,
+  firstConsensor: NodeList.ConsensusNodeInfo
+) {
+  if (totalGenesisAccounts <= 0) return
+  let complete = false
+  let startAccount = 0
   // let combineAccountsData = [];
-  let totalDownloadedAccounts = 0;
+  let totalDownloadedAccounts = 0
   while (startAccount <= totalGenesisAccounts) {
-    Logger.mainLogger.debug(`Downloading accounts from ${startAccount}`);
+    Logger.mainLogger.debug(`Downloading accounts from ${startAccount}`)
     let response: any = await P2P.getJson(
       `http://${firstConsensor.ip}:${firstConsensor.port}/genesis_accounts?start=${startAccount}`
     )
     if (response && response.accounts) {
       if (response.accounts.length < 1000) {
-        complete = true;
-        Logger.mainLogger.debug('Download completed for accounts');
+        complete = true
+        Logger.mainLogger.debug('Download completed for accounts')
       }
-      Logger.mainLogger.debug(`Downloaded accounts`, response.accounts.length);
-      await storeAccountData(response.accounts);
+      Logger.mainLogger.debug(`Downloaded accounts`, response.accounts.length)
+      await storeAccountData(response.accounts)
       // combineAccountsData = [...combineAccountsData, ...response.accounts];
-      totalDownloadedAccounts += response.accounts.length;
+      totalDownloadedAccounts += response.accounts.length
     } else {
-      Logger.mainLogger.debug('Genesis Accounts Query', 'Invalid download response');
+      Logger.mainLogger.debug(
+        'Genesis Accounts Query',
+        'Invalid download response'
+      )
     }
-    startAccount += 1000;
+    startAccount += 1000
     // await sleep(1000);
   }
-  Logger.mainLogger.debug(`Total downloaded accounts`, totalDownloadedAccounts);
+  Logger.mainLogger.debug(`Total downloaded accounts`, totalDownloadedAccounts)
   // await storeAccountData(combineAccountsData);
-  Logger.mainLogger.debug('Sync genesis accounts completed!');
-};
+  Logger.mainLogger.debug('Sync genesis accounts completed!')
+}
 
 export async function syncCyclesAndNodeList(
-  activeArchivers: State.ArchiverNodeInfo[], lastStoredCycleCount: number = 0
+  activeArchivers: State.ArchiverNodeInfo[],
+  lastStoredCycleCount: number = 0
 ) {
   // Get the networks newest cycle as the anchor point for sync
   Logger.mainLogger.debug('Getting newest cycle...')
@@ -1349,9 +1551,7 @@ export async function syncCyclesAndNodeList(
     // If prevCycles is empty, start over
     if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
 
-    prevCycles.sort((a, b) =>
-      a.counter > b.counter ? -1 : 1
-    );
+    prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
 
     // Add prevCycles to our cycle chain
     let prepended = 0
@@ -1375,7 +1575,8 @@ export async function syncCyclesAndNodeList(
     }
 
     Logger.mainLogger.debug(
-      `Got ${squasher.final.updated.length
+      `Got ${
+        squasher.final.updated.length
       } active nodes, need ${activeNodeCount(cycleToSyncTo)}`
     )
     Logger.mainLogger.debug(
@@ -1386,7 +1587,7 @@ export async function syncCyclesAndNodeList(
     if (squasher.final.added.length < totalNodeCount(cycleToSyncTo))
       Logger.mainLogger.debug(
         'Short on nodes. Need to get more cycles. Cycle:' +
-        cycleToSyncTo.counter
+          cycleToSyncTo.counter
       )
 
     // If you weren't able to prepend any of the prevCycles, start over
@@ -1437,9 +1638,7 @@ export async function syncCyclesAndNodeList(
       endCycle
     )
 
-    prevCycles.sort((a, b) =>
-      a.counter > b.counter ? -1 : 1
-    );
+    prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
     // If prevCycles is empty, start over
     if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
 
@@ -1495,7 +1694,8 @@ async function downloadArchivedCycles(
       `Downloading archive from cycle ${lastData} to cycle ${lastData + 5}`
     )
     let response: any = await P2P.getJson(
-      `http://${archiver.ip}:${archiver.port
+      `http://${archiver.ip}:${
+        archiver.port
       }/full-archive?start=${lastData}&end=${lastData + 5}`
     )
     if (response && response.archivedCycles) {
@@ -1515,67 +1715,66 @@ async function downloadArchivedCycles(
 }
 
 export async function syncReceipt(
-  activeArchivers: State.ArchiverNodeInfo[], lastStoredReceiptCount: number = 0
+  activeArchivers: State.ArchiverNodeInfo[],
+  lastStoredReceiptCount: number = 0
 ) {
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
   let response: any = await P2P.getJson(
-    `http://${randomArchiver.ip}:${randomArchiver.port
-    }/totalData`
+    `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`
   )
-  if (!response || response.totalCycles < 0 || response.totalAccounts < 0 || response.totalTransactions < 0 || response.totalReceipts < 0) {
+  if (
+    !response ||
+    response.totalCycles < 0 ||
+    response.totalAccounts < 0 ||
+    response.totalTransactions < 0 ||
+    response.totalReceipts < 0
+  ) {
     return false
   }
-  const { totalCycles, totalAccounts, totalTransactions, totalReceipts } = response
+  const { totalCycles, totalAccounts, totalTransactions, totalReceipts } =
+    response
   await downloadReceipts(totalReceipts, lastStoredReceiptCount, randomArchiver)
-  Logger.mainLogger.debug('Sync receipts data completed!');
+  Logger.mainLogger.debug('Sync receipts data completed!')
   return false
 }
-
 
 export const downloadReceipts = async (
   to: number,
   from: number = 0,
   archiver: State.ArchiverNodeInfo
 ) => {
-  let complete = false;
-  let start = from;
-  let end = start + 1000;
+  let complete = false
+  let start = from
+  let end = start + 1000
   while (!complete) {
     if (end >= to) {
       let res: any = await P2P.getJson(
-        `http://${archiver.ip}:${archiver.port
-        }/totalData`
+        `http://${archiver.ip}:${archiver.port}/totalData`
       )
       if (res && res.totalReceipts < 0) {
-        if (res.totalReceipts > to)
-          to = res.totalReceipts;
-        Logger.mainLogger.debug('totalReceiptsToSync', to);
+        if (res.totalReceipts > to) to = res.totalReceipts
+        Logger.mainLogger.debug('totalReceiptsToSync', to)
       }
     }
-    Logger.mainLogger.debug(`Downloading receipts from ${start} to  ${end}`);
+    Logger.mainLogger.debug(`Downloading receipts from ${start} to  ${end}`)
     let response: any = await P2P.getJson(
-      `http://${archiver.ip}:${archiver.port
-      }/receipt?start=${start}&end=${end}`
+      `http://${archiver.ip}:${archiver.port}/receipt?start=${start}&end=${end}`
     )
     if (response && response.receipts) {
       if (response.receipts.length < 1000) {
-        complete = true;
-        Logger.mainLogger.debug('Download receipts completed');
+        complete = true
+        Logger.mainLogger.debug('Download receipts completed')
       }
-      const downloadedReceipts = response.receipts;
-      Logger.mainLogger.debug(
-        `Downloaded receipts`,
-        downloadedReceipts.length
-      );
+      const downloadedReceipts = response.receipts
+      Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
       await storeReceiptData(downloadedReceipts)
     } else {
-      Logger.mainLogger.debug('Invalid download response');
+      Logger.mainLogger.debug('Invalid download response')
     }
-    start = end;
-    end += 1000;
+    start = end
+    end += 1000
   }
-
-};
+}
 
 // export const downloadAndSaveAccounts = async (
 //   to: number,
@@ -1624,89 +1823,95 @@ export const downloadReceipts = async (
 //   }
 // };
 
-export async function compareWithOldReceiptsData(archiver: State.ArchiverNodeInfo, lastReceiptCount = 0) {
-  let downloadedReceipts;
+export async function compareWithOldReceiptsData(
+  archiver: State.ArchiverNodeInfo,
+  lastReceiptCount = 0
+) {
+  let downloadedReceipts
   const response: any = await P2P.getJson(
-    `http://${archiver.ip}:${archiver.port
-    }/receipt?start=${lastReceiptCount - 10}&end=${lastReceiptCount}`
+    `http://${archiver.ip}:${archiver.port}/receipt?start=${
+      lastReceiptCount - 10
+    }&end=${lastReceiptCount}`
   )
   if (response && response.receipts) {
-    downloadedReceipts = response.receipts;
+    downloadedReceipts = response.receipts
   } else {
     throw Error(
-      `Can't fetch data from receipt ${lastReceiptCount - 10
+      `Can't fetch data from receipt ${
+        lastReceiptCount - 10
       } to receipt ${lastReceiptCount}  from archiver ${archiver}`
-    );
+    )
   }
   let oldReceipts = await ReceiptDB.queryReceipts(
     lastReceiptCount - 10,
     lastReceiptCount
-  );
+  )
   // downloadedReceipts.sort((a, b) =>
   //   a.cycleRecord.counter > b.cycleRecord.counter ? 1 : -1
   // );
   // oldReceipts.sort((a, b) =>
   //   a.cycleRecord.counter > b.cycleRecord.counter ? 1 : -1
   // );
-  let success = false;
-  let receiptsToMatchCount = 10;
+  let success = false
+  let receiptsToMatchCount = 10
   for (let i = 0; i < downloadedReceipts.length; i++) {
-    let downloadedReceipt = downloadedReceipts[i];
-    const oldReceipt = oldReceipts[i];
-    if (oldReceipt.counter) delete oldReceipt.counter;
-    console.log(downloadedReceipt.receiptId, oldReceipt.receiptId);
+    let downloadedReceipt = downloadedReceipts[i]
+    const oldReceipt = oldReceipts[i]
+    if (oldReceipt.counter) delete oldReceipt.counter
+    console.log(downloadedReceipt.receiptId, oldReceipt.receiptId)
     if (downloadedReceipt.receiptId !== oldReceipt.receiptId) {
       return {
         success,
         receiptsToMatchCount,
-      };
+      }
     }
-    success = true;
-    receiptsToMatchCount++;
+    success = true
+    receiptsToMatchCount++
   }
-  return { success, receiptsToMatchCount };
+  return { success, receiptsToMatchCount }
 }
 
-export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo, lastCycleCounter = 0) {
-  let downloadedCycles;
+export async function compareWithOldCyclesData(
+  archiver: State.ArchiverNodeInfo,
+  lastCycleCounter = 0
+) {
+  let downloadedCycles
   const response: any = await P2P.getJson(
-    `http://${archiver.ip}:${archiver.port
-    }/cycleinfo?start=${lastCycleCounter - 10}&end=${lastCycleCounter - 1}`
+    `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${
+      lastCycleCounter - 10
+    }&end=${lastCycleCounter - 1}`
   )
   if (response && response.cycleInfo) {
-    downloadedCycles = response.cycleInfo;
+    downloadedCycles = response.cycleInfo
   } else {
     throw Error(
-      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${lastCycleCounter - 1
+      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${
+        lastCycleCounter - 1
       }  from archiver ${archiver}`
-    );
+    )
   }
   let oldCycles = await CycleDB.queryCycleRecordsBetween(
     lastCycleCounter - 10,
     lastCycleCounter + 1
-  );
-  downloadedCycles.sort((a, b) => (a.counter > b.counter ? 1 : -1));
-  oldCycles.sort((a, b) =>
-    a.counter > b.counter ? 1 : -1
-  );
-  let success = false;
-  let cycle = 0;
+  )
+  downloadedCycles.sort((a, b) => (a.counter > b.counter ? 1 : -1))
+  oldCycles.sort((a, b) => (a.counter > b.counter ? 1 : -1))
+  let success = false
+  let cycle = 0
   for (let i = 0; i < downloadedCycles.length; i++) {
-    let downloadedCycle = downloadedCycles[i];
-    const oldCycle = oldCycles[i];
-    console.log(downloadedCycle, oldCycle);
-    if (
-      JSON.stringify(downloadedCycle) !== JSON.stringify(oldCycle)
-    ) {
+    let downloadedCycle = downloadedCycles[i]
+    const oldCycle = oldCycles[i]
+    console.log(downloadedCycle, oldCycle)
+    if (JSON.stringify(downloadedCycle) !== JSON.stringify(oldCycle)) {
       return {
         success,
         cycle,
-      };
+      }
     }
-    success = true;
-    cycle = downloadedCycle.counter;
+    success = true
+    cycle = downloadedCycle.counter
   }
-  return { success, cycle };
+  return { success, cycle }
 }
 
 export async function syncStateMetaData(
@@ -1804,7 +2009,7 @@ export async function syncStateMetaData(
       )
       if (
         downloadedNetworkReceiptHash ===
-        networkReceiptHashesFromRecords.get(counter) ||
+          networkReceiptHashesFromRecords.get(counter) ||
         downloadedNetworkReceiptHash === calculatedReceiptHash
       ) {
         if (

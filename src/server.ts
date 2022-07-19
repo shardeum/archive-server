@@ -106,42 +106,66 @@ function initProfiler(server: fastify.FastifyInstance) {
 }
 
 async function syncAndStartServer() {
-
   // Validate data if there is any in db
-  let lastStoredReceiptCount = await ReceiptDB.queryReceiptCount();
-  let lastStoredCycleCount = await CycleDB.queryCyleCount();
+  let lastStoredReceiptCount = await ReceiptDB.queryReceiptCount()
+  let lastStoredCycleCount = await CycleDB.queryCyleCount()
   const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
   let response: any = await P2P.getJson(
-    `http://${randomArchiver.ip}:${randomArchiver.port
-    }/totalData`
+    `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`
   )
-  if (!response || response.totalCycles < 0 || response.totalAccounts < 0 || response.totalTransactions < 0 || response.totalReceipts < 0) {
-    throw Error(`Can't fetch data from the archiver ${randomArchiver.ip}:${randomArchiver.port}`)
+  if (
+    !response ||
+    response.totalCycles < 0 ||
+    response.totalAccounts < 0 ||
+    response.totalTransactions < 0 ||
+    response.totalReceipts < 0
+  ) {
+    throw Error(
+      `Can't fetch data from the archiver ${randomArchiver.ip}:${randomArchiver.port}`
+    )
   }
-  const { totalCycles, totalAccounts, totalTransactions, totalReceipts } = response
-  if (lastStoredReceiptCount > totalReceipts || lastStoredCycleCount > totalCycles) {
-    throw Error('The existing db has more data than the network data! Clear the DB and start the server again!')
+  const { totalCycles, totalAccounts, totalTransactions, totalReceipts } =
+    response
+  if (
+    lastStoredReceiptCount > totalReceipts ||
+    lastStoredCycleCount > totalCycles
+  ) {
+    throw Error(
+      'The existing db has more data than the network data! Clear the DB and start the server again!'
+    )
   }
   if (lastStoredCycleCount > 0) {
-    const cycleResult = await Data.compareWithOldCyclesData(randomArchiver, lastStoredCycleCount)
+    const cycleResult = await Data.compareWithOldCyclesData(
+      randomArchiver,
+      lastStoredCycleCount
+    )
     if (!cycleResult.success) {
       throw Error(
         'The last saved 10 cycles data does not match with the archiver data! Clear the DB and start the server again!'
-      );
+      )
     }
-    lastStoredCycleCount = cycleResult.cycle;
+    lastStoredCycleCount = cycleResult.cycle
   }
   if (lastStoredCycleCount > 0) {
-    const receiptResult = await Data.compareWithOldReceiptsData(randomArchiver, lastStoredReceiptCount)
+    const receiptResult = await Data.compareWithOldReceiptsData(
+      randomArchiver,
+      lastStoredReceiptCount
+    )
     if (!receiptResult.success) {
       throw Error(
         'The last saved 10 receipts data does not match with the archiver data! Clear the DB and start the server again!'
-      );
+      )
     }
-    lastStoredReceiptCount = lastStoredReceiptCount - receiptResult.receiptsToMatchCount;
+    lastStoredReceiptCount =
+      lastStoredReceiptCount - receiptResult.receiptsToMatchCount
   }
 
-  Logger.mainLogger.debug('lastStoredCycleCount', lastStoredCycleCount, 'lastStoredReceiptCount', lastStoredReceiptCount)
+  Logger.mainLogger.debug(
+    'lastStoredCycleCount',
+    lastStoredCycleCount,
+    'lastStoredReceiptCount',
+    lastStoredReceiptCount
+  )
   // If your not the first archiver node, get a nodelist from the others
   let isJoined = false
   let firstTime = true
@@ -430,10 +454,15 @@ function startServer() {
   server.get('/nodelist', (_request, reply) => {
     profilerInstance.profileSectionStart('GET_nodelist')
     nestedCountersInstance.countEvent('consensor', 'GET_nodelist')
-    
-    const NODE_COUNT = Math.min(config.N_NODELIST, NodeList.getActiveList().length)
-    let nodeList: NodeList.ConsensusNodeInfo[] = 
-      (NODE_COUNT < 1) ? NodeList.getList().slice(0, 1) : NodeList.getRandomActiveNode(NODE_COUNT);
+
+    const NODE_COUNT = Math.min(
+      config.N_NODELIST,
+      NodeList.getActiveList().length
+    )
+    let nodeList: NodeList.ConsensusNodeInfo[] =
+      NODE_COUNT < 1
+        ? NodeList.getList().slice(0, 1)
+        : NodeList.getRandomActiveNode(NODE_COUNT)
 
     let sortedNodeList = [...nodeList].sort((a: any, b: any) =>
       a.id > b.id ? 1 : -1
@@ -666,21 +695,34 @@ function startServer() {
   })
 
   server.get('/account', async (_request, reply) => {
-    let err = Utils.validateTypes(_request.query, { start: 's?', end: 's?', startCycle: 's?', endCycle: 's?', page: 's?' })
+    let err = Utils.validateTypes(_request.query, {
+      start: 's?',
+      end: 's?',
+      startCycle: 's?',
+      endCycle: 's?',
+      page: 's?',
+    })
     if (err) {
       reply.send(Crypto.sign({ success: false, error: err }))
       return
     }
     let accounts = []
     let totalAccounts = 0
-    let res;
+    let res
     let { start, end, startCycle, endCycle, page } = _request.query
     if (start && end) {
       let from = parseInt(start)
       let to = parseInt(end)
-      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+      if (
+        !(from >= 0 && to >= from) ||
+        Number.isNaN(from) ||
+        Number.isNaN(to)
+      ) {
         reply.send(
-          Crypto.sign({ success: false, error: `Invalid start and end counters` })
+          Crypto.sign({
+            success: false,
+            error: `Invalid start and end counters`,
+          })
         )
         return
       }
@@ -701,9 +743,16 @@ function startServer() {
     } else if (startCycle && endCycle) {
       let from = parseInt(startCycle)
       let to = parseInt(endCycle)
-      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+      if (
+        !(from >= 0 && to >= from) ||
+        Number.isNaN(from) ||
+        Number.isNaN(to)
+      ) {
         reply.send(
-          Crypto.sign({ success: false, error: `Invalid start and end counters` })
+          Crypto.sign({
+            success: false,
+            error: `Invalid start and end counters`,
+          })
         )
         return
       }
@@ -726,23 +775,28 @@ function startServer() {
           )
           return
         }
-        let skip = 0;
-        let limit = 10000; // query 10000 accounts
+        let skip = 0
+        let limit = 10000 // query 10000 accounts
         if (offset > 0) {
           skip = offset * 10000
         }
-        accounts = await AccountDB.queryAccountsBetweenCycles(skip, limit, from, to)
+        accounts = await AccountDB.queryAccountsBetweenCycles(
+          skip,
+          limit,
+          from,
+          to
+        )
       }
       res = Crypto.sign({
         accounts,
-        totalAccounts
+        totalAccounts,
       })
     } else {
       reply.send({
         success: false,
         error: 'not specified which account to show',
-      });
-      return;
+      })
+      return
     }
     reply.send(res)
   })
@@ -827,15 +881,15 @@ function startServer() {
   })
 
   server.get('/totalData', async (_request, reply) => {
-    const totalCycles = await CycleDB.queryCyleCount();
-    const totalAccounts = await AccountDB.queryAccountCount();
-    const totalTransactions = await TransactionDB.queryTransactionCount();
-    const totalReceipts = await ReceiptDB.queryReceiptCount();
+    const totalCycles = await CycleDB.queryCyleCount()
+    const totalAccounts = await AccountDB.queryAccountCount()
+    const totalTransactions = await TransactionDB.queryTransactionCount()
+    const totalReceipts = await ReceiptDB.queryReceiptCount()
     reply.send({
       totalCycles,
       totalAccounts,
       totalTransactions,
-      totalReceipts
+      totalReceipts,
     })
   })
 

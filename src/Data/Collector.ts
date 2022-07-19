@@ -3,12 +3,19 @@ import * as Transaction from '../dbstore/transactions'
 import * as Cycle from '../dbstore/cycles'
 import * as Receipt from '../dbstore/receipts'
 import * as Crypto from '../Crypto'
-import { clearCombinedAccountsData, combineAccountsData, socketServer } from './Data'
+import {
+  clearCombinedAccountsData,
+  combineAccountsData,
+  socketServer,
+} from './Data'
 import { config } from '../Config'
 import * as Logger from '../Logger'
 import { profilerInstance } from '../profiler/profiler'
 
 export let storingAccountData = false
+export let receiptMap: Map<string, boolean> = new Map()
+// export let newestReceiptMap: Map<string, boolean> = new Map()
+export let lastReceiptMapResetTimestamp = 0
 
 export const storeReceiptData = async (receipts = []) => {
   if (receipts && receipts.length <= 0) return
@@ -21,7 +28,15 @@ export const storeReceiptData = async (receipts = []) => {
   for (let i = 0; i < receipts.length; i++) {
     const { accounts, cycle, result, sign, tx } = receipts[i]
     if (config.VERBOSE) console.log(tx.txId)
-    await Receipt.insertReceipt({ ...receipts[i], receiptId: tx.txId, timestamp: tx.timestamp })
+    if (receiptMap.has(tx.txId)) {
+      continue
+    }
+    await Receipt.insertReceipt({
+      ...receipts[i],
+      receiptId: tx.txId,
+      timestamp: tx.timestamp,
+    })
+    receiptMap.set(tx.txId, true)
     for (let j = 0; j < accounts.length; j++) {
       const account = accounts[j]
       const accObj: Account.AccountCopy = {
@@ -52,6 +67,7 @@ export const storeReceiptData = async (receipts = []) => {
     }
     await Transaction.insertTransaction(txObj)
   }
+  resetReceiptsMap()
 }
 
 export const storeCycleData = async (cycles = []) => {
@@ -78,7 +94,6 @@ export const storeCycleData = async (cycles = []) => {
     }
   }
 }
-
 
 export const storeAccountData = async (accounts = []) => {
   if (profilerInstance)
@@ -107,8 +122,7 @@ export const storeAccountData = async (accounts = []) => {
   //   // }
   // }
   await Account.bulkInsertAccounts(accounts)
-  if (profilerInstance)
-    profilerInstance.profileSectionEnd('store_account_data')
+  if (profilerInstance) profilerInstance.profileSectionEnd('store_account_data')
   console.log('Combined Accounts Data', combineAccountsData.length)
   Logger.mainLogger.debug('Combined Accounts Data', combineAccountsData.length)
   if (combineAccountsData.length > 0) {
@@ -118,5 +132,12 @@ export const storeAccountData = async (accounts = []) => {
   } else {
     storingAccountData = false
   }
+}
 
+export function resetReceiptsMap() {
+  if (Date.now() - lastReceiptMapResetTimestamp >= 60000) {
+    receiptMap = new Map()
+    lastReceiptMapResetTimestamp = Date.now()
+    console.log('Receipt Map Reset!', receiptMap)
+  }
 }
