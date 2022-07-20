@@ -44,6 +44,7 @@ export let combineAccountsData = []
 let forwardGenesisAccounts = false
 let multipleDataSenders = true
 let consensorsCountToSubscribe = 3
+let receivedCounters = {}
 // let processedCounters = {}
 
 // Data network messages
@@ -103,19 +104,21 @@ export function unsubscribeDataSender(
 ) {
   Logger.mainLogger.debug('Disconnecting previous connection')
   if (multipleDataSenders) socketClient = socketClients.get(publicKey)
+  if (!socketClient) return
   socketClient.emit('UNSUBSCRIBE', config.ARCHIVER_PUBLIC_KEY)
   socketClient.disconnect()
   dataSenders.delete(publicKey)
   if (multipleDataSenders) {
     socketClients.delete(publicKey)
     currentDataSenders = currentDataSenders.filter((item) => item !== publicKey)
-    if (config.VERBOSE) console.log('sockerClients', socketClients)
+    // if (config.VERBOSE) console.log('sockerClients', socketClients)
+    Logger.mainLogger.debug('unsubscribe sockerClients', socketClients)
   }
   currentDataSender = ''
 }
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
-  Logger.mainLogger.debug(node)
+  Logger.mainLogger.debug('Node Info to socker connect', node)
   const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
 
   socketClient.on('connect', () => {
@@ -124,7 +127,8 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
     socketClient.emit('ARCHIVER_PUBLIC_KEY', config.ARCHIVER_PUBLIC_KEY)
     if (multipleDataSenders) {
       socketClients.set(node.publicKey, socketClient)
-      if (config.VERBOSE) console.log('sockerClients', socketClients)
+      // if (config.VERBOSE) console.log('sockerClients', socketClients)
+      Logger.mainLogger.debug('init sockerClients', socketClients)
     }
   })
 
@@ -171,8 +175,17 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
             sender.nodeInfo.port
           )
 
-        if (newData.responses && newData.responses.RECEIPT)
+        if (newData.responses && newData.responses.RECEIPT) {
+          console.log(
+            'RECEIPT RECEIPT',
+            sender.nodeInfo.publicKey,
+            sender.nodeInfo.ip,
+            sender.nodeInfo.port,
+            newData.responses.RECEIPT.length
+          )
+          clearFalseNodes(sender.nodeInfo.publicKey)
           storeReceiptData(newData.responses.RECEIPT)
+        }
         if (newData.responses && newData.responses.CYCLE) {
           processCycles(newData.responses.CYCLE as Cycle[])
           storeCycleData(newData.responses.CYCLE)
@@ -338,7 +351,7 @@ export async function replaceDataSender(
   // Remove old dataSender
   const removedSenders = removeDataSenders(publicKey)
   if (removedSenders.length < 1) {
-    Logger.mainLogger.error('replaceDataSender failed: old sender not removed')
+    Logger.mainLogger.debug('replaceDataSender failed: old sender not removed')
   }
 
   // Pick a new dataSender
@@ -347,8 +360,10 @@ export async function replaceDataSender(
     Logger.mainLogger.error('Unable to select a new data sender.')
     return
   }
+  Logger.mainLogger.debug('Before sleep', publicKey, newSenderInfo)
+  await Utils.sleep(1000) // Wait about 1s to be sure that socket client connection is killed
   if (multipleDataSenders && socketClients.size >= consensorsCountToSubscribe) {
-    Logger.mainLogger.error(
+    Logger.mainLogger.debug(
       `There are already ${socketClients.size} nodes that the archiver has picked.`
     )
     console.log(
@@ -395,7 +410,19 @@ export async function replaceDataSender(
   }
   sendDataRequest(newSender, dataRequest)
   if (multipleDataSenders) {
-    await Utils.sleep(1000)
+    await Utils.sleep(3000)
+    console.log(
+      'Current socker IO clients',
+      publicKey,
+      socketClients.size,
+      dataSenders
+    )
+    Logger.mainLogger.debug(
+      'Current socker IO clients',
+      publicKey,
+      socketClients.size,
+      dataSenders
+    )
     const activeList = NodeList.getActiveList()
     if (
       activeList.length >= consensorsCountToSubscribe &&
@@ -426,7 +453,7 @@ export function createContactTimeout(
   Logger.mainLogger.debug('Created contact timeout: ' + ms)
   nestedCountersInstance.countEvent('archiver', 'contact_timeout_created')
   return setTimeout(() => {
-    Logger.mainLogger.debug('nestedCountersInstance', nestedCountersInstance)
+    // Logger.mainLogger.debug('nestedCountersInstance', nestedCountersInstance)
     if (nestedCountersInstance)
       nestedCountersInstance.countEvent('archiver', 'contact_timeout')
     Logger.mainLogger.debug('REPLACING sender due to CONTACT timeout', msg)
@@ -456,7 +483,11 @@ export function addDataSenders(...senders: DataSender[]) {
 function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   Logger.mainLogger.debug(`${new Date()}: Removing data sender ${publicKey}`)
   const removedSenders = []
+  // console.log('removeDataSenders', dataSenders)
+  // Logger.mainLogger.debug('removeDataSenders', dataSenders)
   for (let [key, sender] of dataSenders) {
+    // console.log(publicKey, key)
+    Logger.mainLogger.debug(publicKey, key)
     if (key === publicKey && sender) {
       // Clear contactTimeout associated with this sender
       if (sender.contactTimeout) {
@@ -480,6 +511,43 @@ function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   return removedSenders
 }
 
+function clearFalseNodes(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
+  // Logger.mainLogger.debug(
+  //   `${new Date()}: Clearing data not sending node that is in socker list ${publicKey}`
+  // )
+  // console.log('Clear False Nodes', publicKey)
+  if (socketClients.size < 2) {
+    return
+  }
+  for (let [key, sender] of socketClients) {
+    if (key != publicKey) {
+      if (receivedCounters[key]) receivedCounters[key]++
+      else receivedCounters[key] = 1
+    } else {
+      receivedCounters[key] = 1
+    }
+  }
+  for (let [key, sender] of dataSenders) {
+    if (key != publicKey) {
+      if (receivedCounters[key]) receivedCounters[key]++
+      else receivedCounters[key] = 1
+    } else {
+      receivedCounters[key] = 1
+    }
+  }
+  for (let pk in receivedCounters) {
+    const publicKey: any = pk
+    if (receivedCounters[publicKey] > 50) {
+      if (socketClients.has(publicKey)) unsubscribeDataSender(publicKey)
+      if (dataSenders.has(publicKey)) removeDataSenders(publicKey)
+      delete receivedCounters[publicKey]
+    }
+    if (!socketClients.has(publicKey) || !dataSenders.has(publicKey))
+      delete receivedCounters[publicKey]
+  }
+  // console.log('Clear False Nodes', receivedCounters)
+}
+
 function selectNewDataSender(publicKey) {
   // Randomly pick an active node
   const activeList = NodeList.getActiveList()
@@ -497,6 +565,11 @@ function selectNewDataSender(publicKey) {
     if (socketClients.has(newSender.publicKey)) {
       // if there is still not new node to subscribe, just connect with the current one then
       newSender = activeList.find((node) => node.publicKey === publicKey)
+      Logger.mainLogger.debug(
+        'Since no new data sender is found, and continue with the current one',
+        publicKey,
+        newSender
+      )
     }
   }
   Logger.mainLogger.debug('New data sender is selected', newSender)
@@ -536,16 +609,16 @@ export async function subscribeMoreConsensors(numbersToSubscribe: number) {
       }
     }
     Logger.mainLogger.debug('New data sender is selected', newSenderInfo)
-    initSocketClient(newSenderInfo)
     if (!newSenderInfo) {
       Logger.mainLogger.error('Unable to select a new data sender.')
       continue
     }
+    await Utils.sleep(60000)
     if (
       multipleDataSenders &&
       socketClients.size > consensorsCountToSubscribe
     ) {
-      Logger.mainLogger.error(
+      Logger.mainLogger.debug(
         `There are already ${socketClients.size} nodes that the archiver has picked.`
       )
       console.log(
@@ -553,6 +626,7 @@ export async function subscribeMoreConsensors(numbersToSubscribe: number) {
       )
       continue
     }
+    initSocketClient(newSenderInfo)
     const newSender: DataSender = {
       nodeInfo: newSenderInfo,
       types: [
@@ -590,7 +664,6 @@ export async function subscribeMoreConsensors(numbersToSubscribe: number) {
       nodeInfo: State.getNodeInfo(),
     }
     sendDataRequest(newSender, dataRequest)
-    await Utils.sleep(1000)
   }
 }
 

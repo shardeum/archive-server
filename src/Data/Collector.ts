@@ -28,7 +28,7 @@ export const storeReceiptData = async (receipts = []) => {
   }
   let currentTime = Date.now()
   if (
-    currentTime - lastReceiptMapResetTimestamp >= 30000 &&
+    currentTime - lastReceiptMapResetTimestamp >= 60000 &&
     !newestReceiptsMapIsReset
   ) {
     newestReceiptsMap = new Map() // To save 30s data; So even when receiptMap is reset, this still has the record and will skip saving if it finds one
@@ -39,7 +39,7 @@ export const storeReceiptData = async (receipts = []) => {
     const { accounts, cycle, result, sign, tx } = receipts[i]
     if (config.VERBOSE) console.log(tx.txId)
     if (receiptsMap.has(tx.txId) || newestReceiptsMap.has(tx.txId)) {
-      console.log('Skip', tx.txId)
+      // console.log('Skip', tx.txId)
       continue
     }
     await Receipt.insertReceipt({
@@ -49,7 +49,7 @@ export const storeReceiptData = async (receipts = []) => {
     })
     receiptsMap.set(tx.txId, true)
     newestReceiptsMap.set(tx.txId, true)
-    console.log('Save', tx.txId)
+    // console.log('Save', tx.txId)
     for (let j = 0; j < accounts.length; j++) {
       const account = accounts[j]
       const accObj: Account.AccountCopy = {
@@ -148,7 +148,7 @@ export const storeAccountData = async (accounts = []) => {
 }
 
 export function resetReceiptsMap() {
-  if (Date.now() - lastReceiptMapResetTimestamp >= 60000) {
+  if (Date.now() - lastReceiptMapResetTimestamp >= 120000) {
     receiptsMap = new Map()
     lastReceiptMapResetTimestamp = Date.now()
     newestReceiptsMapIsReset = false
