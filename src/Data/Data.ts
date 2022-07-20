@@ -592,6 +592,7 @@ export async function subscribeMoreConsensors(numbersToSubscribe: number) {
   )
   console.log('numbersToSubscribe', numbersToSubscribe)
   for (let i = 0; i < numbersToSubscribe; i++) {
+    await Utils.sleep(60000)
     // Pick a new dataSender
     const activeList = NodeList.getActiveList()
     let newSenderInfo =
@@ -613,7 +614,6 @@ export async function subscribeMoreConsensors(numbersToSubscribe: number) {
       Logger.mainLogger.error('Unable to select a new data sender.')
       continue
     }
-    await Utils.sleep(60000)
     if (
       multipleDataSenders &&
       socketClients.size > consensorsCountToSubscribe
