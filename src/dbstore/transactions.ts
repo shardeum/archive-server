@@ -1,6 +1,6 @@
 import { Signature } from "shardus-crypto-types";
 import * as db from './sqlite3storage';
-import { extractValues } from './sqlite3storage';
+import { extractValues, extractValuesFromArray } from './sqlite3storage';
 import * as Logger from '../Logger'
 import { config } from '../Config'
 
@@ -49,6 +49,33 @@ export async function insertTransaction(transaction: Transaction) {
         Logger.mainLogger.error(
             'Unable to insert Transaction or it is already stored in to database',
             transaction.txId
+        );
+    }
+}
+
+export async function bulkInsertTransactions(transactions: Transaction[]) {
+    try {
+        const fields = Object.keys(transactions[0]).join(', ');
+        const placeholders = Object.keys(transactions[0]).fill('?').join(', ');
+        const values = extractValuesFromArray(transactions);
+        let sql =
+            'INSERT OR REPLACE INTO transactions (' +
+            fields +
+            ') VALUES (' +
+            placeholders +
+            ')';
+        for (let i = 1; i < transactions.length; i++) {
+            sql = sql + ', (' + placeholders +
+                ')';
+        }
+        await db.run(sql, values);
+        Logger.mainLogger.debug(
+            'Successfully inserted Transactions', transactions.length
+        );
+    } catch (e) {
+        Logger.mainLogger.error(e);
+        Logger.mainLogger.error(
+            'Unable to bulk insert Transactions', transactions.length
         );
     }
 }

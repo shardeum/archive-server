@@ -35,6 +35,10 @@ export const storeReceiptData = async (receipts = []) => {
     newestReceiptsMapIsReset = true
     console.log('Newest Receipts Map Reset!', newestReceiptsMap)
   }
+  let bucketSize = 1000
+  let combineReceipts = []
+  let combineAccounts = []
+  let combineTransactions = []
   for (let i = 0; i < receipts.length; i++) {
     const { accounts, cycle, result, sign, tx } = receipts[i]
     if (config.VERBOSE) console.log(tx.txId)
@@ -42,7 +46,12 @@ export const storeReceiptData = async (receipts = []) => {
       // console.log('Skip', tx.txId)
       continue
     }
-    await Receipt.insertReceipt({
+    // await Receipt.insertReceipt({
+    //   ...receipts[i],
+    //   receiptId: tx.txId,
+    //   timestamp: tx.timestamp,
+    // })
+    combineReceipts.push({
       ...receipts[i],
       receiptId: tx.txId,
       timestamp: tx.timestamp,
@@ -66,7 +75,8 @@ export const storeReceiptData = async (receipts = []) => {
         if (accObj.timestamp > accountExist.timestamp)
           await Account.updateAccount(accObj.accountId, accObj)
       } else {
-        await Account.insertAccount(accObj)
+        // await Account.insertAccount(accObj)
+        combineAccounts.push(accObj)
       }
     }
     const txObj: Transaction.Transaction = {
@@ -78,8 +88,29 @@ export const storeReceiptData = async (receipts = []) => {
       result: result,
       sign: sign,
     }
-    await Transaction.insertTransaction(txObj)
+    // await Transaction.insertTransaction(txObj)
+    combineTransactions.push(txObj)
+    // Receipts size can be big, better to save per 100
+    if (combineReceipts.length >= 100) {
+      await Receipt.bulkInsertReceipts(combineReceipts)
+      combineReceipts = []
+    }
+    if (combineAccounts.length >= bucketSize) {
+      await Account.bulkInsertAccounts(combineAccounts)
+      combineAccounts = []
+    }
+    if (combineTransactions.length >= bucketSize) {
+      await Transaction.bulkInsertTransactions(combineTransactions)
+      combineTransactions = []
+    }
   }
+  // Receipts size can be big, better to save per 100
+  if (combineReceipts.length > 0)
+    await Receipt.bulkInsertReceipts(combineReceipts)
+  if (combineAccounts.length > 0)
+    await Account.bulkInsertAccounts(combineAccounts)
+  if (combineTransactions.length > 0)
+    await Transaction.bulkInsertTransactions(combineTransactions)
   resetReceiptsMap()
 }
 

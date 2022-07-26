@@ -1,6 +1,6 @@
 import { Signature } from 'shardus-crypto-types';
 import * as db from './sqlite3storage';
-import { extractValues } from './sqlite3storage';
+import { extractValues, extractValuesFromArray } from './sqlite3storage';
 import * as Logger from '../Logger'
 import { config } from '../Config'
 
@@ -36,6 +36,33 @@ export async function insertReceipt(receipt: Receipt) {
         Logger.mainLogger.error(
             'Unable to insert Receipt or it is already stored in to database',
             receipt.receiptId
+        );
+    }
+}
+
+export async function bulkInsertReceipts(receipts: Receipt[]) {
+    try {
+        const fields = Object.keys(receipts[0]).join(', ');
+        const placeholders = Object.keys(receipts[0]).fill('?').join(', ');
+        const values = extractValuesFromArray(receipts);
+        let sql =
+            'INSERT OR REPLACE INTO receipts (' +
+            fields +
+            ') VALUES (' +
+            placeholders +
+            ')';
+        for (let i = 1; i < receipts.length; i++) {
+            sql = sql + ', (' + placeholders +
+                ')';
+        }
+        await db.run(sql, values);
+        Logger.mainLogger.debug(
+            'Successfully inserted Receipts', receipts.length
+        );
+    } catch (e) {
+        Logger.mainLogger.error(e);
+        Logger.mainLogger.error(
+            'Unable to bulk insert Receipts', receipts.length
         );
     }
 }
