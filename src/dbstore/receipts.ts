@@ -11,6 +11,7 @@ export interface Receipt {
     timestamp: number,
     result: any,
     accounts: any[]
+    receipt: any
     sign: Signature
 }
 
