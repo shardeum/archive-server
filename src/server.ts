@@ -701,6 +701,8 @@ function startServer() {
       startCycle: 's?',
       endCycle: 's?',
       page: 's?',
+      address: 's?',
+      accountId: 's?',
     })
     if (err) {
       reply.send(Crypto.sign({ success: false, error: err }))
@@ -709,7 +711,7 @@ function startServer() {
     let accounts = []
     let totalAccounts = 0
     let res
-    let { start, end, startCycle, endCycle, page } = _request.query
+    let { start, end, startCycle, endCycle, page, accountId } = _request.query
     if (start && end) {
       let from = parseInt(start)
       let to = parseInt(end)
@@ -790,6 +792,11 @@ function startServer() {
       res = Crypto.sign({
         accounts,
         totalAccounts,
+      })
+    } else if (accountId) {
+      accounts = await AccountDB.queryAccountByAccountId(accountId)
+      res = Crypto.sign({
+        accounts,
       })
     } else {
       reply.send({

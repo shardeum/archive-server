@@ -40,7 +40,7 @@ export const storeReceiptData = async (receipts = []) => {
   let combineAccounts = []
   let combineTransactions = []
   for (let i = 0; i < receipts.length; i++) {
-    const { accounts, cycle, result, sign, tx } = receipts[i]
+    const { accounts, cycle, result, sign, tx, receipt } = receipts[i]
     if (config.VERBOSE) console.log(tx.txId)
     if (receiptsMap.has(tx.txId) || newestReceiptsMap.has(tx.txId)) {
       // console.log('Skip', tx.txId)
@@ -70,6 +70,25 @@ export const storeReceiptData = async (receipts = []) => {
       }
       const accountExist = await Account.queryAccountByAccountId(
         account.accountId
+      )
+      if (accountExist) {
+        if (accObj.timestamp > accountExist.timestamp)
+          await Account.updateAccount(accObj.accountId, accObj)
+      } else {
+        // await Account.insertAccount(accObj)
+        combineAccounts.push(accObj)
+      }
+    }
+    if (receipt) {
+      const accObj: Account.AccountCopy = {
+        accountId: receipt.accountId,
+        data: receipt.data,
+        timestamp: receipt.timestamp,
+        hash: receipt.stateId,
+        cycleNumber: cycle,
+      }
+      const accountExist = await Account.queryAccountByAccountId(
+        receipt.accountId
       )
       if (accountExist) {
         if (accObj.timestamp > accountExist.timestamp)
