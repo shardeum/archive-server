@@ -46,6 +46,7 @@ let multipleDataSenders = true
 let consensorsCountToSubscribe = 3
 let receivedCounters = {}
 let selectByConsensuRadius = true
+let justRotatedDataSenders = {}
 // let processedCounters = {}
 
 // Data network messages
@@ -115,6 +116,7 @@ export function unsubscribeDataSender(
     currentDataSenders = currentDataSenders.filter((item) => item !== publicKey)
     // if (config.VERBOSE) console.log('sockerClients', socketClients)
     Logger.mainLogger.debug('unsubscribe sockerClients', socketClients)
+    console.log('justRotatedDataSenders', justRotatedDataSenders)
   }
   currentDataSender = ''
 }
@@ -638,7 +640,7 @@ async function selectNewDataSendersByConsensusRadius(
       publicKey,
       'newSubsetList',
       newSubsetList,
-      Object.keys(socketClients)
+      socketClients.keys()
     )
     let nodeToRotateIsFromThisSubset = false
     let noNodeFromThisSubset = true
@@ -652,6 +654,11 @@ async function selectNewDataSendersByConsensusRadius(
       if (node.publicKey === publicKey) {
         extraSubscribedNodesCountFromThisSubset--
         nodeToRotateIsFromThisSubset = true
+      }
+      if (noNodeFromThisSubset) {
+        if (justRotatedDataSenders[node.publicKey]) {
+          noNodeFromThisSubset = false
+        }
       }
     }
 
@@ -686,6 +693,7 @@ async function selectNewDataSendersByConsensusRadius(
     } else {
       if (nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
         console.log('Unsubscribe 4', publicKey)
+        justRotatedDataSenders[publicKey] = 1
         unsubscribeDataSender(publicKey)
         nodeIsUnsubscribed = false
         Logger.mainLogger.debug('Before sleep', publicKey, newSenderInfo)
@@ -718,12 +726,23 @@ async function selectNewDataSendersByConsensusRadius(
       continue
     }
     createDataTransferConnection(newSenderInfo)
+    if (nodeToRotateIsFromThisSubset) {
+      await Utils.sleep(5000)
+      delete justRotatedDataSenders[publicKey]
+    }
     if (noNodeFromThisSubset) await Utils.sleep(15000) // Start another node with 15s difference
   }
   if (nodeIsUnsubscribed) {
     console.log('Unsubscribe 5', publicKey)
+    justRotatedDataSenders[publicKey] = 1
     unsubscribeDataSender(publicKey)
     nodeIsUnsubscribed = false
+    Logger.mainLogger.debug('Before sleep', publicKey)
+    await Utils.sleep(1000) // Wait about 1s to be sure that socket client connection is killed
+  }
+  if (justRotatedDataSenders[publicKey]) {
+    await Utils.sleep(5000)
+    delete justRotatedDataSenders[publicKey]
   }
 }
 
