@@ -77,6 +77,8 @@ export async function queryReceiptByReceiptId(receiptId: string) {
                 receipt.tx = JSON.parse(receipt.tx);
             if (receipt.accounts)
                 receipt.accounts = JSON.parse(receipt.accounts);
+            if (receipt.receipt)
+                receipt.receipt = JSON.parse(receipt.receipt);
             if (receipt.result)
                 receipt.result = JSON.parse(receipt.result);
             if (receipt.sign)
@@ -101,6 +103,8 @@ export async function queryLatestReceipts(count) {
                     receipt.tx = JSON.parse(receipt.tx);
                 if (receipt.accounts)
                     receipt.accounts = JSON.parse(receipt.accounts);
+                if (receipt.receipt)
+                    receipt.receipt = JSON.parse(receipt.receipt);
                 if (receipt.result)
                     receipt.result = JSON.parse(receipt.result);
                 if (receipt.sign)
@@ -129,6 +133,8 @@ export async function queryReceipts(skip = 0, limit = 10000) {
                     receipt.tx = JSON.parse(receipt.tx);
                 if (receipt.accounts)
                     receipt.accounts = JSON.parse(receipt.accounts);
+                if (receipt.receipt)
+                    receipt.receipt = JSON.parse(receipt.receipt);
                 if (receipt.result)
                     receipt.result = JSON.parse(receipt.result);
                 if (receipt.sign)

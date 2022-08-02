@@ -45,6 +45,7 @@ let forwardGenesisAccounts = false
 let multipleDataSenders = true
 let consensorsCountToSubscribe = 3
 let receivedCounters = {}
+let selectByConsensuRadius = true
 // let processedCounters = {}
 
 // Data network messages
@@ -107,7 +108,8 @@ export function unsubscribeDataSender(
   if (!socketClient) return
   socketClient.emit('UNSUBSCRIBE', config.ARCHIVER_PUBLIC_KEY)
   socketClient.disconnect()
-  dataSenders.delete(publicKey)
+  console.log('Killing the connection to', publicKey)
+  removeDataSenders(publicKey)
   if (multipleDataSenders) {
     socketClients.delete(publicKey)
     currentDataSenders = currentDataSenders.filter((item) => item !== publicKey)
@@ -119,6 +121,7 @@ export function unsubscribeDataSender(
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   Logger.mainLogger.debug('Node Info to socker connect', node)
+  console.log('Node Info to socker connect', node)
   const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
 
   socketClient.on('connect', () => {
@@ -127,9 +130,22 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
     socketClient.emit('ARCHIVER_PUBLIC_KEY', config.ARCHIVER_PUBLIC_KEY)
     if (multipleDataSenders) {
       socketClients.set(node.publicKey, socketClient)
+      console.log('sent archiver', node)
       // if (config.VERBOSE) console.log('sockerClients', socketClients)
       Logger.mainLogger.debug('init sockerClients', socketClients)
     }
+  })
+
+  socketClient.once('disconnect', async () => {
+    Logger.mainLogger.debug(
+      `Connection request is refused by the consensor node ${node.ip}:${node.port}`
+    )
+    console.log(
+      `Connection request is refused by the consensor node ${node.ip}:${node.port}`
+    )
+    // socketClients.delete(node.publicKey)
+    await Utils.sleep(2000)
+    if (socketClients.has(node.publicKey)) replaceDataSender(node.publicKey)
   })
 
   socketClient.on(
@@ -147,6 +163,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
       // If tag is invalid, dont keepAlive, END
       if (Crypto.authenticate(newData) === false) {
         Logger.mainLogger.debug('This data cannot be authenticated')
+        console.log('Unsubscribe 1', node.publicKey)
         unsubscribeDataSender(node.publicKey)
         return
       }
@@ -348,6 +365,11 @@ export async function replaceDataSender(
   }
   Logger.mainLogger.debug(`replaceDataSender: replacing ${publicKey}`)
 
+  if (selectByConsensuRadius) {
+    selectNewDataSendersByConsensusRadius(publicKey)
+    return
+  }
+
   // Remove old dataSender
   const removedSenders = removeDataSenders(publicKey)
   if (removedSenders.length < 1) {
@@ -372,6 +394,15 @@ export async function replaceDataSender(
     return
   }
   initSocketClient(newSenderInfo)
+  let count = 0
+  while (!socketClients.has(newSenderInfo.publicKey) && count <= 10) {
+    await Utils.sleep(1000)
+    count++
+    if (count === 10) {
+      // This means the socket connection to the node is not successful.
+      return
+    }
+  }
   const newSender: DataSender = {
     nodeInfo: newSenderInfo,
     types: [
@@ -457,6 +488,7 @@ export function createContactTimeout(
     if (nestedCountersInstance)
       nestedCountersInstance.countEvent('archiver', 'contact_timeout')
     Logger.mainLogger.debug('REPLACING sender due to CONTACT timeout', msg)
+    console.log('REPLACING sender due to CONTACT timeout', msg, publicKey)
     replaceDataSender(publicKey)
   }, ms)
 }
@@ -486,7 +518,7 @@ function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   // console.log('removeDataSenders', dataSenders)
   // Logger.mainLogger.debug('removeDataSenders', dataSenders)
   for (let [key, sender] of dataSenders) {
-    // console.log(publicKey, key)
+    console.log(publicKey, key)
     Logger.mainLogger.debug(publicKey, key)
     if (key === publicKey && sender) {
       // Clear contactTimeout associated with this sender
@@ -538,7 +570,10 @@ function clearFalseNodes(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   for (let pk in receivedCounters) {
     const publicKey: any = pk
     if (receivedCounters[publicKey] > 50) {
-      if (socketClients.has(publicKey)) unsubscribeDataSender(publicKey)
+      if (socketClients.has(publicKey)) {
+        console.log('Unsubscribe 2', publicKey)
+        unsubscribeDataSender(publicKey)
+      }
       if (dataSenders.has(publicKey)) removeDataSenders(publicKey)
       delete receivedCounters[publicKey]
     }
@@ -552,6 +587,7 @@ function selectNewDataSender(publicKey) {
   // Randomly pick an active node
   const activeList = NodeList.getActiveList()
   let newSender = activeList[Math.floor(Math.random() * activeList.length)]
+  console.log('newSender 1', newSender)
   if (multipleDataSenders) {
     let retry = 0
     while (true && retry < 5) {
@@ -560,11 +596,13 @@ function selectNewDataSender(publicKey) {
         break
       }
       newSender = activeList[Math.floor(Math.random() * activeList.length)]
+      console.log('newSender 2', newSender)
       retry++
     }
     if (socketClients.has(newSender.publicKey)) {
       // if there is still not new node to subscribe, just connect with the current one then
       newSender = activeList.find((node) => node.publicKey === publicKey)
+      console.log('newSender 3', newSender)
       Logger.mainLogger.debug(
         'Since no new data sender is found, and continue with the current one',
         publicKey,
@@ -574,16 +612,203 @@ function selectNewDataSender(publicKey) {
   }
   Logger.mainLogger.debug('New data sender is selected', newSender)
   if (newSender) {
+    console.log('Unsubscribe 3', publicKey)
     unsubscribeDataSender(publicKey)
     // initSocketClient(newSender)
   }
   return newSender
 }
 
+async function selectNewDataSendersByConsensusRadius(
+  publicKey: NodeList.ConsensusNodeInfo['publicKey']
+) {
+  const consensusRadius = await getConsensusRadius()
+  const activeList = NodeList.getActiveList()
+  let nodeIsUnsubscribed = true
+  console.log('activeList', activeList.length, activeList)
+  const totalNumberOfNodesToSubscribe = Math.ceil(
+    activeList.length / consensusRadius
+  )
+  console.log('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
+  for (let i = 0; i < activeList.length; i += consensusRadius) {
+    const newSubsetList = activeList.slice(i, i + consensusRadius)
+    console.log(
+      'Round',
+      i,
+      publicKey,
+      'newSubsetList',
+      newSubsetList,
+      Object.keys(socketClients)
+    )
+    let nodeToRotateIsFromThisSubset = false
+    let noNodeFromThisSubset = true
+    let extraSubscribedNodesCountFromThisSubset = 0
+    for (let node of Object.values(newSubsetList)) {
+      if (socketClients.has(node.publicKey)) {
+        console.log('The node is found in this subset')
+        noNodeFromThisSubset = false
+        extraSubscribedNodesCountFromThisSubset++
+      }
+      if (node.publicKey === publicKey) {
+        extraSubscribedNodesCountFromThisSubset--
+        nodeToRotateIsFromThisSubset = true
+      }
+    }
+
+    if (!nodeToRotateIsFromThisSubset && !noNodeFromThisSubset) {
+      console.log(
+        'There is already node from this subset or node to rotate is not from this subset!'
+      )
+      continue
+    }
+    // Pick a new dataSender
+    let newSenderInfo =
+      newSubsetList[Math.floor(Math.random() * newSubsetList.length)]
+    if (multipleDataSenders) {
+      let retry = 0
+      while (true && retry < consensusRadius) {
+        // Retry 5 times to get the new Sender
+        if (
+          !socketClients.has(newSenderInfo.publicKey) &&
+          newSenderInfo.publicKey !== publicKey
+        ) {
+          break
+        }
+        newSenderInfo =
+          activeList[Math.floor(Math.random() * activeList.length)]
+        retry++
+      }
+    }
+    Logger.mainLogger.debug('New data sender is selected', newSenderInfo)
+    if (!newSenderInfo) {
+      Logger.mainLogger.error('Unable to select a new data sender.')
+      continue
+    } else {
+      if (nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
+        console.log('Unsubscribe 4', publicKey)
+        unsubscribeDataSender(publicKey)
+        nodeIsUnsubscribed = false
+        Logger.mainLogger.debug('Before sleep', publicKey, newSenderInfo)
+        await Utils.sleep(1000) // Wait about 1s to be sure that socket client connection is killed
+      }
+    }
+    console.log(
+      'Check before proceed',
+      socketClients.size,
+      totalNumberOfNodesToSubscribe,
+      extraSubscribedNodesCountFromThisSubset
+    )
+    if (
+      multipleDataSenders &&
+      // socketClients.size >= totalNumberOfNodesToSubscribe &&
+      extraSubscribedNodesCountFromThisSubset >= 1
+    ) {
+      // Logger.mainLogger.debug(
+      //   `There are already ${socketClients.size} nodes that the archiver has picked.`
+      // )
+      // console.log(
+      //   `There are already ${socketClients.size} nodes that the archiver has picked.`
+      // )
+      Logger.mainLogger.debug(
+        `There are already ${extraSubscribedNodesCountFromThisSubset} nodes that the archiver has picked from this nodes subset.`
+      )
+      console.log(
+        `There are already ${extraSubscribedNodesCountFromThisSubset} nodes that the archiver has picked from this nodes subset.`
+      )
+      continue
+    }
+    createDataTransferConnection(newSenderInfo)
+    if (noNodeFromThisSubset) await Utils.sleep(15000) // Start another node with 15s difference
+  }
+  if (nodeIsUnsubscribed) {
+    console.log('Unsubscribe 5', publicKey)
+    unsubscribeDataSender(publicKey)
+    nodeIsUnsubscribed = false
+  }
+}
+
+async function getConsensusRadius() {
+  const activeList = NodeList.getActiveList()
+  let randomNode = activeList[Math.floor(Math.random() * activeList.length)]
+  Logger.mainLogger.debug(
+    `Checking network configs from random node ${randomNode.ip}`
+  )
+  let response: any = await P2P.getJson(
+    `http://${randomNode.ip}:${randomNode.port}/netconfig`
+  )
+  if (response && response.config) {
+    const nodesPerConsensusGroup =
+      response.config.sharding.nodesPerConsensusGroup
+    const consensusRadius = Math.floor((nodesPerConsensusGroup - 1) / 2)
+    console.log('consensusRadius', consensusRadius)
+    return consensusRadius
+  } else return 1
+}
+
+async function createDataTransferConnection(newSenderInfo) {
+  initSocketClient(newSenderInfo)
+  let count = 0
+  while (!socketClients.has(newSenderInfo.publicKey) && count <= 5) {
+    await Utils.sleep(1000)
+    count++
+    if (count === 10) {
+      // This means the socket connection to the node is not successful.
+      return
+    }
+  }
+  const newSender: DataSender = {
+    nodeInfo: newSenderInfo,
+    types: [
+      P2PTypes.SnapshotTypes.TypeNames.CYCLE,
+      P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
+    ],
+    contactTimeout: createContactTimeout(
+      newSenderInfo.publicKey,
+      'This timeout is created during newSender selection',
+      2 * currentCycleDuration
+    ),
+    replaceTimeout: createReplaceTimeout(newSenderInfo.publicKey),
+  }
+
+  // Add new dataSender to dataSenders
+  addDataSenders(newSender)
+  Logger.mainLogger.debug(
+    `replaceDataSender: added new sender ${newSenderInfo.publicKey} to dataSenders`
+  )
+
+  // Send dataRequest to new dataSender
+  const dataRequest = {
+    dataRequestCycle: createDataRequest<Cycle>(
+      P2PTypes.SnapshotTypes.TypeNames.CYCLE,
+      currentCycleCounter,
+      State.getNodeInfo().publicKey
+    ),
+    dataRequestStateMetaData:
+      createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
+        P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
+        lastProcessedMetaData,
+        State.getNodeInfo().publicKey
+      ),
+    publicKey: State.getNodeInfo().publicKey,
+    nodeInfo: State.getNodeInfo(),
+  }
+  sendDataRequest(newSender, dataRequest)
+  if (multipleDataSenders) {
+    await Utils.sleep(3000)
+    console.log('Current socker IO clients', socketClients.size, dataSenders)
+    Logger.mainLogger.debug(
+      'Current socker IO clients',
+      socketClients.size,
+      dataSenders
+    )
+  }
+}
+
 export function sendDataRequest(sender: DataSender, dataRequest: any) {
   const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey)
   Logger.mainLogger.info('Sending tagged data request to consensor.', sender)
-  emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
+  if (socketClients.has(sender.nodeInfo.publicKey))
+    emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
 }
 
 export async function subscribeMoreConsensors(numbersToSubscribe: number) {
@@ -624,7 +849,7 @@ export async function subscribeMoreConsensors(numbersToSubscribe: number) {
       console.log(
         `There are already ${socketClients.size} nodes that the archiver has picked.`
       )
-      continue
+      break
     }
     initSocketClient(newSenderInfo)
     const newSender: DataSender = {
@@ -2353,11 +2578,14 @@ emitter.on(
     //...dataRequest,
     //nodeInfo: State.getNodeInfo()
     //}
-    let response = await P2P.postJson(
-      `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
-      taggedDataRequest
-    )
-    Logger.mainLogger.debug('/requestdata response', response)
+    if (socketClients.has(newSenderInfo.publicKey)) {
+      let response = await P2P.postJson(
+        `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
+        taggedDataRequest
+      )
+      Logger.mainLogger.debug('/requestdata response', response)
+    } else {
+    }
   }
 )
 
