@@ -135,6 +135,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
       console.log('sent archiver', node)
       // if (config.VERBOSE) console.log('sockerClients', socketClients)
       Logger.mainLogger.debug('init sockerClients', socketClients)
+      delete justRotatedDataSenders[node.publicKey]
     }
   })
 
@@ -682,7 +683,7 @@ async function selectNewDataSendersByConsensusRadius(
           break
         }
         newSenderInfo =
-          activeList[Math.floor(Math.random() * activeList.length)]
+          newSubsetList[Math.floor(Math.random() * newSubsetList.length)]
         retry++
       }
     }
@@ -726,10 +727,10 @@ async function selectNewDataSendersByConsensusRadius(
       continue
     }
     createDataTransferConnection(newSenderInfo)
-    if (nodeToRotateIsFromThisSubset) {
-      await Utils.sleep(5000)
-      delete justRotatedDataSenders[publicKey]
-    }
+    // if (nodeToRotateIsFromThisSubset) {
+    //   await Utils.sleep(5000)
+    //   delete justRotatedDataSenders[publicKey]
+    // }
     if (noNodeFromThisSubset) await Utils.sleep(15000) // Start another node with 15s difference
   }
   if (nodeIsUnsubscribed) {
@@ -767,8 +768,8 @@ async function getConsensusRadius() {
 async function createDataTransferConnection(newSenderInfo) {
   initSocketClient(newSenderInfo)
   let count = 0
-  while (!socketClients.has(newSenderInfo.publicKey) && count <= 5) {
-    await Utils.sleep(1000)
+  while (!socketClients.has(newSenderInfo.publicKey) && count <= 10) {
+    await Utils.sleep(500)
     count++
     if (count === 10) {
       // This means the socket connection to the node is not successful.
