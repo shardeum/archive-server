@@ -711,6 +711,15 @@ async function selectNewDataSendersByConsensusRadius(
     let newSubsetList = subsetList.filter(
       (node) => node.publicKey !== publicKey
     )
+    if (newSubsetList.length === 0) {
+      if (subsetList[0].publicKey === publicKey) {
+        // This isn't supposed to happen and just to log if it happens
+        Logger.mainLogger.error(
+          `The node publicKey ${publicKey} is not in the subset list!`
+        )
+      }
+      continue
+    }
     // Pick a new dataSender
     let newSenderInfo =
       newSubsetList[Math.floor(Math.random() * newSubsetList.length)]
@@ -774,7 +783,8 @@ async function getConsensusRadius() {
     Logger.mainLogger.debug('consensusRadius', consensusRadius)
     console.log('consensusRadius', consensusRadius)
     return consensusRadius
-  } else return 1
+  }
+  return activeList.length
 }
 
 async function createDataTransferConnection(newSenderInfo) {
