@@ -47,6 +47,8 @@ let multipleDataSenders = true
 let consensorsCountToSubscribe = 3
 let receivedCounters = {}
 let selectByConsensuRadius = true
+let selectingNewDataSender = false
+let queueForSelectingNewDataSenders: Map<string, string> = new Map()
 // let processedCounters = {}
 
 // Data network messages
@@ -116,7 +118,11 @@ export function unsubscribeDataSender(
     socketConnectionsTracker.delete(publicKey)
     currentDataSenders = currentDataSenders.filter((item) => item !== publicKey)
     if (config.VERBOSE) console.log('Subscribed socketClients', socketClients)
-    Logger.mainLogger.debug('Subscribed socketClients', socketClients.size)
+    Logger.mainLogger.debug(
+      'Subscribed socketClients',
+      socketClients.size,
+      dataSenders.size
+    )
   }
   currentDataSender = ''
 }
@@ -389,7 +395,12 @@ export async function replaceDataSender(
         2 * currentCycleDuration
       )
     }
-    selectNewDataSendersByConsensusRadius(publicKey)
+    if (selectingNewDataSender) {
+      queueForSelectingNewDataSenders.set(publicKey, publicKey)
+    } else {
+      selectingNewDataSender = true
+      selectNewDataSendersByConsensusRadius([publicKey])
+    }
     return
   }
 
@@ -643,11 +654,10 @@ function selectNewDataSender(publicKey) {
 }
 
 async function selectNewDataSendersByConsensusRadius(
-  publicKey: NodeList.ConsensusNodeInfo['publicKey']
+  publicKeys: NodeList.ConsensusNodeInfo['publicKey'][]
 ) {
   const consensusRadius = await getConsensusRadius()
   const activeList = NodeList.getActiveList()
-  let nodeIsUnsubscribed = true
   if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
   const totalNumberOfNodesToSubscribe = Math.ceil(
     activeList.length / consensusRadius
@@ -657,113 +667,124 @@ async function selectNewDataSendersByConsensusRadius(
     totalNumberOfNodesToSubscribe
   )
   console.log('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
-  let nodeIsInTheActiveList = false
-  for (let i = 0; i < activeList.length; i += consensusRadius) {
-    const subsetList = activeList.slice(i, i + consensusRadius)
-    if (config.VERBOSE)
-      console.log(
-        'Round',
-        i,
-        publicKey,
-        'subsetList',
-        subsetList,
-        socketClients.keys()
-      )
-    let nodeToRotateIsFromThisSubset = false
-    let noNodeFromThisSubset = true
-    let extraSubscribedNodesCountFromThisSubset = 0
-    for (let node of Object.values(subsetList)) {
-      if (socketClients.has(node.publicKey)) {
-        if (config.VERBOSE) console.log('The node is found in this subset')
-        noNodeFromThisSubset = false
-        extraSubscribedNodesCountFromThisSubset++
-      }
-      if (node.publicKey === publicKey) {
-        extraSubscribedNodesCountFromThisSubset--
-        nodeToRotateIsFromThisSubset = true
-        nodeIsInTheActiveList = true
-      }
-    }
-
-    if (!nodeToRotateIsFromThisSubset && !noNodeFromThisSubset) {
-      Logger.mainLogger.debug(
-        'There is already node from this subset or node to rotate is not from this subset!'
-      )
-      console.log(
-        'There is already node from this subset or node to rotate is not from this subset!'
-      )
-      continue
-    }
-    if (extraSubscribedNodesCountFromThisSubset >= 1) {
-      Logger.mainLogger.debug(
-        `There are already ${extraSubscribedNodesCountFromThisSubset} nodes that the archiver has picked from this nodes subset.`
-      )
-      console.log(
-        `There are already ${extraSubscribedNodesCountFromThisSubset} nodes that the archiver has picked from this nodes subset.`
-      )
-      if (nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
-        if (config.VERBOSE) console.log('Unsubscribe 4', publicKey)
-        unsubscribeDataSender(publicKey)
-        nodeIsUnsubscribed = false
-      }
-      continue
-    }
-    let newSubsetList = subsetList.filter(
-      (node) => node.publicKey !== publicKey
-    )
-    if (newSubsetList.length === 0) {
-      if (subsetList[0].publicKey === publicKey) {
-        // This isn't supposed to happen and just to log if it happens
-        Logger.mainLogger.error(
-          `The node publicKey ${publicKey} is not in the subset list!`
+  for (const publicKey of publicKeys) {
+    let nodeIsUnsubscribed = true
+    let nodeIsInTheActiveList = false
+    for (let i = 0; i < activeList.length; i += consensusRadius) {
+      const subsetList = activeList.slice(i, i + consensusRadius)
+      if (config.VERBOSE)
+        console.log(
+          'Round',
+          i,
+          publicKey,
+          'subsetList',
+          subsetList,
+          socketClients.keys()
         )
-      }
-      continue
-    }
-    // Pick a new dataSender
-    let newSenderInfo =
-      newSubsetList[Math.floor(Math.random() * newSubsetList.length)]
-    let connectionStatus = false
-    let retry = 0
-    let onceConnectedNodes = [publicKey]
-    while (true && retry < consensusRadius) {
-      // Retry 5 times to get the new Sender
-      if (
-        !socketClients.has(newSenderInfo.publicKey) &&
-        !onceConnectedNodes.includes(newSenderInfo.publicKey)
-      ) {
-        connectionStatus = await createDataTransferConnection(newSenderInfo)
-        if (connectionStatus) {
-          if (nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
-            if (config.VERBOSE) console.log('Unsubscribe 5', publicKey)
-            unsubscribeDataSender(publicKey)
-            nodeIsUnsubscribed = false
-          }
-          if (noNodeFromThisSubset) await Utils.sleep(30000) // Start another node with 30s difference
-          break
-        } else {
-          if (socketClients.has(newSenderInfo.publicKey))
-            socketClients.delete(newSenderInfo.publicKey)
-          newSubsetList = newSubsetList.filter(
-            (node) => node.publicKey !== publicKey
-          )
-          onceConnectedNodes.push(newSenderInfo.publicKey)
+      let nodeToRotateIsFromThisSubset = false
+      let noNodeFromThisSubset = true
+      let extraSubscribedNodesCountFromThisSubset = 0
+      for (let node of Object.values(subsetList)) {
+        if (socketClients.has(node.publicKey)) {
+          if (config.VERBOSE) console.log('The node is found in this subset')
+          noNodeFromThisSubset = false
+          extraSubscribedNodesCountFromThisSubset++
+        }
+        if (node.publicKey === publicKey) {
+          extraSubscribedNodesCountFromThisSubset--
+          nodeToRotateIsFromThisSubset = true
+          nodeIsInTheActiveList = true
         }
       }
-      if (newSubsetList.length > 0) {
-        newSenderInfo =
-          newSubsetList[Math.floor(Math.random() * newSubsetList.length)]
-      } else {
-        newSenderInfo =
-          activeList[Math.floor(Math.random() * activeList.length)]
+
+      if (!nodeToRotateIsFromThisSubset && !noNodeFromThisSubset) {
+        Logger.mainLogger.debug(
+          'There is already node from this subset or node to rotate is not from this subset!'
+        )
+        console.log(
+          'There is already node from this subset or node to rotate is not from this subset!'
+        )
+        continue
       }
-      retry++
+      if (extraSubscribedNodesCountFromThisSubset >= 1) {
+        Logger.mainLogger.debug(
+          `There are already ${extraSubscribedNodesCountFromThisSubset} nodes that the archiver has picked from this nodes subset.`
+        )
+        console.log(
+          `There are already ${extraSubscribedNodesCountFromThisSubset} nodes that the archiver has picked from this nodes subset.`
+        )
+        if (nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
+          if (config.VERBOSE) console.log('Unsubscribe 4', publicKey)
+          unsubscribeDataSender(publicKey)
+          nodeIsUnsubscribed = false
+        }
+        continue
+      }
+      let newSubsetList = subsetList.filter(
+        (node) => node.publicKey !== publicKey
+      )
+      if (newSubsetList.length === 0) {
+        if (subsetList[0].publicKey === publicKey) {
+          // This isn't supposed to happen and just to log if it happens
+          Logger.mainLogger.error(
+            `The node publicKey ${publicKey} is not in the subset list!`
+          )
+        }
+        continue
+      }
+      // Pick a new dataSender
+      let newSenderInfo =
+        newSubsetList[Math.floor(Math.random() * newSubsetList.length)]
+      let connectionStatus = false
+      let retry = 0
+      let onceConnectedNodes = [publicKey]
+      while (true && retry < consensusRadius) {
+        // Retry 5 times to get the new Sender
+        if (
+          !socketClients.has(newSenderInfo.publicKey) &&
+          !onceConnectedNodes.includes(newSenderInfo.publicKey)
+        ) {
+          connectionStatus = await createDataTransferConnection(newSenderInfo)
+          if (connectionStatus) {
+            if (nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
+              if (config.VERBOSE) console.log('Unsubscribe 5', publicKey)
+              unsubscribeDataSender(publicKey)
+              nodeIsUnsubscribed = false
+            }
+            if (noNodeFromThisSubset) await Utils.sleep(30000) // Start another node with 30s difference
+            break
+          } else {
+            if (socketClients.has(newSenderInfo.publicKey))
+              socketClients.delete(newSenderInfo.publicKey)
+            newSubsetList = newSubsetList.filter(
+              (node) => node.publicKey !== publicKey
+            )
+            onceConnectedNodes.push(newSenderInfo.publicKey)
+          }
+          socketConnectionsTracker.delete(newSenderInfo.publicKey)
+        }
+        if (newSubsetList.length > 0) {
+          newSenderInfo =
+            newSubsetList[Math.floor(Math.random() * newSubsetList.length)]
+        } else {
+          newSenderInfo =
+            activeList[Math.floor(Math.random() * activeList.length)]
+        }
+        retry++
+      }
+    }
+    if (nodeIsUnsubscribed && !nodeIsInTheActiveList) {
+      if (config.VERBOSE) console.log('Unsubscribe 6', publicKey)
+      unsubscribeDataSender(publicKey)
+      nodeIsUnsubscribed = false
     }
   }
-  if (nodeIsUnsubscribed && !nodeIsInTheActiveList) {
-    if (config.VERBOSE) console.log('Unsubscribe 6', publicKey)
-    unsubscribeDataSender(publicKey)
-    nodeIsUnsubscribed = false
+  if (queueForSelectingNewDataSenders.size > 0) {
+    const newPublicKeys = Object.keys(queueForSelectingNewDataSenders)
+    queueForSelectingNewDataSenders.clear()
+    selectNewDataSendersByConsensusRadius(newPublicKeys)
+  } else {
+    selectingNewDataSender = false
   }
 }
 
@@ -798,7 +819,7 @@ async function createDataTransferConnection(newSenderInfo) {
       return false
     }
   }
-  await Utils.sleep(1000) // Wait 1s before sending data request to be sure if the connection is refused
+  await Utils.sleep(200) // Wait 1s before sending data request to be sure if the connection is refused
   if (socketConnectionsTracker.get(newSenderInfo.publicKey) === 'disconnected')
     return false
   const newSender: DataSender = {
