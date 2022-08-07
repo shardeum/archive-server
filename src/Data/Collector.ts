@@ -135,6 +135,8 @@ export const storeReceiptData = async (receipts = []) => {
 
 export const storeCycleData = async (cycles = []) => {
   if (cycles && cycles.length <= 0) return
+  const bucketSize = 1000
+  let combineCycles = []
   for (let i = 0; i < cycles.length; i++) {
     const cycleRecord = cycles[i]
     const cycleObj: Cycle.Cycle = {
@@ -153,8 +155,11 @@ export const storeCycleData = async (cycles = []) => {
       if (JSON.stringify(cycleObj) !== JSON.stringify(cycleExist))
         await Cycle.updateCycle(cycleObj.cycleMarker, cycleObj)
     } else {
-      await Cycle.insertCycle(cycleObj)
+      // await Cycle.insertCycle(cycleObj)
+      combineCycles.push(cycleObj)
     }
+    if (combineCycles.length >= bucketSize || i === cycles.length - 1)
+      await Cycle.bulkInsertCycles(combineCycles)
   }
 }
 

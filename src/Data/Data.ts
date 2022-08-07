@@ -1999,6 +1999,7 @@ export async function syncCyclesAndNodeList(
     if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
 
     // Add prevCycles to our cycle chain
+    let combineCycles = []
     for (const prevCycle of prevCycles) {
       // Stop saving prevCycles if one of them is invalid
       if (validateCycle(prevCycle, savedCycleRecord) === false) {
@@ -2008,7 +2009,7 @@ export async function syncCyclesAndNodeList(
       }
       savedCycleRecord = prevCycle
       if (config.experimentalSnapshot) {
-        storeCycleData([prevCycle])
+        combineCycles.push(prevCycle)
       } else {
         Logger.mainLogger.debug(
           'Inserting archived cycle for counter',
@@ -2018,6 +2019,7 @@ export async function syncCyclesAndNodeList(
         await Storage.insertArchivedCycle(archivedCycle)
       }
     }
+    if (config.experimentalSnapshot) storeCycleData(combineCycles)
     endCycle = nextEnd - 1
   }
 

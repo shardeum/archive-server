@@ -1,5 +1,5 @@
 import * as db from './sqlite3storage';
-import { extractValues } from './sqlite3storage';
+import { extractValues, extractValuesFromArray } from './sqlite3storage';
 import { P2P, StateManager } from '@shardus/types';
 import * as Logger from '../Logger'
 import { config } from '../Config'
@@ -33,6 +33,33 @@ export async function insertCycle(cycle: Cycle) {
             'Unable to insert cycle or it is already stored in to database',
             cycle.cycleRecord.counter,
             cycle.cycleMarker
+        );
+    }
+}
+
+export async function bulkInsertCycles(cycles: Cycle[]) {
+    try {
+        const fields = Object.keys(cycles[0]).join(', ');
+        const placeholders = Object.keys(cycles[0]).fill('?').join(', ');
+        const values = extractValuesFromArray(cycles);
+        let sql =
+            'INSERT OR REPLACE INTO cycles (' +
+            fields +
+            ') VALUES (' +
+            placeholders +
+            ')';
+        for (let i = 1; i < cycles.length; i++) {
+            sql = sql + ', (' + placeholders +
+                ')';
+        }
+        await db.run(sql, values);
+        Logger.mainLogger.debug(
+            'Successfully inserted Cycles', cycles.length
+        );
+    } catch (e) {
+        Logger.mainLogger.error(e);
+        Logger.mainLogger.error(
+            'Unable to bulk insert Cycles', cycles.length
         );
     }
 }
