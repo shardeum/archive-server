@@ -49,6 +49,7 @@ let receivedCounters = {}
 let selectByConsensuRadius = true
 let selectingNewDataSender = false
 let queueForSelectingNewDataSenders: Map<string, string> = new Map()
+let receivedCycleTracker = {}
 // let processedCounters = {}
 
 // Data network messages
@@ -216,8 +217,29 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
           storeReceiptData(newData.responses.RECEIPT)
         }
         if (newData.responses && newData.responses.CYCLE) {
-          processCycles(newData.responses.CYCLE as Cycle[])
-          storeCycleData(newData.responses.CYCLE)
+          let found = true
+          for (const cycle of newData.responses.CYCLE) {
+            if (receivedCycleTracker[cycle.counter])
+              receivedCycleTracker[cycle.counter]++
+            else {
+              receivedCycleTracker[cycle.counter] = 1
+              found = false
+            }
+          }
+          if (!found) {
+            processCycles(newData.responses.CYCLE as Cycle[])
+            storeCycleData(newData.responses.CYCLE)
+          }
+          if (Object.keys(receivedCycleTracker).length > 30) {
+            for (const counter of Object.keys(receivedCycleTracker)) {
+              if (parseInt(counter) < currentCycleCounter - 10) {
+                Logger.mainLogger.debug(
+                  `Received ${receivedCycleTracker[counter]} times for cycle counter ${counter}`
+                )
+                delete receivedCycleTracker[counter]
+              }
+            }
+          }
         }
         if (newData.responses && newData.responses.ACCOUNT) {
           console.log(
