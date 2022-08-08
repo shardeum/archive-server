@@ -213,7 +213,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
             sender.nodeInfo.port,
             newData.responses.RECEIPT.length
           )
-          clearFalseNodes(sender.nodeInfo.publicKey)
+          // clearFalseNodes(sender.nodeInfo.publicKey)
           storeReceiptData(newData.responses.RECEIPT)
         }
         if (newData.responses && newData.responses.CYCLE) {
@@ -230,7 +230,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
             processCycles(newData.responses.CYCLE as Cycle[])
             storeCycleData(newData.responses.CYCLE)
           }
-          if (Object.keys(receivedCycleTracker).length > 30) {
+          if (Object.keys(receivedCycleTracker).length > 20) {
             for (const counter of Object.keys(receivedCycleTracker)) {
               if (parseInt(counter) < currentCycleCounter - 10) {
                 Logger.mainLogger.debug(
