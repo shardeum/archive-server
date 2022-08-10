@@ -831,7 +831,7 @@ async function getConsensusRadius() {
     console.log('consensusRadius', consensusRadius)
     return consensusRadius
   }
-  return 1
+  return activeList.length
 }
 
 async function createDataTransferConnection(newSenderInfo) {
