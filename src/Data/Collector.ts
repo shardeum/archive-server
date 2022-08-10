@@ -18,7 +18,7 @@ export let newestReceiptsMap: Map<string, boolean> = new Map()
 export let lastReceiptMapResetTimestamp = 0
 export let newestReceiptsMapIsReset = false
 
-export const storeReceiptData = async (receipts = []) => {
+export const storeReceiptData = async (receipts = [], senderInfo = '') => {
   if (receipts && receipts.length <= 0) return
   if (socketServer) {
     let signedDataToSend = Crypto.sign({
@@ -41,7 +41,7 @@ export const storeReceiptData = async (receipts = []) => {
   let combineTransactions = []
   for (let i = 0; i < receipts.length; i++) {
     const { accounts, cycle, result, sign, tx, receipt } = receipts[i]
-    if (config.VERBOSE) console.log(tx.txId)
+    if (config.VERBOSE) console.log(tx.txId, senderInfo)
     if (receiptsMap.has(tx.txId) || newestReceiptsMap.has(tx.txId)) {
       // console.log('Skip', tx.txId)
       continue
@@ -65,7 +65,7 @@ export const storeReceiptData = async (receipts = []) => {
         accountId: account.accountId,
         data: account.data,
         timestamp: account.timestamp,
-        hash: account.hash,
+        hash: account.stateId,
         cycleNumber: cycle,
       }
       const accountExist = await Account.queryAccountByAccountId(

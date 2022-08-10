@@ -214,7 +214,10 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
             newData.responses.RECEIPT.length
           )
           // clearFalseNodes(sender.nodeInfo.publicKey)
-          storeReceiptData(newData.responses.RECEIPT)
+          storeReceiptData(
+            newData.responses.RECEIPT,
+            sender.nodeInfo.ip + ':' + sender.nodeInfo.port
+          )
         }
         if (newData.responses && newData.responses.CYCLE) {
           let found = true
@@ -678,7 +681,8 @@ function selectNewDataSender(publicKey) {
 async function selectNewDataSendersByConsensusRadius(
   publicKeys: NodeList.ConsensusNodeInfo['publicKey'][]
 ) {
-  const consensusRadius = await getConsensusRadius()
+  let consensusRadius = await getConsensusRadius()
+  if (consensusRadius > 2) consensusRadius = 3 // Change default to 3 for now assuming nodesPerConsensusGroup 10
   const activeList = NodeList.getActiveList()
   if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
   const totalNumberOfNodesToSubscribe = Math.ceil(
@@ -827,7 +831,7 @@ async function getConsensusRadius() {
     console.log('consensusRadius', consensusRadius)
     return consensusRadius
   }
-  return activeList.length
+  return 1
 }
 
 async function createDataTransferConnection(newSenderInfo) {
