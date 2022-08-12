@@ -681,8 +681,9 @@ function selectNewDataSender(publicKey) {
 async function selectNewDataSendersByConsensusRadius(
   publicKeys: NodeList.ConsensusNodeInfo['publicKey'][]
 ) {
-  let consensusRadius = await getConsensusRadius()
-  if (consensusRadius > 2) consensusRadius = 3 // Change default to 3 for now assuming nodesPerConsensusGroup 10
+  const calculatedConsensusRadius = await getConsensusRadius()
+  let consensusRadius = calculatedConsensusRadius
+  if (consensusRadius > 2) consensusRadius-- // Change default to 3 for now assuming nodesPerConsensusGroup 10
   const activeList = NodeList.getActiveList()
   if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
   const totalNumberOfNodesToSubscribe = Math.ceil(
@@ -803,6 +804,16 @@ async function selectNewDataSendersByConsensusRadius(
       if (config.VERBOSE) console.log('Unsubscribe 6', publicKey)
       unsubscribeDataSender(publicKey)
       nodeIsUnsubscribed = false
+    }
+  }
+  // Temp hack to pick half of the nodes not to miss data at all
+  if (calculatedConsensusRadius === 2) {
+    const subsetList = activeList.slice(0, Math.floor(activeList.length / 2))
+    for (let node of Object.values(subsetList)) {
+      if (!socketClients.has(node.publicKey)) {
+        let connectionStatus = await createDataTransferConnection(node)
+        if (connectionStatus) await Utils.sleep(10000) // sleep for 10
+      }
     }
   }
   if (queueForSelectingNewDataSenders.size > 0) {
