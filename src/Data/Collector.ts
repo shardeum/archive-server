@@ -20,12 +20,6 @@ export let newestReceiptsMapIsReset = false
 
 export const storeReceiptData = async (receipts = [], senderInfo = '') => {
   if (receipts && receipts.length <= 0) return
-  if (socketServer) {
-    let signedDataToSend = Crypto.sign({
-      receipts: receipts,
-    })
-    socketServer.emit('RECEIPT', signedDataToSend)
-  }
   let currentTime = Date.now()
   if (
     currentTime - lastReceiptMapResetTimestamp >= 60000 &&
@@ -39,6 +33,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
   let combineReceipts = []
   let combineAccounts = []
   let combineTransactions = []
+  let receiptsToSend = []
   for (let i = 0; i < receipts.length; i++) {
     const { accounts, cycle, result, sign, tx, receipt } = receipts[i]
     if (config.VERBOSE) console.log(tx.txId, senderInfo)
@@ -56,6 +51,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
       receiptId: tx.txId,
       timestamp: tx.timestamp,
     })
+    receiptsToSend.push(receipts[i])
     receiptsMap.set(tx.txId, true)
     newestReceiptsMap.set(tx.txId, true)
     // console.log('Save', tx.txId)
@@ -111,8 +107,17 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
     combineTransactions.push(txObj)
     // Receipts size can be big, better to save per 100
     if (combineReceipts.length >= 100) {
-      await Receipt.bulkInsertReceipts(combineReceipts)
+      const cloneCombineReceipts = [...combineReceipts]
+      const cloneReceiptsToSend = [...receiptsToSend]
       combineReceipts = []
+      receiptsToSend = []
+      if (socketServer) {
+        let signedDataToSend = Crypto.sign({
+          receipts: cloneReceiptsToSend,
+        })
+        socketServer.emit('RECEIPT', signedDataToSend)
+      }
+      await Receipt.bulkInsertReceipts(cloneCombineReceipts)
     }
     if (combineAccounts.length >= bucketSize) {
       await Account.bulkInsertAccounts(combineAccounts)
@@ -126,6 +131,14 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
   // Receipts size can be big, better to save per 100
   if (combineReceipts.length > 0)
     await Receipt.bulkInsertReceipts(combineReceipts)
+  if (receiptsToSend.length > 0) {
+    if (socketServer) {
+      let signedDataToSend = Crypto.sign({
+        receipts: receiptsToSend,
+      })
+      socketServer.emit('RECEIPT', signedDataToSend)
+    }
+  }
   if (combineAccounts.length > 0)
     await Account.bulkInsertAccounts(combineAccounts)
   if (combineTransactions.length > 0)
