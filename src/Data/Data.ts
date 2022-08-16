@@ -784,7 +784,7 @@ async function selectNewDataSendersByConsensusRadius(
             if (socketClients.has(newSenderInfo.publicKey))
               socketClients.delete(newSenderInfo.publicKey)
             newSubsetList = newSubsetList.filter(
-              (node) => node.publicKey !== publicKey
+              (node) => node.publicKey !== newSenderInfo.publicKey
             )
             onceConnectedNodes.push(newSenderInfo.publicKey)
           }
@@ -829,7 +829,7 @@ async function getConsensusRadius() {
   const activeList = NodeList.getActiveList()
   let randomNode = activeList[Math.floor(Math.random() * activeList.length)]
   Logger.mainLogger.debug(
-    `Checking network configs from random node ${randomNode.ip}`
+    `Checking network configs from random node ${randomNode.ip}:${randomNode.port}`
   )
   let response: any = await P2P.getJson(
     `http://${randomNode.ip}:${randomNode.port}/netconfig`
@@ -845,7 +845,9 @@ async function getConsensusRadius() {
   return activeList.length
 }
 
-async function createDataTransferConnection(newSenderInfo) {
+export async function createDataTransferConnection(
+  newSenderInfo: NodeList.ConsensusNodeInfo
+) {
   initSocketClient(newSenderInfo)
   let count = 0
   while (!socketClients.has(newSenderInfo.publicKey) && count <= 50) {
@@ -897,6 +899,83 @@ async function createDataTransferConnection(newSenderInfo) {
   }
   sendDataRequest(newSender, dataRequest)
   return true
+}
+
+export async function subscribeMoreConsensorsByConsensusRadius() {
+  const calculatedConsensusRadius = await getConsensusRadius()
+  let consensusRadius = calculatedConsensusRadius
+  if (consensusRadius > 2) consensusRadius-- // Change default to 3 for now assuming nodesPerConsensusGroup 10
+  const activeList = NodeList.getActiveList()
+  if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
+  const totalNumberOfNodesToSubscribe = Math.ceil(
+    activeList.length / consensusRadius
+  )
+  Logger.mainLogger.debug(
+    'totalNumberOfNodesToSubscribe',
+    totalNumberOfNodesToSubscribe
+  )
+  console.log('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
+  for (let i = 0; i < activeList.length; i += consensusRadius) {
+    let subsetList = activeList.slice(i, i + consensusRadius)
+    if (config.VERBOSE)
+      console.log('Round', i, 'subsetList', subsetList, socketClients.keys())
+    let noNodeFromThisSubset = true
+    for (let node of Object.values(subsetList)) {
+      if (socketClients.has(node.publicKey)) {
+        if (config.VERBOSE) console.log('The node is found in this subset')
+        noNodeFromThisSubset = false
+      }
+    }
+
+    if (!noNodeFromThisSubset) {
+      Logger.mainLogger.debug(
+        'There is already node from this subset or node to rotate is not from this subset!'
+      )
+      console.log(
+        'There is already node from this subset or node to rotate is not from this subset!'
+      )
+      continue
+    }
+    // Pick a new dataSender
+    let newSenderInfo =
+      subsetList[Math.floor(Math.random() * subsetList.length)]
+    let connectionStatus = false
+    let retry = 0
+    let onceConnectedNodes = []
+    while (true && retry < consensusRadius) {
+      // Retry 5 times to get the new Sender
+      if (
+        !socketClients.has(newSenderInfo.publicKey) &&
+        !onceConnectedNodes.includes(newSenderInfo.publicKey)
+      ) {
+        connectionStatus = await createDataTransferConnection(newSenderInfo)
+        if (connectionStatus) {
+          if (noNodeFromThisSubset) await Utils.sleep(30000) // Start another node with 30s difference
+          break
+        } else {
+          if (socketClients.has(newSenderInfo.publicKey))
+            socketClients.delete(newSenderInfo.publicKey)
+          subsetList = subsetList.filter(
+            (node) => node.publicKey !== newSenderInfo.publicKey
+          )
+          onceConnectedNodes.push(newSenderInfo.publicKey)
+        }
+        socketConnectionsTracker.delete(newSenderInfo.publicKey)
+      }
+      if (subsetList.length > 0) {
+        newSenderInfo =
+          subsetList[Math.floor(Math.random() * subsetList.length)]
+      } else {
+        break
+      }
+      retry++
+    }
+  }
+  Logger.mainLogger.debug(
+    'Subscribed socketClients',
+    socketClients.size,
+    dataSenders.size
+  )
 }
 
 export function sendDataRequest(sender: DataSender, dataRequest: any) {
@@ -1912,6 +1991,79 @@ export async function syncGenesisAccountsFromConsensor(
   Logger.mainLogger.debug(`Total downloaded accounts`, totalDownloadedAccounts)
   // await storeAccountData(combineAccountsData);
   Logger.mainLogger.debug('Sync genesis accounts completed!')
+}
+
+export async function buildNodeListFromStoredCycle(
+  lastStoredCycle: Cycles.Cycle
+) {
+  Logger.mainLogger.debug('lastStoredCycle', lastStoredCycle)
+  Logger.mainLogger.debug(`Syncing till cycle ${lastStoredCycle.counter}...`)
+  const cyclesToGet = 2 * Math.floor(Math.sqrt(lastStoredCycle.active)) + 2
+  Logger.mainLogger.debug(`Cycles to get is ${cyclesToGet}`)
+
+  let CycleChain = []
+  const squasher = new ChangeSquasher()
+
+  CycleChain.unshift(lastStoredCycle)
+  squasher.addChange(parse(CycleChain[0]))
+
+  do {
+    // Get prevCycles from the network
+    let end: number = CycleChain[0].counter - 1
+    let start: number = end - cyclesToGet
+    if (start < 0) start = 0
+    if (end < start) end = start
+    Logger.mainLogger.debug(`Getting cycles ${start} - ${end}...`)
+    const prevCycles = await CycleDB.queryCycleRecordsBetween(start, end)
+
+    // If prevCycles is empty, start over
+    if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
+
+    prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
+
+    // Add prevCycles to our cycle chain
+    let prepended = 0
+    for (const prevCycle of prevCycles) {
+      // Prepend the cycle to our cycle chain
+      CycleChain.unshift(prevCycle)
+      squasher.addChange(parse(prevCycle))
+      prepended++
+
+      if (
+        squasher.final.updated.length >= activeNodeCount(lastStoredCycle) &&
+        squasher.final.added.length >= totalNodeCount(lastStoredCycle)
+      ) {
+        break
+      }
+    }
+
+    Logger.mainLogger.debug(
+      `Got ${
+        squasher.final.updated.length
+      } active nodes, need ${activeNodeCount(lastStoredCycle)}`
+    )
+    Logger.mainLogger.debug(
+      `Got ${squasher.final.added.length} total nodes, need ${totalNodeCount(
+        lastStoredCycle
+      )}`
+    )
+    if (squasher.final.added.length < totalNodeCount(lastStoredCycle))
+      Logger.mainLogger.debug(
+        'Short on nodes. Need to get more cycles. Cycle:' +
+          lastStoredCycle.counter
+      )
+
+    // If you weren't able to prepend any of the prevCycles, start over
+    if (prepended < 1) throw new Error('Unable to prepend any previous cycles')
+  } while (
+    squasher.final.updated.length < activeNodeCount(lastStoredCycle) ||
+    squasher.final.added.length < totalNodeCount(lastStoredCycle)
+  )
+
+  applyNodeListChange(squasher.final)
+  Logger.mainLogger.debug('NodeList after sync', NodeList.getActiveList())
+  Cycles.setCurrentCycleCounter(lastStoredCycle.counter)
+  Logger.mainLogger.debug('Latest cycle after sync', lastStoredCycle.counter)
 }
 
 export async function syncCyclesAndNodeList(

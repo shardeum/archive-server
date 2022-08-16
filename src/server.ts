@@ -72,7 +72,16 @@ async function start() {
 
   if (State.isFirst) {
     Logger.mainLogger.debug('We are first archiver. Starting archive-server')
+    let lastStoredCycle = await CycleDB.queryLatestCycleRecords(1)
+    if (lastStoredCycle && lastStoredCycle.length > 0) {
+      await Data.buildNodeListFromStoredCycle(lastStoredCycle[0])
+    }
+
     io = startServer()
+
+    if (lastStoredCycle && lastStoredCycle.length > 0) {
+      await Data.subscribeMoreConsensorsByConsensusRadius()
+    }
   } else {
     Logger.mainLogger.debug(
       'We are not first archiver. Syncing and starting archive-server'
