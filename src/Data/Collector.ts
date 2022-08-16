@@ -33,7 +33,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
   let combineReceipts = []
   let combineAccounts = []
   let combineTransactions = []
-  let receiptsToSend = []
+  // let receiptsToSend = []
   for (let i = 0; i < receipts.length; i++) {
     const { accounts, cycle, result, sign, tx, receipt } = receipts[i]
     if (config.VERBOSE) console.log(tx.txId, senderInfo)
@@ -51,7 +51,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
       receiptId: tx.txId,
       timestamp: tx.timestamp,
     })
-    receiptsToSend.push(receipts[i])
+    // receiptsToSend.push(receipts[i])
     receiptsMap.set(tx.txId, true)
     newestReceiptsMap.set(tx.txId, true)
     // console.log('Save', tx.txId)
@@ -107,13 +107,13 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
     combineTransactions.push(txObj)
     // Receipts size can be big, better to save per 100
     if (combineReceipts.length >= 100) {
-      const cloneCombineReceipts = [...combineReceipts]
-      const cloneReceiptsToSend = [...receiptsToSend]
+      let cloneCombineReceipts = [...combineReceipts]
+      // const cloneReceiptsToSend = [...receiptsToSend]
       combineReceipts = []
-      receiptsToSend = []
+      // receiptsToSend = []
       if (socketServer) {
         let signedDataToSend = Crypto.sign({
-          receipts: cloneReceiptsToSend,
+          receipts: cloneCombineReceipts,
         })
         socketServer.emit('RECEIPT', signedDataToSend)
       }
@@ -129,15 +129,16 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
     }
   }
   // Receipts size can be big, better to save per 100
-  if (combineReceipts.length > 0)
+  if (combineReceipts.length > 0) {
     await Receipt.bulkInsertReceipts(combineReceipts)
-  if (receiptsToSend.length > 0) {
+    // if (receiptsToSend.length > 0) {
     if (socketServer) {
       let signedDataToSend = Crypto.sign({
-        receipts: receiptsToSend,
+        receipts: combineReceipts,
       })
       socketServer.emit('RECEIPT', signedDataToSend)
     }
+    // }
   }
   if (combineAccounts.length > 0)
     await Account.bulkInsertAccounts(combineAccounts)
