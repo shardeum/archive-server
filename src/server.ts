@@ -80,7 +80,7 @@ async function start() {
     io = startServer()
 
     if (lastStoredCycle && lastStoredCycle.length > 0) {
-      await Data.subscribeMoreConsensorsByConsensusRadius()
+      await Data.subscribeNodeForDataTransfer()
     }
   } else {
     Logger.mainLogger.debug(
@@ -221,15 +221,6 @@ async function syncAndStartServer() {
     // Sync all state metadata until no older data is fetched from other archivers
     await Data.syncStateMetaData(State.activeArchivers)
   }
-  // Set randomly selected consensors as dataSender
-  let randomConsensor = NodeList.getRandomActiveNode()[0]
-  Data.addDataSenders({
-    nodeInfo: randomConsensor,
-    types: [
-      P2PTypes.SnapshotTypes.TypeNames.CYCLE,
-      P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
-    ],
-  })
 
   if (!config.experimentalSnapshot)
     // wait for one cycle before sending data request
@@ -237,33 +228,7 @@ async function syncAndStartServer() {
 
   // start fastify server
   io = startServer()
-
-  // After we've joined, select a consensus node as a dataSender
-  const dataRequest = Crypto.sign({
-    dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
-      P2PTypes.SnapshotTypes.TypeNames.CYCLE,
-      Cycles.getCurrentCycleCounter(),
-      randomConsensor.publicKey
-    ),
-    dataRequestStateMetaData:
-      Data.createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
-        P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
-        Cycles.lastProcessedMetaData,
-        randomConsensor.publicKey
-      ),
-    nodeInfo: State.getNodeInfo(),
-  })
-  const newSender: Data.DataSender = {
-    nodeInfo: randomConsensor,
-    types: [
-      P2PTypes.SnapshotTypes.TypeNames.CYCLE,
-      P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
-    ],
-    contactTimeout: Data.createContactTimeout(randomConsensor.publicKey),
-    replaceTimeout: Data.createReplaceTimeout(randomConsensor.publicKey),
-  }
-  Data.sendDataRequest(newSender, dataRequest)
-  Data.initSocketClient(randomConsensor)
+  await Data.subscribeNodeForDataTransfer()
 }
 
 export function isDebugMode(): boolean {

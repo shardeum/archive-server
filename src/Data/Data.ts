@@ -523,6 +523,35 @@ export async function replaceDataSender(
   }
 }
 
+export async function subscribeNodeForDataTransfer() {
+  if (config.experimentalSnapshot) {
+    if (selectByConsensuRadius) await subscribeMoreConsensorsByConsensusRadius()
+    else if (multipleDataSenders)
+      subscribeMoreConsensors(consensorsCountToSubscribe)
+    else await subscribeRandomNodeForDataTransfer()
+  } else {
+    await subscribeRandomNodeForDataTransfer()
+  }
+}
+
+export async function subscribeRandomNodeForDataTransfer() {
+  let retry = 0
+  let nodeSubscribedFail = true
+  // Set randomly select a consensor as dataSender
+  while (nodeSubscribedFail && retry < 10) {
+    let randomConsensor = NodeList.getRandomActiveNode()[0]
+    let connectionStatus = await createDataTransferConnection(randomConsensor)
+    if (connectionStatus) nodeSubscribedFail = false
+    else retry++
+  }
+  if (nodeSubscribedFail) {
+    Logger.mainLogger.error(
+      'The archiver fails to subscribe to any node for data transfer! and exit the network.'
+    )
+    await State.exitArchiver()
+  }
+}
+
 /**
  * Sets timeout to current cycle duration + some padding
  * Removes sender from dataSenders on timeout
@@ -950,7 +979,7 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
       ) {
         connectionStatus = await createDataTransferConnection(newSenderInfo)
         if (connectionStatus) {
-          if (noNodeFromThisSubset) await Utils.sleep(30000) // Start another node with 30s difference
+          // if (noNodeFromThisSubset) await Utils.sleep(30000) // Start another node with 30s difference
           break
         } else {
           if (socketClients.has(newSenderInfo.publicKey))
@@ -2063,6 +2092,7 @@ export async function buildNodeListFromStoredCycle(
   applyNodeListChange(squasher.final)
   Logger.mainLogger.debug('NodeList after sync', NodeList.getActiveList())
   Cycles.setCurrentCycleCounter(lastStoredCycle.counter)
+  Cycles.setCurrentCycleDuration(lastStoredCycle.duration)
   Logger.mainLogger.debug('Latest cycle after sync', lastStoredCycle.counter)
 }
 

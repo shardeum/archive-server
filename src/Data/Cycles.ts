@@ -54,6 +54,10 @@ export function getLostNodes(from: number, to: number) {
   })
 }
 
+export function setCurrentCycleDuration(duration: number) {
+  currentCycleDuration = duration * 1000
+}
+
 export function setCurrentCycleCounter(value: number) {
   currentCycleCounter = value
 }
