@@ -2067,8 +2067,7 @@ export async function buildNodeListFromStoredCycle(
     }
 
     Logger.mainLogger.debug(
-      `Got ${
-        squasher.final.updated.length
+      `Got ${squasher.final.updated.length
       } active nodes, need ${activeNodeCount(lastStoredCycle)}`
     )
     Logger.mainLogger.debug(
@@ -2079,7 +2078,7 @@ export async function buildNodeListFromStoredCycle(
     if (squasher.final.added.length < totalNodeCount(lastStoredCycle))
       Logger.mainLogger.debug(
         'Short on nodes. Need to get more cycles. Cycle:' +
-          lastStoredCycle.counter
+        lastStoredCycle.counter
       )
 
     // If you weren't able to prepend any of the prevCycles, start over
@@ -2150,8 +2149,7 @@ export async function syncCyclesAndNodeList(
     }
 
     Logger.mainLogger.debug(
-      `Got ${
-        squasher.final.updated.length
+      `Got ${squasher.final.updated.length
       } active nodes, need ${activeNodeCount(cycleToSyncTo)}`
     )
     Logger.mainLogger.debug(
@@ -2162,7 +2160,7 @@ export async function syncCyclesAndNodeList(
     if (squasher.final.added.length < totalNodeCount(cycleToSyncTo))
       Logger.mainLogger.debug(
         'Short on nodes. Need to get more cycles. Cycle:' +
-          cycleToSyncTo.counter
+        cycleToSyncTo.counter
       )
 
     // If you weren't able to prepend any of the prevCycles, start over
@@ -2204,7 +2202,7 @@ export async function syncCyclesAndNodeList(
   }
   let savedCycleRecord = CycleChain[0]
   while (endCycle >= lastStoredCycleCount) {
-    let nextEnd: number = endCycle - 1000 // Downloading max 10000 cycles each time
+    let nextEnd: number = endCycle - 10000 // Downloading max 1000 cycles each time
     if (nextEnd < 0) nextEnd = -1
     Logger.mainLogger.debug(`Getting cycles ${endCycle} - ${nextEnd}...`)
     const prevCycles = await fetchCycleRecords(
@@ -2271,8 +2269,7 @@ async function downloadArchivedCycles(
       `Downloading archive from cycle ${lastData} to cycle ${lastData + 5}`
     )
     let response: any = await P2P.getJson(
-      `http://${archiver.ip}:${
-        archiver.port
+      `http://${archiver.ip}:${archiver.port
       }/full-archive?start=${lastData}&end=${lastData + 5}`
     )
     if (response && response.archivedCycles) {
@@ -2308,8 +2305,7 @@ export async function syncReceipt(
   ) {
     return false
   }
-  const { totalCycles, totalAccounts, totalTransactions, totalReceipts } =
-    response
+  const { totalCycles, totalReceipts } = response
   await downloadReceipts(totalReceipts, lastStoredReceiptCount, randomArchiver)
   Logger.mainLogger.debug('Sync receipts data completed!')
   return false
@@ -2328,7 +2324,7 @@ export const downloadReceipts = async (
       let res: any = await P2P.getJson(
         `http://${archiver.ip}:${archiver.port}/totalData`
       )
-      if (res && res.totalReceipts < 0) {
+      if (res && res.totalReceipts > 0) {
         if (res.totalReceipts > to) to = res.totalReceipts
         Logger.mainLogger.debug('totalReceiptsToSync', to)
       }
@@ -2338,19 +2334,159 @@ export const downloadReceipts = async (
       `http://${archiver.ip}:${archiver.port}/receipt?start=${start}&end=${end}`
     )
     if (response && response.receipts) {
-      if (response.receipts.length < 1000) {
-        complete = true
-        Logger.mainLogger.debug('Download receipts completed')
-      }
       const downloadedReceipts = response.receipts
       Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
       await storeReceiptData(downloadedReceipts)
+      if (response.receipts.length < 1000) {
+        let res: any = await P2P.getJson(
+          `http://${archiver.ip}:${archiver.port}/totalData`
+        )
+        start += response.receipts.length
+        end = start + 1000
+        if (res && res.totalReceipts > 0) {
+          if (res.totalReceipts > to) to = res.totalReceipts
+          if (start === to) {
+            complete = true
+            Logger.mainLogger.debug('Download receipts completed')
+          }
+          continue
+        }
+      }
     } else {
       Logger.mainLogger.debug('Invalid download response')
     }
     start = end
     end += 1000
   }
+}
+
+export const syncCyclesAndReceiptsData = async (
+  activeArchivers: State.ArchiverNodeInfo[],
+  lastStoredCycleCount: number = 0,
+  lastStoredReceiptCount: number = 0
+) => {
+  const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
+  let response: any = await P2P.getJson(
+    `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`
+  )
+  if (
+    !response ||
+    response.totalCycles < 0 ||
+    response.totalAccounts < 0 ||
+    response.totalTransactions < 0 ||
+    response.totalReceipts < 0
+  ) {
+    return false
+  }
+  const { totalCycles, totalReceipts } = response
+  Logger.mainLogger.debug(
+    totalCycles,
+    lastStoredCycleCount,
+    totalReceipts,
+    lastStoredReceiptCount
+  )
+  if (
+    totalCycles === lastStoredCycleCount &&
+    totalReceipts === lastStoredReceiptCount
+  ) {
+    Logger.mainLogger.debug(
+      'The archiver has synced the lastest cycle and receipts data!'
+    )
+    return false
+  }
+  let totalReceiptsToSync = totalReceipts
+  let totalCyclesToSync = totalCycles
+  let completeForReceipt = false
+  let completeForCycle = false
+  let startReceipt = lastStoredReceiptCount
+  let startCycle = lastStoredCycleCount
+  let endReceipt = startReceipt + 1000
+  let endCycle = startCycle + 1000
+
+  while (!completeForReceipt || !completeForCycle) {
+    if (endReceipt >= totalReceiptsToSync || endCycle >= totalCyclesToSync) {
+      response = await P2P.getJson(
+        `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`
+      )
+      if (
+        !response ||
+        response.totalCycles < 0 ||
+        response.totalAccounts < 0 ||
+        response.totalTransactions < 0 ||
+        response.totalReceipts < 0
+      ) {
+        if (totalReceiptsToSync > response.totalReceipts) {
+          completeForReceipt = false
+          totalReceiptsToSync = response.totalReceipts
+        }
+        if (totalCyclesToSync > response.totalCycles) {
+          completeForCycle = false
+          totalCyclesToSync = response.totalCycles
+        }
+        if (totalReceiptsToSync === startReceipt) {
+          completeForReceipt = true
+        }
+        if (totalCyclesToSync === startCycle) {
+          completeForCycle = true
+        }
+        Logger.mainLogger.debug(
+          'totalReceiptsToSync',
+          totalReceiptsToSync,
+          'totalCyclesToSync',
+          totalCyclesToSync
+        )
+      }
+    }
+    if (!completeForReceipt) {
+      Logger.mainLogger.debug(
+        `Downloading receipts from ${startReceipt} to ${endReceipt}`
+      )
+      const res: any = await P2P.getJson(
+        `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?start=${startReceipt}&end=${endReceipt}`
+      )
+      if (res && res.receipts) {
+        const downloadedReceipts = response.receipts
+        Logger.mainLogger.debug(
+          `Downloaded receipts`,
+          downloadedReceipts.length
+        )
+        await storeReceiptData(downloadedReceipts)
+        if (res.receipts.length < 1000) {
+          startReceipt += res.receipts.length
+          endCycle = startReceipt + 1000
+          continue
+        }
+      } else {
+        Logger.mainLogger.debug('Invalid download response')
+      }
+      startReceipt = endReceipt
+      endReceipt += 1000
+    }
+    if (!completeForCycle) {
+      Logger.mainLogger.debug(
+        `Downloading cycles from ${startCycle} to ${endCycle}`
+      )
+      const res: any = await P2P.getJson(
+        `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo?start=${startCycle}&end=${endCycle}`
+      )
+      if (res && res.cycleInfo) {
+        Logger.mainLogger.debug(`Downloaded cycles`, res.cycleInfo.length)
+        const cycles = res.cycleInfo
+        await storeCycleData(cycles)
+        if (res.cycleInfo.length < 1000) {
+          startCycle += res.cycleInfo.length
+          endCycle = startCycle + 1000
+          continue
+        }
+      } else {
+        Logger.mainLogger.debug('Cycle', 'Invalid download response')
+      }
+      startCycle = endCycle
+      endCycle += 1000
+    }
+  }
+  Logger.mainLogger.debug('Sync Cycle and Receipt data completed!')
+  return false
 }
 
 // export const downloadAndSaveAccounts = async (
@@ -2406,16 +2542,14 @@ export async function compareWithOldReceiptsData(
 ) {
   let downloadedReceipts
   const response: any = await P2P.getJson(
-    `http://${archiver.ip}:${archiver.port}/receipt?start=${
-      lastReceiptCount - 10
+    `http://${archiver.ip}:${archiver.port}/receipt?start=${lastReceiptCount - 10
     }&end=${lastReceiptCount}`
   )
   if (response && response.receipts) {
     downloadedReceipts = response.receipts
   } else {
     throw Error(
-      `Can't fetch data from receipt ${
-        lastReceiptCount - 10
+      `Can't fetch data from receipt ${lastReceiptCount - 10
       } to receipt ${lastReceiptCount}  from archiver ${archiver}`
     )
   }
@@ -2454,16 +2588,14 @@ export async function compareWithOldCyclesData(
 ) {
   let downloadedCycles
   const response: any = await P2P.getJson(
-    `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${
-      lastCycleCounter - 10
+    `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${lastCycleCounter - 10
     }&end=${lastCycleCounter - 1}`
   )
   if (response && response.cycleInfo) {
     downloadedCycles = response.cycleInfo
   } else {
     throw Error(
-      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${
-        lastCycleCounter - 1
+      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${lastCycleCounter - 1
       }  from archiver ${archiver}`
     )
   }
@@ -2586,7 +2718,7 @@ export async function syncStateMetaData(
       )
       if (
         downloadedNetworkReceiptHash ===
-          networkReceiptHashesFromRecords.get(counter) ||
+        networkReceiptHashesFromRecords.get(counter) ||
         downloadedNetworkReceiptHash === calculatedReceiptHash
       ) {
         if (

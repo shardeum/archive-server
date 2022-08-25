@@ -118,6 +118,7 @@ async function syncAndStartServer() {
   // Validate data if there is any in db
   let lastStoredReceiptCount = await ReceiptDB.queryReceiptCount()
   let lastStoredCycleCount = await CycleDB.queryCyleCount()
+  let lastStoredCycleInfo = await CycleDB.queryLatestCycleRecords(1)
   const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
   let response: any = await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`
@@ -155,7 +156,7 @@ async function syncAndStartServer() {
     }
     lastStoredCycleCount = cycleResult.cycle
   }
-  if (lastStoredCycleCount > 0) {
+  if (lastStoredReceiptCount > 0) {
     const receiptResult = await Data.compareWithOldReceiptsData(
       randomArchiver,
       lastStoredReceiptCount
@@ -217,6 +218,26 @@ async function syncAndStartServer() {
 
   if (config.experimentalSnapshot) {
     await Data.syncReceipt(State.activeArchivers, lastStoredReceiptCount)
+    // After receipt data syncing completes, check cycle and receipt again to be sure it's not missing any data
+    lastStoredReceiptCount = await ReceiptDB.queryReceiptCount()
+    lastStoredCycleCount = await CycleDB.queryCyleCount()
+    lastStoredCycleInfo = await CycleDB.queryLatestCycleRecords(1)
+    if (
+      lastStoredCycleCount &&
+      lastStoredCycleInfo &&
+      lastStoredCycleInfo.length > 0
+    ) {
+      if (lastStoredCycleCount - 1 !== lastStoredCycleInfo[0].counter) {
+        throw Error(
+          `The archiver has ${lastStoredCycleCount} and the latest stored cycle is ${lastStoredCycleInfo[0].counter}`
+        )
+      }
+      await Data.syncCyclesAndReceiptsData(
+        State.activeArchivers,
+        lastStoredCycleCount,
+        lastStoredReceiptCount
+      )
+    }
   } else {
     // Sync all state metadata until no older data is fetched from other archivers
     await Data.syncStateMetaData(State.activeArchivers)
