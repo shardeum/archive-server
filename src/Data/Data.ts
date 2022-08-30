@@ -2472,6 +2472,7 @@ export const syncCyclesAndReceiptsData = async (
       if (res && res.cycleInfo) {
         Logger.mainLogger.debug(`Downloaded cycles`, res.cycleInfo.length)
         const cycles = res.cycleInfo
+        processCycles(cycles)
         await storeCycleData(cycles)
         if (res.cycleInfo.length < 1000) {
           startCycle += res.cycleInfo.length
