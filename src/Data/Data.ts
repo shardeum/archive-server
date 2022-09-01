@@ -793,12 +793,9 @@ async function selectNewDataSendersByConsensusRadius(
         newSubsetList[Math.floor(Math.random() * newSubsetList.length)]
       let connectionStatus = false
       let retry = 0
-      let onceConnectedNodes = [publicKey]
       while (true && retry < consensusRadius) {
-        // Retry 5 times to get the new Sender
         if (
-          !socketClients.has(newSenderInfo.publicKey) &&
-          !onceConnectedNodes.includes(newSenderInfo.publicKey)
+          !socketClients.has(newSenderInfo.publicKey) && publicKey !== newSenderInfo.publicKey
         ) {
           connectionStatus = await createDataTransferConnection(newSenderInfo)
           if (connectionStatus) {
@@ -807,7 +804,7 @@ async function selectNewDataSendersByConsensusRadius(
               unsubscribeDataSender(publicKey)
               nodeIsUnsubscribed = false
             }
-            if (noNodeFromThisSubset) await Utils.sleep(30000) // Start another node with 30s difference
+            // if (noNodeFromThisSubset) await Utils.sleep(30000) // Start another node with 30s difference
             break
           } else {
             if (socketClients.has(newSenderInfo.publicKey))
@@ -815,7 +812,6 @@ async function selectNewDataSendersByConsensusRadius(
             newSubsetList = newSubsetList.filter(
               (node) => node.publicKey !== newSenderInfo.publicKey
             )
-            onceConnectedNodes.push(newSenderInfo.publicKey)
           }
           socketConnectionsTracker.delete(newSenderInfo.publicKey)
         }
@@ -837,11 +833,72 @@ async function selectNewDataSendersByConsensusRadius(
   }
   // Temp hack to pick half of the nodes not to miss data at all
   if (calculatedConsensusRadius === 2) {
-    const subsetList = activeList.slice(0, Math.floor(activeList.length / 2))
-    for (let node of Object.values(subsetList)) {
-      if (!socketClients.has(node.publicKey)) {
-        let connectionStatus = await createDataTransferConnection(node)
-        if (connectionStatus) await Utils.sleep(10000) // sleep for 10
+    // const subsetList = activeList.slice(0, Math.floor(activeList.length / 2))
+    // for (let node of Object.values(subsetList)) {
+    //   if (!socketClients.has(node.publicKey)) {
+    //     let connectionStatus = await createDataTransferConnection(node)
+    //     if (connectionStatus) await Utils.sleep(10000) // sleep for 10
+    //   }
+    // }
+    let extraConsensorsToSubscribe = Math.floor((activeList.length / 4) * 3)
+    if (socketClients.size < extraConsensorsToSubscribe) {
+      extraConsensorsToSubscribe -= socketClients.size
+      Logger.mainLogger.debug(
+        'extraConsensorsToSubscribe',
+        extraConsensorsToSubscribe
+      )
+      const retryTimes = 2
+      let subscribedSuccess = 0
+      let retry = 0
+
+      let remainingActiveList = [...activeList]
+      if (subscribedSuccess < extraConsensorsToSubscribe) {
+        for (const key of socketClients.keys()) {
+          remainingActiveList = remainingActiveList.filter(
+            (node) => node.publicKey !== key
+          )
+        }
+        if (config.VERBOSE)
+          Logger.mainLogger.debug('remainingActiveList', remainingActiveList, socketClients.keys())
+      }
+
+      while (subscribedSuccess < extraConsensorsToSubscribe) {
+        if (retry === retryTimes) {
+          break
+        }
+        if (remainingActiveList.length === 0) {
+          remainingActiveList = [...activeList]
+          if (subscribedSuccess < extraConsensorsToSubscribe) {
+            for (const key of socketClients.keys()) {
+              remainingActiveList = remainingActiveList.filter(
+                (node) => node.publicKey !== key
+              )
+            }
+          }
+          if (remainingActiveList.length === 0) {
+            break
+          }
+          retry++
+        }
+        let newSenderInfo =
+          remainingActiveList[
+          Math.floor(Math.random() * remainingActiveList.length)
+          ]
+        if (!socketClients.has(newSenderInfo.publicKey)) {
+          let connectionStatus = await createDataTransferConnection(
+            newSenderInfo
+          )
+          if (connectionStatus) {
+            subscribedSuccess++
+          } else {
+            if (socketClients.has(newSenderInfo.publicKey))
+              socketClients.delete(newSenderInfo.publicKey)
+          }
+          socketConnectionsTracker.delete(newSenderInfo.publicKey)
+        }
+        remainingActiveList = remainingActiveList.filter(
+          (node) => node.publicKey !== newSenderInfo.publicKey
+        )
       }
     }
   }
@@ -970,13 +1027,9 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
       subsetList[Math.floor(Math.random() * subsetList.length)]
     let connectionStatus = false
     let retry = 0
-    let onceConnectedNodes = []
     while (true && retry < consensusRadius) {
       // Retry 5 times to get the new Sender
-      if (
-        !socketClients.has(newSenderInfo.publicKey) &&
-        !onceConnectedNodes.includes(newSenderInfo.publicKey)
-      ) {
+      if (!socketClients.has(newSenderInfo.publicKey)) {
         connectionStatus = await createDataTransferConnection(newSenderInfo)
         if (connectionStatus) {
           // if (noNodeFromThisSubset) await Utils.sleep(30000) // Start another node with 30s difference
@@ -987,7 +1040,6 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
           subsetList = subsetList.filter(
             (node) => node.publicKey !== newSenderInfo.publicKey
           )
-          onceConnectedNodes.push(newSenderInfo.publicKey)
         }
         socketConnectionsTracker.delete(newSenderInfo.publicKey)
       }
@@ -998,6 +1050,79 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
         break
       }
       retry++
+    }
+  }
+  // Temp hack to pick half of the nodes not to miss data at all
+  if (calculatedConsensusRadius === 2) {
+    // const subsetList = activeList.slice(0, Math.floor(activeList.length / 2))
+    // for (let node of Object.values(subsetList)) {
+    //   if (!socketClients.has(node.publicKey)) {
+    //     let connectionStatus = await createDataTransferConnection(node)
+    //     if (connectionStatus) await Utils.sleep(10000) // sleep for 10
+    //   }
+    // }
+    let extraConsensorsToSubscribe = Math.floor((activeList.length / 4) * 3)
+    if (socketClients.size < extraConsensorsToSubscribe) {
+      extraConsensorsToSubscribe -= socketClients.size
+      Logger.mainLogger.debug(
+        'extraConsensorsToSubscribe',
+        extraConsensorsToSubscribe
+      )
+      const retryTimes = 2
+      let subscribedSuccess = 0
+      let retry = 0
+
+      let remainingActiveList = [...activeList]
+      if (subscribedSuccess < extraConsensorsToSubscribe) {
+        for (const key of socketClients.keys()) {
+          remainingActiveList = remainingActiveList.filter(
+            (node) => node.publicKey !== key
+          )
+        }
+        if (config.VERBOSE)
+          Logger.mainLogger.debug('remainingActiveList', remainingActiveList.length, socketClients.keys())
+      }
+
+      while (subscribedSuccess < extraConsensorsToSubscribe) {
+        if (retry === retryTimes) {
+          break
+        }
+        if (remainingActiveList.length === 0) {
+          remainingActiveList = [...activeList]
+          if (subscribedSuccess < extraConsensorsToSubscribe) {
+            for (const key of socketClients.keys()) {
+              remainingActiveList = remainingActiveList.filter(
+                (node) => node.publicKey !== key
+              )
+            }
+          }
+          if (remainingActiveList.length === 0) {
+            break
+          }
+          Logger.mainLogger.debug('Boom2', remainingActiveList.length, socketClients.keys())
+          retry++
+        }
+        let newSenderInfo =
+          remainingActiveList[
+          Math.floor(Math.random() * remainingActiveList.length)
+          ]
+        Logger.mainLogger.debug('newSenderInfo', newSenderInfo, remainingActiveList)
+        if (!socketClients.has(newSenderInfo.publicKey)) {
+          let connectionStatus = await createDataTransferConnection(
+            newSenderInfo
+          )
+          if (connectionStatus) {
+            subscribedSuccess++
+          } else {
+            if (socketClients.has(newSenderInfo.publicKey))
+              socketClients.delete(newSenderInfo.publicKey)
+          }
+          socketConnectionsTracker.delete(newSenderInfo.publicKey)
+        }
+        remainingActiveList = remainingActiveList.filter(
+          (node) => node.publicKey !== newSenderInfo.publicKey
+        )
+      }
     }
   }
   Logger.mainLogger.debug(
@@ -2296,13 +2421,7 @@ export async function syncReceipt(
   let response: any = await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`
   )
-  if (
-    !response ||
-    response.totalCycles < 0 ||
-    response.totalAccounts < 0 ||
-    response.totalTransactions < 0 ||
-    response.totalReceipts < 0
-  ) {
+  if (!response || response.totalReceipts < 0) {
     return false
   }
   const { totalCycles, totalReceipts } = response
@@ -2369,13 +2488,7 @@ export const syncCyclesAndReceiptsData = async (
   let response: any = await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`
   )
-  if (
-    !response ||
-    response.totalCycles < 0 ||
-    response.totalAccounts < 0 ||
-    response.totalTransactions < 0 ||
-    response.totalReceipts < 0
-  ) {
+  if (!response || response.totalCycles < 0 || response.totalReceipts < 0) {
     return false
   }
   const { totalCycles, totalReceipts } = response
@@ -2408,18 +2521,12 @@ export const syncCyclesAndReceiptsData = async (
       response = await P2P.getJson(
         `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`
       )
-      if (
-        !response ||
-        response.totalCycles < 0 ||
-        response.totalAccounts < 0 ||
-        response.totalTransactions < 0 ||
-        response.totalReceipts < 0
-      ) {
-        if (totalReceiptsToSync > response.totalReceipts) {
+      if (response && response.totalReceipts && response.totalCycles) {
+        if (response.totalReceipts !== totalReceiptsToSync) {
           completeForReceipt = false
           totalReceiptsToSync = response.totalReceipts
         }
-        if (totalCyclesToSync > response.totalCycles) {
+        if (response.totalCycles !== totalCyclesToSync) {
           completeForCycle = false
           totalCyclesToSync = response.totalCycles
         }
@@ -2445,15 +2552,15 @@ export const syncCyclesAndReceiptsData = async (
         `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?start=${startReceipt}&end=${endReceipt}`
       )
       if (res && res.receipts) {
-        const downloadedReceipts = response.receipts
+        const downloadedReceipts = res.receipts
         Logger.mainLogger.debug(
           `Downloaded receipts`,
           downloadedReceipts.length
         )
         await storeReceiptData(downloadedReceipts)
-        if (res.receipts.length < 1000) {
-          startReceipt += res.receipts.length
-          endCycle = startReceipt + 1000
+        if (downloadedReceipts.length < 1000) {
+          startReceipt += downloadedReceipts.length
+          endReceipt = startReceipt + 1000
           continue
         }
       } else {
