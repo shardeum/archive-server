@@ -77,10 +77,45 @@ async function start() {
       await Data.buildNodeListFromStoredCycle(lastStoredCycle[0])
     }
 
-    io = startServer()
-
     if (lastStoredCycle && lastStoredCycle.length > 0) {
+      // Seems you got restarted, and there are no other archivers to check; sends join request to the nodes first
+      let isJoined = false
+      let firstTime = true
+      let cycleDuration = Cycles.currentCycleDuration
+      let checkFromConsensor = true
+      do {
+        try {
+          // Get active nodes from Archiver
+          const nodeList = NodeList.getActiveList()
+
+          // try to join the network
+          isJoined = await Data.joinNetwork(nodeList, firstTime, checkFromConsensor)
+        } catch (err: any) {
+          Logger.mainLogger.error('Error while joining network:')
+          Logger.mainLogger.error(err)
+          Logger.mainLogger.error(err.stack)
+          Logger.mainLogger.debug(
+            `Trying to join again in ${cycleDuration} seconds...`
+          )
+          await Utils.sleep(cycleDuration * 1000)
+        }
+        firstTime = false
+      } while (!isJoined)
+
+      /**
+       * [NOTE] [AS] There's a possibility that we could get stuck in this loop
+       * if the joinRequest was sent in the wrong cycle quarter (Q2, Q3, or Q4).
+       *
+       * Since we've dealt with this problem in shardus-global-server, it might be
+       * good to refactor this code to do what shardus-global-server does to join
+       * the network.
+       */
+
+      Logger.mainLogger.debug('We have successfully joined the network')
+      io = startServer()
       await Data.subscribeNodeForDataTransfer()
+    } else {
+      io = startServer()
     }
   } else {
     Logger.mainLogger.debug(

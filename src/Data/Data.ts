@@ -1235,15 +1235,19 @@ function calcIncomingTimes(record: Cycle) {
 
 export async function joinNetwork(
   nodeList: NodeList.ConsensusNodeInfo[],
-  isFirstTime: boolean
+  isFirstTime: boolean,
+  checkFromConsensor: boolean = false
 ): Promise<boolean> {
   Logger.mainLogger.debug('Is firstTime', isFirstTime)
   if (!isFirstTime) {
-    const isJoined = await checkJoinStatus()
+    let isJoined
+    if (checkFromConsensor) isJoined = await checkJoinStatusFromConsensor(nodeList)
+    else isJoined = await checkJoinStatus()
     if (isJoined) {
       return isJoined
     }
   }
+  Logger.mainLogger.debug('nodeList To Submit Join Request', nodeList)
   // try to get latestCycleRecord with a robust query
   const latestCycle = await getNewestCycleFromConsensors(nodeList)
 
@@ -1356,6 +1360,38 @@ export function checkJoinStatus(): Promise<boolean> {
         Logger.mainLogger.debug('Joined archivers', joinedArchivers)
 
         let isJoind = [...joinedArchivers, ...refreshedArchivers].find(
+          (a: any) => a.publicKey === ourNodeInfo.publicKey
+        )
+        Logger.mainLogger.debug('isJoind', isJoind)
+        resolve(isJoind)
+      } else {
+        resolve(false)
+      }
+    } catch (e) {
+      Logger.mainLogger.error(e)
+      resolve(false)
+    }
+  })
+}
+
+export function checkJoinStatusFromConsensor(nodeList: NodeList.ConsensusNodeInfo[]): Promise<boolean> {
+  Logger.mainLogger.debug('Checking join status from consenosr')
+  const ourNodeInfo = State.getNodeInfo()
+
+  return new Promise(async (resolve) => {
+    const latestCycle = await getNewestCycleFromConsensors(nodeList)
+    try {
+      if (
+        latestCycle &&
+        latestCycle.joinedArchivers &&
+        latestCycle.refreshedArchivers
+      ) {
+        let joinedArchivers = latestCycle.joinedArchivers
+        let refreshedArchivers = latestCycle.refreshedArchivers
+        Logger.mainLogger.debug('cycle counter', latestCycle.counter)
+        Logger.mainLogger.debug('Joined archivers', joinedArchivers)
+
+        let isJoind: any = [...joinedArchivers, ...refreshedArchivers].find(
           (a: any) => a.publicKey === ourNodeInfo.publicKey
         )
         Logger.mainLogger.debug('isJoind', isJoind)
