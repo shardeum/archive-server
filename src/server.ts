@@ -89,7 +89,11 @@ async function start() {
           const nodeList = NodeList.getActiveList()
 
           // try to join the network
-          isJoined = await Data.joinNetwork(nodeList, firstTime, checkFromConsensor)
+          isJoined = await Data.joinNetwork(
+            nodeList,
+            firstTime,
+            checkFromConsensor
+          )
         } catch (err: any) {
           Logger.mainLogger.error('Error while joining network:')
           Logger.mainLogger.error(err)
@@ -459,13 +463,20 @@ function startServer() {
       } else {
         // cache is cold, remake cache
 
-        let nodeList = NodeList.getActiveList()
+        const NODE_COUNT = Math.min(
+          config.N_NODELIST,
+          NodeList.getActiveList().length
+        )
         // If we dont have any active nodes, send back the first node in our list
-        if (nodeList.length < 1) {
-          nodeList = NodeList.getList().slice(0, 1)
-        }
+        let nodeList: NodeList.ConsensusNodeInfo[] =
+          NODE_COUNT < 1
+            ? NodeList.getList().slice(0, 1)
+            : NodeList.getRandomActiveNode(NODE_COUNT)
+        let sortedNodeList = [...nodeList].sort((a: any, b: any) =>
+          a.id > b.id ? 1 : -1
+        )
         const res = Crypto.sign({
-          nodeList: nodeList.sort((a: any, b: any) => (a.id > b.id ? 1 : -1)),
+          nodeList: sortedNodeList,
         })
 
         // Update cache
@@ -669,7 +680,14 @@ function startServer() {
   })
 
   server.get('/receipt', async (_request, reply) => {
-    let err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
+    let err = Utils.validateTypes(_request.query, {
+      start: 's?',
+      end: 's?',
+      startCycle: 's?',
+      endCycle: 's?',
+      count: 's?',
+      page: 's?',
+    })
     if (err) {
       reply.send(Crypto.sign({ success: false, error: err }))
       return

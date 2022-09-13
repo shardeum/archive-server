@@ -166,3 +166,20 @@ export async function queryReceiptCount() {
     else receipts = 0;
     return receipts;
 }
+
+export async function queryReceiptCountByCycles(start: number, end: number) {
+    let receipts;
+    try {
+        const sql = `SELECT cycle, COUNT(*) FROM receipts GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
+        receipts = await db.get(sql, [start, end]);
+    } catch (e) {
+        Logger.mainLogger.error(e);
+    }
+    if (config.VERBOSE) {
+        Logger.mainLogger.debug('Receipt count by cycle', receipts);
+    }
+    console.log('Receipt count by cycle', receipts)
+    if (receipts) receipts = receipts['COUNT(*)'];
+    else receipts = 0;
+    return receipts;
+}
