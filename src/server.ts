@@ -159,6 +159,7 @@ async function syncAndStartServer() {
   let lastStoredCycleCount = await CycleDB.queryCyleCount()
   let lastStoredCycleInfo = await CycleDB.queryLatestCycleRecords(1)
   const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
+  let lastStoredReceiptCycle = 0
   let response: any = await P2P.getJson(
     `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`
   )
@@ -184,6 +185,7 @@ async function syncAndStartServer() {
     )
   }
   if (lastStoredCycleCount > 0) {
+    Logger.mainLogger.debug('Validating old cycles data!')
     const cycleResult = await Data.compareWithOldCyclesData(
       randomArchiver,
       lastStoredCycleCount
@@ -196,17 +198,32 @@ async function syncAndStartServer() {
     lastStoredCycleCount = cycleResult.cycle
   }
   if (lastStoredReceiptCount > 0) {
+    Logger.mainLogger.debug('Validating old receipts data!')
+    // const receiptResult = await Data.compareWithOldReceiptsData(
+    //   randomArchiver,
+    //   lastStoredReceiptCount
+    // )
+    // if (!receiptResult.success) {
+    //   throw Error(
+    //     'The last saved 10 receipts data does not match with the archiver data! Clear the DB and start the server again!'
+    //   )
+    // }
+    // lastStoredReceiptCount =
+    //   lastStoredReceiptCount - receiptResult.receiptsToMatchCount
+
+    let lastStoredReceiptInfo = await ReceiptDB.queryLatestReceipts(1)
+    if (lastStoredReceiptInfo && lastStoredReceiptInfo.length > 0)
+      lastStoredReceiptCycle = lastStoredReceiptInfo[0].cycle
     const receiptResult = await Data.compareWithOldReceiptsData(
       randomArchiver,
-      lastStoredReceiptCount
+      lastStoredReceiptCycle
     )
     if (!receiptResult.success) {
       throw Error(
-        'The last saved 10 receipts data does not match with the archiver data! Clear the DB and start the server again!'
+        'The last saved receipts of last 10 cycles data do not match with the archiver data! Clear the DB and start the server again!'
       )
     }
-    lastStoredReceiptCount =
-      lastStoredReceiptCount - receiptResult.receiptsToMatchCount
+    lastStoredReceiptCycle = receiptResult.matchedCycle
   }
 
   Logger.mainLogger.debug(
@@ -256,7 +273,15 @@ async function syncAndStartServer() {
   await Data.syncCyclesAndNodeList(State.activeArchivers, lastStoredCycleCount)
 
   if (config.experimentalSnapshot) {
-    await Data.syncReceipt(State.activeArchivers, lastStoredReceiptCount)
+    if (lastStoredReceiptCount === 0)
+      await Data.syncReceipts(State.activeArchivers, lastStoredReceiptCount)
+    else {
+      Logger.mainLogger.debug('lastStoredReceiptCycle', lastStoredReceiptCycle)
+      await Data.syncReceiptsByCycle(
+        State.activeArchivers,
+        lastStoredReceiptCycle
+      )
+    }
     // After receipt data syncing completes, check cycle and receipt again to be sure it's not missing any data
     lastStoredReceiptCount = await ReceiptDB.queryReceiptCount()
     lastStoredCycleCount = await CycleDB.queryCyleCount()
@@ -685,34 +710,87 @@ function startServer() {
       end: 's?',
       startCycle: 's?',
       endCycle: 's?',
-      count: 's?',
+      type: 's?',
       page: 's?',
     })
     if (err) {
       reply.send(Crypto.sign({ success: false, error: err }))
       return
     }
-    let { start, end } = _request.query
-    let from = parseInt(start)
-    let to = parseInt(end)
-    if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-      reply.send(
-        Crypto.sign({ success: false, error: `Invalid start and end counters` })
-      )
-      return
-    }
-    let count = to - from
-    if (count > 10000) {
-      reply.send(
-        Crypto.sign({
-          success: false,
-          error: `Exceed maximum limit of 10000 receipts`,
-        })
-      )
-      return
-    }
+    let { start, end, startCycle, endCycle, type, page } = _request.query
     let receipts = []
-    receipts = await ReceiptDB.queryReceipts(from, count)
+    if (start && end) {
+      let from = parseInt(start)
+      let to = parseInt(end)
+      if (
+        !(from >= 0 && to >= from) ||
+        Number.isNaN(from) ||
+        Number.isNaN(to)
+      ) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Invalid start and end counters`,
+          })
+        )
+        return
+      }
+      let count = to - from
+      if (count > 10000) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Exceed maximum limit of 10000 receipts`,
+          })
+        )
+        return
+      }
+      receipts = await ReceiptDB.queryReceipts(from, count)
+    } else if (startCycle && endCycle) {
+      let from = parseInt(startCycle)
+      let to = parseInt(endCycle)
+      if (
+        !(from >= 0 && to >= from) ||
+        Number.isNaN(from) ||
+        Number.isNaN(to)
+      ) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Invalid startCycle and endCycle counters`,
+          })
+        )
+        return
+      }
+      let count = to - from
+      if (count > 1000) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Exceed maximum limit of 1000 cycles`,
+          })
+        )
+        return
+      }
+      if (type === 'tally') {
+        receipts = await ReceiptDB.queryReceiptCountByCycles(from, to)
+      } else if (type === 'count') {
+        receipts = await ReceiptDB.queryReceiptCountBetweenCycles(from, to)
+      } else {
+        let skip = 0
+        let limit = 100
+        if (page) {
+          skip = parseInt(page) - 1
+          if (skip > 0) skip = skip * limit
+        }
+        receipts = await ReceiptDB.queryReceiptsBetweenCycles(
+          skip,
+          limit,
+          from,
+          to
+        )
+      }
+    }
     const res = Crypto.sign({
       receipts,
     })

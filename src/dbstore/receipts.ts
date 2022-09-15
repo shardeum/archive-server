@@ -171,15 +171,63 @@ export async function queryReceiptCountByCycles(start: number, end: number) {
     let receipts;
     try {
         const sql = `SELECT cycle, COUNT(*) FROM receipts GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
-        receipts = await db.get(sql, [start, end]);
+        receipts = await db.all(sql, [start, end]);
     } catch (e) {
         Logger.mainLogger.error(e);
     }
     if (config.VERBOSE) {
         Logger.mainLogger.debug('Receipt count by cycle', receipts);
     }
-    console.log('Receipt count by cycle', receipts)
-    if (receipts) receipts = receipts['COUNT(*)'];
-    else receipts = 0;
+    if (receipts.length > 0) {
+        receipts.forEach(receipt => {
+            receipt['receipts'] = receipt['COUNT(*)']
+            delete receipt['COUNT(*)']
+        })
+    }
     return receipts;
+}
+
+export async function queryReceiptCountBetweenCycles(startCycleNumber: number, endCycleNumber: number) {
+    let receipts
+    try {
+        const sql = `SELECT COUNT(*) FROM receipts WHERE cycle BETWEEN ? AND ?`
+        receipts = await db.get(sql, [startCycleNumber, endCycleNumber])
+    } catch (e) {
+        console.log(e)
+    }
+    if (config.VERBOSE) {
+        Logger.mainLogger.debug('Receipt count between cycles', receipts);
+    }
+    if (receipts) receipts = receipts['COUNT(*)']
+    else receipts = 0
+    return receipts
+}
+
+export async function queryReceiptsBetweenCycles(skip = 0, limit = 10000, startCycleNumber: number, endCycleNumber: number) {
+    let receipts
+    try {
+        const sql = `SELECT * FROM receipts WHERE cycle BETWEEN ? AND ? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+        receipts = await db.all(sql, [startCycleNumber, endCycleNumber])
+        if (receipts.length > 0) {
+            receipts.map((receipt: any) => {
+                if (receipt.tx)
+                    receipt.tx = JSON.parse(receipt.tx);
+                if (receipt.accounts)
+                    receipt.accounts = JSON.parse(receipt.accounts);
+                if (receipt.receipt)
+                    receipt.receipt = JSON.parse(receipt.receipt);
+                if (receipt.result)
+                    receipt.result = JSON.parse(receipt.result);
+                if (receipt.sign)
+                    receipt.sign = JSON.parse(receipt.sign);
+                return receipt;
+            });
+        }
+    } catch (e) {
+        console.log(e)
+    }
+    if (config.VERBOSE) {
+        Logger.mainLogger.debug('Receipt receipts between cycles', receipts ? receipts.length : receipts, 'skip', skip)
+    }
+    return receipts
 }

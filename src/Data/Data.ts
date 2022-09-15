@@ -795,7 +795,8 @@ async function selectNewDataSendersByConsensusRadius(
       let retry = 0
       while (true && retry < consensusRadius) {
         if (
-          !socketClients.has(newSenderInfo.publicKey) && publicKey !== newSenderInfo.publicKey
+          !socketClients.has(newSenderInfo.publicKey) &&
+          publicKey !== newSenderInfo.publicKey
         ) {
           connectionStatus = await createDataTransferConnection(newSenderInfo)
           if (connectionStatus) {
@@ -859,7 +860,11 @@ async function selectNewDataSendersByConsensusRadius(
           )
         }
         if (config.VERBOSE)
-          Logger.mainLogger.debug('remainingActiveList', remainingActiveList, socketClients.keys())
+          Logger.mainLogger.debug(
+            'remainingActiveList',
+            remainingActiveList,
+            socketClients.keys()
+          )
       }
 
       while (subscribedSuccess < extraConsensorsToSubscribe) {
@@ -882,7 +887,7 @@ async function selectNewDataSendersByConsensusRadius(
         }
         let newSenderInfo =
           remainingActiveList[
-          Math.floor(Math.random() * remainingActiveList.length)
+            Math.floor(Math.random() * remainingActiveList.length)
           ]
         if (!socketClients.has(newSenderInfo.publicKey)) {
           let connectionStatus = await createDataTransferConnection(
@@ -1080,7 +1085,11 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
           )
         }
         if (config.VERBOSE)
-          Logger.mainLogger.debug('remainingActiveList', remainingActiveList.length, socketClients.keys())
+          Logger.mainLogger.debug(
+            'remainingActiveList',
+            remainingActiveList.length,
+            socketClients.keys()
+          )
       }
 
       while (subscribedSuccess < extraConsensorsToSubscribe) {
@@ -1099,14 +1108,17 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
           if (remainingActiveList.length === 0) {
             break
           }
-          Logger.mainLogger.debug('Boom2', remainingActiveList.length, socketClients.keys())
           retry++
         }
         let newSenderInfo =
           remainingActiveList[
-          Math.floor(Math.random() * remainingActiveList.length)
+            Math.floor(Math.random() * remainingActiveList.length)
           ]
-        Logger.mainLogger.debug('newSenderInfo', newSenderInfo, remainingActiveList)
+        Logger.mainLogger.debug(
+          'newSenderInfo',
+          newSenderInfo,
+          remainingActiveList
+        )
         if (!socketClients.has(newSenderInfo.publicKey)) {
           let connectionStatus = await createDataTransferConnection(
             newSenderInfo
@@ -1241,7 +1253,8 @@ export async function joinNetwork(
   Logger.mainLogger.debug('Is firstTime', isFirstTime)
   if (!isFirstTime) {
     let isJoined
-    if (checkFromConsensor) isJoined = await checkJoinStatusFromConsensor(nodeList)
+    if (checkFromConsensor)
+      isJoined = await checkJoinStatusFromConsensor(nodeList)
     else isJoined = await checkJoinStatus()
     if (isJoined) {
       return isJoined
@@ -1374,7 +1387,9 @@ export function checkJoinStatus(): Promise<boolean> {
   })
 }
 
-export function checkJoinStatusFromConsensor(nodeList: NodeList.ConsensusNodeInfo[]): Promise<boolean> {
+export function checkJoinStatusFromConsensor(
+  nodeList: NodeList.ConsensusNodeInfo[]
+): Promise<boolean> {
   Logger.mainLogger.debug('Checking join status from consenosr')
   const ourNodeInfo = State.getNodeInfo()
 
@@ -2228,7 +2243,8 @@ export async function buildNodeListFromStoredCycle(
     }
 
     Logger.mainLogger.debug(
-      `Got ${squasher.final.updated.length
+      `Got ${
+        squasher.final.updated.length
       } active nodes, need ${activeNodeCount(lastStoredCycle)}`
     )
     Logger.mainLogger.debug(
@@ -2239,7 +2255,7 @@ export async function buildNodeListFromStoredCycle(
     if (squasher.final.added.length < totalNodeCount(lastStoredCycle))
       Logger.mainLogger.debug(
         'Short on nodes. Need to get more cycles. Cycle:' +
-        lastStoredCycle.counter
+          lastStoredCycle.counter
       )
 
     // If you weren't able to prepend any of the prevCycles, start over
@@ -2310,7 +2326,8 @@ export async function syncCyclesAndNodeList(
     }
 
     Logger.mainLogger.debug(
-      `Got ${squasher.final.updated.length
+      `Got ${
+        squasher.final.updated.length
       } active nodes, need ${activeNodeCount(cycleToSyncTo)}`
     )
     Logger.mainLogger.debug(
@@ -2321,7 +2338,7 @@ export async function syncCyclesAndNodeList(
     if (squasher.final.added.length < totalNodeCount(cycleToSyncTo))
       Logger.mainLogger.debug(
         'Short on nodes. Need to get more cycles. Cycle:' +
-        cycleToSyncTo.counter
+          cycleToSyncTo.counter
       )
 
     // If you weren't able to prepend any of the prevCycles, start over
@@ -2363,7 +2380,7 @@ export async function syncCyclesAndNodeList(
   }
   let savedCycleRecord = CycleChain[0]
   while (endCycle >= lastStoredCycleCount) {
-    let nextEnd: number = endCycle - 10000 // Downloading max 1000 cycles each time
+    let nextEnd: number = endCycle - 1000 // Downloading max 1000 cycles each time
     if (nextEnd < 0) nextEnd = -1
     Logger.mainLogger.debug(`Getting cycles ${endCycle} - ${nextEnd}...`)
     const prevCycles = await fetchCycleRecords(
@@ -2430,7 +2447,8 @@ async function downloadArchivedCycles(
       `Downloading archive from cycle ${lastData} to cycle ${lastData + 5}`
     )
     let response: any = await P2P.getJson(
-      `http://${archiver.ip}:${archiver.port
+      `http://${archiver.ip}:${
+        archiver.port
       }/full-archive?start=${lastData}&end=${lastData + 5}`
     )
     if (response && response.archivedCycles) {
@@ -2449,7 +2467,7 @@ async function downloadArchivedCycles(
   return collector
 }
 
-export async function syncReceipt(
+export async function syncReceipts(
   activeArchivers: State.ArchiverNodeInfo[],
   lastStoredReceiptCount: number = 0
 ) {
@@ -2513,6 +2531,132 @@ export const downloadReceipts = async (
     start = end
     end += 1000
   }
+}
+
+export async function syncReceiptsByCycle(
+  activeArchivers: State.ArchiverNodeInfo[],
+  lastStoredReceiptCycle: number = 0
+) {
+  const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
+  let response: any = await P2P.getJson(
+    `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`
+  )
+  if (!response || response.totalReceipts < 0) {
+    return false
+  }
+  let { totalCycles, totalReceipts } = response
+  let complete = false
+  let startCycle = lastStoredReceiptCycle
+  let endCycle = startCycle + 20
+  let receiptsCountToSyncBetweenCycles = 0
+  let savedReceiptsCountBetweenCycles = 0
+  let totalSavedReceiptsCount = 0
+  while (!complete) {
+    if (endCycle > totalCycles) {
+      endCycle = totalCycles
+      totalSavedReceiptsCount = await ReceiptDB.queryReceiptCount()
+    }
+    if (totalSavedReceiptsCount >= totalReceipts) {
+      let res: any = await P2P.getJson(
+        `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`
+      )
+      if (res && res.totalReceipts > 0) {
+        if (res.totalReceipts > totalReceipts) totalReceipts = res.totalReceipts
+        if (res.totalCycles > totalCycles) totalCycles = res.totalCycles
+        Logger.mainLogger.debug(
+          'totalReceiptsToSync',
+          totalReceipts,
+          'totalSavedReceipts',
+          totalSavedReceiptsCount
+        )
+        if (totalSavedReceiptsCount === totalReceipts) {
+          Logger.mainLogger.debug('Sync receipts data completed!')
+          break
+        }
+      }
+    }
+    if (startCycle > endCycle) {
+      Logger.mainLogger.error(
+        `Got some issues in syncing receipts. Receipts query startCycle ${startCycle} is greater than endCycle ${endCycle}`
+      )
+      break
+    }
+    Logger.mainLogger.debug(
+      `Downloading receipts from cycle ${startCycle} to cycle ${endCycle}`
+    )
+    let response: any = await P2P.getJson(
+      `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&type=count`
+    )
+    if (response && response.receipts > 0) {
+      receiptsCountToSyncBetweenCycles = response.receipts
+      let page = 1
+      savedReceiptsCountBetweenCycles = 0
+      while (
+        savedReceiptsCountBetweenCycles < receiptsCountToSyncBetweenCycles
+      ) {
+        response = await P2P.getJson(
+          `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&page=${page}`
+        )
+        if (response && response.receipts) {
+          const downloadedReceipts = response.receipts
+          Logger.mainLogger.debug(
+            `Downloaded receipts`,
+            downloadedReceipts.length
+          )
+          await storeReceiptData(downloadedReceipts)
+          savedReceiptsCountBetweenCycles += downloadedReceipts.length
+          if (
+            savedReceiptsCountBetweenCycles > receiptsCountToSyncBetweenCycles
+          ) {
+            response = await P2P.getJson(
+              `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&type=count`
+            )
+            if (response && response.receipts)
+              receiptsCountToSyncBetweenCycles = response.receipts
+            if (
+              receiptsCountToSyncBetweenCycles > savedReceiptsCountBetweenCycles
+            ) {
+              savedReceiptsCountBetweenCycles -= downloadedReceipts.length
+              continue
+            }
+          }
+          Logger.mainLogger.debug(
+            'savedReceiptsCountBetweenCycles',
+            savedReceiptsCountBetweenCycles,
+            'receiptsCountToSyncBetweenCycles',
+            receiptsCountToSyncBetweenCycles
+          )
+          if (
+            savedReceiptsCountBetweenCycles > receiptsCountToSyncBetweenCycles
+          ) {
+            Logger.mainLogger.debug(
+              'There are more cycles than it supposed to have'
+            )
+          }
+          totalSavedReceiptsCount += downloadedReceipts.length
+          page++
+        } else {
+          Logger.mainLogger.debug('Invalid download response')
+          continue
+        }
+      }
+      Logger.mainLogger.debug(
+        `Download receipts completed for ${startCycle} - ${endCycle}`
+      )
+      startCycle = endCycle + 1
+      endCycle += 20
+    } else {
+      receiptsCountToSyncBetweenCycles = response.receipts
+      if (receiptsCountToSyncBetweenCycles === 0) {
+        startCycle = endCycle + 1
+        endCycle += 20
+        continue
+      }
+      Logger.mainLogger.debug('Invalid download response')
+      continue
+    }
+  }
+  return false
 }
 
 export const syncCyclesAndReceiptsData = async (
@@ -2680,50 +2824,96 @@ export const syncCyclesAndReceiptsData = async (
 //   }
 // };
 
+// // simple method to validate old data; it's not good when there are multiple archivers, the receipts saving order may not be the same
+// export async function compareWithOldReceiptsData(
+//   archiver: State.ArchiverNodeInfo,
+//   lastReceiptCount = 0
+// ) {
+//   let downloadedReceipts
+//   const response: any = await P2P.getJson(
+//     `http://${archiver.ip}:${archiver.port}/receipt?start=${
+//       lastReceiptCount - 10 > 0 ? lastReceiptCount - 10 : 0
+//     }&end=${lastReceiptCount}`
+//   )
+//   if (response && response.receipts) {
+//     downloadedReceipts = response.receipts
+//   } else {
+//     throw Error(
+//       `Can't fetch data from receipt ${
+//         lastReceiptCount - 10 > 0 ? lastReceiptCount - 10 : 0
+//       } to receipt ${lastReceiptCount}  from archiver ${archiver}`
+//     )
+//   }
+//   let oldReceipts = await ReceiptDB.queryReceipts(
+//     lastReceiptCount - 10 > 0 ? lastReceiptCount - 10 : 0,
+//     lastReceiptCount
+//   )
+//   // downloadedReceipts.sort((a, b) =>
+//   //   a.cycleRecord.counter > b.cycleRecord.counter ? 1 : -1
+//   // );
+//   // oldReceipts.sort((a, b) =>
+//   //   a.cycleRecord.counter > b.cycleRecord.counter ? 1 : -1
+//   // );
+//   let success = false
+//   let receiptsToMatchCount = 10
+//   for (let i = 0; i < downloadedReceipts.length; i++) {
+//     let downloadedReceipt = downloadedReceipts[i]
+//     const oldReceipt = oldReceipts[i]
+//     if (oldReceipt.counter) delete oldReceipt.counter
+//     console.log(downloadedReceipt.receiptId, oldReceipt.receiptId)
+//     if (downloadedReceipt.receiptId !== oldReceipt.receiptId) {
+//       return {
+//         success,
+//         receiptsToMatchCount,
+//       }
+//     }
+//     success = true
+//     receiptsToMatchCount--
+//   }
+//   return { success, receiptsToMatchCount }
+// }
+
 export async function compareWithOldReceiptsData(
   archiver: State.ArchiverNodeInfo,
-  lastReceiptCount = 0
+  lastStoredReceiptCycle: number = 0
 ) {
-  let downloadedReceipts
+  let endCycle = lastStoredReceiptCycle
+  let startCycle = endCycle - 10 > 0 ? endCycle - 10 : 0
   const response: any = await P2P.getJson(
-    `http://${archiver.ip}:${archiver.port}/receipt?start=${lastReceiptCount - 10
-    }&end=${lastReceiptCount}`
+    `http://${archiver.ip}:${archiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&type=tally`
   )
+  let downloadedReceiptCountByCycles
   if (response && response.receipts) {
-    downloadedReceipts = response.receipts
+    downloadedReceiptCountByCycles = response.receipts
   } else {
     throw Error(
-      `Can't fetch data from receipt ${lastReceiptCount - 10
-      } to receipt ${lastReceiptCount}  from archiver ${archiver}`
+      `Can't fetch receipts data from cycle ${startCycle} to cycle ${endCycle}  from archiver ${archiver}`
     )
   }
-  let oldReceipts = await ReceiptDB.queryReceipts(
-    lastReceiptCount - 10,
-    lastReceiptCount
+  let oldReceiptCountByCycle = await ReceiptDB.queryReceiptCountByCycles(
+    startCycle,
+    endCycle
   )
-  // downloadedReceipts.sort((a, b) =>
-  //   a.cycleRecord.counter > b.cycleRecord.counter ? 1 : -1
-  // );
-  // oldReceipts.sort((a, b) =>
-  //   a.cycleRecord.counter > b.cycleRecord.counter ? 1 : -1
-  // );
   let success = false
-  let receiptsToMatchCount = 10
-  for (let i = 0; i < downloadedReceipts.length; i++) {
-    let downloadedReceipt = downloadedReceipts[i]
-    const oldReceipt = oldReceipts[i]
-    if (oldReceipt.counter) delete oldReceipt.counter
-    console.log(downloadedReceipt.receiptId, oldReceipt.receiptId)
-    if (downloadedReceipt.receiptId !== oldReceipt.receiptId) {
+  let matchedCycle = 0
+  for (let i = 0; i < downloadedReceiptCountByCycles.length; i++) {
+    const downloadedReceipt = downloadedReceiptCountByCycles[i]
+    const oldReceipt = oldReceiptCountByCycle[i]
+    Logger.mainLogger.debug(downloadedReceipt, oldReceipt)
+    if (
+      downloadedReceipt.cycle !== oldReceipt.cycle ||
+      downloadedReceipt.receipts !== oldReceipt.receipts
+    ) {
       return {
         success,
-        receiptsToMatchCount,
+        matchedCycle,
       }
     }
     success = true
-    receiptsToMatchCount++
+    matchedCycle = downloadedReceipt.cycle
   }
-  return { success, receiptsToMatchCount }
+  success = true
+  return { success, matchedCycle }
 }
 
 export async function compareWithOldCyclesData(
@@ -2732,14 +2922,16 @@ export async function compareWithOldCyclesData(
 ) {
   let downloadedCycles
   const response: any = await P2P.getJson(
-    `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${lastCycleCounter - 10
+    `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${
+      lastCycleCounter - 10
     }&end=${lastCycleCounter - 1}`
   )
   if (response && response.cycleInfo) {
     downloadedCycles = response.cycleInfo
   } else {
     throw Error(
-      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${lastCycleCounter - 1
+      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${
+        lastCycleCounter - 1
       }  from archiver ${archiver}`
     )
   }
@@ -2862,7 +3054,7 @@ export async function syncStateMetaData(
       )
       if (
         downloadedNetworkReceiptHash ===
-        networkReceiptHashesFromRecords.get(counter) ||
+          networkReceiptHashesFromRecords.get(counter) ||
         downloadedNetworkReceiptHash === calculatedReceiptHash
       ) {
         if (
