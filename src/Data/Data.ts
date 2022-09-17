@@ -2355,7 +2355,7 @@ export async function syncCyclesAndNodeList(
     let record = CycleChain[i]
     Cycles.CycleChain.set(record.counter, { ...record })
     if (config.experimentalSnapshot) {
-      storeCycleData([record])
+      if (i === CycleChain.length - 1) storeCycleData(CycleChain)
     } else {
       Logger.mainLogger.debug(
         'Inserting archived cycle for counter',
@@ -2547,7 +2547,7 @@ export async function syncReceiptsByCycle(
   let { totalCycles, totalReceipts } = response
   let complete = false
   let startCycle = lastStoredReceiptCycle
-  let endCycle = startCycle + 20
+  let endCycle = startCycle + 100
   let receiptsCountToSyncBetweenCycles = 0
   let savedReceiptsCountBetweenCycles = 0
   let totalSavedReceiptsCount = 0
@@ -2644,12 +2644,12 @@ export async function syncReceiptsByCycle(
         `Download receipts completed for ${startCycle} - ${endCycle}`
       )
       startCycle = endCycle + 1
-      endCycle += 20
+      endCycle += 100
     } else {
       receiptsCountToSyncBetweenCycles = response.receipts
       if (receiptsCountToSyncBetweenCycles === 0) {
         startCycle = endCycle + 1
-        endCycle += 20
+        endCycle += 100
         continue
       }
       Logger.mainLogger.debug('Invalid download response')

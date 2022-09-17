@@ -24,8 +24,10 @@ export let CycleChain: Map<Cycle['counter'], any> = new Map()
 export let lostNodes: LostNode[] = []
 
 export function processCycles(cycles: Cycle[]) {
-  profilerInstance.profileSectionStart('process_cycle', false)
-  nestedCountersInstance.countEvent('cycle', 'process', 1)
+  if (profilerInstance)
+    profilerInstance.profileSectionStart('process_cycle', false)
+  if (nestedCountersInstance)
+    nestedCountersInstance.countEvent('cycle', 'process', 1)
   for (const cycle of cycles) {
     Logger.mainLogger.debug(new Date(), 'New Cycle received', cycle.counter)
     Logger.mainLogger.debug('Current cycle counter', currentCycleCounter)
@@ -41,7 +43,8 @@ export function processCycles(cycles: Cycle[]) {
 
     Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
   }
-  profilerInstance.profileSectionEnd('process_cycle', false)
+  if (profilerInstance)
+    profilerInstance.profileSectionEnd('process_cycle', false)
 }
 
 export function getCurrentCycleCounter() {
