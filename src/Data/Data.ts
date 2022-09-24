@@ -2373,25 +2373,31 @@ export async function syncCyclesAndNodeList(
 
   // Download old cycle Records
   let endCycle = CycleChain[0].counter - 1
+  Logger.mainLogger.debug(
+    'endCycle counter',
+    endCycle,
+    'lastStoredCycleCount',
+    lastStoredCycleCount
+  )
   if (endCycle > lastStoredCycleCount) {
     Logger.mainLogger.debug(
-      `Downloading old cycles from cycles ${endCycle} to cycle ${lastStoredCycleCount}!`
+      `Downloading old cycles from cycles ${lastStoredCycleCount} to cycle ${endCycle}!`
     )
   }
   let savedCycleRecord = CycleChain[0]
-  while (endCycle >= lastStoredCycleCount) {
-    let nextEnd: number = endCycle - 1000 // Downloading max 1000 cycles each time
-    if (nextEnd < 0) nextEnd = -1
-    Logger.mainLogger.debug(`Getting cycles ${endCycle} - ${nextEnd}...`)
+  while (endCycle > lastStoredCycleCount) {
+    let nextEnd: number = endCycle - 10000 // Downloading max 1000 cycles each time
+    if (nextEnd < 0) nextEnd = 0
+    Logger.mainLogger.debug(`Getting cycles ${nextEnd} - ${endCycle} ...`)
     const prevCycles = await fetchCycleRecords(
       activeArchivers,
       nextEnd,
       endCycle
     )
 
-    prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
     // If prevCycles is empty, start over
     if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
+    prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
 
     // Add prevCycles to our cycle chain
     let combineCycles = []
