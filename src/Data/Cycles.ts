@@ -5,6 +5,7 @@ import * as Logger from '../Logger'
 import { P2P } from '@shardus/types'
 import { profilerInstance } from '../profiler/profiler'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
+import { socketClients, subscribeMoreConsensorsByConsensusRadius } from './Data'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
@@ -188,5 +189,13 @@ function updateNodeList(cycle: Cycle) {
 
   for (let leavingArchiver of leavingArchivers) {
     State.removeActiveArchiver(leavingArchiver.publicKey)
+  }
+
+  // To start picking nodes for data transfer as soon as if there is active node
+  if (activatedPublicKeys.length > 0) {
+    // To pick nodes only when the archiver is active
+    if (socketClients.size > 0) {
+      subscribeMoreConsensorsByConsensusRadius()
+    }
   }
 }

@@ -38,7 +38,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
     const { accounts, cycle, result, sign, tx, receipt } = receipts[i]
     if (config.VERBOSE) console.log(tx.txId, senderInfo)
     if (receiptsMap.has(tx.txId) || newestReceiptsMap.has(tx.txId)) {
-      // console.log('Skip', tx.txId)
+      // console.log('Skip', tx.txId, senderInfo)
       continue
     }
     // await Receipt.insertReceipt({
@@ -54,7 +54,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
     // receiptsToSend.push(receipts[i])
     receiptsMap.set(tx.txId, true)
     newestReceiptsMap.set(tx.txId, true)
-    // console.log('Save', tx.txId)
+    // console.log('Save', tx.txId, senderInfo)
     for (let j = 0; j < accounts.length; j++) {
       const account = accounts[j]
       const accObj: Account.AccountCopy = {

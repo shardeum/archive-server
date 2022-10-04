@@ -38,7 +38,8 @@ import * as ReceiptDB from '../dbstore/receipts'
 export let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic['Socket']
-let socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
+export let socketClients: Map<string, SocketIOClientStatic['Socket']> =
+  new Map()
 let socketConnectionsTracker: Map<string, string> = new Map()
 let lastSentCycleCounterToExplorer = 0
 export let combineAccountsData = []
@@ -942,14 +943,16 @@ export async function createDataTransferConnection(
   initSocketClient(newSenderInfo)
   let count = 0
   while (!socketClients.has(newSenderInfo.publicKey) && count <= 50) {
-    await Utils.sleep(200)
+    await Utils.sleep(100)
     count++
     if (count === 50) {
       // This means the socket connection to the node is not successful.
       return false
     }
   }
-  await Utils.sleep(200) // Wait 1s before sending data request to be sure if the connection is refused
+  if (socketConnectionsTracker.get(newSenderInfo.publicKey) === 'disconnected')
+    return false
+  await Utils.sleep(200) // Wait 1s before sending data request to be sure if the connection is not refused
   if (socketConnectionsTracker.get(newSenderInfo.publicKey) === 'disconnected')
     return false
   const newSender: DataSender = {
