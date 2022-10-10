@@ -75,32 +75,34 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
         combineAccounts.push(accObj)
       }
     }
-    if (receipt) {
-      const accObj: Account.AccountCopy = {
-        accountId: receipt.accountId,
-        data: receipt.data,
-        timestamp: receipt.timestamp,
-        hash: receipt.stateId,
-        cycleNumber: cycle,
-      }
-      const accountExist = await Account.queryAccountByAccountId(
-        receipt.accountId
-      )
-      if (accountExist) {
-        if (accObj.timestamp > accountExist.timestamp)
-          await Account.updateAccount(accObj.accountId, accObj)
-      } else {
-        // await Account.insertAccount(accObj)
-        combineAccounts.push(accObj)
-      }
-    }
+    // if (receipt) {
+    //   const accObj: Account.AccountCopy = {
+    //     accountId: receipt.accountId,
+    //     data: receipt.data,
+    //     timestamp: receipt.timestamp,
+    //     hash: receipt.stateId,
+    //     cycleNumber: cycle,
+    //   }
+    //   const accountExist = await Account.queryAccountByAccountId(
+    //     receipt.accountId
+    //   )
+    //   if (accountExist) {
+    //     if (accObj.timestamp > accountExist.timestamp)
+    //       await Account.updateAccount(accObj.accountId, accObj)
+    //   } else {
+    //     // await Account.insertAccount(accObj)
+    //     combineAccounts.push(accObj)
+    //   }
+    // }
     const txObj: Transaction.Transaction = {
       txId: tx.txId,
+      accountId: receipt ? receipt.accountId : tx.txId, // Let set txId for now if app receipt is not forwarded
       timestamp: tx.timestamp,
       cycleNumber: cycle,
-      data: tx.data,
+      data: receipt ? receipt.data : {},
       keys: tx.keys,
       result: result,
+      originTxData: tx.data,
       sign: sign,
     }
     // await Transaction.insertTransaction(txObj)

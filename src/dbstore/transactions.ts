@@ -6,11 +6,13 @@ import { config } from '../Config'
 
 export interface Transaction {
     txId: string;
+    accountId: string;
     timestamp: number;
     cycleNumber: number,
     data: any,
     keys: any,
     result: TxResult,
+    originTxData: any,
     sign: Signature
 }
 
@@ -77,6 +79,56 @@ export async function bulkInsertTransactions(transactions: Transaction[]) {
         Logger.mainLogger.error(
             'Unable to bulk insert Transactions', transactions.length
         );
+    }
+}
+
+export async function queryTransactionByTxId(txId: string) {
+    try {
+        const sql = `SELECT * FROM transactions WHERE txId=?`;
+        let transaction: any = await db.get(sql, [txId]);
+        if (transaction) {
+            if (transaction.data)
+                transaction.data = JSON.parse(transaction.data);
+            if (transaction.keys)
+                transaction.keys = JSON.parse(transaction.keys);
+            if (transaction.result)
+                transaction.result = JSON.parse(transaction.result)
+            if (transaction.originTxData)
+                transaction.originTxData = JSON.parse(transaction.originTxData);
+            if (transaction.sign)
+                transaction.sign = JSON.parse(transaction.sign);
+        }
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug('Transaction txId', transaction);
+        }
+        return transaction;
+    } catch (e) {
+        Logger.mainLogger.error(e);
+    }
+}
+
+export async function queryTransactionByAccountId(accountId: string) {
+    try {
+        const sql = `SELECT * FROM transactions WHERE accountId=?`;
+        let transaction: any = await db.get(sql, [accountId]);
+        if (transaction) {
+            if (transaction.data)
+                transaction.data = JSON.parse(transaction.data);
+            if (transaction.keys)
+                transaction.keys = JSON.parse(transaction.keys);
+            if (transaction.result)
+                transaction.result = JSON.parse(transaction.result)
+            if (transaction.originTxData)
+                transaction.originTxData = JSON.parse(transaction.originTxData);
+            if (transaction.sign)
+                transaction.sign = JSON.parse(transaction.sign);
+        }
+        if (config.VERBOSE) {
+            Logger.mainLogger.debug('Transaction accountId', transaction);
+        }
+        return transaction;
+    } catch (e) {
+        Logger.mainLogger.error(e);
     }
 }
 

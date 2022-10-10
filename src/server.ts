@@ -958,32 +958,50 @@ function startServer() {
   })
 
   server.get('/transaction', async (_request, reply) => {
-    let err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
+    let err = Utils.validateTypes(_request.query, {
+      start: 's?',
+      end: 's?',
+      txId: 's?',
+      accountId: 's?',
+    })
     if (err) {
       reply.send(Crypto.sign({ success: false, error: err }))
       return
     }
-    let { start, end } = _request.query
-    let from = parseInt(start)
-    let to = parseInt(end)
-    if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-      reply.send(
-        Crypto.sign({ success: false, error: `Invalid start and end counters` })
-      )
-      return
-    }
-    let count = to - from
-    if (count > 10000) {
-      reply.send(
-        Crypto.sign({
-          success: false,
-          error: `Exceed maximum limit of 10000 transactions`,
-        })
-      )
-      return
-    }
+    let { start, end, txId, accountId } = _request.query
     let transactions = []
-    transactions = await TransactionDB.queryTransactions(from, count)
+    if (start && end) {
+      let from = parseInt(start)
+      let to = parseInt(end)
+      if (
+        !(from >= 0 && to >= from) ||
+        Number.isNaN(from) ||
+        Number.isNaN(to)
+      ) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Invalid start and end counters`,
+          })
+        )
+        return
+      }
+      let count = to - from
+      if (count > 10000) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Exceed maximum limit of 10000 transactions`,
+          })
+        )
+        return
+      }
+      transactions = await TransactionDB.queryTransactions(from, count)
+    } else if (txId) {
+      transactions = await TransactionDB.queryTransactionByTxId(txId)
+    } else if (accountId) {
+      transactions = await TransactionDB.queryTransactionByAccountId(accountId)
+    }
     const res = Crypto.sign({
       transactions,
     })
