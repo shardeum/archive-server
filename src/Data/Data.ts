@@ -1919,10 +1919,10 @@ export async function getNewestCycleFromArchivers(
 export function activeNodeCount(cycle: Cycle) {
   return (
     cycle.active +
-    cycle.activated.length -
-    cycle.apoptosized.length -
-    cycle.removed.length -
-    cycle.lost.length
+    cycle.activated.length +
+    -cycle.apoptosized.length +
+    -cycle.removed.length +
+    -cycle.lost.length
   )
 }
 
@@ -1932,9 +1932,9 @@ export function totalNodeCount(cycle: Cycle) {
     cycle.joinedConsensors.length +
     cycle.active +
     //    cycle.activated.length -      // don't count activated because it was already counted in syncing
-    cycle.apoptosized.length -
-    cycle.removed.length -
-    cycle.lost.length
+    -cycle.apoptosized.length +
+    -cycle.removed.length
+    // -cycle.lost.length
   )
 }
 
@@ -2009,6 +2009,8 @@ export class ChangeSquasher {
     for (const update of change.updated) {
       // Ignore if update.id is already removed
       if (this.removedIds.has(update.id)) continue
+      // Skip if it's already seen in the update
+      if (this.seenUpdates.has(update.id)) continue
       // Mark this id as updated
       this.seenUpdates.set(update.id, update)
     }
@@ -2074,7 +2076,7 @@ export function parseRecord(record: any): Change {
   return {
     added: [...record.joinedConsensors],
     removed: [...record.apoptosized],
-    updated: [...activated, refreshUpdated],
+    updated: [...activated, ...refreshUpdated],
   }
 }
 
