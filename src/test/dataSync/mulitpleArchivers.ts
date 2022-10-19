@@ -23,15 +23,11 @@ export async function checkDataSyncBetweenArchivers(ip, numberOfArchivers) {
 
   if (dataInfos.archiverInfo.length > 1) {
     const expectedTotalCycles = dataInfos.totalCycles[0]
-    const totalCyclesIsMatched = dataInfos.totalCycles.every(
-      (cycle) => cycle === expectedTotalCycles
-    )
+    const totalCyclesIsMatched = dataInfos.totalCycles.every((cycle) => cycle === expectedTotalCycles)
     if (totalCyclesIsMatched) console.log('TotalCycles is matched!')
 
     const expectedTotalAccounts = dataInfos.totalAccounts[0]
-    const totalAccountsIsMatched = dataInfos.totalAccounts.every(
-      (cycle) => cycle === expectedTotalAccounts
-    )
+    const totalAccountsIsMatched = dataInfos.totalAccounts.every((cycle) => cycle === expectedTotalAccounts)
     if (totalAccountsIsMatched) console.log('TotalAccounts is matched!')
 
     const expectedTotalTransactions = dataInfos.totalTransactions[0]
@@ -41,9 +37,7 @@ export async function checkDataSyncBetweenArchivers(ip, numberOfArchivers) {
     if (totalTransactionsIsMatched) console.log('TotalTransactions is matched!')
 
     const expectedTotalReceipts = dataInfos.totalReceipts[0]
-    const totalReceiptsIsMatched = dataInfos.totalReceipts.every(
-      (cycle) => cycle === expectedTotalReceipts
-    )
+    const totalReceiptsIsMatched = dataInfos.totalReceipts.every((cycle) => cycle === expectedTotalReceipts)
     if (totalReceiptsIsMatched) console.log('TotalReceipts is matched!')
   }
 }
@@ -68,13 +62,9 @@ export async function checkCyclesDataBetweenArchivers(ip, numberOfArchivers) {
       const cycleInfoToMatch = JSON.stringify(cycleInfo)
       for (let j = 1; j < archiverInfos.length; j++) {
         // console.log(cycleInfo.counter, dataInfos[archiverInfos[j]][i].counter)
-        if (
-          cycleInfoToMatch !== JSON.stringify(dataInfos[archiverInfos[j]][i])
-        ) {
+        if (cycleInfoToMatch !== JSON.stringify(dataInfos[archiverInfos[j]][i])) {
           allCyclesAreMatched = false
-          console.log(
-            `Cycle ${cycleInfo.counter} is not matched between archivers!`
-          )
+          console.log(`Cycle ${cycleInfo.counter} is not matched between archivers!`)
         }
       }
     }
@@ -117,28 +107,21 @@ export async function checkReceiptsDataBetweenArchivers(ip, numberOfArchivers) {
         }
         if (!found) dataInfos.cycles[j].push(0)
       }
-    } else
-      console.log(
-        `Fail to fetch receipt data between cycles from archiver ${archiverURL}`
-      )
+    } else console.log(`Fail to fetch receipt data between cycles from archiver ${archiverURL}`)
   }
 
   if (dataInfos.archiverInfo.length > 1) {
     let allReceiptsAreMatched = true
     for (let i = startCycle; i <= endCycle; i++) {
       const expectedReceipts = dataInfos.cycles[i][0]
-      const receiptsIsMatched = dataInfos.cycles[i].every(
-        (receipts) => receipts === expectedReceipts
-      )
+      const receiptsIsMatched = dataInfos.cycles[i].every((receipts) => receipts === expectedReceipts)
       if (!receiptsIsMatched) {
         allReceiptsAreMatched = false
         console.log(`Receipts Count do not match in cycle ${i}`)
       }
     }
     if (allReceiptsAreMatched)
-      console.log(
-        `All receipts count of cycles between ${startCycle} - ${endCycle} are matched!`
-      )
+      console.log(`All receipts count of cycles between ${startCycle} - ${endCycle} are matched!`)
   }
 }
 

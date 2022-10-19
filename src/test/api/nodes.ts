@@ -1,11 +1,6 @@
 import { getJson } from '../../P2P'
 
-export async function queryNodes(
-  ip: any,
-  port: any,
-  start: number,
-  end: number
-) {
+export async function queryNodes(ip: any, port: any, start: number, end: number) {
   let result: any = await getJson(`http://${ip}:${port}/nodelist`)
   console.log(result)
 

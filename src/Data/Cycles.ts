@@ -25,10 +25,8 @@ export let CycleChain: Map<Cycle['counter'], any> = new Map()
 export let lostNodes: LostNode[] = []
 
 export function processCycles(cycles: Cycle[]) {
-  if (profilerInstance)
-    profilerInstance.profileSectionStart('process_cycle', false)
-  if (nestedCountersInstance)
-    nestedCountersInstance.countEvent('cycle', 'process', 1)
+  if (profilerInstance) profilerInstance.profileSectionStart('process_cycle', false)
+  if (nestedCountersInstance) nestedCountersInstance.countEvent('cycle', 'process', 1)
   for (const cycle of cycles) {
     Logger.mainLogger.debug(new Date(), 'New Cycle received', cycle.counter)
     Logger.mainLogger.debug('Current cycle counter', currentCycleCounter)
@@ -44,8 +42,7 @@ export function processCycles(cycles: Cycle[]) {
 
     Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
   }
-  if (profilerInstance)
-    profilerInstance.profileSectionEnd('process_cycle', false)
+  if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
 }
 
 export function getCurrentCycleCounter() {
@@ -130,11 +127,7 @@ function updateNodeList(cycle: Cycle) {
 
   NodeList.setStatus(NodeList.Statuses.ACTIVE, ...activatedPublicKeys)
 
-  NodeList.refreshNodes(
-    NodeList.Statuses.ACTIVE,
-    cycle.marker,
-    refreshedConsensorInfos
-  )
+  NodeList.refreshNodes(NodeList.Statuses.ACTIVE, cycle.marker, refreshedConsensorInfos)
 
   const removedPks = removed.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)
@@ -174,15 +167,10 @@ function updateNodeList(cycle: Cycle) {
   NodeList.removeNodes(apoptosizedPks)
 
   for (let joinedArchiver of joinedArchivers) {
-    let foundArchiver = State.activeArchivers.find(
-      (a) => a.publicKey === joinedArchiver.publicKey
-    )
+    let foundArchiver = State.activeArchivers.find((a) => a.publicKey === joinedArchiver.publicKey)
     if (!foundArchiver) {
       State.activeArchivers.push(joinedArchiver)
-      Logger.mainLogger.debug(
-        'New archiver added to active list',
-        joinedArchiver
-      )
+      Logger.mainLogger.debug('New archiver added to active list', joinedArchiver)
     }
     Logger.mainLogger.debug('active archiver list', State.activeArchivers)
   }

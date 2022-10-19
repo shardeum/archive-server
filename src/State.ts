@@ -44,10 +44,7 @@ export async function initFromConfig(config: Config) {
   try {
     existingArchivers = config.ARCHIVER_EXISTING
   } catch (e) {
-    console.warn(
-      'Failed to parse ARCHIVER_EXISTING array:',
-      config.ARCHIVER_EXISTING
-    )
+    console.warn('Failed to parse ARCHIVER_EXISTING array:', config.ARCHIVER_EXISTING)
   }
 
   if (existingArchivers.length === 0) {
@@ -58,17 +55,21 @@ export async function initFromConfig(config: Config) {
   let retryCount = 1
   let waitTime = 1000 * 60
 
-  while(retryCount < 10 && activeArchivers.length === 0) {
+  while (retryCount < 10 && activeArchivers.length === 0) {
     Logger.mainLogger.debug(`Getting consensor list from other achivers. [round: ${retryCount}]`)
     for (let i = 0; i < existingArchivers.length; i++) {
       if (existingArchivers[i].publicKey === nodeState.publicKey) {
         continue
       }
-      let response:any = await P2P.getJson(
+      let response: any = await P2P.getJson(
         `http://${existingArchivers[i].ip}:${existingArchivers[i].port}/nodelist`
       )
-      Logger.mainLogger.debug('response', `http://${existingArchivers[i].ip}:${existingArchivers[i].port}/nodelist`, response)
-      if(response && response.nodeList && response.nodeList.length > 0) {
+      Logger.mainLogger.debug(
+        'response',
+        `http://${existingArchivers[i].ip}:${existingArchivers[i].port}/nodelist`,
+        response
+      )
+      if (response && response.nodeList && response.nodeList.length > 0) {
         // TODO: validate the reponse is from archiver
         activeArchivers.push(existingArchivers[i])
       }
@@ -81,21 +82,20 @@ export async function initFromConfig(config: Config) {
     }
   }
   if (activeArchivers.length === 0) {
-    Logger.mainLogger.error(`We have tried ${retryCount} times to get nodeList from other archivers. But got no response or empty list. About to exit now.`)
+    Logger.mainLogger.error(
+      `We have tried ${retryCount} times to get nodeList from other archivers. But got no response or empty list. About to exit now.`
+    )
     process.exit(0)
   }
 }
 
-export async function exitArchiver () {
+export async function exitArchiver() {
   try {
     const randomConsensor: NodeList.ConsensusNodeInfo = NodeList.getRandomActiveNode()[0]
     if (randomConsensor) {
       const newestCycleRecord = await Data.getNewestCycleFromConsensors(NodeList.getActiveList())
       // Send a leave request to a random consensus node from the nodelist
-      let isLeaveRequestSent = await Data.sendLeaveRequest(
-        randomConsensor,
-        newestCycleRecord
-      )
+      let isLeaveRequestSent = await Data.sendLeaveRequest(randomConsensor, newestCycleRecord)
       Logger.mainLogger.debug('isLeaveRequestSent', isLeaveRequestSent)
       if (isLeaveRequestSent) {
         Logger.mainLogger.debug('Archiver will exit in 3 seconds.')
@@ -111,7 +111,6 @@ export async function exitArchiver () {
     Logger.mainLogger.error(e)
   }
 }
-
 
 export function addSigListeners(sigint = true, sigterm = true) {
   if (sigint) {

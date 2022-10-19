@@ -5,20 +5,12 @@ import { getJson } from '../../P2P'
 
 Crypto.setCryptoHashKey(config.ARCHIVER_HASH_KEY)
 
-export async function queryArchivedCycles(
-  ip: any,
-  port: any,
-  count: number,
-  start: number,
-  end: number
-) {
+export async function queryArchivedCycles(ip: any, port: any, count: number, start: number, end: number) {
   let res: any = await getJson(`http://${ip}:${port}/full-archive/${count}`)
   console.log(res)
   validateArchivedCycle(res)
 
-  res = await getJson(
-    `http://${ip}:${port}/full-archive?start=${start}&end=${end}`
-  )
+  res = await getJson(`http://${ip}:${port}/full-archive?start=${start}&end=${end}`)
   console.log(res)
   validateArchivedCycle(res)
 }
@@ -42,8 +34,7 @@ const validateArchivedCycle = (res) => {
 }
 
 const expectedValue = {
-  cycleMarker:
-    'ff4a09332190573b706add1a8e5cd513adf85acfea7aa39cc94383ce2e3620a8',
+  cycleMarker: 'ff4a09332190573b706add1a8e5cd513adf85acfea7aa39cc94383ce2e3620a8',
   cycleRecord: {
     activated: [],
     activatedPublicKeys: [],
@@ -60,14 +51,11 @@ const expectedValue = {
     lost: [],
     marker: 'ff4a09332190573b706add1a8e5cd513adf85acfea7aa39cc94383ce2e3620a8',
     networkDataHash: [[Object]],
-    networkId:
-      '411b3e07ac4e2f1faadb081e9eea762c943699c4691bd011588398f533ae1ed1',
+    networkId: '411b3e07ac4e2f1faadb081e9eea762c943699c4691bd011588398f533ae1ed1',
     networkReceiptHash: [[Object]],
-    networkStateHash:
-      '47de6951e9907a2e187ecd077c82ea7e568745b48a3616b1d7f7c48a363f683c',
+    networkStateHash: '47de6951e9907a2e187ecd077c82ea7e568745b48a3616b1d7f7c48a363f683c',
     networkSummaryHash: [[Object]],
-    previous:
-      'f4944a99bdf7b8ce9b7244d6a4e6eeed92ba778156478927590d46d8f41e8243',
+    previous: 'f4944a99bdf7b8ce9b7244d6a4e6eeed92ba778156478927590d46d8f41e8243',
     refreshedArchivers: [[Object]],
     refreshedConsensors: [[Object], [Object]],
     refuted: [],
@@ -79,10 +67,8 @@ const expectedValue = {
     syncing: 0,
   },
   data: {
-    networkHash:
-      '4bed936c3b08bd7b23e03b1fdefa32e7f01bdfa1fdd288617ed70feebf4feda2',
-    parentCycle:
-      'ff4a09332190573b706add1a8e5cd513adf85acfea7aa39cc94383ce2e3620a8',
+    networkHash: '4bed936c3b08bd7b23e03b1fdefa32e7f01bdfa1fdd288617ed70feebf4feda2',
+    parentCycle: 'ff4a09332190573b706add1a8e5cd513adf85acfea7aa39cc94383ce2e3620a8',
     partitionHashes: {
       '0': 'aef4a946d7268af2f12604d9b6e8e9fd4c5d528cc6b37e1c60ec4225b100ce34',
       '1': '9e3cf6e8cc73349cdd1875dbaa43e2be2d468bbc90a99e748f3af62625962332',
@@ -93,10 +79,8 @@ const expectedValue = {
     },
   },
   receipt: {
-    networkHash:
-      '97ab6b4502137e30788d97659d232e8c1077b394323402fbdb4512c76be6e0c7',
-    parentCycle:
-      'ff4a09332190573b706add1a8e5cd513adf85acfea7aa39cc94383ce2e3620a8',
+    networkHash: '97ab6b4502137e30788d97659d232e8c1077b394323402fbdb4512c76be6e0c7',
+    parentCycle: 'ff4a09332190573b706add1a8e5cd513adf85acfea7aa39cc94383ce2e3620a8',
     partitionHashes: {
       '0': 'de8723bf28eb9ae6d92f7b26b12b4d77edc61362c6735b942c45eb89a1271ed9',
       '1': 'afaff32d4929857416fe17a088be9db717738dfba0103280a579b6a4dd716ba7',
@@ -109,10 +93,8 @@ const expectedValue = {
     partitionTxs: { '0': {}, '1': {}, '2': {}, '3': {}, '4': {} },
   },
   summary: {
-    networkHash:
-      '78c7d4bfca718a92b57a31832c1c8460f43dee960b5f4cf4bbdae3bcce2deb6d',
-    parentCycle:
-      'ff4a09332190573b706add1a8e5cd513adf85acfea7aa39cc94383ce2e3620a8',
+    networkHash: '78c7d4bfca718a92b57a31832c1c8460f43dee960b5f4cf4bbdae3bcce2deb6d',
+    parentCycle: 'ff4a09332190573b706add1a8e5cd513adf85acfea7aa39cc94383ce2e3620a8',
     partitionBlobs: {},
     partitionHashes: {},
   },
@@ -159,10 +141,7 @@ const valueCheck = (obj) => {
             //   obj[i].partitionHashes[partitionId],
             //   Crypto.hashObj(partitionBlock)
             // )
-            if (
-              obj[i].partitionHashes[partitionId] !==
-              Crypto.hashObj(partitionBlock)
-            ) {
+            if (obj[i].partitionHashes[partitionId] !== Crypto.hashObj(partitionBlock)) {
               console.log(
                 `The specified partitionHash and calculatedHash of ${i} are different in Archived Cyle ${obj.cycleRecord.counter}, ${partitionId}`
               )

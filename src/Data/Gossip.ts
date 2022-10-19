@@ -44,12 +44,7 @@ export async function sendGossip(type: string, payload: any) {
   }
 }
 
-async function tell(
-  nodes: State.ArchiverNodeInfo[],
-  route: string,
-  message: any,
-  logged = false
-) {
+async function tell(nodes: State.ArchiverNodeInfo[], route: string, message: any, logged = false) {
   let InternalTellCounter = 0
   const promises = []
   for (const node of nodes) {
@@ -58,10 +53,7 @@ async function tell(
     try {
       const promise = P2P.postJson(url, message)
       promise.catch((err) => {
-        Logger.mainLogger.error(
-          `Unable to tell node ${node.ip}: ${node.port}`,
-          err
-        )
+        Logger.mainLogger.error(`Unable to tell node ${node.ip}: ${node.port}`, err)
       })
       promises.push(promise)
     } catch (e) {
@@ -115,10 +107,7 @@ export function addHashesGossip(sender: string, gossip: any) {
     gossipCollector.set(counter, obj)
   }
   let totalGossip = gossipCollector.get(counter)
-  if (
-    totalGossip &&
-    Object.keys(totalGossip).length > 0.5 * State.activeArchivers.length
-  ) {
+  if (totalGossip && Object.keys(totalGossip).length > 0.5 * State.activeArchivers.length) {
     setTimeout(() => {
       processGossip(counter)
       gossipCollector.delete(counter)
@@ -127,11 +116,7 @@ export function addHashesGossip(sender: string, gossip: any) {
 }
 
 function processGossip(counter: number) {
-  Logger.mainLogger.debug(
-    'Processing gossips for counter',
-    counter,
-    gossipCollector.get(counter)
-  )
+  Logger.mainLogger.debug('Processing gossips for counter', counter, gossipCollector.get(counter))
   let gossips = gossipCollector.get(counter)
   if (!gossips) {
     return
@@ -165,25 +150,15 @@ function processGossip(counter: number) {
   }
 
   if (!ourHashes) {
-    Logger.mainLogger.error(
-      `Unable to find our stored statemetadata hashes for counter ${counter}`
-    )
+    Logger.mainLogger.error(`Unable to find our stored statemetadata hashes for counter ${counter}`)
     return
   }
-  if (
-    hashWithHighestCounter &&
-    hashWithHighestCounter !== Crypto.hashObj(ourHashes)
-  ) {
+  if (hashWithHighestCounter && hashWithHighestCounter !== Crypto.hashObj(ourHashes)) {
     if (gossipWithHighestCount.length === 0) {
       return
     }
-    Logger.mainLogger.error(
-      'our hash is different from other archivers hashes. Storing the correct hashes'
-    )
-    Logger.mainLogger.debug(
-      'gossipWithHighestCount',
-      gossipWithHighestCount[0].summaryHashes
-    )
+    Logger.mainLogger.error('our hash is different from other archivers hashes. Storing the correct hashes')
+    Logger.mainLogger.debug('gossipWithHighestCount', gossipWithHighestCount[0].summaryHashes)
     Data.processStateMetaData(gossipWithHighestCount)
     Data.replaceDataSender(Data.currentDataSender)
   }

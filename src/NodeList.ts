@@ -72,10 +72,7 @@ export function addNodes(
     const ipPort = getIpPort(node)
 
     // If node not in lists, add it
-    if (
-      byPublicKey[node.publicKey] === undefined &&
-      byIpPort[ipPort] === undefined
-    ) {
+    if (byPublicKey[node.publicKey] === undefined && byIpPort[ipPort] === undefined) {
       Logger.mainLogger.debug('adding new node', node.publicKey)
       list.push(node)
       if (status === Statuses.SYNCING) {
@@ -121,10 +118,7 @@ export function refreshNodes(
     const ipPort = getIpPort(node)
 
     // If node not in lists, add it
-    if (
-      byPublicKey[node.publicKey] === undefined &&
-      byIpPort[ipPort] === undefined
-    ) {
+    if (byPublicKey[node.publicKey] === undefined && byIpPort[ipPort] === undefined) {
       Logger.mainLogger.debug('adding new node during refresh', node.publicKey)
       list.push(node)
       if (status === Statuses.SYNCING) {
@@ -155,8 +149,7 @@ export function refreshNodes(
 }
 
 export function removeNodes(publicKeys: string[]): string[] {
-  if (publicKeys.length > 0)
-    Logger.mainLogger.debug('Removing nodes', publicKeys)
+  if (publicKeys.length > 0) Logger.mainLogger.debug('Removing nodes', publicKeys)
   // Efficiently remove nodes from nodelist
   const keysToDelete: Map<ConsensusNodeInfo['publicKey'], boolean> = new Map()
 
@@ -236,25 +229,14 @@ export async function getActiveListFromArchivers(
   }
 
   const queryFn = async (node: any) => {
-    const response: any = await P2P.getJson(
-      `http://${node.ip}:${node.port}/nodelist`
-    )
-    if (response.nodeList)
-      return response.nodeList.sort(
-        (a: any, b: any) => a.publicKey - b.publicKey
-      )
+    const response: any = await P2P.getJson(`http://${node.ip}:${node.port}/nodelist`)
+    if (response.nodeList) return response.nodeList.sort((a: any, b: any) => a.publicKey - b.publicKey)
   }
-  let nodeList: any = await Utils.robustQuery(
-    activeArchivers,
-    queryFn,
-    isSameCyceInfo
-  )
+  let nodeList: any = await Utils.robustQuery(activeArchivers, queryFn, isSameCyceInfo)
   return nodeList[0]
 }
 
-export function getRandomActiveNode(
-  node_count: number = 1
-): ConsensusNodeInfo[] {
+export function getRandomActiveNode(node_count: number = 1): ConsensusNodeInfo[] {
   let nodeList = getActiveList()
   if (!node_count || node_count <= 1 || node_count > nodeList.length)
     return Utils.getRandomItemFromArr(nodeList)

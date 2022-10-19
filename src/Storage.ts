@@ -30,10 +30,7 @@ export async function insertArchivedCycle(archivedCycle: any) {
   )
   try {
     await Collection.insert([Data.ArchivedCycle.new(archivedCycle)])
-    Logger.mainLogger.debug(
-      'Successfully inserted archivedCycle',
-      archivedCycle.cycleRecord.counter
-    )
+    Logger.mainLogger.debug('Successfully inserted archivedCycle', archivedCycle.cycleRecord.counter)
     // let updatedArchivedCycle = await Collection.find({
     //   filter: { cycleMarker: archivedCycle.cycleMarker },
     //   project: {
@@ -64,48 +61,31 @@ export async function updateReceiptMap(
     let parentCycle = CycleChain.get(receiptMapResult.cycle)
 
     if (!parentCycle) {
-      Logger.mainLogger.error(
-        'Unable find record with parent cycle with counter',
-        receiptMapResult.cycle
-      )
+      Logger.mainLogger.error('Unable find record with parent cycle with counter', receiptMapResult.cycle)
       return
     }
 
-    const existingArchivedCycle = await queryArchivedCycleByMarker(
-      parentCycle.marker
-    )
+    const existingArchivedCycle = await queryArchivedCycleByMarker(parentCycle.marker)
 
     if (!existingArchivedCycle) {
-      Logger.mainLogger.error(
-        'Unable find existing archived cycle with marker',
-        parentCycle.marker
-      )
+      Logger.mainLogger.error('Unable find existing archived cycle with marker', parentCycle.marker)
       return
     }
 
     let newPartitionMaps: any = {}
-    if (
-      existingArchivedCycle.receipt &&
-      existingArchivedCycle.receipt.partitionMaps
-    ) {
+    if (existingArchivedCycle.receipt && existingArchivedCycle.receipt.partitionMaps) {
       newPartitionMaps = { ...existingArchivedCycle.receipt.partitionMaps }
     }
 
     newPartitionMaps[receiptMapResult.partition] = receiptMapResult.receiptMap
 
     let newPartitionTxs: any = {}
-    if (
-      existingArchivedCycle.receipt &&
-      existingArchivedCycle.receipt.partitionTxs
-    ) {
+    if (existingArchivedCycle.receipt && existingArchivedCycle.receipt.partitionTxs) {
       newPartitionTxs = { ...existingArchivedCycle.receipt.partitionTxs }
     }
     if (receiptMapResult.txsMapEVMReceipt) {
       for (let id of Object.keys(receiptMapResult.txsMapEVMReceipt)) {
-        receiptMapResult.txsMap[id] = [
-          ...receiptMapResult.txsMap[id],
-          receiptMapResult.txsMapEVMReceipt[id],
-        ]
+        receiptMapResult.txsMap[id] = [...receiptMapResult.txsMap[id], receiptMapResult.txsMapEVMReceipt[id]]
       }
       newPartitionTxs[receiptMapResult.partition] = receiptMapResult.txsMap
     } else {
@@ -148,30 +128,19 @@ export async function updateSummaryBlob(
     let parentCycle = CycleChain.get(cycle)
 
     if (!parentCycle) {
-      Logger.mainLogger.error(
-        'Unable find record with parent cycle with counter',
-        cycle
-      )
+      Logger.mainLogger.error('Unable find record with parent cycle with counter', cycle)
       return
     }
 
-    const existingArchivedCycle = await queryArchivedCycleByMarker(
-      parentCycle.marker
-    )
+    const existingArchivedCycle = await queryArchivedCycleByMarker(parentCycle.marker)
 
     if (!existingArchivedCycle) {
-      Logger.mainLogger.error(
-        'Unable find existing archived cycle with marker',
-        parentCycle.marker
-      )
+      Logger.mainLogger.error('Unable find existing archived cycle with marker', parentCycle.marker)
       return
     }
 
     let newPartitionBlobs: any = {}
-    if (
-      existingArchivedCycle.summary &&
-      existingArchivedCycle.summary.partitionBlobs
-    ) {
+    if (existingArchivedCycle.summary && existingArchivedCycle.summary.partitionBlobs) {
       newPartitionBlobs = { ...existingArchivedCycle.summary.partitionBlobs }
     }
 
@@ -199,11 +168,7 @@ export async function updateSummaryBlob(
   }
 }
 
-export async function updateArchivedCycle(
-  marker: string,
-  field: string,
-  data: any
-) {
+export async function updateArchivedCycle(marker: string, field: string, data: any) {
   let updateObj: any = {}
   updateObj[field] = data
   await Collection.update({
@@ -238,16 +203,10 @@ export async function queryAllArchivedCycles(count?: number) {
   return archivedCycles
 }
 
-export async function queryAllArchivedCyclesBetween(
-  start: number,
-  end: number
-) {
+export async function queryAllArchivedCyclesBetween(start: number, end: number) {
   let archivedCycles = await Collection.find({
     filter: {
-      $and: [
-        { 'cycleRecord.counter': { $gte: start } },
-        { 'cycleRecord.counter': { $lte: end } },
-      ],
+      $and: [{ 'cycleRecord.counter': { $gte: start } }, { 'cycleRecord.counter': { $lte: end } }],
     },
     sort: {
       'cycleRecord.counter': -1,
@@ -311,10 +270,7 @@ export async function queryLatestCycleRecords(count: number = 1) {
 export async function queryCycleRecordsBetween(start: number, end: number) {
   let cycleRecords = await Collection.find({
     filter: {
-      $and: [
-        { 'cycleRecord.counter': { $gte: start } },
-        { 'cycleRecord.counter': { $lte: end } },
-      ],
+      $and: [{ 'cycleRecord.counter': { $gte: start } }, { 'cycleRecord.counter': { $lte: end } }],
     },
     sort: {
       'cycleRecord.counter': -1,
@@ -335,10 +291,7 @@ export async function queryReceiptMapHash(counter: number, partition: number) {
     filter: { 'cycleRecord.counter': counter },
   })
   if (foundArchivedCycles.length > 0) {
-    if (
-      foundArchivedCycles[0].receipt &&
-      foundArchivedCycles[0].receipt.partitionHashes
-    ) {
+    if (foundArchivedCycles[0].receipt && foundArchivedCycles[0].receipt.partitionHashes) {
       return foundArchivedCycles[0].receipt.partitionHashes[partition]
     }
   }
@@ -349,10 +302,7 @@ export async function querySummaryHash(counter: number, partition: number) {
     filter: { 'cycleRecord.counter': counter },
   })
   if (foundArchivedCycles.length > 0) {
-    if (
-      foundArchivedCycles[0].summary &&
-      foundArchivedCycles[0].summary.partitionHashes
-    ) {
+    if (foundArchivedCycles[0].summary && foundArchivedCycles[0].summary.partitionHashes) {
       return foundArchivedCycles[0].summary.partitionHashes[partition]
     }
   }

@@ -1,11 +1,7 @@
 import * as util from 'util'
 import * as Logger from './Logger'
 
-export function safeParse<Type>(
-  fallback: Type,
-  json: string,
-  msg?: string
-): Type {
+export function safeParse<Type>(fallback: Type, json: string, msg?: string): Type {
   if (typeof json === 'object' && json !== null) {
     return json
   }
@@ -45,7 +41,7 @@ export enum Comparison {
   BETTER,
   EQUAL,
   WORSE,
-  ABORT
+  ABORT,
 }
 
 export interface CompareQueryError<Node> {
@@ -69,7 +65,7 @@ export interface SequentialQueryResult<Node> {
 export function shuffleArray<T>(array: T[]) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
-      ;[array[i], array[j]] = [array[j], array[i]]
+    ;[array[i], array[j]] = [array[j], array[i]]
   }
 }
 
@@ -222,7 +218,7 @@ export async function robustQuery<Node = unknown, Response = unknown>(
     let finalResult
     for (const result of results) {
       const { response, node } = result
-      if (responses === null) continue  // ignore null response; can be null if we tried to query ourself
+      if (responses === null) continue // ignore null response; can be null if we tried to query ourself
       finalResult = responses.add(response, node)
       if (finalResult) break
     }
@@ -256,14 +252,13 @@ export async function robustQuery<Node = unknown, Response = unknown>(
   if (finalResult) {
     // Logger.mainLogger.debug(`In robustQuery stopping since we got a finalResult:${JSON.stringify(finalResult)}`)
     return finalResult
-  }
-  else {
+  } else {
     // TODO:  We return the item that had the most nodes reporting it. However, the caller should know
     //        what the count was. We should return [item, count] so that caller gets both.
     //        This change would require also changing all the places it is called.
     Logger.mainLogger.error(
-      `Could not get ${redundancy} ${redundancy > 1 ? 'redundant responses' : 'response'
-      } from ${nodeCount} ${nodeCount !== 1 ? 'nodes' : 'node'
+      `Could not get ${redundancy} ${redundancy > 1 ? 'redundant responses' : 'response'} from ${nodeCount} ${
+        nodeCount !== 1 ? 'nodes' : 'node'
       }. Encountered ${errors} query errors.`
     )
     console.trace()
@@ -345,19 +340,11 @@ export const computeMedian = (arr: number[] = [], sort = true) => {
   }
 }
 
-export const binarySearch = function (
-  arr: any[],
-  el: any,
-  comparator?: Function
-) {
+export const binarySearch = function (arr: any[], el: any, comparator?: Function) {
   if (comparator == null) {
     // Emulate the default Array.sort() comparator
     comparator = (a: any, b: any) => {
-      return a.toString() > b.toString()
-        ? 1
-        : a.toString() < b.toString()
-          ? -1
-          : 0
+      return a.toString() > b.toString() ? 1 : a.toString() < b.toString() ? -1 : 0
     }
   }
   let m = 0
@@ -378,28 +365,28 @@ export const binarySearch = function (
 
 // fail safe and fast
 // this function will pick non-repeating multiple random elements from an array if given amount n > 1
-//(partial) fisher-yates shuffle 
-export function getRandomItemFromArr<T>(arr: T[], n: number = 1):  T[] | undefined {
+//(partial) fisher-yates shuffle
+export function getRandomItemFromArr<T>(arr: T[], n: number = 1): T[] | undefined {
   if (!Array.isArray(arr)) return undefined
   if (arr.length === 0) return undefined
 
   let result: T[] = new Array(n),
-      len: number = arr.length,
-      taken: number[] = new Array(len);
+    len: number = arr.length,
+    taken: number[] = new Array(len)
 
-  if (n > len || n <= 1){
+  if (n > len || n <= 1) {
     const randomIndex = Math.floor(Math.random() * arr.length)
     return [arr[randomIndex]]
     // we can throw an error but no
-    // let's just return one random item in this case for the safety 
+    // let's just return one random item in this case for the safety
   }
 
   while (n--) {
-      const x = Math.floor(Math.random() * len);
-      result[n] = arr[x in taken ? taken[x] : x];
-      taken[x] = --len in taken ? taken[len] : len;
+    const x = Math.floor(Math.random() * len)
+    result[n] = arr[x in taken ? taken[x] : x]
+    taken[x] = --len in taken ? taken[len] : len
   }
-  return result;
+  return result
 }
 
 export async function sleep(time: number) {
@@ -410,7 +397,6 @@ export async function sleep(time: number) {
     }, time)
   })
 }
-
 
 /*
 inp is the input object to be checked

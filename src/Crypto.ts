@@ -29,13 +29,10 @@ export interface TaggedMessage extends cryptoTypes.TaggedObject {
   publicKey: cryptoTypes.publicKey
 }
 
-const curvePublicKeys: Map<cryptoTypes.publicKey, cryptoTypes.curvePublicKey> =
-  new Map()
+const curvePublicKeys: Map<cryptoTypes.publicKey, cryptoTypes.curvePublicKey> = new Map()
 const sharedKeys: Map<cryptoTypes.publicKey, cryptoTypes.sharedKey> = new Map()
 
-function getOrCreateCurvePk(
-  pk: cryptoTypes.publicKey
-): cryptoTypes.curvePublicKey {
+function getOrCreateCurvePk(pk: cryptoTypes.publicKey): cryptoTypes.curvePublicKey {
   let curvePk = curvePublicKeys.get(pk)
   if (!curvePk) {
     curvePk = core.convertPkToCurve(pk)
@@ -44,9 +41,7 @@ function getOrCreateCurvePk(
   return curvePk
 }
 
-function getOrCreateSharedKey(
-  pk: cryptoTypes.publicKey
-): cryptoTypes.sharedKey {
+function getOrCreateSharedKey(pk: cryptoTypes.publicKey): cryptoTypes.sharedKey {
   let sharedK = sharedKeys.get(pk)
   if (!sharedK) {
     const ourCurveSk = State.getCurveSk()
@@ -56,10 +51,7 @@ function getOrCreateSharedKey(
   return sharedK
 }
 
-export function tag<T>(
-  obj: T,
-  recipientPk: cryptoTypes.publicKey
-): T & TaggedMessage {
+export function tag<T>(obj: T, recipientPk: cryptoTypes.publicKey): T & TaggedMessage {
   const sharedKey = getOrCreateSharedKey(recipientPk)
   const objCopy = JSON.parse(core.stringify(obj))
   objCopy.publicKey = State.getNodeInfo().publicKey

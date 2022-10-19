@@ -47,14 +47,8 @@ declare module '@shardus/crypto-utils' {
       publicKey: CryptoTypes.publicKey
     ) => void
     verifyObj: (obj: CryptoTypes.SignedObject) => boolean
-    tagObj: (
-      obj: CryptoTypes.LooseObject,
-      sharedK: CryptoTypes.sharedKey
-    ) => void
-    authenticateObj: (
-      obj: CryptoTypes.TaggedObject,
-      sharedK: CryptoTypes.sharedKey
-    ) => boolean
+    tagObj: (obj: CryptoTypes.LooseObject, sharedK: CryptoTypes.sharedKey) => void
+    authenticateObj: (obj: CryptoTypes.TaggedObject, sharedK: CryptoTypes.sharedKey) => boolean
     convertSkToCurve: (sk: CryptoTypes.secretKey) => CryptoTypes.curveSecretKey
     convertPkToCurve: (pk: CryptoTypes.publicKey) => CryptoTypes.curvePublicKey
     generateSharedKey: (

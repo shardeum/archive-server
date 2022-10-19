@@ -17,18 +17,9 @@ const numberOfArchivers = 1
 
 const runTest = async () => {
   if (numberOfArchivers > 1) {
-    await MulitpleArchivers.checkDataSyncBetweenArchivers(
-      ARCHIVER_HOST,
-      numberOfArchivers
-    )
-    await MulitpleArchivers.checkCyclesDataBetweenArchivers(
-      ARCHIVER_HOST,
-      numberOfArchivers
-    )
-    await MulitpleArchivers.checkReceiptsDataBetweenArchivers(
-      ARCHIVER_HOST,
-      numberOfArchivers
-    )
+    await MulitpleArchivers.checkDataSyncBetweenArchivers(ARCHIVER_HOST, numberOfArchivers)
+    await MulitpleArchivers.checkCyclesDataBetweenArchivers(ARCHIVER_HOST, numberOfArchivers)
+    await MulitpleArchivers.checkReceiptsDataBetweenArchivers(ARCHIVER_HOST, numberOfArchivers)
   }
 }
 

@@ -3,11 +3,7 @@ import * as Transaction from '../dbstore/transactions'
 import * as Cycle from '../dbstore/cycles'
 import * as Receipt from '../dbstore/receipts'
 import * as Crypto from '../Crypto'
-import {
-  clearCombinedAccountsData,
-  combineAccountsData,
-  socketServer,
-} from './Data'
+import { clearCombinedAccountsData, combineAccountsData, socketServer } from './Data'
 import { config } from '../Config'
 import * as Logger from '../Logger'
 import { profilerInstance } from '../profiler/profiler'
@@ -21,10 +17,7 @@ export let newestReceiptsMapIsReset = false
 export const storeReceiptData = async (receipts = [], senderInfo = '') => {
   if (receipts && receipts.length <= 0) return
   let currentTime = Date.now()
-  if (
-    currentTime - lastReceiptMapResetTimestamp >= 60000 &&
-    !newestReceiptsMapIsReset
-  ) {
+  if (currentTime - lastReceiptMapResetTimestamp >= 60000 && !newestReceiptsMapIsReset) {
     newestReceiptsMap = new Map() // To save 30s data; So even when receiptMap is reset, this still has the record and will skip saving if it finds one
     newestReceiptsMapIsReset = true
     console.log('Newest Receipts Map Reset!', newestReceiptsMap)
@@ -64,12 +57,9 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
         hash: account.stateId,
         cycleNumber: cycle,
       }
-      const accountExist = await Account.queryAccountByAccountId(
-        account.accountId
-      )
+      const accountExist = await Account.queryAccountByAccountId(account.accountId)
       if (accountExist) {
-        if (accObj.timestamp > accountExist.timestamp)
-          await Account.updateAccount(accObj.accountId, accObj)
+        if (accObj.timestamp > accountExist.timestamp) await Account.updateAccount(accObj.accountId, accObj)
       } else {
         // await Account.insertAccount(accObj)
         combineAccounts.push(accObj)
@@ -142,10 +132,8 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
     }
     // }
   }
-  if (combineAccounts.length > 0)
-    await Account.bulkInsertAccounts(combineAccounts)
-  if (combineTransactions.length > 0)
-    await Transaction.bulkInsertTransactions(combineTransactions)
+  if (combineAccounts.length > 0) await Account.bulkInsertAccounts(combineAccounts)
+  if (combineTransactions.length > 0) await Transaction.bulkInsertTransactions(combineTransactions)
   resetReceiptsMap()
 }
 
@@ -180,8 +168,7 @@ export const storeCycleData = async (cycles = []) => {
 }
 
 export const storeAccountData = async (accounts = []) => {
-  if (profilerInstance)
-    profilerInstance.profileSectionStart('store_account_data')
+  if (profilerInstance) profilerInstance.profileSectionStart('store_account_data')
   storingAccountData = true
   if (accounts && accounts.length <= 0) return
   if (socketServer) {

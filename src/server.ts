@@ -17,12 +17,8 @@ import { P2P as P2PTypes } from '@shardus/types'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { Readable } from 'stream'
-import MemoryReporting, {
-  memoryReportingInstance,
-} from './profiler/memoryReporting'
-import NestedCounters, {
-  nestedCountersInstance,
-} from './profiler/nestedCounters'
+import MemoryReporting, { memoryReportingInstance } from './profiler/memoryReporting'
+import NestedCounters, { nestedCountersInstance } from './profiler/nestedCounters'
 import Profiler, { profilerInstance } from './profiler/profiler'
 import Statistics from './statistics'
 import * as dbstore from './dbstore'
@@ -53,9 +49,7 @@ async function start() {
     config.ARCHIVER_SECRET_KEY = keypair.secretKey
   }
 
-  const logsConfig = JSON.parse(
-    readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8')
-  )
+  const logsConfig = JSON.parse(readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8'))
   logDir = `${config.ARCHIVER_LOGS}/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
   const baseDir = '.'
   logsConfig.dir = logDir
@@ -89,18 +83,12 @@ async function start() {
           const nodeList = NodeList.getActiveList()
 
           // try to join the network
-          isJoined = await Data.joinNetwork(
-            nodeList,
-            firstTime,
-            checkFromConsensor
-          )
+          isJoined = await Data.joinNetwork(nodeList, firstTime, checkFromConsensor)
         } catch (err: any) {
           Logger.mainLogger.error('Error while joining network:')
           Logger.mainLogger.error(err)
           Logger.mainLogger.error(err.stack)
-          Logger.mainLogger.debug(
-            `Trying to join again in ${cycleDuration} seconds...`
-          )
+          Logger.mainLogger.debug(`Trying to join again in ${cycleDuration} seconds...`)
           await Utils.sleep(cycleDuration * 1000)
         }
         firstTime = false
@@ -122,9 +110,7 @@ async function start() {
       io = startServer()
     }
   } else {
-    Logger.mainLogger.debug(
-      'We are not first archiver. Syncing and starting archive-server'
-    )
+    Logger.mainLogger.debug('We are not first archiver. Syncing and starting archive-server')
     syncAndStartServer()
   }
 }
@@ -160,9 +146,7 @@ async function syncAndStartServer() {
   let lastStoredCycleInfo = await CycleDB.queryLatestCycleRecords(1)
   const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
   let lastStoredReceiptCycle = 0
-  let response: any = await P2P.getJson(
-    `http://${randomArchiver.ip}:${randomArchiver.port}/totalData`
-  )
+  let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`)
   if (
     !response ||
     response.totalCycles < 0 ||
@@ -170,26 +154,17 @@ async function syncAndStartServer() {
     response.totalTransactions < 0 ||
     response.totalReceipts < 0
   ) {
-    throw Error(
-      `Can't fetch data from the archiver ${randomArchiver.ip}:${randomArchiver.port}`
-    )
+    throw Error(`Can't fetch data from the archiver ${randomArchiver.ip}:${randomArchiver.port}`)
   }
-  const { totalCycles, totalAccounts, totalTransactions, totalReceipts } =
-    response
-  if (
-    lastStoredReceiptCount > totalReceipts ||
-    lastStoredCycleCount > totalCycles
-  ) {
+  const { totalCycles, totalAccounts, totalTransactions, totalReceipts } = response
+  if (lastStoredReceiptCount > totalReceipts || lastStoredCycleCount > totalCycles) {
     throw Error(
       'The existing db has more data than the network data! Clear the DB and start the server again!'
     )
   }
   if (lastStoredCycleCount > 0) {
     Logger.mainLogger.debug('Validating old cycles data!')
-    const cycleResult = await Data.compareWithOldCyclesData(
-      randomArchiver,
-      lastStoredCycleCount
-    )
+    const cycleResult = await Data.compareWithOldCyclesData(randomArchiver, lastStoredCycleCount)
     if (!cycleResult.success) {
       throw Error(
         'The last saved 10 cycles data does not match with the archiver data! Clear the DB and start the server again!'
@@ -214,10 +189,7 @@ async function syncAndStartServer() {
     let lastStoredReceiptInfo = await ReceiptDB.queryLatestReceipts(1)
     if (lastStoredReceiptInfo && lastStoredReceiptInfo.length > 0)
       lastStoredReceiptCycle = lastStoredReceiptInfo[0].cycle
-    const receiptResult = await Data.compareWithOldReceiptsData(
-      randomArchiver,
-      lastStoredReceiptCycle
-    )
+    const receiptResult = await Data.compareWithOldReceiptsData(randomArchiver, lastStoredReceiptCycle)
     if (!receiptResult.success) {
       throw Error(
         'The last saved receipts of last 10 cycles data do not match with the archiver data! Clear the DB and start the server again!'
@@ -239,9 +211,7 @@ async function syncAndStartServer() {
   do {
     try {
       // Get active nodes from Archiver
-      const nodeList: any = await NodeList.getActiveListFromArchivers(
-        State.activeArchivers
-      )
+      const nodeList: any = await NodeList.getActiveListFromArchivers(State.activeArchivers)
 
       // try to join the network
       isJoined = await Data.joinNetwork(nodeList, firstTime)
@@ -249,9 +219,7 @@ async function syncAndStartServer() {
       Logger.mainLogger.error('Error while joining network:')
       Logger.mainLogger.error(err)
       Logger.mainLogger.error(err.stack)
-      Logger.mainLogger.debug(
-        `Trying to join again in ${cycleDuration} seconds...`
-      )
+      Logger.mainLogger.debug(`Trying to join again in ${cycleDuration} seconds...`)
       await Utils.sleep(cycleDuration * 1000)
     }
     firstTime = false
@@ -273,24 +241,16 @@ async function syncAndStartServer() {
   await Data.syncCyclesAndNodeList(State.activeArchivers, lastStoredCycleCount)
 
   if (config.experimentalSnapshot) {
-    if (lastStoredReceiptCount === 0)
-      await Data.syncReceipts(State.activeArchivers, lastStoredReceiptCount)
+    if (lastStoredReceiptCount === 0) await Data.syncReceipts(State.activeArchivers, lastStoredReceiptCount)
     else {
       Logger.mainLogger.debug('lastStoredReceiptCycle', lastStoredReceiptCycle)
-      await Data.syncReceiptsByCycle(
-        State.activeArchivers,
-        lastStoredReceiptCycle
-      )
+      await Data.syncReceiptsByCycle(State.activeArchivers, lastStoredReceiptCycle)
     }
     // After receipt data syncing completes, check cycle and receipt again to be sure it's not missing any data
     lastStoredReceiptCount = await ReceiptDB.queryReceiptCount()
     lastStoredCycleCount = await CycleDB.queryCyleCount()
     lastStoredCycleInfo = await CycleDB.queryLatestCycleRecords(1)
-    if (
-      lastStoredCycleCount &&
-      lastStoredCycleInfo &&
-      lastStoredCycleInfo.length > 0
-    ) {
+    if (lastStoredCycleCount && lastStoredCycleInfo && lastStoredCycleInfo.length > 0) {
       if (lastStoredCycleCount - 1 !== lastStoredCycleInfo[0].counter) {
         throw Error(
           `The archiver has ${lastStoredCycleCount} and the latest stored cycle is ${lastStoredCycleInfo[0].counter}`
@@ -384,11 +344,7 @@ export const isDebugMiddleware = (_req, res) => {
 
 // Define all endpoints, all requests, and start REST server
 function startServer() {
-  const server: fastify.FastifyInstance<
-    Server,
-    IncomingMessage,
-    ServerResponse
-  > = fastify({
+  const server: fastify.FastifyInstance<Server, IncomingMessage, ServerResponse> = fastify({
     logger: false,
   })
 
@@ -417,8 +373,7 @@ function startServer() {
   server.post('/nodelist', (request, reply) => {
     profilerInstance.profileSectionStart('POST_nodelist')
     nestedCountersInstance.countEvent('consensor', 'POST_nodelist', 1)
-    const signedFirstNodeInfo: P2P.FirstNodeInfo & Crypto.SignedMessage =
-      request.body
+    const signedFirstNodeInfo: P2P.FirstNodeInfo & Crypto.SignedMessage = request.body
 
     if (State.isFirst && NodeList.isEmpty()) {
       try {
@@ -448,10 +403,7 @@ function startServer() {
       // Set first node as dataSender
       Data.addDataSenders({
         nodeInfo: firstNode,
-        types: [
-          P2PTypes.SnapshotTypes.TypeNames.CYCLE,
-          P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
-        ],
+        types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
         replaceTimeout: Data.createReplaceTimeout(firstNode.publicKey),
       })
 
@@ -463,12 +415,11 @@ function startServer() {
           Cycles.currentCycleCounter,
           publicKey
         ),
-        dataRequestStateMetaData:
-          Data.createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
-            P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
-            Cycles.lastProcessedMetaData,
-            publicKey
-          ),
+        dataRequestStateMetaData: Data.createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
+          P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
+          Cycles.lastProcessedMetaData,
+          publicKey
+        ),
       })
 
       reply.send(res)
@@ -476,30 +427,18 @@ function startServer() {
       const cacheUpdatedTime = NodeList.cacheUpdatedTimes.get('/nodelist')
       const realUpdatedTime = NodeList.realUpdatedTimes.get('/nodelist')
       const cached = NodeList.cache.get('/nodelist')
-      if (
-        cached &&
-        cacheUpdatedTime &&
-        realUpdatedTime &&
-        cacheUpdatedTime > realUpdatedTime
-      ) {
+      if (cached && cacheUpdatedTime && realUpdatedTime && cacheUpdatedTime > realUpdatedTime) {
         // cache is hot, send cache
 
         reply.send(cached)
       } else {
         // cache is cold, remake cache
 
-        const NODE_COUNT = Math.min(
-          config.N_NODELIST,
-          NodeList.getActiveList().length
-        )
+        const NODE_COUNT = Math.min(config.N_NODELIST, NodeList.getActiveList().length)
         // If we dont have any active nodes, send back the first node in our list
         let nodeList: NodeList.ConsensusNodeInfo[] =
-          NODE_COUNT < 1
-            ? NodeList.getList().slice(0, 1)
-            : NodeList.getRandomActiveNode(NODE_COUNT)
-        let sortedNodeList = [...nodeList].sort((a: any, b: any) =>
-          a.id > b.id ? 1 : -1
-        )
+          NODE_COUNT < 1 ? NodeList.getList().slice(0, 1) : NodeList.getRandomActiveNode(NODE_COUNT)
+        let sortedNodeList = [...nodeList].sort((a: any, b: any) => (a.id > b.id ? 1 : -1))
         const res = Crypto.sign({
           nodeList: sortedNodeList,
         })
@@ -521,18 +460,11 @@ function startServer() {
     profilerInstance.profileSectionStart('GET_nodelist')
     nestedCountersInstance.countEvent('consensor', 'GET_nodelist')
 
-    const NODE_COUNT = Math.min(
-      config.N_NODELIST,
-      NodeList.getActiveList().length
-    )
+    const NODE_COUNT = Math.min(config.N_NODELIST, NodeList.getActiveList().length)
     let nodeList: NodeList.ConsensusNodeInfo[] =
-      NODE_COUNT < 1
-        ? NodeList.getList().slice(0, 1)
-        : NodeList.getRandomActiveNode(NODE_COUNT)
+      NODE_COUNT < 1 ? NodeList.getList().slice(0, 1) : NodeList.getRandomActiveNode(NODE_COUNT)
 
-    let sortedNodeList = [...nodeList].sort((a: any, b: any) =>
-      a.id > b.id ? 1 : -1
-    )
+    let sortedNodeList = [...nodeList].sort((a: any, b: any) => (a.id > b.id ? 1 : -1))
     const res = Crypto.sign({
       nodeList: sortedNodeList,
     })
@@ -568,9 +500,7 @@ function startServer() {
     let from = parseInt(start)
     let to = parseInt(end)
     if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-      reply.send(
-        Crypto.sign({ success: false, error: `Invalid start and end counters` })
-      )
+      reply.send(Crypto.sign({ success: false, error: `Invalid start and end counters` }))
       return
     }
     let count = to - from
@@ -599,9 +529,7 @@ function startServer() {
     let from = parseInt(start)
     let to = parseInt(end)
     if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-      reply.send(
-        Crypto.sign({ success: false, error: `Invalid start and end counters` })
-      )
+      reply.send(Crypto.sign({ success: false, error: `Invalid start and end counters` }))
       return
     }
     let lostNodes = []
@@ -654,14 +582,11 @@ function startServer() {
 
     if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
       Logger.mainLogger.error(`Invalid start and end counters`)
-      reply.send(
-        Crypto.sign({ success: false, error: `Invalid start and end counters` })
-      )
+      reply.send(Crypto.sign({ success: false, error: `Invalid start and end counters` }))
       return
     }
     let cycleInfo = []
-    if (config.experimentalSnapshot)
-      cycleInfo = await CycleDB.queryCycleRecordsBetween(from, to)
+    if (config.experimentalSnapshot) cycleInfo = await CycleDB.queryCycleRecordsBetween(from, to)
     else cycleInfo = await Storage.queryCycleRecordsBetween(from, to)
     if (isDownload) {
       let dataInBuffer = Buffer.from(JSON.stringify(cycleInfo), 'utf-8')
@@ -695,8 +620,7 @@ function startServer() {
     }
     if (count > 100) count = 100 // return max 100 cycles
     let cycleInfo
-    if (config.experimentalSnapshot)
-      cycleInfo = await CycleDB.queryLatestCycleRecords(count)
+    if (config.experimentalSnapshot) cycleInfo = await CycleDB.queryLatestCycleRecords(count)
     else cycleInfo = await Storage.queryLatestCycleRecords(count)
     const res = Crypto.sign({
       cycleInfo,
@@ -722,11 +646,7 @@ function startServer() {
     if (start && end) {
       let from = parseInt(start)
       let to = parseInt(end)
-      if (
-        !(from >= 0 && to >= from) ||
-        Number.isNaN(from) ||
-        Number.isNaN(to)
-      ) {
+      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
             success: false,
@@ -749,11 +669,7 @@ function startServer() {
     } else if (startCycle && endCycle) {
       let from = parseInt(startCycle)
       let to = parseInt(endCycle)
-      if (
-        !(from >= 0 && to >= from) ||
-        Number.isNaN(from) ||
-        Number.isNaN(to)
-      ) {
+      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
             success: false,
@@ -783,12 +699,7 @@ function startServer() {
           skip = parseInt(page) - 1
           if (skip > 0) skip = skip * limit
         }
-        receipts = await ReceiptDB.queryReceiptsBetweenCycles(
-          skip,
-          limit,
-          from,
-          to
-        )
+        receipts = await ReceiptDB.queryReceiptsBetweenCycles(skip, limit, from, to)
       }
     }
     const res = Crypto.sign({
@@ -841,11 +752,7 @@ function startServer() {
     if (start && end) {
       let from = parseInt(start)
       let to = parseInt(end)
-      if (
-        !(from >= 0 && to >= from) ||
-        Number.isNaN(from) ||
-        Number.isNaN(to)
-      ) {
+      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
             success: false,
@@ -871,11 +778,7 @@ function startServer() {
     } else if (startCycle && endCycle) {
       let from = parseInt(startCycle)
       let to = parseInt(endCycle)
-      if (
-        !(from >= 0 && to >= from) ||
-        Number.isNaN(from) ||
-        Number.isNaN(to)
-      ) {
+      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
             success: false,
@@ -898,9 +801,7 @@ function startServer() {
       if (page) {
         let offset = parseInt(page)
         if (offset < 0) {
-          reply.send(
-            Crypto.sign({ success: false, error: `Invalid page number` })
-          )
+          reply.send(Crypto.sign({ success: false, error: `Invalid page number` }))
           return
         }
         let skip = 0
@@ -908,12 +809,7 @@ function startServer() {
         if (offset > 0) {
           skip = offset * 10000
         }
-        accounts = await AccountDB.queryAccountsBetweenCycles(
-          skip,
-          limit,
-          from,
-          to
-        )
+        accounts = await AccountDB.queryAccountsBetweenCycles(skip, limit, from, to)
       }
       res = Crypto.sign({
         accounts,
@@ -973,11 +869,7 @@ function startServer() {
     if (start && end) {
       let from = parseInt(start)
       let to = parseInt(end)
-      if (
-        !(from >= 0 && to >= from) ||
-        Number.isNaN(from) ||
-        Number.isNaN(to)
-      ) {
+      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
             success: false,

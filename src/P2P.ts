@@ -30,8 +30,7 @@ export interface FirstNodeResponse {
   nodeList: NodeList.ConsensusNodeInfo[]
   joinRequest?: ArchiverJoinRequest & Crypto.SignedMessage
   dataRequestCycle?: Data.DataRequest<Cycle> & Crypto.TaggedMessage
-  dataRequestStateMetaData?: Data.DataRequest<P2PTypes.SnapshotTypes.StateMetaData> &
-    Crypto.TaggedMessage
+  dataRequestStateMetaData?: Data.DataRequest<P2PTypes.SnapshotTypes.StateMetaData> & Crypto.TaggedMessage
 }
 
 export function createArchiverJoinRequest() {
@@ -50,10 +49,7 @@ export function createArchiverLeaveRequest() {
   return Crypto.sign(leaveRequest)
 }
 
-export async function postJson(
-  url: string,
-  body: object
-): Promise<Data.DataQueryResponse | null> {
+export async function postJson(url: string, body: object): Promise<Data.DataQueryResponse | null> {
   try {
     const res = await fetch(url, {
       method: 'post',
