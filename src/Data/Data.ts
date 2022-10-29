@@ -181,13 +181,14 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
           console.log('RECEIPT RECEIPT', sender.nodeInfo.publicKey, sender.nodeInfo.ip, sender.nodeInfo.port)
 
         if (newData.responses && newData.responses.RECEIPT) {
-          console.log(
-            'RECEIPT RECEIPT',
-            sender.nodeInfo.publicKey,
-            sender.nodeInfo.ip,
-            sender.nodeInfo.port,
-            newData.responses.RECEIPT.length
-          )
+          if (config.VERBOSE)
+            Logger.mainLogger.debug(
+              'RECEIPT RECEIPT',
+              sender.nodeInfo.publicKey,
+              sender.nodeInfo.ip,
+              sender.nodeInfo.port,
+              newData.responses.RECEIPT.length
+            )
           // clearFalseNodes(sender.nodeInfo.publicKey)
           storeReceiptData(newData.responses.RECEIPT, sender.nodeInfo.ip + ':' + sender.nodeInfo.port)
         }
@@ -527,8 +528,7 @@ function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   // console.log('removeDataSenders', dataSenders)
   // Logger.mainLogger.debug('removeDataSenders', dataSenders)
   for (let [key, sender] of dataSenders) {
-    console.log(publicKey, key)
-    Logger.mainLogger.debug(publicKey, key)
+    // if (config.VERBOSE) Logger.mainLogger.debug(publicKey, key)
     if (key === publicKey && sender) {
       // Clear contactTimeout associated with this sender
       if (sender.contactTimeout) {
@@ -628,6 +628,7 @@ function selectNewDataSender(publicKey) {
 }
 
 async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.ConsensusNodeInfo['publicKey'][]) {
+  if (publicKeys.length === 0) return
   const calculatedConsensusRadius = await getConsensusRadius()
   let consensusRadius = calculatedConsensusRadius
   if (consensusRadius > 2) consensusRadius-- // Change default to 3 for now assuming nodesPerConsensusGroup 10
