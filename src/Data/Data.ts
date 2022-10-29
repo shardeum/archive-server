@@ -1722,6 +1722,7 @@ export class ChangeSquasher {
       if (this.seenUpdates.has(update.id)) continue
       // Mark this id as updated
       this.seenUpdates.set(update.id, update)
+      // console.log('seenUpdates', this.seenUpdates, update)
     }
 
     for (const joinedConsensor of reversed(change.added)) {
@@ -1781,6 +1782,11 @@ export function parseRecord(record: any): Change {
       })
     }
   }
+  // Logger.mainLogger.debug('parseRecord', record.counter, {
+  //   added: [...record.joinedConsensors],
+  //   removed: [...record.apoptosized],
+  //   updated: [...activated, ...refreshUpdated],
+  // })
 
   return {
     added: [...record.joinedConsensors],
@@ -1797,6 +1803,7 @@ export function parse(record: any): Change {
 }
 
 function applyNodeListChange(change: Change) {
+  // console.log('change', change)
   if (change.added.length > 0) {
     const consensorInfos = change.added.map((jc: any) => ({
       ip: jc.externalIp,
