@@ -921,8 +921,8 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
   }
   // Temp hack to pick more nodes when consensusRadius is high
   // Pick one node out of 10 nodes
-  if (Math.floor(activeList.length / 10) > totalNumberOfNodesToSubscribe) {
-    let extraConsensorsToSubscribe = Math.floor(activeList.length / 10)
+  if (Math.floor(activeList.length / 5) > totalNumberOfNodesToSubscribe) {
+    let extraConsensorsToSubscribe = Math.floor(activeList.length / 5)
     if (socketClients.size < extraConsensorsToSubscribe) {
       extraConsensorsToSubscribe -= socketClients.size
       Logger.mainLogger.debug('extraConsensorsToSubscribe', extraConsensorsToSubscribe)
