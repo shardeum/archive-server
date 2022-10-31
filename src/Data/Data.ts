@@ -736,47 +736,17 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
     if (socketClients.size < extraConsensorsToSubscribe) {
       extraConsensorsToSubscribe -= socketClients.size
       Logger.mainLogger.debug('extraConsensorsToSubscribe', extraConsensorsToSubscribe)
-      const retryTimes = 2
-      let subscribedSuccess = 0
-      let retry = 0
-
-      let remainingActiveList = [...activeList]
-      if (subscribedSuccess < extraConsensorsToSubscribe) {
-        for (const key of socketClients.keys()) {
-          remainingActiveList = remainingActiveList.filter((node) => node.publicKey !== key)
-        }
-        if (config.VERBOSE)
-          Logger.mainLogger.debug('remainingActiveList', remainingActiveList, socketClients.keys())
-      }
-
-      while (subscribedSuccess < extraConsensorsToSubscribe) {
-        if (retry === retryTimes) {
-          break
-        }
-        if (remainingActiveList.length === 0) {
-          remainingActiveList = [...activeList]
-          if (subscribedSuccess < extraConsensorsToSubscribe) {
-            for (const key of socketClients.keys()) {
-              remainingActiveList = remainingActiveList.filter((node) => node.publicKey !== key)
-            }
-          }
-          if (remainingActiveList.length === 0) {
-            break
-          }
-          retry++
-        }
-        let newSenderInfo = remainingActiveList[Math.floor(Math.random() * remainingActiveList.length)]
-        if (!socketClients.has(newSenderInfo.publicKey)) {
-          let connectionStatus = await createDataTransferConnection(newSenderInfo)
-          if (connectionStatus) {
-            subscribedSuccess++
-          } else {
-            if (socketClients.has(newSenderInfo.publicKey)) socketClients.delete(newSenderInfo.publicKey)
-          }
-          socketConnectionsTracker.delete(newSenderInfo.publicKey)
-        }
-        remainingActiveList = remainingActiveList.filter((node) => node.publicKey !== newSenderInfo.publicKey)
-      }
+      await subscribeExtraConsensors(extraConsensorsToSubscribe)
+    }
+  }
+  // Temp hack to pick more nodes when consensusRadius is high
+  // Pick one node out of 10 nodes
+  if (Math.floor(activeList.length / 5) > totalNumberOfNodesToSubscribe) {
+    let extraConsensorsToSubscribe = Math.floor(activeList.length / 5)
+    if (socketClients.size < extraConsensorsToSubscribe) {
+      extraConsensorsToSubscribe -= socketClients.size
+      Logger.mainLogger.debug('extraConsensorsToSubscribe', extraConsensorsToSubscribe)
+      await subscribeExtraConsensors(extraConsensorsToSubscribe)
     }
   }
   if (queueForSelectingNewDataSenders.size > 0) {
