@@ -636,7 +636,7 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
   if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
   const totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
   Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
-  console.log('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
+  if (config.VERBOSE) console.log('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
   for (const publicKey of publicKeys) {
     let nodeIsUnsubscribed = true
     let nodeIsInTheActiveList = false
@@ -663,16 +663,18 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
         Logger.mainLogger.debug(
           'There is already node from this subset or node to rotate is not from this subset!'
         )
-        console.log('There is already node from this subset or node to rotate is not from this subset!')
+        if (config.VERBOSE)
+          console.log('There is already node from this subset or node to rotate is not from this subset!')
         continue
       }
       if (extraSubscribedNodesCountFromThisSubset >= 1) {
         Logger.mainLogger.debug(
           `There are already ${extraSubscribedNodesCountFromThisSubset} nodes that the archiver has picked from this nodes subset.`
         )
-        console.log(
-          `There are already ${extraSubscribedNodesCountFromThisSubset} nodes that the archiver has picked from this nodes subset.`
-        )
+        if (config.VERBOSE)
+          console.log(
+            `There are already ${extraSubscribedNodesCountFromThisSubset} nodes that the archiver has picked from this nodes subset.`
+          )
         if (nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
           if (config.VERBOSE) console.log('Unsubscribe 4', publicKey)
           unsubscribeDataSender(publicKey)
@@ -767,7 +769,7 @@ async function getConsensusRadius() {
     const nodesPerConsensusGroup = response.config.sharding.nodesPerConsensusGroup
     const consensusRadius = Math.floor((nodesPerConsensusGroup - 1) / 2)
     Logger.mainLogger.debug('consensusRadius', consensusRadius)
-    console.log('consensusRadius', consensusRadius)
+    if (config.VERBOSE) console.log('consensusRadius', consensusRadius)
     return consensusRadius
   }
   return activeList.length
@@ -829,7 +831,7 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
   if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
   const totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
   Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
-  console.log('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
+  if (config.VERBOSE) console.log('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
   for (let i = 0; i < activeList.length; i += consensusRadius) {
     let subsetList = activeList.slice(i, i + consensusRadius)
     if (config.VERBOSE) console.log('Round', i, 'subsetList', subsetList, socketClients.keys())
@@ -934,7 +936,7 @@ export async function subscribeExtraConsensors(extraConsensorsToSubscribe) {
       retry++
     }
     let newSenderInfo = remainingActiveList[Math.floor(Math.random() * remainingActiveList.length)]
-    Logger.mainLogger.debug('newSenderInfo', newSenderInfo, remainingActiveList)
+    // Logger.mainLogger.debug('newSenderInfo', newSenderInfo, remainingActiveList)
     if (!socketClients.has(newSenderInfo.publicKey)) {
       let connectionStatus = await createDataTransferConnection(newSenderInfo)
       if (connectionStatus) {
