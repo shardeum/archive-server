@@ -167,7 +167,15 @@ export const storeCycleData = async (cycles = []) => {
   }
 }
 
-export const storeAccountData = async (accounts = []) => {
+export const storeAccountData = async (restoreData: any = {}) => {
+  console.log(
+    'RestoreData',
+    'accounts',
+    restoreData.accounts.length,
+    'receipts',
+    restoreData.receipts ? restoreData.receipts.length : 0
+  )
+  const { accounts, receipts } = restoreData
   if (profilerInstance) profilerInstance.profileSectionStart('store_account_data')
   storingAccountData = true
   if (accounts && accounts.length <= 0) return
@@ -193,6 +201,25 @@ export const storeAccountData = async (accounts = []) => {
   //   // }
   // }
   await Account.bulkInsertAccounts(accounts)
+  if (receipts && receipts.length > 0) {
+    let combineTransactions = []
+    for (let i = 0; i < receipts.length; i++) {
+      const receipt = receipts[i]
+      const txObj = {
+        txId: receipt.data.txId,
+        accountId: receipt.accountId,
+        timestamp: receipt.timestamp,
+        cycleNumber: receipt.cycleNumber,
+        data: receipt.data,
+        keys: {},
+        result: {},
+        originTxData: {},
+        sign: {},
+      } as Transaction.Transaction
+      combineTransactions.push(txObj)
+    }
+    await Transaction.bulkInsertTransactions(combineTransactions)
+  }
   if (profilerInstance) profilerInstance.profileSectionEnd('store_account_data')
   console.log('Combined Accounts Data', combineAccountsData.length)
   Logger.mainLogger.debug('Combined Accounts Data', combineAccountsData.length)
