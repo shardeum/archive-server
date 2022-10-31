@@ -859,13 +859,18 @@ function startServer() {
       end: 's?',
       txId: 's?',
       accountId: 's?',
+      startCycle: 's?',
+      endCycle: 's?',
+      page: 's?',
     })
     if (err) {
       reply.send(Crypto.sign({ success: false, error: err }))
       return
     }
-    let { start, end, txId, accountId } = _request.query
+    let { start, end, txId, accountId, startCycle, endCycle, page } = _request.query
     let transactions = []
+    let totalTransactions = 0
+    let res
     if (start && end) {
       let from = parseInt(start)
       let to = parseInt(end)
@@ -889,14 +894,65 @@ function startServer() {
         return
       }
       transactions = await TransactionDB.queryTransactions(from, count)
+      res = Crypto.sign({
+        transactions,
+      })
+    } else if (startCycle && endCycle) {
+      let from = parseInt(startCycle)
+      let to = parseInt(endCycle)
+      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Invalid start and end counters`,
+          })
+        )
+        return
+      }
+      let count = to - from
+      if (count > 100) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Exceed maximum limit of 100 cycles to query transactions Count`,
+          })
+        )
+        return
+      }
+      totalTransactions = await TransactionDB.queryTransactionCountBetweenCycles(from, to)
+      if (page) {
+        let offset = parseInt(page)
+        if (offset < 0) {
+          reply.send(Crypto.sign({ success: false, error: `Invalid page number` }))
+          return
+        }
+        let skip = 0
+        let limit = 10000 // query 10000 transactions
+        if (offset > 0) {
+          skip = offset * 10000
+        }
+        transactions = await TransactionDB.queryTransactionsBetweenCycles(skip, limit, from, to)
+      }
+      res = Crypto.sign({
+        transactions,
+        totalTransactions,
+      })
     } else if (txId) {
       transactions = await TransactionDB.queryTransactionByTxId(txId)
+      res = Crypto.sign({
+        transactions,
+      })
     } else if (accountId) {
       transactions = await TransactionDB.queryTransactionByAccountId(accountId)
+      res = Crypto.sign({
+        transactions,
+      })
+    } else {
+      res = {
+        success: false,
+        error: 'not specified which account to show',
+      }
     }
-    const res = Crypto.sign({
-      transactions,
-    })
     reply.send(res)
   })
 

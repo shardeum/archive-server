@@ -110,8 +110,17 @@ export async function queryLatestTransactions(count) {
       count ? count : 100
     }`
     const transactions: any = await db.all(sql)
+    if (transactions.length > 0) {
+      transactions.forEach((transaction: any) => {
+        if (transaction.data) transaction.data = JSON.parse(transaction.data)
+        if (transaction.keys) transaction.keys = JSON.parse(transaction.keys)
+        if (transaction.result) transaction.result = JSON.parse(transaction.result)
+        if (transaction.originTxData) transaction.originTxData = JSON.parse(transaction.originTxData)
+        if (transaction.sign) transaction.sign = JSON.parse(transaction.sign)
+      })
+    }
     if (config.VERBOSE) {
-      Logger.mainLogger.debug('Account latest', transactions)
+      Logger.mainLogger.debug('Transaction latest', transactions)
     }
     return transactions
   } catch (e) {
@@ -124,6 +133,15 @@ export async function queryTransactions(skip = 0, limit = 10000) {
   try {
     const sql = `SELECT * FROM transactions ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
     transactions = await db.all(sql)
+    if (transactions.length > 0) {
+      transactions.forEach((transaction: any) => {
+        if (transaction.data) transaction.data = JSON.parse(transaction.data)
+        if (transaction.keys) transaction.keys = JSON.parse(transaction.keys)
+        if (transaction.result) transaction.result = JSON.parse(transaction.result)
+        if (transaction.originTxData) transaction.originTxData = JSON.parse(transaction.originTxData)
+        if (transaction.sign) transaction.sign = JSON.parse(transaction.sign)
+      })
+    }
   } catch (e) {
     Logger.mainLogger.error(e)
   }
@@ -151,5 +169,54 @@ export async function queryTransactionCount() {
   }
   if (transactions) transactions = transactions['COUNT(*)']
   else transactions = 0
+  return transactions
+}
+
+export async function queryTransactionCountBetweenCycles(startCycleNumber: number, endCycleNumber: number) {
+  let transactions
+  try {
+    const sql = `SELECT COUNT(*) FROM transactions WHERE cycleNumber BETWEEN ? AND ?`
+    transactions = await db.get(sql, [startCycleNumber, endCycleNumber])
+  } catch (e) {
+    Logger.mainLogger.error(e)
+  }
+  if (config.VERBOSE) {
+    Logger.mainLogger.debug('Transaction count between cycles', transactions)
+  }
+  if (transactions) transactions = transactions['COUNT(*)']
+  else transactions = 0
+  return transactions
+}
+
+export async function queryTransactionsBetweenCycles(
+  skip = 0,
+  limit = 10000,
+  startCycleNumber: number,
+  endCycleNumber: number
+) {
+  let transactions
+  try {
+    const sql = `SELECT * FROM transactions WHERE cycleNumber BETWEEN ? AND ? ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+    transactions = await db.all(sql, [startCycleNumber, endCycleNumber])
+    if (transactions.length > 0) {
+      transactions.forEach((transaction: any) => {
+        if (transaction.data) transaction.data = JSON.parse(transaction.data)
+        if (transaction.keys) transaction.keys = JSON.parse(transaction.keys)
+        if (transaction.result) transaction.result = JSON.parse(transaction.result)
+        if (transaction.originTxData) transaction.originTxData = JSON.parse(transaction.originTxData)
+        if (transaction.sign) transaction.sign = JSON.parse(transaction.sign)
+      })
+    }
+  } catch (e) {
+    Logger.mainLogger.error(e)
+  }
+  if (config.VERBOSE) {
+    Logger.mainLogger.debug(
+      'Transaction transactions between cycles',
+      transactions ? transactions.length : transactions,
+      'skip',
+      skip
+    )
+  }
   return transactions
 }

@@ -202,6 +202,7 @@ export const storeAccountData = async (restoreData: any = {}) => {
   // }
   await Account.bulkInsertAccounts(accounts)
   if (receipts && receipts.length > 0) {
+    Logger.mainLogger.debug('Received receipts Size', receipts.length)
     let combineTransactions = []
     for (let i = 0; i < receipts.length; i++) {
       const receipt = receipts[i]
