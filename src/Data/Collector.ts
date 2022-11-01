@@ -222,10 +222,11 @@ export const storeAccountData = async (restoreData: any = {}) => {
     await Transaction.bulkInsertTransactions(combineTransactions)
   }
   if (profilerInstance) profilerInstance.profileSectionEnd('store_account_data')
-  console.log('Combined Accounts Data', combineAccountsData.length)
-  Logger.mainLogger.debug('Combined Accounts Data', combineAccountsData.length)
-  if (combineAccountsData.length > 0) {
-    let accountData = [...combineAccountsData]
+  console.log('Combined Accounts Data', combineAccountsData.accounts.length)
+  Logger.mainLogger.debug('Combined Accounts Data', combineAccountsData.accounts.length)
+  if (combineAccountsData.accounts.length > 0 || combineAccountsData.receipts.length > 0) {
+    console.log('Found combine accountsData')
+    let accountData = { ...combineAccountsData }
     clearCombinedAccountsData()
     storeAccountData(accountData)
   } else {

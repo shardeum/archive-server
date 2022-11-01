@@ -236,6 +236,7 @@ async function syncAndStartServer() {
 
   Logger.mainLogger.debug('We have successfully joined the network')
 
+  // TODO - update to sync geneis transaction receipts data also from the archiver
   await Data.syncGenesisAccountsFromArchiver(State.activeArchivers) // Sync Genesis Accounts that the network start with.
 
   await Data.syncCyclesAndNodeList(State.activeArchivers, lastStoredCycleCount)

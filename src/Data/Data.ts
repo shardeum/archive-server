@@ -36,7 +36,10 @@ let socketClient: SocketIOClientStatic['Socket']
 export let socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
 let socketConnectionsTracker: Map<string, string> = new Map()
 let lastSentCycleCounterToExplorer = 0
-export let combineAccountsData = []
+export let combineAccountsData = {
+  accounts: [],
+  receipts: [],
+}
 let forwardGenesisAccounts = true
 let multipleDataSenders = true
 let consensorsCountToSubscribe = 3
@@ -236,7 +239,20 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
             syncGenesisAccountsFromConsensor(newData.responses.ACCOUNT, sender.nodeInfo)
           } else {
             if (storingAccountData) {
-              combineAccountsData = [...combineAccountsData, ...newData.responses.ACCOUNT]
+              console.log('Storing Data')
+              let newCombineAccountsData: any = { ...combineAccountsData }
+              if (newData.responses.ACCOUNT.accounts)
+                newCombineAccountsData.accounts = [
+                  ...newCombineAccountsData.accounts,
+                  ...newData.responses.ACCOUNT.accounts,
+                ]
+              if (newData.responses.ACCOUNT.receipts)
+                newCombineAccountsData.receipts = [
+                  ...newCombineAccountsData.receipts,
+                  ...newData.responses.ACCOUNT.receipts,
+                ]
+              combineAccountsData = { ...newCombineAccountsData }
+              newCombineAccountsData = {}
             }
             // console.log(newData.responses.ACCOUNT)
             else storeAccountData(newData.responses.ACCOUNT)
@@ -292,7 +308,10 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
 }
 
 export function clearCombinedAccountsData() {
-  combineAccountsData = []
+  combineAccountsData = {
+    accounts: [],
+    receipts: [],
+  }
 }
 
 export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
@@ -1828,7 +1847,7 @@ export async function syncGenesisAccountsFromArchiver(activeArchivers: State.Arc
         Logger.mainLogger.debug('Download completed for accounts')
       }
       Logger.mainLogger.debug(`Downloaded accounts`, response.accounts.length)
-      combineAccountsData = [...combineAccountsData, ...response.accounts]
+      await storeAccountData({ accounts: response.accounts })
     } else {
       Logger.mainLogger.debug('Genesis Accounts Query', 'Invalid download response')
     }
@@ -1837,7 +1856,6 @@ export async function syncGenesisAccountsFromArchiver(activeArchivers: State.Arc
     page++
     // await sleep(1000);
   }
-  await storeAccountData(combineAccountsData)
   Logger.mainLogger.debug('Sync genesis accounts completed!')
 }
 
@@ -1861,7 +1879,8 @@ export async function syncGenesisAccountsFromConsensor(
         Logger.mainLogger.debug('Download completed for accounts')
       }
       Logger.mainLogger.debug(`Downloaded accounts`, response.accounts.length)
-      await storeAccountData(response.accounts)
+      // TODO - update to include receipts data also
+      await storeAccountData({ accounts: response.accounts })
       // combineAccountsData = [...combineAccountsData, ...response.accounts];
       totalDownloadedAccounts += response.accounts.length
     } else {
