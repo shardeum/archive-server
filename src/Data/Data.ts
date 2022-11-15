@@ -1859,6 +1859,48 @@ export async function syncGenesisAccountsFromArchiver(activeArchivers: State.Arc
   Logger.mainLogger.debug('Sync genesis accounts completed!')
 }
 
+export async function syncGenesisTransactionsFromArchiver(activeArchivers: State.ArchiverNodeInfo[]) {
+  const [randomArchiver] = Utils.getRandomItemFromArr(activeArchivers)
+  let complete = false
+  let startTransaction = 0
+  let endTransaction = startTransaction + 10000
+  let totalGenesisTransactions = 0
+
+  let res: any = await P2P.getJson(
+    `http://${randomArchiver.ip}:${randomArchiver.port}/transaction?startCycle=0&endCycle=5`
+  )
+  if (res && res.totalTransactions) {
+    totalGenesisTransactions = res.totalTransactions
+    Logger.mainLogger.debug('TotalGenesis Transactions', totalGenesisTransactions)
+  } else {
+    Logger.mainLogger.error('Genesis Total Transaction Query', 'Invalid download response')
+    return
+  }
+  if (totalGenesisTransactions <= 0) return
+  let page = 0
+  while (!complete) {
+    Logger.mainLogger.debug(`Downloading transactions from ${startTransaction} to ${endTransaction}`)
+    let response: any = await P2P.getJson(
+      `http://${randomArchiver.ip}:${randomArchiver.port}/transaction?startCycle=0&endCycle=5&page=${page}`
+    )
+    if (response && response.transactions) {
+      if (response.transaction.length < 10000) {
+        complete = true
+        Logger.mainLogger.debug('Download completed for transactions')
+      }
+      Logger.mainLogger.debug(`Downloaded transactions`, response.transactions.length)
+      await storeAccountData({ receipts: response.transactions })
+    } else {
+      Logger.mainLogger.debug('Genesis Transactions Query', 'Invalid download response')
+    }
+    startTransaction = endTransaction
+    endTransaction += 10000
+    page++
+    // await sleep(1000);
+  }
+  Logger.mainLogger.debug('Sync genesis transactions completed!')
+}
+
 export async function syncGenesisAccountsFromConsensor(
   totalGenesisAccounts = 0,
   firstConsensor: NodeList.ConsensusNodeInfo
