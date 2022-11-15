@@ -26,6 +26,7 @@ import * as CycleDB from './dbstore/cycles'
 import * as AccountDB from './dbstore/accounts'
 import * as TransactionDB from './dbstore/transactions'
 import * as ReceiptDB from './dbstore/receipts'
+import { startSaving } from './saveConsoleOutput'
 
 // Socket modules
 let io: SocketIO.Server
@@ -54,6 +55,9 @@ async function start() {
   const baseDir = '.'
   logsConfig.dir = logDir
   Logger.initLogger(baseDir, logsConfig)
+  if (logsConfig.saveConsoleOutput) {
+    startSaving(join(baseDir, logsConfig.dir))
+  }
   // Initialize storage
   if (config.experimentalSnapshot) {
     await dbstore.initializeDB(config)

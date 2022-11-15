@@ -55,6 +55,10 @@ export interface LogsConfiguration {
       appenders?: string[]
       level?: string
     }
+    out?: {
+      appenders?: string[]
+      level?: string
+    }
     fatal?: {
       appenders?: string[]
       level?: string
