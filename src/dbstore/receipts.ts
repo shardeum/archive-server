@@ -71,7 +71,7 @@ export async function queryReceiptByReceiptId(receiptId: string) {
   }
 }
 
-export async function queryLatestReceipts(count) {
+export async function queryLatestReceipts(count: number) {
   try {
     const sql = `SELECT * FROM receipts ORDER BY cycle DESC, timestamp DESC LIMIT ${count ? count : 100}`
     const receipts: any = await db.all(sql)
@@ -94,7 +94,7 @@ export async function queryLatestReceipts(count) {
   }
 }
 
-export async function queryReceipts(skip = 0, limit = 10000) {
+export async function queryReceipts(skip: number = 0, limit: number = 10000) {
   let receipts
   try {
     const sql = `SELECT * FROM receipts ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
@@ -171,8 +171,8 @@ export async function queryReceiptCountBetweenCycles(startCycleNumber: number, e
 }
 
 export async function queryReceiptsBetweenCycles(
-  skip = 0,
-  limit = 10000,
+  skip: number = 0,
+  limit: number = 10000,
   startCycleNumber: number,
   endCycleNumber: number
 ) {

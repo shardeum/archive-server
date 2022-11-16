@@ -26,7 +26,13 @@ const objKeys =
   }) || Object.keys
 
 export const stringifyReduce = (val: any, isArrayProp?: boolean): any => {
-  let i, max, str, keys, key, propVal, toStr
+  let i: number
+  let max: number
+  let str: string
+  let keys: string | any[]
+  let key: string | number
+  let propVal: string
+  let toStr: string
   if (val === true) {
     return 'true'
   }

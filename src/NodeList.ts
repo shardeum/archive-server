@@ -167,7 +167,7 @@ export function removeNodes(publicKeys: string[]): string[] {
   }
 
   if (keysToDelete.size > 0) {
-    let key
+    let key: string
     for (let i = list.length - 1; i > -1; i--) {
       key = list[i].publicKey
       if (keysToDelete.has(key)) {

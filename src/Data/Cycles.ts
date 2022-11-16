@@ -67,14 +67,14 @@ export function setLastProcessedMetaDataCounter(value: number) {
   lastProcessedMetaData = value
 }
 
-export function computeCycleMarker(fields: any) {
+export function computeCycleMarker(fields: Cycle) {
   const cycleMarker = Crypto.hashObj(fields)
   return cycleMarker
 }
 
 // validation of cycle record against previous marker
 export function validateCycle(prev: Cycle, next: Cycle): boolean {
-  let previousRecordWithoutMarker: any = { ...prev }
+  let previousRecordWithoutMarker: Cycle = { ...prev }
   delete previousRecordWithoutMarker.marker
   const prevMarker = computeCycleMarker(previousRecordWithoutMarker)
   if (next.previous !== prevMarker) return false

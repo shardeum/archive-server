@@ -104,7 +104,7 @@ export async function queryTransactionByAccountId(accountId: string) {
   }
 }
 
-export async function queryLatestTransactions(count) {
+export async function queryLatestTransactions(count: number) {
   try {
     const sql = `SELECT * FROM transactions ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${
       count ? count : 100
@@ -128,7 +128,7 @@ export async function queryLatestTransactions(count) {
   }
 }
 
-export async function queryTransactions(skip = 0, limit = 10000) {
+export async function queryTransactions(skip: number = 0, limit: number = 10000) {
   let transactions
   try {
     const sql = `SELECT * FROM transactions ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`

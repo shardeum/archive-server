@@ -625,7 +625,7 @@ function startServer() {
       return
     }
     if (count > 100) count = 100 // return max 100 cycles
-    let cycleInfo
+    let cycleInfo: any[]
     if (config.experimentalSnapshot) cycleInfo = await CycleDB.queryLatestCycleRecords(count)
     else cycleInfo = await Storage.queryLatestCycleRecords(count)
     const res = Crypto.sign({

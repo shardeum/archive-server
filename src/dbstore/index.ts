@@ -1,6 +1,7 @@
+import { Config } from '../Config'
 import * as db from './sqlite3storage'
 
-export const initializeDB = async (config) => {
+export const initializeDB = async (config: Config) => {
   await db.init(config)
   await db.runCreate(
     'CREATE TABLE if not exists `transactions` (`txId` TEXT NOT NULL UNIQUE PRIMARY KEY, `accountId` TEXT NOT NULL, `timestamp` BIGINT NOT NULL, `cycleNumber` NUMBER NOT NULL, `data` JSON NOT NULL, `keys` JSON NOT NULL, `result` JSON NOT NULL, `originTxData` JSON, `sign` JSON NOT NULL)'

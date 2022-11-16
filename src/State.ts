@@ -134,8 +134,8 @@ export function removeActiveArchiver(publicKey: string) {
 
 export function getNodeInfo(): ArchiverNodeInfo {
   const sanitizedNodeInfo = { ...nodeState }
-  delete (sanitizedNodeInfo as any).secretKey
-  delete (sanitizedNodeInfo as any).curveSk
+  delete sanitizedNodeInfo.secretKey
+  delete sanitizedNodeInfo.curveSk
   return sanitizedNodeInfo
 }
 

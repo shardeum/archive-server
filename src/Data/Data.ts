@@ -328,11 +328,7 @@ export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
   )
 }
 
-export function createQueryRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
-  type: string,
-  lastData: number,
-  recipientPk: Crypto.types.publicKey
-) {
+export function createQueryRequest(type: string, lastData: number, recipientPk: Crypto.types.publicKey) {
   return Crypto.tag(
     {
       type,
@@ -610,7 +606,7 @@ function clearFalseNodes(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   // console.log('Clear False Nodes', receivedCounters)
 }
 
-function selectNewDataSender(publicKey) {
+function selectNewDataSender(publicKey: string) {
   // Randomly pick an active node
   const activeList = NodeList.getActiveList()
   let newSender = activeList[Math.floor(Math.random() * activeList.length)]
@@ -1060,7 +1056,7 @@ export async function joinNetwork(
 ): Promise<boolean> {
   Logger.mainLogger.debug('Is firstTime', isFirstTime)
   if (!isFirstTime) {
-    let isJoined
+    let isJoined: boolean
     if (checkFromConsensor) isJoined = await checkJoinStatusFromConsensor(nodeList)
     else isJoined = await checkJoinStatus()
     if (isJoined) {
@@ -1285,7 +1281,15 @@ export async function processStateMetaData(response: any) {
   }
   profilerInstance.profileSectionStart('state_metadata')
   for (let stateMetaData of STATE_METADATA) {
-    let data, receipt, summary
+    let data: { parentCycle: any; networkHash?: any; partitionHashes?: any }
+    let receipt: {
+      parentCycle: any
+      networkHash?: any
+      partitionHashes?: any
+      partitionMaps?: {}
+      partitionTxs?: {}
+    }
+    let summary: { parentCycle: any; networkHash?: any; partitionHashes?: any; partitionBlobs?: {} }
     // [TODO] validate the state data by robust querying other nodes
 
     // store state hashes to archivedCycle
@@ -1536,9 +1540,9 @@ export async function processStateMetaData(response: any) {
   profilerInstance.profileSectionEnd('state_metadata')
 }
 
-export async function sendToExplorer(counter) {
+export async function sendToExplorer(counter: number) {
   if (socketServer) {
-    let completedArchivedCycle
+    let completedArchivedCycle: any[]
     if (lastSentCycleCounterToExplorer === 0) {
       completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(
         lastSentCycleCounterToExplorer,
@@ -2539,7 +2543,7 @@ export async function compareWithOldReceiptsData(
   const response: any = await P2P.getJson(
     `http://${archiver.ip}:${archiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&type=tally`
   )
-  let downloadedReceiptCountByCycles
+  let downloadedReceiptCountByCycles: string | any[]
   if (response && response.receipts) {
     downloadedReceiptCountByCycles = response.receipts
   } else {

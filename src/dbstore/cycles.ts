@@ -78,7 +78,7 @@ export async function queryCycleByMarker(marker: string) {
   }
 }
 
-export async function queryLatestCycleRecords(count) {
+export async function queryLatestCycleRecords(count: number) {
   try {
     const sql = `SELECT * FROM cycles ORDER BY counter DESC LIMIT ${count ? count : 100}`
     let cycleRecords: any = await db.all(sql)

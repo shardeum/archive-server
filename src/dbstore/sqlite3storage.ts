@@ -1,10 +1,11 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import { Config } from '../Config'
 
 const sqlite3 = require('sqlite3').verbose()
 let db: any
 
-export async function init(config) {
+export async function init(config: Config) {
   console.log(config.ARCHIVER_DB)
   createDirectories('archiver-db')
   const dbName = `archiver-db/archiverdb-${config.ARCHIVER_PORT}.sqlite3`
@@ -14,11 +15,11 @@ export async function init(config) {
   console.log('Database initialized.')
 }
 
-export async function runCreate(createStatement) {
+export async function runCreate(createStatement: string) {
   await run(createStatement)
 }
 
-export async function run(sql, params = [] || {}) {
+export async function run(sql: string, params = [] || {}) {
   return new Promise((resolve, reject) => {
     db.run(sql, params, function (err) {
       if (err) {
@@ -32,7 +33,7 @@ export async function run(sql, params = [] || {}) {
   })
 }
 
-export async function get(sql, params = []) {
+export async function get(sql: string, params = []) {
   return new Promise((resolve, reject) => {
     db.get(sql, params, (err, result) => {
       if (err) {
@@ -46,7 +47,7 @@ export async function get(sql, params = []) {
   })
 }
 
-export async function all(sql, params = []) {
+export async function all(sql: string, params = []) {
   return new Promise((resolve, reject) => {
     db.all(sql, params, (err, rows) => {
       if (err) {
@@ -74,7 +75,7 @@ export function extractValues(object: any): any {
   }
 }
 
-export function extractValuesFromArray(arr: any): any {
+export function extractValuesFromArray(arr: any[]): any {
   try {
     const inputs = []
     for (const object of arr) {
@@ -90,7 +91,7 @@ export function extractValuesFromArray(arr: any): any {
   }
 }
 
-function createDirectories(pathname) {
+function createDirectories(pathname: string) {
   const __dirname = path.resolve()
   pathname = pathname.replace(/^\.*\/|\/?[^\/]+\.[a-z]+|\/$/g, '') // Remove leading directory markers, and remove ending /file-name.extension
   fs.mkdirSync(path.resolve(__dirname, pathname), { recursive: true })

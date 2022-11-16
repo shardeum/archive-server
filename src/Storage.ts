@@ -7,7 +7,7 @@ import * as Crypto from './Crypto'
 import * as Logger from './Logger'
 import { StateManager } from '@shardus/types'
 
-export let Collection: any
+export let Collection: Database<any>
 
 export async function initStorage(config: Config) {
   // Get db file location from config
@@ -22,7 +22,7 @@ export async function initStorage(config: Config) {
   await Collection.createIndex({ fieldName: 'cycleMarker', unique: true })
 }
 
-export async function insertArchivedCycle(archivedCycle: any) {
+export async function insertArchivedCycle(archivedCycle: Data.ArchivedCycle) {
   Logger.mainLogger.debug(
     'Inserting archived cycle',
     archivedCycle.cycleRecord.counter,
