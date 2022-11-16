@@ -1884,7 +1884,7 @@ export async function syncGenesisTransactionsFromArchiver(activeArchivers: State
       `http://${randomArchiver.ip}:${randomArchiver.port}/transaction?startCycle=0&endCycle=5&page=${page}`
     )
     if (response && response.transactions) {
-      if (response.transaction.length < 10000) {
+      if (response.transactions.length < 10000) {
         complete = true
         Logger.mainLogger.debug('Download completed for transactions')
       }
@@ -2077,7 +2077,7 @@ export async function syncCyclesAndNodeList(
     let record = CycleChain[i]
     Cycles.CycleChain.set(record.counter, { ...record })
     if (config.experimentalSnapshot) {
-      if (i === CycleChain.length - 1) storeCycleData(CycleChain)
+      if (i === CycleChain.length - 1) await storeCycleData(CycleChain)
     } else {
       Logger.mainLogger.debug('Inserting archived cycle for counter', record.counter)
       const archivedCycle = createArchivedCycle(record)
@@ -2124,7 +2124,7 @@ export async function syncCyclesAndNodeList(
         await Storage.insertArchivedCycle(archivedCycle)
       }
     }
-    if (config.experimentalSnapshot) storeCycleData(combineCycles)
+    if (config.experimentalSnapshot) await storeCycleData(combineCycles)
     endCycle = nextEnd - 1
   }
 
@@ -2183,7 +2183,7 @@ export async function syncReceipts(
     return false
   }
   const { totalCycles, totalReceipts } = response
-  await downloadReceipts(totalReceipts, lastStoredReceiptCount, randomArchiver)
+  if (totalReceipts > 0) await downloadReceipts(totalReceipts, lastStoredReceiptCount, randomArchiver)
   Logger.mainLogger.debug('Sync receipts data completed!')
   return false
 }
@@ -2344,7 +2344,8 @@ export const syncCyclesAndReceiptsData = async (
     return false
   }
   const { totalCycles, totalReceipts } = response
-  Logger.mainLogger.debug(totalCycles, lastStoredCycleCount, totalReceipts, lastStoredReceiptCount)
+  Logger.mainLogger.debug('totalCycles', totalCycles, 'lastStoredCycleCount', lastStoredCycleCount)
+  Logger.mainLogger.debug('totalReceipts', totalReceipts, 'lastStoredReceiptCount', lastStoredReceiptCount)
   if (totalCycles === lastStoredCycleCount && totalReceipts === lastStoredReceiptCount) {
     Logger.mainLogger.debug('The archiver has synced the lastest cycle and receipts data!')
     return false
@@ -2357,6 +2358,9 @@ export const syncCyclesAndReceiptsData = async (
   let startCycle = lastStoredCycleCount
   let endReceipt = startReceipt + 1000
   let endCycle = startCycle + 1000
+
+  if (totalCycles === lastStoredCycleCount) completeForCycle = true
+  if (totalReceipts === lastStoredReceiptCount) completeForReceipt = true
 
   while (!completeForReceipt || !completeForCycle) {
     if (endReceipt >= totalReceiptsToSync || endCycle >= totalCyclesToSync) {

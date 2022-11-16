@@ -168,25 +168,25 @@ export const storeCycleData = async (cycles = []) => {
 }
 
 export const storeAccountData = async (restoreData: any = {}) => {
+  const { accounts, receipts } = restoreData
   console.log(
     'RestoreData',
     'accounts',
-    restoreData.accounts.length,
+    restoreData.accounts ? restoreData.accounts.length : 0,
     'receipts',
     restoreData.receipts ? restoreData.receipts.length : 0
   )
-  const { accounts, receipts } = restoreData
   if (profilerInstance) profilerInstance.profileSectionStart('store_account_data')
   storingAccountData = true
-  if (accounts && accounts.length <= 0) return
-  if (socketServer) {
+  if (!accounts && !receipts) return
+  if (socketServer && accounts) {
     let signedDataToSend = Crypto.sign({
       accounts: accounts,
     })
     socketServer.emit('RECEIPT', signedDataToSend)
   }
-  console.log(accounts.length)
-  Logger.mainLogger.debug('Received Accounts Size', accounts.length)
+  Logger.mainLogger.debug('Received Accounts Size', accounts ? accounts.length : 0)
+  Logger.mainLogger.debug('Received Transactions Size', receipts ? receipts.length : 0)
   // for (let i = 0; i < accounts.length; i++) {
   //   const account = accounts[i]
   //   await Account.insertAccount(account)
@@ -200,7 +200,7 @@ export const storeAccountData = async (restoreData: any = {}) => {
   //   //   await Account.insertAccount(account)
   //   // }
   // }
-  await Account.bulkInsertAccounts(accounts)
+  if (accounts && accounts.length > 0) await Account.bulkInsertAccounts(accounts)
   if (receipts && receipts.length > 0) {
     Logger.mainLogger.debug('Received receipts Size', receipts.length)
     let combineTransactions = []
