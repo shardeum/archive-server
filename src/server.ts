@@ -1027,6 +1027,20 @@ function startServer() {
     }
   )
 
+  // Config Endpoint
+  server.get(
+    '/config',
+    {
+      preHandler: async (_request, reply) => {
+        isDebugMiddleware(_request, reply)
+      },
+    },
+    (_request, reply) => {
+      const res = Crypto.sign(config)
+      reply.send(res)
+    }
+  )
+
   // Start server and bind to port on all interfaces
   server.listen(config.ARCHIVER_PORT, '0.0.0.0', (err, _address) => {
     Logger.mainLogger.debug('Listening3', config.ARCHIVER_PORT)
