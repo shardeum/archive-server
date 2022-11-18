@@ -1,6 +1,6 @@
 import fastify = require('fastify')
 import * as Crypto from '../Crypto'
-import * as Data from './Data'
+import * as Data from '../Data/Data'
 import * as State from '../State'
 import * as P2P from '../P2P'
 import { config, Config } from '../Config'

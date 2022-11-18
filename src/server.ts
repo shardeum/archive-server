@@ -7,11 +7,11 @@ import * as Crypto from './Crypto'
 import * as State from './State'
 import * as NodeList from './NodeList'
 import * as P2P from './P2P'
-import * as Storage from './Storage'
+import * as Storage from './Snapshot/Storage'
 import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
 import * as Utils from './Utils'
-import { sendGossip, addHashesGossip } from './Data/Gossip'
+import { sendGossip, addHashesGossip } from './Snapshot/Gossip'
 import * as Logger from './Logger'
 import { P2P as P2PTypes } from '@shardus/types'
 import { readFileSync } from 'fs'
@@ -496,37 +496,6 @@ function startServer() {
     }
   )
 
-  server.get('/full-archive', async (_request, reply) => {
-    let err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
-    if (err) {
-      reply.send(Crypto.sign({ success: false, error: err }))
-      return
-    }
-    let { start, end } = _request.query
-    let from = parseInt(start)
-    let to = parseInt(end)
-    if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-      reply.send(Crypto.sign({ success: false, error: `Invalid start and end counters` }))
-      return
-    }
-    let count = to - from
-    if (count > 100) {
-      reply.send(
-        Crypto.sign({
-          success: false,
-          error: `Exceed maximum limit of 100 cycles`,
-        })
-      )
-      return
-    }
-    let archivedCycles = []
-    archivedCycles = await Storage.queryAllArchivedCyclesBetween(from, to)
-    const res = Crypto.sign({
-      archivedCycles,
-    })
-    reply.send(res)
-  })
-
   server.get('/lost', async (_request, reply) => {
     let { start, end } = _request.query
     if (!start) start = 0
@@ -542,29 +511,6 @@ function startServer() {
     lostNodes = Cycles.getLostNodes(from, to)
     const res = Crypto.sign({
       lostNodes,
-    })
-    reply.send(res)
-  })
-
-  server.get('/full-archive/:count', async (_request, reply) => {
-    let err = Utils.validateTypes(_request.params, { count: 's' })
-    if (err) {
-      reply.send(Crypto.sign({ success: false, error: err }))
-      return
-    }
-
-    let count: number = parseInt(_request.params.count)
-    if (count <= 0 || Number.isNaN(count)) {
-      reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
-      return
-    }
-    if (count > 100) {
-      reply.send(Crypto.sign({ success: false, error: `Max count is 100` }))
-      return
-    }
-    const archivedCycles = await Storage.queryAllArchivedCycles(count)
-    const res = Crypto.sign({
-      archivedCycles,
     })
     reply.send(res)
   })
@@ -1040,6 +986,63 @@ function startServer() {
       reply.send(res)
     }
   )
+
+  // Old snapshot ArchivedCycle endpoint;
+  if (!config.experimentalSnapshot) {
+    server.get('/full-archive', async (_request, reply) => {
+      let err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
+      if (err) {
+        reply.send(Crypto.sign({ success: false, error: err }))
+        return
+      }
+      let { start, end } = _request.query
+      let from = parseInt(start)
+      let to = parseInt(end)
+      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+        reply.send(Crypto.sign({ success: false, error: `Invalid start and end counters` }))
+        return
+      }
+      let count = to - from
+      if (count > 100) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Exceed maximum limit of 100 cycles`,
+          })
+        )
+        return
+      }
+      let archivedCycles = []
+      archivedCycles = await Storage.queryAllArchivedCyclesBetween(from, to)
+      const res = Crypto.sign({
+        archivedCycles,
+      })
+      reply.send(res)
+    })
+
+    server.get('/full-archive/:count', async (_request, reply) => {
+      let err = Utils.validateTypes(_request.params, { count: 's' })
+      if (err) {
+        reply.send(Crypto.sign({ success: false, error: err }))
+        return
+      }
+
+      let count: number = parseInt(_request.params.count)
+      if (count <= 0 || Number.isNaN(count)) {
+        reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
+        return
+      }
+      if (count > 100) {
+        reply.send(Crypto.sign({ success: false, error: `Max count is 100` }))
+        return
+      }
+      const archivedCycles = await Storage.queryAllArchivedCycles(count)
+      const res = Crypto.sign({
+        archivedCycles,
+      })
+      reply.send(res)
+    })
+  }
 
   // Start server and bind to port on all interfaces
   server.listen(config.ARCHIVER_PORT, '0.0.0.0', (err, _address) => {
