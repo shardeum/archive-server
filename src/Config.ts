@@ -1,8 +1,8 @@
 import { readFileSync } from 'fs'
-import merge = require('deepmerge')
-import minimist = require('minimist')
 import { ArchiverNodeInfo } from './State'
 import * as Logger from './Logger'
+import * as merge from 'deepmerge'
+import * as minimist from 'minimist'
 
 export interface Config {
   [index: string]: object | string | number | boolean
