@@ -1,6 +1,6 @@
 import * as Crypto from '../../Crypto'
 import { config } from '../../Config'
-import { calculateNetworkHash } from '../../Data/Data'
+import { calculateNetworkHash } from '../../Snapshot/StateMetaData'
 import { getJson } from '../../P2P'
 
 Crypto.setCryptoHashKey(config.ARCHIVER_HASH_KEY)

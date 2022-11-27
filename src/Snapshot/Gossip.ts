@@ -1,6 +1,6 @@
 import fastify = require('fastify')
 import * as Crypto from '../Crypto'
-import * as Data from '../Data/Data'
+import * as StateMetaData from './StateMetaData'
 import * as State from '../State'
 import * as P2P from '../P2P'
 import { config, Config } from '../Config'
@@ -121,7 +121,7 @@ function processGossip(counter: number) {
   if (!gossips) {
     return
   }
-  let ourHashes = Data.StateMetaDataMap.get(counter)
+  let ourHashes = StateMetaData.StateMetaDataMap.get(counter)
   let gossipCounter: any = {}
   for (let sender in gossips) {
     let hashedGossip = Crypto.hashObj(gossips[sender])
@@ -159,7 +159,7 @@ function processGossip(counter: number) {
     }
     Logger.mainLogger.error('our hash is different from other archivers hashes. Storing the correct hashes')
     Logger.mainLogger.debug('gossipWithHighestCount', gossipWithHighestCount[0].summaryHashes)
-    Data.processStateMetaData(gossipWithHighestCount)
-    Data.replaceDataSender(Data.currentDataSender)
+    StateMetaData.processStateMetaData(gossipWithHighestCount)
+    StateMetaData.replaceDataSender(StateMetaData.currentDataSender)
   }
 }

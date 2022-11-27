@@ -1,7 +1,6 @@
 import { EventEmitter } from 'events'
 import * as Crypto from '../Crypto'
 import * as NodeList from '../NodeList'
-import * as Storage from '../Snapshot/Storage'
 import * as Cycles from './Cycles'
 import {
   currentCycleCounter,
@@ -10,21 +9,21 @@ import {
   lastProcessedMetaData,
   processCycles,
   validateCycle,
+  fetchCycleRecords,
+  getNewestCycleFromArchivers,
 } from './Cycles'
+import { ChangeSquasher, parse, totalNodeCount, activeNodeCount, applyNodeListChange } from './CycleParser'
 import * as State from '../State'
 import * as P2P from '../P2P'
 import * as Utils from '../Utils'
-import * as Gossip from '../Snapshot/Gossip'
 import { isDeepStrictEqual } from 'util'
 import { config } from '../Config'
-import { BaseModel } from 'tydb'
-import { P2P as P2PTypes, StateManager } from '@shardus/types'
+import { P2P as P2PTypes } from '@shardus/types'
 import * as Logger from '../Logger'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
 import { storeReceiptData, storeCycleData, storeAccountData, storingAccountData } from './Collector'
 import * as CycleDB from '../dbstore/cycles'
-import * as AccountDB from '../dbstore/accounts'
 import * as ReceiptDB from '../dbstore/receipts'
 
 // Socket modules
@@ -33,22 +32,16 @@ let ioclient: SocketIOClientStatic = require('socket.io-client')
 let socketClient: SocketIOClientStatic['Socket']
 export let socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
 let socketConnectionsTracker: Map<string, string> = new Map()
-let lastSentCycleCounterToExplorer = 0
 export let combineAccountsData = {
   accounts: [],
   receipts: [],
 }
 let forwardGenesisAccounts = true
-let multipleDataSenders = true
-let consensorsCountToSubscribe = 3
 let receivedCounters = {}
 let selectByConsensuRadius = true
 let selectingNewDataSender = false
 let queueForSelectingNewDataSenders: Map<string, string> = new Map()
 let receivedCycleTracker = {}
-// let processedCounters = {}
-
-// Data network messages
 
 export interface DataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes> {
   type: P2PTypes.SnapshotTypes.TypeName<T>
@@ -60,37 +53,25 @@ interface DataResponse<T extends P2PTypes.SnapshotTypes.ValidTypes> {
   data: T[]
 }
 
-interface DataKeepAlive {
-  keepAlive: boolean
-}
-
-export interface ReceiptMapQueryResponse {
-  success: boolean
-  data: { [key: number]: StateManager.StateManagerTypes.ReceiptMapResult[] }
-}
-export interface StatsClumpQueryResponse {
-  success: boolean
-  data: { [key: number]: StateManager.StateManagerTypes.StatsClump }
-}
-export interface SummaryBlobQueryResponse {
-  success: boolean
-  data: { [key: number]: StateManager.StateManagerTypes.SummaryBlob[] }
-}
 export interface DataQueryResponse {
   success: boolean
   data: any
 }
 
-export class ArchivedCycle extends BaseModel {
-  cycleRecord!: Cycle
-  cycleMarker!: StateManager.StateMetaDataTypes.CycleMarker
-  data!: StateManager.StateMetaDataTypes.StateData
-  receipt!: StateManager.StateMetaDataTypes.Receipt
-  summary!: StateManager.StateMetaDataTypes.Summary
+export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
+  type: P2PTypes.SnapshotTypes.TypeName<T>,
+  lastData: P2PTypes.SnapshotTypes.TypeIndex<T>,
+  recipientPk: Crypto.types.publicKey
+) {
+  return Crypto.tag<DataRequest<T>>(
+    {
+      type,
+      lastData,
+    },
+    recipientPk
+  )
 }
 
-export let StateMetaDataMap = new Map()
-export let currentDataSender: string = ''
 export let currentDataSenders: string[] = []
 
 export function initSocketServer(io: SocketIO.Server) {
@@ -102,20 +83,17 @@ export function initSocketServer(io: SocketIO.Server) {
 
 export function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   Logger.mainLogger.debug('Disconnecting previous connection', publicKey)
-  if (multipleDataSenders) socketClient = socketClients.get(publicKey)
+  socketClient = socketClients.get(publicKey)
   if (!socketClient) return
   socketClient.emit('UNSUBSCRIBE', config.ARCHIVER_PUBLIC_KEY)
   socketClient.disconnect()
   if (config.VERBOSE) console.log('Killing the connection to', publicKey)
   removeDataSenders(publicKey)
-  if (multipleDataSenders) {
-    socketClients.delete(publicKey)
-    socketConnectionsTracker.delete(publicKey)
-    currentDataSenders = currentDataSenders.filter((item) => item !== publicKey)
-    if (config.VERBOSE) console.log('Subscribed socketClients', socketClients)
-    Logger.mainLogger.debug('Subscribed socketClients', socketClients.size, dataSenders.size)
-  }
-  currentDataSender = ''
+  socketClients.delete(publicKey)
+  socketConnectionsTracker.delete(publicKey)
+  currentDataSenders = currentDataSenders.filter((item) => item !== publicKey)
+  if (config.VERBOSE) console.log('Subscribed socketClients', socketClients)
+  Logger.mainLogger.debug('Subscribed socketClients', socketClients.size, dataSenders.size)
 }
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
@@ -127,13 +105,11 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
     Logger.mainLogger.debug('Connection to consensus node was made')
     // Send ehlo event right after connect:
     socketClient.emit('ARCHIVER_PUBLIC_KEY', config.ARCHIVER_PUBLIC_KEY)
-    if (multipleDataSenders) {
-      socketClients.set(node.publicKey, socketClient)
-      socketConnectionsTracker.set(node.publicKey, 'connected')
-      if (config.VERBOSE) console.log('Connected node', node)
-      if (config.VERBOSE) console.log('Init socketClients', socketClients)
-      if (config.VERBOSE) Logger.mainLogger.debug('Init socketClients', socketClients.size)
-    }
+    socketClients.set(node.publicKey, socketClient)
+    socketConnectionsTracker.set(node.publicKey, 'connected')
+    if (config.VERBOSE) console.log('Connected node', node)
+    if (config.VERBOSE) console.log('Init socketClients', socketClients)
+    if (config.VERBOSE) Logger.mainLogger.debug('Init socketClients', socketClients.size)
   })
 
   socketClient.once('disconnect', async () => {
@@ -267,40 +243,6 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
         }
         return
       }
-
-      if (newData.responses.STATE_METADATA.length > 0) Logger.mainLogger.debug('New DATA', newData.responses)
-      else Logger.mainLogger.debug('State metadata is empty')
-
-      if (multipleDataSenders) currentDataSenders.push(newData.publicKey)
-      currentDataSender = newData.publicKey
-      if (newData.responses && newData.responses.STATE_METADATA) {
-        // Logger.mainLogger.debug('New DATA from consensor STATE_METADATA', newData.publicKey, newData.responses.STATE_METADATA)
-        // let hashArray: any = Gossip.convertStateMetadataToHashArray(newData.responses.STATE_METADATA[0])
-        for (let stateMetadata of newData.responses.STATE_METADATA) {
-          StateMetaDataMap.set(stateMetadata.counter, stateMetadata)
-          Gossip.sendGossip('hashes', stateMetadata)
-        }
-      }
-
-      socketServer.emit('DATA', newData)
-      const sender = dataSenders.get(newData.publicKey)
-      // If publicKey is not in dataSenders, dont keepAlive, END
-      if (!sender) {
-        Logger.mainLogger.debug('NO SENDER')
-        return
-      }
-
-      // If unexpected data type from sender, dont keepAlive, END
-      const newDataTypes = Object.keys(newData.responses)
-      for (const type of newDataTypes as (keyof typeof P2PTypes.SnapshotTypes.TypeNames)[]) {
-        if (sender.types.includes(type) === false) {
-          Logger.mainLogger.debug(
-            `NEW DATA type ${type} not included in sender's types: ${JSON.stringify(sender.types)}`
-          )
-          return
-        }
-      }
-      setImmediate(processData, newData)
     }
   )
 }
@@ -311,31 +253,6 @@ export function clearCombinedAccountsData() {
     receipts: [],
   }
 }
-
-export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
-  type: P2PTypes.SnapshotTypes.TypeName<T>,
-  lastData: P2PTypes.SnapshotTypes.TypeIndex<T>,
-  recipientPk: Crypto.types.publicKey
-) {
-  return Crypto.tag<DataRequest<T>>(
-    {
-      type,
-      lastData,
-    },
-    recipientPk
-  )
-}
-
-export function createQueryRequest(type: string, lastData: number, recipientPk: Crypto.types.publicKey) {
-  return Crypto.tag(
-    {
-      type,
-      lastData,
-    },
-    recipientPk
-  )
-}
-// Vars to track Data senders
 
 export interface DataSender {
   nodeInfo: NodeList.ConsensusNodeInfo
@@ -365,108 +282,34 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
   }
   Logger.mainLogger.debug(`replaceDataSender: replacing ${publicKey}`)
 
-  if (selectByConsensuRadius) {
-    if (!socketClients.has(publicKey)) removeDataSenders(publicKey)
-    // Extend the contactTimeout a bit longer for now to make sure the archiver has already got a new replacer node
-    const sender = dataSenders.get(publicKey)
-    if (sender && sender.replaceTimeout) {
-      clearTimeout(sender.replaceTimeout)
-      sender.replaceTimeout = null
-      sender.replaceTimeout = createReplaceTimeout(publicKey)
-    }
-    if (sender && sender.contactTimeout) {
-      clearTimeout(sender.contactTimeout)
-      sender.contactTimeout = null
-      sender.contactTimeout = createContactTimeout(
-        publicKey,
-        'This timeout is created to rotate this node',
-        2 * currentCycleDuration
-      )
-    }
-    if (selectingNewDataSender) {
-      queueForSelectingNewDataSenders.set(publicKey, publicKey)
-    } else {
-      selectingNewDataSender = true
-      selectNewDataSendersByConsensusRadius([publicKey])
-    }
-    return
+  if (!socketClients.has(publicKey)) removeDataSenders(publicKey)
+  // Extend the contactTimeout a bit longer for now to make sure the archiver has already got a new replacer node
+  const sender = dataSenders.get(publicKey)
+  if (sender && sender.replaceTimeout) {
+    clearTimeout(sender.replaceTimeout)
+    sender.replaceTimeout = null
+    sender.replaceTimeout = createReplaceTimeout(publicKey)
   }
-
-  // Remove old dataSender
-  const removedSenders = removeDataSenders(publicKey)
-  if (removedSenders.length < 1) {
-    Logger.mainLogger.debug('replaceDataSender failed: old sender not removed')
-  }
-
-  // Pick a new dataSender
-  const newSenderInfo = selectNewDataSender(publicKey)
-  if (!newSenderInfo) {
-    Logger.mainLogger.error('Unable to select a new data sender.')
-    return
-  }
-  Logger.mainLogger.debug('Before sleep', publicKey, newSenderInfo)
-  await Utils.sleep(1000) // Wait about 1s to be sure that socket client connection is killed
-  if (multipleDataSenders && socketClients.size >= consensorsCountToSubscribe) {
-    Logger.mainLogger.debug(`There are already ${socketClients.size} nodes that the archiver has picked.`)
-    console.log(`There are already ${socketClients.size} nodes that the archiver has picked.`)
-    return
-  }
-  initSocketClient(newSenderInfo)
-  let count = 0
-  while (!socketClients.has(newSenderInfo.publicKey) && count <= 10) {
-    await Utils.sleep(1000)
-    count++
-    if (count === 10) {
-      // This means the socket connection to the node is not successful.
-      return
-    }
-  }
-  const newSender: DataSender = {
-    nodeInfo: newSenderInfo,
-    types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
-    contactTimeout: createContactTimeout(
-      newSenderInfo.publicKey,
-      'This timeout is created during newSender selection',
+  if (sender && sender.contactTimeout) {
+    clearTimeout(sender.contactTimeout)
+    sender.contactTimeout = null
+    sender.contactTimeout = createContactTimeout(
+      publicKey,
+      'This timeout is created to rotate this node',
       2 * currentCycleDuration
-    ),
-    replaceTimeout: createReplaceTimeout(newSenderInfo.publicKey),
+    )
   }
-
-  // Add new dataSender to dataSenders
-  addDataSenders(newSender)
-  Logger.mainLogger.debug(`replaceDataSender: added new sender ${newSenderInfo.publicKey} to dataSenders`)
-
-  // Send dataRequest to new dataSender
-  const dataRequest = {
-    dataRequestCycle: createDataRequest<Cycle>(
-      P2PTypes.SnapshotTypes.TypeNames.CYCLE,
-      currentCycleCounter,
-      publicKey
-    ),
-    dataRequestStateMetaData: createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
-      P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
-      lastProcessedMetaData,
-      publicKey
-    ),
-    publicKey: State.getNodeInfo().publicKey,
-    nodeInfo: State.getNodeInfo(),
-  }
-  sendDataRequest(newSender, dataRequest)
-  if (multipleDataSenders) {
-    await Utils.sleep(3000)
-    console.log('Current socker IO clients', publicKey, socketClients.size, dataSenders)
-    Logger.mainLogger.debug('Current socker IO clients', publicKey, socketClients.size, dataSenders)
-    const activeList = NodeList.getActiveList()
-    if (activeList.length >= consensorsCountToSubscribe && socketClients.size < consensorsCountToSubscribe) {
-      subscribeMoreConsensors(consensorsCountToSubscribe - socketClients.size)
-    }
+  if (selectingNewDataSender) {
+    queueForSelectingNewDataSenders.set(publicKey, publicKey)
+  } else {
+    selectingNewDataSender = true
+    selectNewDataSendersByConsensusRadius([publicKey])
   }
 }
 
 export async function subscribeNodeForDataTransfer() {
   if (config.experimentalSnapshot) {
     if (selectByConsensuRadius) await subscribeMoreConsensorsByConsensusRadius()
-    else if (multipleDataSenders) subscribeMoreConsensors(consensorsCountToSubscribe)
     else await subscribeRandomNodeForDataTransfer()
   } else {
     await subscribeRandomNodeForDataTransfer()
@@ -530,8 +373,7 @@ export function createReplaceTimeout(publicKey: NodeList.ConsensusNodeInfo['publ
 export function addDataSenders(...senders: DataSender[]) {
   for (const sender of senders) {
     dataSenders.set(sender.nodeInfo.publicKey, sender)
-    if (multipleDataSenders) currentDataSenders.push(sender.nodeInfo.publicKey)
-    currentDataSender = sender.nodeInfo.publicKey
+    currentDataSenders.push(sender.nodeInfo.publicKey)
   }
 }
 
@@ -563,81 +405,6 @@ function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   }
 
   return removedSenders
-}
-
-function clearFalseNodes(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
-  // Logger.mainLogger.debug(
-  //   `${new Date()}: Clearing data not sending node that is in socker list ${publicKey}`
-  // )
-  // console.log('Clear False Nodes', publicKey)
-  if (socketClients.size < 2) {
-    return
-  }
-  for (let [key, sender] of socketClients) {
-    if (key != publicKey) {
-      if (receivedCounters[key]) receivedCounters[key]++
-      else receivedCounters[key] = 1
-    } else {
-      receivedCounters[key] = 1
-    }
-  }
-  for (let [key, sender] of dataSenders) {
-    if (key != publicKey) {
-      if (receivedCounters[key]) receivedCounters[key]++
-      else receivedCounters[key] = 1
-    } else {
-      receivedCounters[key] = 1
-    }
-  }
-  for (let pk in receivedCounters) {
-    const publicKey: any = pk
-    if (receivedCounters[publicKey] > 50) {
-      if (socketClients.has(publicKey)) {
-        console.log('Unsubscribe 2', publicKey)
-        unsubscribeDataSender(publicKey)
-      }
-      if (dataSenders.has(publicKey)) removeDataSenders(publicKey)
-      delete receivedCounters[publicKey]
-    }
-    if (!socketClients.has(publicKey) || !dataSenders.has(publicKey)) delete receivedCounters[publicKey]
-  }
-  // console.log('Clear False Nodes', receivedCounters)
-}
-
-function selectNewDataSender(publicKey: string) {
-  // Randomly pick an active node
-  const activeList = NodeList.getActiveList()
-  let newSender = activeList[Math.floor(Math.random() * activeList.length)]
-  if (config.VERBOSE) console.log('newSender 1', newSender)
-  if (multipleDataSenders) {
-    let retry = 0
-    while (true && retry < 5) {
-      // Retry 5 times to get the new Sender
-      if (!socketClients.has(newSender.publicKey)) {
-        break
-      }
-      newSender = activeList[Math.floor(Math.random() * activeList.length)]
-      if (config.VERBOSE) console.log('newSender 2', newSender)
-      retry++
-    }
-    if (socketClients.has(newSender.publicKey)) {
-      // if there is still not new node to subscribe, just connect with the current one then
-      newSender = activeList.find((node) => node.publicKey === publicKey)
-      if (config.VERBOSE) console.log('newSender 3', newSender)
-      Logger.mainLogger.debug(
-        'Since no new data sender is found, and continue with the current one',
-        publicKey,
-        newSender
-      )
-    }
-  }
-  Logger.mainLogger.debug('New data sender is selected', newSender)
-  if (newSender) {
-    console.log('Unsubscribe 3', publicKey)
-    unsubscribeDataSender(publicKey)
-    // initSocketClient(newSender)
-  }
-  return newSender
 }
 
 async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.ConsensusNodeInfo['publicKey'][]) {
@@ -970,70 +737,6 @@ export function sendDataRequest(sender: DataSender, dataRequest: any) {
     emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
 }
 
-export async function subscribeMoreConsensors(numbersToSubscribe: number) {
-  Logger.mainLogger.info(`Subscribing ${numbersToSubscribe} more consensors for tagged data request`)
-  console.log('numbersToSubscribe', numbersToSubscribe)
-  for (let i = 0; i < numbersToSubscribe; i++) {
-    await Utils.sleep(60000)
-    // Pick a new dataSender
-    const activeList = NodeList.getActiveList()
-    let newSenderInfo = activeList[Math.floor(Math.random() * activeList.length)]
-    if (multipleDataSenders) {
-      let retry = 0
-      while (true && retry < 5) {
-        // Retry 5 times to get the new Sender
-        if (!socketClients.has(newSenderInfo.publicKey)) {
-          break
-        }
-        newSenderInfo = activeList[Math.floor(Math.random() * activeList.length)]
-        retry++
-      }
-    }
-    Logger.mainLogger.debug('New data sender is selected', newSenderInfo)
-    if (!newSenderInfo) {
-      Logger.mainLogger.error('Unable to select a new data sender.')
-      continue
-    }
-    if (multipleDataSenders && socketClients.size > consensorsCountToSubscribe) {
-      Logger.mainLogger.debug(`There are already ${socketClients.size} nodes that the archiver has picked.`)
-      console.log(`There are already ${socketClients.size} nodes that the archiver has picked.`)
-      break
-    }
-    initSocketClient(newSenderInfo)
-    const newSender: DataSender = {
-      nodeInfo: newSenderInfo,
-      types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
-      contactTimeout: createContactTimeout(
-        newSenderInfo.publicKey,
-        'This timeout is created during newSender selection',
-        2 * currentCycleDuration
-      ),
-      replaceTimeout: createReplaceTimeout(newSenderInfo.publicKey),
-    }
-
-    // Add new dataSender to dataSenders
-    addDataSenders(newSender)
-    Logger.mainLogger.debug(`replaceDataSender: added new sender ${newSenderInfo.publicKey} to dataSenders`)
-
-    // Send dataRequest to new dataSender
-    const dataRequest = {
-      dataRequestCycle: createDataRequest<Cycle>(
-        P2PTypes.SnapshotTypes.TypeNames.CYCLE,
-        currentCycleCounter,
-        State.getNodeInfo().publicKey
-      ),
-      dataRequestStateMetaData: createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
-        P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
-        lastProcessedMetaData,
-        State.getNodeInfo().publicKey
-      ),
-      publicKey: State.getNodeInfo().publicKey,
-      nodeInfo: State.getNodeInfo(),
-    }
-    sendDataRequest(newSender, dataRequest)
-  }
-}
-
 function calcIncomingTimes(record: Cycle) {
   const SECOND = 1000
   const cycleDuration = record.duration * SECOND
@@ -1190,627 +893,6 @@ export function checkJoinStatusFromConsensor(nodeList: NodeList.ConsensusNodeInf
       resolve(false)
     }
   })
-}
-
-async function sendDataQuery(consensorNode: NodeList.ConsensusNodeInfo, dataQuery: any, validateFn: any) {
-  const taggedDataQuery = Crypto.tag(dataQuery, consensorNode.publicKey)
-  let result = await queryDataFromNode(consensorNode, taggedDataQuery, validateFn)
-  return result
-}
-
-async function processData(newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage) {
-  // Get sender entry
-  const sender = dataSenders.get(newData.publicKey)
-
-  // If no sender entry, remove publicKey from senders, END
-  if (!sender) {
-    Logger.mainLogger.error('No sender found for this data')
-    return
-  }
-
-  if (multipleDataSenders && !currentDataSenders.includes(sender.nodeInfo.publicKey)) {
-    Logger.mainLogger.error(`Sender ${sender.nodeInfo.publicKey} is not in the data sender list.`)
-  }
-  if (!multipleDataSenders && sender.nodeInfo.publicKey !== currentDataSender) {
-    Logger.mainLogger.error(`Sender ${sender.nodeInfo.publicKey} is not current data sender.`)
-  }
-
-  // Clear senders contactTimeout, if it has one
-  if (sender.contactTimeout) {
-    Logger.mainLogger.debug('Clearing contact timeout.')
-    clearTimeout(sender.contactTimeout)
-    sender.contactTimeout = null
-    nestedCountersInstance.countEvent('archiver', 'clear_contact_timeout')
-  }
-
-  const newDataTypes = Object.keys(newData.responses)
-  for (const type of newDataTypes as (keyof typeof P2PTypes.SnapshotTypes.TypeNames)[]) {
-    // Process data depending on type
-    switch (type) {
-      case P2PTypes.SnapshotTypes.TypeNames.CYCLE: {
-        Logger.mainLogger.debug('Processing CYCLE data')
-        processCycles(newData.responses.CYCLE as Cycle[])
-        // socketServer.emit('ARCHIVED_CYCLE', 'CYCLE')
-        if (newData.responses.CYCLE.length > 0) {
-          for (let cycle of newData.responses.CYCLE) {
-            let archivedCycle: any = {}
-            archivedCycle.cycleRecord = cycle
-            archivedCycle.cycleMarker = cycle.marker
-            Cycles.CycleChain.set(cycle.counter, cycle)
-            await Storage.insertArchivedCycle(archivedCycle)
-          }
-        } else {
-          Logger.mainLogger.error('Received empty newData.responses.CYCLE', newData.responses)
-        }
-        break
-      }
-      case P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA: {
-        Logger.mainLogger.debug('Processing STATE_METADATA')
-        processStateMetaData(newData.responses)
-        break
-      }
-      default: {
-        // If data type not recognized, remove sender from dataSenders
-        Logger.mainLogger.error('Unknown data type detected', type)
-        removeDataSenders(newData.publicKey)
-      }
-    }
-  }
-
-  // Set new contactTimeout for sender. Postpone sender removal because data is still received from consensor
-  if (currentCycleDuration > 0) {
-    nestedCountersInstance.countEvent('archiver', 'postpone_contact_timeout')
-    sender.contactTimeout = createContactTimeout(
-      sender.nodeInfo.publicKey,
-      'This timeout is created after processing data'
-    )
-  }
-}
-
-export async function processStateMetaData(response: any) {
-  Logger.mainLogger.error('response', response)
-  let STATE_METADATA = response.STATE_METADATA
-  if (!STATE_METADATA || STATE_METADATA.length === 0) {
-    Logger.mainLogger.error(
-      'Invalid STATE_METADATA provided to processStateMetaData function',
-      STATE_METADATA
-    )
-    return
-  }
-  profilerInstance.profileSectionStart('state_metadata')
-  for (let stateMetaData of STATE_METADATA) {
-    let data: { parentCycle: any; networkHash?: any; partitionHashes?: any }
-    let receipt: {
-      parentCycle: any
-      networkHash?: any
-      partitionHashes?: any
-      partitionMaps?: {}
-      partitionTxs?: {}
-    }
-    let summary: { parentCycle: any; networkHash?: any; partitionHashes?: any; partitionBlobs?: {} }
-    // [TODO] validate the state data by robust querying other nodes
-
-    // store state hashes to archivedCycle
-    for (const stateHashesForCycle of stateMetaData.stateHashes) {
-      let parentCycle = Cycles.CycleChain.get(stateHashesForCycle.counter)
-      if (!parentCycle) {
-        Logger.mainLogger.error('Unable to find parent cycle for cycle', stateHashesForCycle.counter)
-        continue
-      }
-      data = {
-        parentCycle: parentCycle ? parentCycle.marker : '',
-        networkHash: stateHashesForCycle.networkHash,
-        partitionHashes: stateHashesForCycle.partitionHashes,
-      }
-      await Storage.updateArchivedCycle(data.parentCycle, 'data', data)
-      // if (!processedCounters[parentCycle.counter]) {
-      //   processedCounters[parentCycle.counter] = true
-      // }
-      // Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
-    }
-
-    // store receipt hashes to archivedCycle
-    for (const receiptHashesForCycle of stateMetaData.receiptHashes) {
-      let parentCycle = Cycles.CycleChain.get(receiptHashesForCycle.counter)
-      if (!parentCycle) {
-        Logger.mainLogger.error('Unable to find parent cycle for cycle', receiptHashesForCycle.counter)
-        continue
-      }
-      receipt = {
-        parentCycle: parentCycle ? parentCycle.marker : '',
-        networkHash: receiptHashesForCycle.networkReceiptHash,
-        partitionHashes: receiptHashesForCycle.receiptMapHashes,
-        partitionMaps: {},
-        partitionTxs: {},
-      }
-      await Storage.updateArchivedCycle(receipt.parentCycle, 'receipt', receipt)
-      // Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
-
-      // Query receipt maps from other nodes and store it
-      if (receiptHashesForCycle.receiptMapHashes) {
-        let isDownloadSuccess = false
-        let retry = 0
-        let sleepCount = 0
-        let failedPartitions = new Map()
-        let coveredPartitions = new Map()
-        let downloadedReceiptMaps = new Map()
-
-        let shouldProcessReceipt = (cycle: number, partition: number) => {
-          if (cycle === receiptHashesForCycle.counter - 1)
-            if (failedPartitions.has(partition) || !coveredPartitions.has(partition)) return true
-          return false
-        }
-        const cycleActiveNodesSize =
-          parentCycle.active + parentCycle.activated.length - parentCycle.removed.length
-        while (!isDownloadSuccess && sleepCount < 20) {
-          let randomConsensor = NodeList.getRandomActiveNode()[0]
-          const queryRequest = createQueryRequest(
-            'RECEIPT_MAP',
-            receiptHashesForCycle.counter - 1,
-            randomConsensor.publicKey
-          )
-          let { success, completed, failed, covered, blobs } = await sendDataQuery(
-            randomConsensor,
-            queryRequest,
-            shouldProcessReceipt
-          )
-          if (success) {
-            for (let partition of failed) {
-              failedPartitions.set(partition, true)
-            }
-            for (let partition of completed) {
-              if (failedPartitions.has(partition)) failedPartitions.delete(partition)
-            }
-            for (let partition of covered) {
-              coveredPartitions.set(partition, true)
-            }
-            for (let partition in blobs) {
-              downloadedReceiptMaps.set(partition, blobs[partition])
-            }
-          }
-          isDownloadSuccess = failedPartitions.size === 0 && coveredPartitions.size === cycleActiveNodesSize
-          if (isDownloadSuccess) {
-            Logger.mainLogger.debug('Data query for receipt map is completed for cycle', parentCycle.counter)
-            Logger.mainLogger.debug('Total downloaded receipts', downloadedReceiptMaps.size)
-            // if (!processedCounters[receiptHashesForCycle.counter - 1]) {
-            //   processedCounters[receiptHashesForCycle.counter - 1] = true
-            // }
-            sendToExplorer(receiptHashesForCycle.counter - 1)
-
-            // let receiptMapsToForward = []
-            // for (let [partition, receiptMap] of downloadedReceiptMaps) {
-            //   receiptMapsToForward.push(receiptMap)
-            // }
-            // receiptMapsToForward = receiptMapsToForward.filter(
-            //   (receipt) => receipt.cycle === parentCycle.counter
-            // )
-            // Logger.mainLogger.debug(
-            //   'receiptMapsToForward',
-            //   receiptMapsToForward.length
-            // )
-            // socketServer.emit('RECEIPT_MAP', receiptMapsToForward)
-            break
-          }
-          retry += 1
-          if (!isDownloadSuccess && retry >= NodeList.getActiveList().length) {
-            Logger.mainLogger.debug(
-              'Sleeping for 5 sec before retrying download again for cycle',
-              parentCycle.counter
-            )
-            await Utils.sleep(5000)
-            retry = 0
-            sleepCount += 1
-          }
-        }
-        if (!isDownloadSuccess) {
-          Logger.mainLogger.debug(`Downloading receipt map for cycle ${parentCycle.counter} has failed.`)
-          Logger.mainLogger.debug(
-            `There are ${failedPartitions.size} failed partitions in cycle ${parentCycle.counter}.`
-          )
-        }
-      }
-    }
-
-    // store summary hashes to archivedCycle
-    for (const summaryHashesForCycle of stateMetaData.summaryHashes) {
-      let parentCycle = Cycles.CycleChain.get(summaryHashesForCycle.counter)
-      if (!parentCycle) {
-        Logger.mainLogger.error('Unable to find parent cycle for cycle', summaryHashesForCycle.counter)
-        continue
-      }
-      summary = {
-        parentCycle: parentCycle ? parentCycle.marker : '',
-        networkHash: summaryHashesForCycle.networkSummaryHash,
-        partitionHashes: summaryHashesForCycle.summaryHashes,
-        partitionBlobs: {},
-      }
-      await Storage.updateArchivedCycle(summary.parentCycle, 'summary', summary)
-      Cycles.setLastProcessedMetaDataCounter(parentCycle.counter)
-
-      // // Query summary blobs from other nodes and store it
-      // if (summaryHashesForCycle.summaryHashes) {
-      //   let isDownloadSuccess = false
-      //   let retry = 0
-      //   let sleepCount = 0
-      //   let failedPartitions = new Map()
-      //   let coveredPartitions = new Map()
-      //   let downloadedBlobs = new Map()
-
-      //   let shouldProcessBlob = (cycle: number, partition: number) => {
-      //     if (cycle === summaryHashesForCycle.counter - 1)
-      //       if (
-      //         failedPartitions.has(partition) ||
-      //         !coveredPartitions.has(partition)
-      //       )
-      //         return true
-      //     return false
-      //   }
-
-      //   while (!isDownloadSuccess && sleepCount < 20) {
-      //     let randomConsensor = NodeList.getRandomActiveNode()
-      //     const queryRequest = createQueryRequest(
-      //       'SUMMARY_BLOB',
-      //       summaryHashesForCycle.counter - 1,
-      //       randomConsensor.publicKey
-      //     )
-      //     let { success, completed, failed, covered, blobs } =
-      //       await sendDataQuery(
-      //         randomConsensor,
-      //         queryRequest,
-      //         shouldProcessBlob
-      //       )
-      //     if (success) {
-      //       for (let partition of failed) {
-      //         failedPartitions.set(partition, true)
-      //       }
-      //       for (let partition of completed) {
-      //         if (failedPartitions.has(partition))
-      //           failedPartitions.delete(partition)
-      //       }
-      //       for (let partition of covered) {
-      //         coveredPartitions.set(partition, true)
-      //       }
-      //       for (let partition in blobs) {
-      //         downloadedBlobs.set(partition, blobs[partition])
-      //       }
-      //     }
-      //     isDownloadSuccess =
-      //       failedPartitions.size === 0 && coveredPartitions.size === 4096
-      //     if (isDownloadSuccess) {
-      //       Logger.mainLogger.debug(
-      //         'Data query for summary blob is completed for cycle',
-      //         parentCycle.counter
-      //       )
-      //       Logger.mainLogger.debug(
-      //         'Total downloaded blobs',
-      //         downloadedBlobs.size
-      //       )
-      //       break
-      //     }
-
-      //     retry += 1
-      //     if (!isDownloadSuccess && retry >= NodeList.getActiveList().length) {
-      //       Logger.mainLogger.debug(
-      //         'Sleeping for 5 sec before retrying download again for cycle',
-      //         parentCycle.counter
-      //       )
-      //       await Utils.sleep(5000)
-      //       retry = 0
-      //       sleepCount += 1
-      //     }
-      //   }
-      //   if (!isDownloadSuccess) {
-      //     Logger.mainLogger.debug(
-      //       `Downloading summary blob for cycle ${parentCycle.counter} has failed.`
-      //     )
-      //     Logger.mainLogger.debug(
-      //       `There are ${failedPartitions.size} failed partitions in cycle ${parentCycle.counter}.`
-      //     )
-      //   }
-      // }
-      // if (!processedCounters[parentCycle.counter]) {
-      //   processedCounters[parentCycle.counter] = true
-      // }
-    }
-  }
-  // if (socketServer)  {
-  //   Logger.mainLogger.debug('Finished processing state metadata...', processedCounters, lastSentCycleCounterToExplorer)
-  //   for (let counter of Object.keys(processedCounters)) {
-  //     let start = parseInt(counter)
-  //     let end = parseInt(counter)
-  //     if (lastSentCycleCounterToExplorer === 0 || parseInt(counter) > lastSentCycleCounterToExplorer + 1) {
-  //       start = lastSentCycleCounterToExplorer + 1
-  //     } else {
-  //       continue
-  //     }
-  //     Logger.mainLogger.debug('start, end', start, end)
-  //     Logger.mainLogger.debug(start,end)
-  //     let completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(start, end)
-  //     Logger.mainLogger.debug('completedArchivedCycle', completedArchivedCycle.length, completedArchivedCycle)
-  //     let signedDataToSend = Crypto.sign({
-  //       archivedCycles: completedArchivedCycle,
-  //     })
-  //     Logger.mainLogger.debug('Sending completed archived_cycle to explorer', signedDataToSend)
-  //     lastSentCycleCounterToExplorer = end
-  //     if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
-  //   }
-  // }
-  profilerInstance.profileSectionEnd('state_metadata')
-}
-
-export async function sendToExplorer(counter: number) {
-  if (socketServer) {
-    let completedArchivedCycle: any[]
-    if (lastSentCycleCounterToExplorer === 0) {
-      completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(
-        lastSentCycleCounterToExplorer,
-        counter
-      )
-      Logger.mainLogger.debug('start, end', lastSentCycleCounterToExplorer, counter)
-    } else {
-      completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(counter, counter)
-      Logger.mainLogger.debug('start, end', counter, counter)
-    }
-    let signedDataToSend = Crypto.sign({
-      archivedCycles: completedArchivedCycle,
-    })
-    Logger.mainLogger.debug('Sending completed archived_cycle to explorer', signedDataToSend)
-    lastSentCycleCounterToExplorer = counter
-    if (socketServer) socketServer.emit('ARCHIVED_CYCLE', signedDataToSend)
-  }
-}
-
-export async function fetchStateHashes(archivers: any) {
-  function _isSameStateHashes(info1: any, info2: any) {
-    const cm1 = Utils.deepCopy(info1)
-    const cm2 = Utils.deepCopy(info2)
-    delete cm1.currentTime
-    delete cm2.currentTime
-    const equivalent = isDeepStrictEqual(cm1, cm2)
-    return equivalent
-  }
-
-  const queryFn = async (node: any) => {
-    const response: any = await P2P.getJson(`http://${node.ip}:${node.port}/statehashes`)
-    return response.stateHashes
-  }
-  const stateHashes: any = await Utils.robustQuery(archivers, queryFn, _isSameStateHashes)
-  return stateHashes[0]
-}
-
-export async function fetchCycleRecords(
-  activeArchivers: State.ArchiverNodeInfo[],
-  start: number,
-  end: number
-): Promise<any> {
-  function isSameCyceInfo(info1: any, info2: any) {
-    const cm1 = Utils.deepCopy(info1)
-    const cm2 = Utils.deepCopy(info2)
-    delete cm1.currentTime
-    delete cm2.currentTime
-    const equivalent = isDeepStrictEqual(cm1, cm2)
-    return equivalent
-  }
-
-  const queryFn = async (node: any) => {
-    const response: any = await P2P.getJson(
-      `http://${node.ip}:${node.port}/cycleinfo?start=${start}&end=${end}`
-    )
-    return response.cycleInfo
-  }
-  const { result } = await Utils.sequentialQuery(activeArchivers, queryFn)
-  return result
-}
-
-export async function getNewestCycleFromArchivers(activeArchivers: State.ArchiverNodeInfo[]): Promise<any> {
-  function isSameCyceInfo(info1: any, info2: any) {
-    const cm1 = Utils.deepCopy(info1)
-    const cm2 = Utils.deepCopy(info2)
-    delete cm1.currentTime
-    delete cm2.currentTime
-    const equivalent = isDeepStrictEqual(cm1, cm2)
-    return equivalent
-  }
-
-  const queryFn = async (node: any) => {
-    const response: any = await P2P.getJson(`http://${node.ip}:${node.port}/cycleinfo/1`)
-    return response.cycleInfo
-  }
-  let cycleInfo: any = await Utils.robustQuery(activeArchivers, queryFn, isSameCyceInfo)
-  return cycleInfo[0]
-}
-
-export function activeNodeCount(cycle: Cycle) {
-  return (
-    cycle.active +
-    cycle.activated.length +
-    -cycle.apoptosized.length +
-    -cycle.removed.length +
-    -cycle.lost.length
-  )
-}
-
-export function totalNodeCount(cycle: Cycle) {
-  return (
-    cycle.syncing +
-    cycle.joinedConsensors.length +
-    cycle.active +
-    //    cycle.activated.length -      // don't count activated because it was already counted in syncing
-    -cycle.apoptosized.length +
-    -cycle.removed.length
-    // -cycle.lost.length
-  )
-}
-
-export interface JoinedConsensor extends NodeList.ConsensusNodeInfo {
-  cycleJoined: string
-  counterRefreshed: number
-  id: string
-}
-
-export enum NodeStatus {
-  ACTIVE = 'active',
-  SYNCING = 'syncing',
-  REMOVED = 'removed',
-}
-
-export interface Node extends JoinedConsensor {
-  curvePublicKey: string
-  status: NodeStatus
-}
-
-type OptionalExceptFor<T, TRequired extends keyof T> = Partial<T> & Pick<T, TRequired>
-
-export type Update = OptionalExceptFor<Node, 'id'>
-
-export interface Change {
-  added: JoinedConsensor[] // order joinRequestTimestamp [OLD, ..., NEW]
-  removed: Array<string> // order doesn't matter
-  updated: Update[] // order doesn't matter
-}
-
-export function reversed<T>(thing: Iterable<T>) {
-  const arr = Array.isArray(thing) ? thing : Array.from(thing)
-  let i = arr.length - 1
-  const reverseIterator = {
-    next: () => {
-      const done = i < 0
-      const value = done ? undefined : arr[i]
-      i--
-      return { value, done }
-    },
-  }
-  return {
-    [Symbol.iterator]: () => reverseIterator,
-  }
-}
-
-export class ChangeSquasher {
-  final: Change
-  removedIds: Set<Node['id']>
-  seenUpdates: Map<Update['id'], Update>
-  addedIds: Set<Node['id']>
-  constructor() {
-    this.final = {
-      added: [],
-      removed: [],
-      updated: [],
-    }
-    this.addedIds = new Set()
-    this.removedIds = new Set()
-    this.seenUpdates = new Map()
-  }
-
-  addChange(change: Change) {
-    for (const id of change.removed) {
-      // Ignore if id is already removed
-      if (this.removedIds.has(id)) continue
-      // Mark this id as removed
-      this.removedIds.add(id)
-    }
-
-    for (const update of change.updated) {
-      // Ignore if update.id is already removed
-      if (this.removedIds.has(update.id)) continue
-      // Skip if it's already seen in the update
-      if (this.seenUpdates.has(update.id)) continue
-      // Mark this id as updated
-      this.seenUpdates.set(update.id, update)
-      // console.log('seenUpdates', this.seenUpdates, update)
-    }
-
-    for (const joinedConsensor of reversed(change.added)) {
-      // Ignore if it's already been added
-      if (this.addedIds.has(joinedConsensor.id)) continue
-
-      // Ignore if joinedConsensor.id is already removed
-      if (this.removedIds.has(joinedConsensor.id)) {
-        continue
-      }
-      // Check if this id has updates
-      const update = this.seenUpdates.get(joinedConsensor.id)
-      if (update) {
-        // If so, put them into final.updated
-        this.final.updated.unshift(update)
-        this.seenUpdates.delete(joinedConsensor.id)
-      }
-      // Add joinedConsensor to final.added
-      this.final.added.unshift(joinedConsensor)
-      // Mark this id as added
-      this.addedIds.add(joinedConsensor.id)
-    }
-  }
-}
-
-export function parseRecord(record: any): Change {
-  // For all nodes described by activated, make an update to change their status to active
-  const activated = record.activated.map((id: string) => ({
-    id,
-    activeTimestamp: record.start,
-    status: NodeStatus.ACTIVE,
-  }))
-
-  const refreshAdded: Change['added'] = []
-  const refreshUpdated: Change['updated'] = []
-  for (const refreshed of record.refreshedConsensors) {
-    // const node = NodeList.nodes.get(refreshed.id)
-    const node = NodeList.getNodeInfoById(refreshed.id) as JoinedConsensor
-    if (node) {
-      // If it's in our node list, we update its counterRefreshed
-      // (IMPORTANT: update counterRefreshed only if its greater than ours)
-      if (record.counter > node.counterRefreshed) {
-        refreshUpdated.push({
-          id: refreshed.id,
-          counterRefreshed: record.counter,
-        })
-      }
-    } else {
-      // If it's not in our node list, we add it...
-      refreshAdded.push(refreshed)
-      // and immediately update its status to ACTIVE
-      // (IMPORTANT: update counterRefreshed to the records counter)
-      refreshUpdated.push({
-        id: refreshed.id,
-        status: NodeStatus.ACTIVE,
-        counterRefreshed: record.counter,
-      })
-    }
-  }
-  // Logger.mainLogger.debug('parseRecord', record.counter, {
-  //   added: [...record.joinedConsensors],
-  //   removed: [...record.apoptosized],
-  //   updated: [...activated, ...refreshUpdated],
-  // })
-
-  return {
-    added: [...record.joinedConsensors],
-    removed: [...record.apoptosized],
-    updated: [...activated, ...refreshUpdated],
-  }
-}
-
-export function parse(record: any): Change {
-  const changes = parseRecord(record)
-  // const mergedChange = deepmerge.all<Change>(changes)
-  // return mergedChange
-  return changes
-}
-
-function applyNodeListChange(change: Change) {
-  // console.log('change', change)
-  if (change.added.length > 0) {
-    const consensorInfos = change.added.map((jc: any) => ({
-      ip: jc.externalIp,
-      port: jc.externalPort,
-      publicKey: jc.publicKey,
-      id: jc.id,
-    }))
-
-    NodeList.addNodes(NodeList.Statuses.ACTIVE, change.added[0].cycleJoined, consensorInfos)
-  }
-  if (change.removed.length > 0) {
-    NodeList.removeNodes(change.removed)
-  }
 }
 
 export async function syncGenesisAccountsFromArchiver(activeArchivers: State.ArchiverNodeInfo[]) {
@@ -2078,13 +1160,7 @@ export async function syncCyclesAndNodeList(
   for (let i = 0; i < CycleChain.length; i++) {
     let record = CycleChain[i]
     Cycles.CycleChain.set(record.counter, { ...record })
-    if (config.experimentalSnapshot) {
-      if (i === CycleChain.length - 1) await storeCycleData(CycleChain)
-    } else {
-      Logger.mainLogger.debug('Inserting archived cycle for counter', record.counter)
-      const archivedCycle = createArchivedCycle(record)
-      await Storage.insertArchivedCycle(archivedCycle)
-    }
+    if (i === CycleChain.length - 1) await storeCycleData(CycleChain)
     Cycles.setCurrentCycleCounter(record.counter)
   }
   Logger.mainLogger.debug('Cycle chain is synced. Size of CycleChain', Cycles.CycleChain.size)
@@ -2118,61 +1194,13 @@ export async function syncCyclesAndNodeList(
         break
       }
       savedCycleRecord = prevCycle
-      if (config.experimentalSnapshot) {
-        combineCycles.push(prevCycle)
-      } else {
-        Logger.mainLogger.debug('Inserting archived cycle for counter', prevCycle.counter)
-        const archivedCycle = createArchivedCycle(prevCycle)
-        await Storage.insertArchivedCycle(archivedCycle)
-      }
+      combineCycles.push(prevCycle)
     }
     if (config.experimentalSnapshot) await storeCycleData(combineCycles)
     endCycle = nextEnd - 1
   }
 
   return true
-}
-
-function createArchivedCycle(cycleRecord: Cycle) {
-  let archivedCycle: any = {
-    cycleRecord: cycleRecord,
-    cycleMarker: cycleRecord.marker,
-    data: {},
-    receipt: {},
-    summary: {},
-  }
-  return archivedCycle
-}
-
-async function downloadArchivedCycles(
-  archiver: State.ArchiverNodeInfo,
-  cycleToSyncTo: number,
-  startCycle: number = 0
-) {
-  let complete = false
-  let lastData = startCycle
-  let collector: any = []
-  let count = 0
-  let maxCount = Math.ceil((cycleToSyncTo - startCycle) / 5)
-  while (!complete && count < maxCount) {
-    Logger.mainLogger.debug(`Downloading archive from cycle ${lastData} to cycle ${lastData + 5}`)
-    let response: any = await P2P.getJson(
-      `http://${archiver.ip}:${archiver.port}/full-archive?start=${lastData}&end=${lastData + 5}`
-    )
-    if (response && response.archivedCycles) {
-      collector = collector.concat(response.archivedCycles)
-      if (response.archivedCycles.length < 5) {
-        complete = true
-        Logger.mainLogger.debug('Download completed')
-      }
-    } else {
-      Logger.mainLogger.debug('Invalid download response')
-    }
-    count += 1
-    lastData += 5
-  }
-  Logger.mainLogger.debug(`Downloaded archived cycles`, collector.length)
-  return collector
 }
 
 export async function syncReceipts(
@@ -2436,53 +1464,6 @@ export const syncCyclesAndReceiptsData = async (
   return false
 }
 
-// export const downloadAndSaveAccounts = async (
-//   to: number,
-//   from: number = 0,
-//   archiver: State.ArchiverNodeInfo
-// ) => {
-//   let complete = false;
-//   let start = from;
-//   let end = start + 10;
-//   while (!complete) {
-//     if (end >= to) {
-//       let res: any = await P2P.getJson(
-//         `http://${archiver.ip}:${archiver.port
-//         }/totalData`
-//       )
-//       if (res && res.totalAccounts >= 0
-//       ) {
-//         to = res.totalAccounts;
-//         Logger.mainLogger.debug('totalAccountsToSync', to);
-//       }
-//     }
-//     Logger.mainLogger.debug(`Downloading accounts from ${start} to  ${end}`);
-//     const response = await axios.get(
-//       `${ARCHIVER_URL}/full-archive?start=${start}&end=${end}`
-//     );
-//     if (response && response.data && response.data.archivedCycles) {
-//       // collector = collector.concat(response.data.archivedCycles);
-//       if (response.data.archivedCycles.length < 100) {
-//         complete = true;
-//         Logger.mainLogger.debug('Download completed');
-//       }
-//       const downloadedArchivedCycles = response.data.archivedCycles;
-//       Logger.mainLogger.debug(
-//         `Downloaded archived cycles`,
-//         downloadedArchivedCycles.length
-//       );
-//       downloadedArchivedCycles.sort((a, b) =>
-//         a.cycleRecord.counter > b.cycleRecord.counter ? 1 : -1
-//       );
-//       await insertArchivedCycleData(downloadedArchivedCycles);
-//     } else {
-//       Logger.mainLogger.debug('Invalid download response');
-//     }
-//     start = end;
-//     end += 10;
-//   }
-// };
-
 // // simple method to validate old data; it's not good when there are multiple archivers, the receipts saving order may not be the same
 // export async function compareWithOldReceiptsData(
 //   archiver: State.ArchiverNodeInfo,
@@ -2604,287 +1585,6 @@ export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo,
     cycle = downloadedCycle.counter
   }
   return { success, cycle }
-}
-
-export async function syncStateMetaData(activeArchivers: State.ArchiverNodeInfo[]) {
-  const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
-  let allCycleRecords = await Storage.queryAllCycleRecords()
-  let lastCycleCounter = allCycleRecords[0].counter
-  let downloadedArchivedCycles = await downloadArchivedCycles(randomArchiver, lastCycleCounter)
-
-  let networkReceiptHashesFromRecords = new Map()
-  let networkDataHashesFromRecords = new Map()
-  let networkSummaryHashesFromRecords = new Map()
-
-  allCycleRecords.forEach((cycleRecord: any) => {
-    if (cycleRecord.networkReceiptHash.length > 0) {
-      cycleRecord.networkReceiptHash.forEach((hash: any) => {
-        networkReceiptHashesFromRecords.set(hash.cycle, hash.hash)
-      })
-    }
-    if (cycleRecord.networkDataHash.length > 0) {
-      cycleRecord.networkDataHash.forEach((hash: any) => {
-        networkDataHashesFromRecords.set(hash.cycle, hash.hash)
-      })
-    }
-    if (cycleRecord.networkSummaryHash.length > 0) {
-      cycleRecord.networkSummaryHash.forEach((hash: any) => {
-        networkSummaryHashesFromRecords.set(hash.cycle, hash.hash)
-      })
-    }
-  })
-
-  for (let i = 0; i < downloadedArchivedCycles.length; i++) {
-    let marker = downloadedArchivedCycles[i].cycleRecord.marker
-    let counter = downloadedArchivedCycles[i].cycleRecord.counter
-    let downloadedArchivedCycle = downloadedArchivedCycles[i]
-
-    if (!downloadedArchivedCycle) {
-      Logger.mainLogger.debug('Unable to download archivedCycle for counter', counter)
-      continue
-    }
-
-    let isDataSynced = false
-    let isReceiptSynced = false
-    let isSummarySynced = false
-
-    // Check and store data hashes
-    if (downloadedArchivedCycle.data) {
-      const downloadedNetworkDataHash = downloadedArchivedCycle.data.networkHash
-      const calculatedDataHash = calculateNetworkHash(downloadedArchivedCycle.data.partitionHashes)
-      if (downloadedNetworkDataHash === calculatedDataHash) {
-        if (downloadedNetworkDataHash !== networkDataHashesFromRecords.get(counter)) {
-          Logger.mainLogger.debug('Different with hash from downloaded Cycle Records', 'state data', counter)
-        }
-        await Storage.updateArchivedCycle(marker, 'data', downloadedArchivedCycle.data)
-        isDataSynced = true
-      } else {
-        Logger.mainLogger.error('Different network data hash for cycle', counter)
-      }
-    } else {
-      Logger.mainLogger.error(
-        `ArchivedCycle ${downloadedArchivedCycle.cycleRecord.counter}, ${downloadedArchivedCycle.cycleMarker} does not have data field`
-      )
-    }
-
-    // Check and store receipt hashes + receiptMap
-    if (downloadedArchivedCycle.receipt) {
-      // TODO: calcuate the network hash by hashing downloaded receipt Map instead of using downloadedNetworkReceiptHash
-      const downloadedNetworkReceiptHash = downloadedArchivedCycle.receipt.networkHash
-      const calculatedReceiptHash = calculateNetworkHash(downloadedArchivedCycle.receipt.partitionHashes)
-      if (
-        downloadedNetworkReceiptHash === networkReceiptHashesFromRecords.get(counter) ||
-        downloadedNetworkReceiptHash === calculatedReceiptHash
-      ) {
-        if (downloadedNetworkReceiptHash !== networkReceiptHashesFromRecords.get(counter)) {
-          Logger.mainLogger.debug('Different with hash from downloaded Cycle Records', 'receipt', counter)
-        }
-        await Storage.updateArchivedCycle(marker, 'receipt', downloadedArchivedCycle.receipt)
-        isReceiptSynced = true
-      } else {
-        Logger.mainLogger.error('Different network receipt hash for cycle', counter)
-      }
-    } else {
-      Logger.mainLogger.error(
-        `ArchivedCycle ${downloadedArchivedCycle.cycleRecord.counter}, ${downloadedArchivedCycle.cycleMarker} does not have receipt field`
-      )
-    }
-
-    // Check and store summary hashes
-    if (downloadedArchivedCycle.summary) {
-      // TODO: calcuate the network hash by hashing downloaded summary Blobs instead of using downloadedNetworkSummaryHash
-      const downloadedNetworkSummaryHash = downloadedArchivedCycle.summary.networkHash
-      const calculatedSummaryHash = calculateNetworkHash(downloadedArchivedCycle.summary.partitionHashes)
-      if (downloadedNetworkSummaryHash === calculatedSummaryHash) {
-        if (downloadedNetworkSummaryHash !== networkSummaryHashesFromRecords.get(counter)) {
-          Logger.mainLogger.debug('Different with hash from downloaded Cycle Records', 'summary', counter)
-        }
-        await Storage.updateArchivedCycle(marker, 'summary', downloadedArchivedCycle.summary)
-        isSummarySynced = true
-      } else {
-        Logger.mainLogger.error('Different network summary hash for cycle', counter)
-      }
-    } else {
-      Logger.mainLogger.error(
-        `ArchivedCycle ${downloadedArchivedCycle.cycleRecord.counter}, ${downloadedArchivedCycle.cycleMarker} does not have summary field`
-      )
-    }
-    if (isDataSynced && isReceiptSynced && isSummarySynced) {
-      Logger.mainLogger.debug(`Successfully synced statemetadata for counter ${counter}`)
-      if (counter > Cycles.lastProcessedMetaData) {
-        Cycles.setLastProcessedMetaDataCounter(counter)
-      }
-    }
-  }
-  return false
-}
-
-export const calculateNetworkHash = (data: object): string => {
-  let hashArray = []
-  if (data) {
-    for (const hash of Object.values(data)) {
-      hashArray.push(hash)
-    }
-  }
-  hashArray = hashArray.sort()
-  const calculatedHash = Crypto.hashObj(hashArray)
-  return calculatedHash
-}
-
-export type QueryDataResponse = ReceiptMapQueryResponse | StatsClumpQueryResponse
-
-async function queryDataFromNode(consensorNode: NodeList.ConsensusNodeInfo, dataQuery: any, validateFn: any) {
-  let request = {
-    ...dataQuery,
-    nodeInfo: State.getNodeInfo(),
-  }
-  let result: any = { success: false, completed: [] }
-  try {
-    let response = (await P2P.postJson(
-      `http://${consensorNode.ip}:${consensorNode.port}/querydata`,
-      request
-    )) as QueryDataResponse
-    if (response && request.type === 'RECEIPT_MAP') {
-      let receiptMapData = response.data as ReceiptMapQueryResponse['data']
-      // for (let counter in response.data) {
-      result = await validateAndStoreReceiptMaps(receiptMapData, validateFn)
-      // }
-    } else if (response && request.type === 'SUMMARY_BLOB') {
-      // for (let counter in response.data) {
-      let summaryBlobData = response.data as StatsClumpQueryResponse['data']
-      result = await validateAndStoreSummaryBlobs(Object.values(summaryBlobData), validateFn)
-      // }
-    }
-    return result
-  } catch (e) {
-    Logger.mainLogger.error(e)
-    Logger.mainLogger.error(`Unable to query complete querying ${request.type} from node`, consensorNode)
-    return result
-  }
-}
-
-async function validateAndStoreReceiptMaps(
-  receiptMapResultsForCycles: {
-    [key: number]: StateManager.StateManagerTypes.ReceiptMapResult[]
-  },
-  validateFn: any
-) {
-  let completed: number[] = []
-  let failed: number[] = []
-  let coveredPartitions: number[] = []
-  let receiptMaps: any = {}
-  for (let counter in receiptMapResultsForCycles) {
-    let receiptMapResults: StateManager.StateManagerTypes.ReceiptMapResult[] =
-      receiptMapResultsForCycles[counter]
-    for (let receiptMap of receiptMapResults) {
-      let { cycle, partition } = receiptMap
-      if (validateFn) {
-        let shouldProcess = validateFn(cycle, partition)
-        if (!shouldProcess) {
-          continue
-        }
-      }
-      coveredPartitions.push(partition)
-      let reciptMapHash = await Storage.queryReceiptMapHash(parseInt(counter), partition)
-      if (!reciptMapHash) {
-        Logger.mainLogger.error(`Unable to find receipt hash for counter ${counter}, partition ${partition}`)
-        continue
-      }
-      let calculatedReceiptMapHash = Crypto.hashObj(receiptMap)
-      if (calculatedReceiptMapHash === reciptMapHash) {
-        await Storage.updateReceiptMap(receiptMap)
-        completed.push(partition)
-        receiptMaps[partition] = receiptMap
-      } else {
-        Logger.mainLogger.error(
-          `Different hash while downloading receipt maps for counter ${counter}, partition ${partition}`
-        )
-        failed.push(partition)
-      }
-    }
-  }
-  return {
-    success: true,
-    completed,
-    failed,
-    covered: coveredPartitions,
-    blobs: receiptMaps,
-  }
-}
-
-async function validateAndStoreSummaryBlobs(
-  statsClumpForCycles: StateManager.StateManagerTypes.StatsClump[],
-  validateFn: any
-) {
-  let completed: number[] = []
-  let failed: number[] = []
-  let coveredPartitions: number[] = []
-  let blobs: any = {}
-
-  for (let statsClump of statsClumpForCycles) {
-    let { cycle, dataStats, txStats, covered } = statsClump
-    if (!covered) continue
-    for (let partition of covered) {
-      if (validateFn) {
-        let shouldProcess = validateFn(cycle, partition)
-        if (!shouldProcess) {
-          continue
-        }
-      }
-      coveredPartitions.push(partition)
-      let summaryBlob
-      let dataBlob = dataStats.find((d) => d.partition === partition)
-      let txBlob = txStats.find((t) => t.partition === partition)
-      let summaryHash = await Storage.querySummaryHash(cycle, partition)
-      if (!summaryHash) {
-        continue
-      }
-      let summaryObj = {
-        dataStats: dataBlob ? dataBlob.opaqueBlob : {},
-        txStats: txBlob ? txBlob.opaqueBlob : {},
-      }
-      let calculatedSummaryHash = Crypto.hashObj(summaryObj)
-      if (summaryHash !== calculatedSummaryHash) {
-        failed.push(partition)
-        continue
-      }
-      if (dataBlob) {
-        summaryBlob = {
-          ...dataBlob,
-        }
-      }
-      if (txBlob) {
-        if (!summaryBlob) {
-          summaryBlob = {
-            ...txBlob,
-          }
-        } else if (summaryBlob) {
-          summaryBlob.latestCycle = txBlob.latestCycle
-          summaryBlob.opaqueBlob = {
-            ...summaryBlob.opaqueBlob,
-            ...txBlob.opaqueBlob,
-          }
-        }
-      }
-      if (summaryBlob) {
-        try {
-          await Storage.updateSummaryBlob(summaryBlob, cycle)
-          completed.push(partition)
-          blobs[partition] = summaryBlob
-        } catch (e) {
-          Logger.mainLogger.error('Unable to store summary blob', e)
-          throw new Error('Unable to store summary blob')
-        }
-      }
-    }
-  }
-  return {
-    success: true,
-    completed,
-    failed,
-    covered: coveredPartitions,
-    blobs,
-  }
 }
 
 emitter.on(

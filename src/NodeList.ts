@@ -30,6 +30,12 @@ export interface SignedList {
   nodeList: ConsensusNodeInfo[]
 }
 
+export interface JoinedConsensor extends ConsensusNodeInfo {
+  cycleJoined: string
+  counterRefreshed: number
+  id: string
+}
+
 // STATE
 
 const list: ConsensusNodeInfo[] = []
@@ -63,7 +69,7 @@ export function isEmpty(): boolean {
 export function addNodes(
   status: Statuses,
   cycleMarkerJoined: string,
-  nodes: ConsensusNodeInfo[] | Data.JoinedConsensor[]
+  nodes: ConsensusNodeInfo[] | JoinedConsensor[]
 ) {
   Logger.mainLogger.debug('Typeof Nodes to add', typeof nodes)
   Logger.mainLogger.debug('Length of Nodes to add', nodes.length)
@@ -109,7 +115,7 @@ export function addNodes(
 export function refreshNodes(
   status: Statuses,
   cycleMarkerJoined: string,
-  nodes: ConsensusNodeInfo[] | Data.JoinedConsensor[]
+  nodes: ConsensusNodeInfo[] | JoinedConsensor[]
 ) {
   Logger.mainLogger.debug('Typeof Nodes to refresh', typeof nodes)
   Logger.mainLogger.debug('Length of Nodes to refresh', nodes.length)

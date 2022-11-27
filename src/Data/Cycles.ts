@@ -3,9 +3,12 @@ import * as Crypto from '../Crypto'
 import * as State from '../State'
 import * as Logger from '../Logger'
 import { P2P } from '@shardus/types'
+import { getJson } from '../P2P'
 import { profilerInstance } from '../profiler/profiler'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { socketClients, subscribeMoreConsensorsByConsensusRadius } from './Data'
+import * as Utils from '../Utils'
+import { isDeepStrictEqual } from 'util'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
@@ -186,4 +189,44 @@ function updateNodeList(cycle: Cycle) {
       subscribeMoreConsensorsByConsensusRadius()
     }
   }
+}
+
+export async function fetchCycleRecords(
+  activeArchivers: State.ArchiverNodeInfo[],
+  start: number,
+  end: number
+): Promise<any> {
+  function isSameCyceInfo(info1: any, info2: any) {
+    const cm1 = Utils.deepCopy(info1)
+    const cm2 = Utils.deepCopy(info2)
+    delete cm1.currentTime
+    delete cm2.currentTime
+    const equivalent = isDeepStrictEqual(cm1, cm2)
+    return equivalent
+  }
+
+  const queryFn = async (node: any) => {
+    const response: any = await getJson(`http://${node.ip}:${node.port}/cycleinfo?start=${start}&end=${end}`)
+    return response.cycleInfo
+  }
+  const { result } = await Utils.sequentialQuery(activeArchivers, queryFn)
+  return result
+}
+
+export async function getNewestCycleFromArchivers(activeArchivers: State.ArchiverNodeInfo[]): Promise<any> {
+  function isSameCyceInfo(info1: any, info2: any) {
+    const cm1 = Utils.deepCopy(info1)
+    const cm2 = Utils.deepCopy(info2)
+    delete cm1.currentTime
+    delete cm2.currentTime
+    const equivalent = isDeepStrictEqual(cm1, cm2)
+    return equivalent
+  }
+
+  const queryFn = async (node: any) => {
+    const response: any = await getJson(`http://${node.ip}:${node.port}/cycleinfo/1`)
+    return response.cycleInfo
+  }
+  let cycleInfo: any = await Utils.robustQuery(activeArchivers, queryFn, isSameCyceInfo)
+  return cycleInfo[0]
 }

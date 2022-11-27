@@ -1,6 +1,6 @@
 import { Cycle, CycleChain } from '../Data/Cycles'
 import { Config } from '../Config'
-import * as Data from '../Data/Data'
+import * as StateMetaData from './StateMetaData'
 import { socketServer } from '../Data/Data'
 import { Database, BaseModel, FS_Persistence_Adapter } from 'tydb'
 import * as Crypto from '../Crypto'
@@ -13,23 +13,23 @@ export async function initStorage(config: Config) {
   // Get db file location from config
   let dbFile = config.ARCHIVER_DB
 
-  Collection = new Database<Data.ArchivedCycle>({
+  Collection = new Database<StateMetaData.ArchivedCycle>({
     ref: dbFile,
-    model: Data.ArchivedCycle,
+    model: StateMetaData.ArchivedCycle,
     persistence_adapter: FS_Persistence_Adapter,
     autoCompaction: 10 * 30 * 1000, // database compaction every 10 cycles
   })
   await Collection.createIndex({ fieldName: 'cycleMarker', unique: true })
 }
 
-export async function insertArchivedCycle(archivedCycle: Data.ArchivedCycle) {
+export async function insertArchivedCycle(archivedCycle: StateMetaData.ArchivedCycle) {
   Logger.mainLogger.debug(
     'Inserting archived cycle',
     archivedCycle.cycleRecord.counter,
     archivedCycle.cycleMarker
   )
   try {
-    await Collection.insert([Data.ArchivedCycle.new(archivedCycle)])
+    await Collection.insert([StateMetaData.ArchivedCycle.new(archivedCycle)])
     Logger.mainLogger.debug('Successfully inserted archivedCycle', archivedCycle.cycleRecord.counter)
     // let updatedArchivedCycle = await Collection.find({
     //   filter: { cycleMarker: archivedCycle.cycleMarker },

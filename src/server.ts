@@ -12,6 +12,7 @@ import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
 import * as Utils from './Utils'
 import { sendGossip, addHashesGossip } from './Snapshot/Gossip'
+import { syncStateMetaData } from './Snapshot/StateMetaData'
 import * as Logger from './Logger'
 import { P2P as P2PTypes } from '@shardus/types'
 import { readFileSync } from 'fs'
@@ -270,7 +271,7 @@ async function syncAndStartServer() {
     }
   } else {
     // Sync all state metadata until no older data is fetched from other archivers
-    await Data.syncStateMetaData(State.activeArchivers)
+    await syncStateMetaData(State.activeArchivers)
   }
 
   if (!config.experimentalSnapshot)
