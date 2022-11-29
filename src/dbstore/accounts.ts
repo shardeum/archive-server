@@ -2,6 +2,7 @@ import * as db from './sqlite3storage'
 import { extractValues, extractValuesFromArray } from './sqlite3storage'
 import * as Logger from '../Logger'
 import { config } from '../Config'
+import { DeSerializeFromJsonString, SerializeToJsonString } from '../utils/serialization'
 
 export type AccountCopy = {
   accountId: string
@@ -54,7 +55,7 @@ export async function updateAccount(accountId: string, account: AccountCopy) {
     await db.run(sql, {
       $cycleNumber: account.cycleNumber,
       $timestamp: account.timestamp,
-      $data: account.data && JSON.stringify(account.data),
+      $data: account.data && SerializeToJsonString(account.data),
       $hash: account.hash,
       $accountId: account.accountId,
     })
@@ -71,7 +72,7 @@ export async function queryAccountByAccountId(accountId: string) {
   try {
     const sql = `SELECT * FROM accounts WHERE accountId=?`
     let account: any = await db.get(sql, [accountId])
-    if (account) if (account && account.data) account.data = JSON.parse(account.data)
+    if (account) if (account && account.data) account.data = DeSerializeFromJsonString(account.data)
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Account accountId', account)
     }
@@ -87,6 +88,11 @@ export async function queryLatestAccounts(count: number) {
       count ? count : 100
     }`
     const accounts: any = await db.all(sql)
+    if (accounts.length > 0) {
+      accounts.forEach((account: any) => {
+        if (account && account.data) account.data = DeSerializeFromJsonString(account.data)
+      })
+    }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Account latest', accounts)
     }
@@ -101,9 +107,9 @@ export async function queryAccounts(skip: number = 0, limit: number = 10000) {
   try {
     const sql = `SELECT * FROM accounts ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
     accounts = await db.all(sql)
-    if (accounts.lenth > 0) {
-      accounts.map((account: any) => {
-        if (account && account.data) account.data = JSON.parse(account.data)
+    if (accounts.length > 0) {
+      accounts.forEach((account: any) => {
+        if (account && account.data) account.data = DeSerializeFromJsonString(account.data)
       })
     }
   } catch (e) {
@@ -157,9 +163,9 @@ export async function queryAccountsBetweenCycles(
   try {
     const sql = `SELECT * FROM accounts WHERE cycleNumber BETWEEN ? AND ? ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
     accounts = await db.all(sql, [startCycleNumber, endCycleNumber])
-    if (accounts.lenth > 0) {
-      accounts.map((account: any) => {
-        if (account && account.data) account.data = JSON.parse(account.data)
+    if (accounts.length > 0) {
+      accounts.forEach((account: any) => {
+        if (account && account.data) account.data = DeSerializeFromJsonString(account.data)
       })
     }
   } catch (e) {

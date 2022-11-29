@@ -3,6 +3,7 @@ import * as db from './sqlite3storage'
 import { extractValues, extractValuesFromArray } from './sqlite3storage'
 import * as Logger from '../Logger'
 import { config } from '../Config'
+import { DeSerializeFromJsonString } from '../utils/serialization'
 
 export interface Transaction {
   txId: string
@@ -69,11 +70,12 @@ export async function queryTransactionByTxId(txId: string) {
     const sql = `SELECT * FROM transactions WHERE txId=?`
     let transaction: any = await db.get(sql, [txId])
     if (transaction) {
-      if (transaction.data) transaction.data = JSON.parse(transaction.data)
-      if (transaction.keys) transaction.keys = JSON.parse(transaction.keys)
-      if (transaction.result) transaction.result = JSON.parse(transaction.result)
-      if (transaction.originTxData) transaction.originTxData = JSON.parse(transaction.originTxData)
-      if (transaction.sign) transaction.sign = JSON.parse(transaction.sign)
+      if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
+      if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
+      if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
+      if (transaction.originTxData)
+        transaction.originTxData = DeSerializeFromJsonString(transaction.originTxData)
+      if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Transaction txId', transaction)
@@ -89,11 +91,12 @@ export async function queryTransactionByAccountId(accountId: string) {
     const sql = `SELECT * FROM transactions WHERE accountId=?`
     let transaction: any = await db.get(sql, [accountId])
     if (transaction) {
-      if (transaction.data) transaction.data = JSON.parse(transaction.data)
-      if (transaction.keys) transaction.keys = JSON.parse(transaction.keys)
-      if (transaction.result) transaction.result = JSON.parse(transaction.result)
-      if (transaction.originTxData) transaction.originTxData = JSON.parse(transaction.originTxData)
-      if (transaction.sign) transaction.sign = JSON.parse(transaction.sign)
+      if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
+      if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
+      if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
+      if (transaction.originTxData)
+        transaction.originTxData = DeSerializeFromJsonString(transaction.originTxData)
+      if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Transaction accountId', transaction)
@@ -112,11 +115,12 @@ export async function queryLatestTransactions(count: number) {
     const transactions: any = await db.all(sql)
     if (transactions.length > 0) {
       transactions.forEach((transaction: any) => {
-        if (transaction.data) transaction.data = JSON.parse(transaction.data)
-        if (transaction.keys) transaction.keys = JSON.parse(transaction.keys)
-        if (transaction.result) transaction.result = JSON.parse(transaction.result)
-        if (transaction.originTxData) transaction.originTxData = JSON.parse(transaction.originTxData)
-        if (transaction.sign) transaction.sign = JSON.parse(transaction.sign)
+        if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
+        if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
+        if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
+        if (transaction.originTxData)
+          transaction.originTxData = DeSerializeFromJsonString(transaction.originTxData)
+        if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
       })
     }
     if (config.VERBOSE) {
@@ -135,11 +139,12 @@ export async function queryTransactions(skip: number = 0, limit: number = 10000)
     transactions = await db.all(sql)
     if (transactions.length > 0) {
       transactions.forEach((transaction: any) => {
-        if (transaction.data) transaction.data = JSON.parse(transaction.data)
-        if (transaction.keys) transaction.keys = JSON.parse(transaction.keys)
-        if (transaction.result) transaction.result = JSON.parse(transaction.result)
-        if (transaction.originTxData) transaction.originTxData = JSON.parse(transaction.originTxData)
-        if (transaction.sign) transaction.sign = JSON.parse(transaction.sign)
+        if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
+        if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
+        if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
+        if (transaction.originTxData)
+          transaction.originTxData = DeSerializeFromJsonString(transaction.originTxData)
+        if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
       })
     }
   } catch (e) {
@@ -200,11 +205,12 @@ export async function queryTransactionsBetweenCycles(
     transactions = await db.all(sql, [startCycleNumber, endCycleNumber])
     if (transactions.length > 0) {
       transactions.forEach((transaction: any) => {
-        if (transaction.data) transaction.data = JSON.parse(transaction.data)
-        if (transaction.keys) transaction.keys = JSON.parse(transaction.keys)
-        if (transaction.result) transaction.result = JSON.parse(transaction.result)
-        if (transaction.originTxData) transaction.originTxData = JSON.parse(transaction.originTxData)
-        if (transaction.sign) transaction.sign = JSON.parse(transaction.sign)
+        if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
+        if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
+        if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
+        if (transaction.originTxData)
+          transaction.originTxData = DeSerializeFromJsonString(transaction.originTxData)
+        if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
       })
     }
   } catch (e) {

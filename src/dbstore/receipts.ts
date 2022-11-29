@@ -3,6 +3,7 @@ import * as db from './sqlite3storage'
 import { extractValues, extractValuesFromArray } from './sqlite3storage'
 import * as Logger from '../Logger'
 import { config } from '../Config'
+import { DeSerializeFromJsonString } from '../utils/serialization'
 
 export interface Receipt {
   receiptId: string
@@ -56,11 +57,11 @@ export async function queryReceiptByReceiptId(receiptId: string) {
     const sql = `SELECT * FROM receipts WHERE receiptId=?`
     let receipt: any = await db.get(sql, [receiptId])
     if (receipt) {
-      if (receipt.tx) receipt.tx = JSON.parse(receipt.tx)
-      if (receipt.accounts) receipt.accounts = JSON.parse(receipt.accounts)
-      if (receipt.receipt) receipt.receipt = JSON.parse(receipt.receipt)
-      if (receipt.result) receipt.result = JSON.parse(receipt.result)
-      if (receipt.sign) receipt.sign = JSON.parse(receipt.sign)
+      if (receipt.tx) receipt.tx = DeSerializeFromJsonString(receipt.tx)
+      if (receipt.accounts) receipt.accounts = DeSerializeFromJsonString(receipt.accounts)
+      if (receipt.receipt) receipt.receipt = DeSerializeFromJsonString(receipt.receipt)
+      if (receipt.result) receipt.result = DeSerializeFromJsonString(receipt.result)
+      if (receipt.sign) receipt.sign = DeSerializeFromJsonString(receipt.sign)
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Receipt receiptId', receipt)
@@ -76,13 +77,12 @@ export async function queryLatestReceipts(count: number) {
     const sql = `SELECT * FROM receipts ORDER BY cycle DESC, timestamp DESC LIMIT ${count ? count : 100}`
     const receipts: any = await db.all(sql)
     if (receipts.length > 0) {
-      receipts.map((receipt: any) => {
-        if (receipt.tx) receipt.tx = JSON.parse(receipt.tx)
-        if (receipt.accounts) receipt.accounts = JSON.parse(receipt.accounts)
-        if (receipt.receipt) receipt.receipt = JSON.parse(receipt.receipt)
-        if (receipt.result) receipt.result = JSON.parse(receipt.result)
-        if (receipt.sign) receipt.sign = JSON.parse(receipt.sign)
-        return receipt
+      receipts.forEach((receipt: any) => {
+        if (receipt.tx) receipt.tx = DeSerializeFromJsonString(receipt.tx)
+        if (receipt.accounts) receipt.accounts = DeSerializeFromJsonString(receipt.accounts)
+        if (receipt.receipt) receipt.receipt = DeSerializeFromJsonString(receipt.receipt)
+        if (receipt.result) receipt.result = DeSerializeFromJsonString(receipt.result)
+        if (receipt.sign) receipt.sign = DeSerializeFromJsonString(receipt.sign)
       })
     }
     if (config.VERBOSE) {
@@ -100,13 +100,12 @@ export async function queryReceipts(skip: number = 0, limit: number = 10000) {
     const sql = `SELECT * FROM receipts ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
     receipts = await db.all(sql)
     if (receipts.length > 0) {
-      receipts.map((receipt: any) => {
-        if (receipt.tx) receipt.tx = JSON.parse(receipt.tx)
-        if (receipt.accounts) receipt.accounts = JSON.parse(receipt.accounts)
-        if (receipt.receipt) receipt.receipt = JSON.parse(receipt.receipt)
-        if (receipt.result) receipt.result = JSON.parse(receipt.result)
-        if (receipt.sign) receipt.sign = JSON.parse(receipt.sign)
-        return receipt
+      receipts.forEach((receipt: any) => {
+        if (receipt.tx) receipt.tx = DeSerializeFromJsonString(receipt.tx)
+        if (receipt.accounts) receipt.accounts = DeSerializeFromJsonString(receipt.accounts)
+        if (receipt.receipt) receipt.receipt = DeSerializeFromJsonString(receipt.receipt)
+        if (receipt.result) receipt.result = DeSerializeFromJsonString(receipt.result)
+        if (receipt.sign) receipt.sign = DeSerializeFromJsonString(receipt.sign)
       })
     }
   } catch (e) {
@@ -181,13 +180,12 @@ export async function queryReceiptsBetweenCycles(
     const sql = `SELECT * FROM receipts WHERE cycle BETWEEN ? AND ? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
     receipts = await db.all(sql, [startCycleNumber, endCycleNumber])
     if (receipts.length > 0) {
-      receipts.map((receipt: any) => {
-        if (receipt.tx) receipt.tx = JSON.parse(receipt.tx)
-        if (receipt.accounts) receipt.accounts = JSON.parse(receipt.accounts)
-        if (receipt.receipt) receipt.receipt = JSON.parse(receipt.receipt)
-        if (receipt.result) receipt.result = JSON.parse(receipt.result)
-        if (receipt.sign) receipt.sign = JSON.parse(receipt.sign)
-        return receipt
+      receipts.forEach((receipt: any) => {
+        if (receipt.tx) receipt.tx = DeSerializeFromJsonString(receipt.tx)
+        if (receipt.accounts) receipt.accounts = DeSerializeFromJsonString(receipt.accounts)
+        if (receipt.receipt) receipt.receipt = DeSerializeFromJsonString(receipt.receipt)
+        if (receipt.result) receipt.result = DeSerializeFromJsonString(receipt.result)
+        if (receipt.sign) receipt.sign = DeSerializeFromJsonString(receipt.sign)
       })
     }
   } catch (e) {

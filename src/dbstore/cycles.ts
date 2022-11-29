@@ -3,6 +3,7 @@ import { extractValues, extractValuesFromArray } from './sqlite3storage'
 import { P2P, StateManager } from '@shardus/types'
 import * as Logger from '../Logger'
 import { config } from '../Config'
+import { DeSerializeFromJsonString, SerializeToJsonString } from '../utils/serialization'
 
 export interface Cycle {
   counter: number
@@ -50,7 +51,7 @@ export async function updateCycle(marker: string, cycle: Cycle) {
     const sql = `UPDATE cycles SET counter = $counter, cycleRecord = $cycleRecord WHERE cycleMarker = $marker `
     await db.run(sql, {
       $counter: cycle.counter,
-      $cycleRecord: cycle.cycleRecord && JSON.stringify(cycle.cycleRecord),
+      $cycleRecord: cycle.cycleRecord && SerializeToJsonString(cycle.cycleRecord),
       $marker: marker,
     })
     if (config.VERBOSE) {
@@ -67,7 +68,7 @@ export async function queryCycleByMarker(marker: string) {
     const sql = `SELECT * FROM cycles WHERE cycleMarker=? LIMIT 1`
     const cycle: any = await db.get(sql, [marker])
     if (cycle) {
-      if (cycle.cycleRecord) cycle.cycleRecord = JSON.parse(cycle.cycleRecord)
+      if (cycle.cycleRecord) cycle.cycleRecord = DeSerializeFromJsonString(cycle.cycleRecord)
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('cycle marker', cycle)
@@ -84,7 +85,8 @@ export async function queryLatestCycleRecords(count: number) {
     let cycleRecords: any = await db.all(sql)
     if (cycleRecords.length > 0) {
       cycleRecords = cycleRecords.map((cycleRecord: any) => {
-        if (cycleRecord.cycleRecord) cycleRecord.cycleRecord = JSON.parse(cycleRecord.cycleRecord)
+        if (cycleRecord.cycleRecord)
+          cycleRecord.cycleRecord = DeSerializeFromJsonString(cycleRecord.cycleRecord)
         return cycleRecord.cycleRecord
       })
     }
@@ -103,7 +105,8 @@ export async function queryCycleRecordsBetween(start: number, end: number) {
     let cycleRecords: any = await db.all(sql, [start, end])
     if (cycleRecords.length > 0) {
       cycleRecords = cycleRecords.map((cycleRecord: any) => {
-        if (cycleRecord.cycleRecord) cycleRecord.cycleRecord = JSON.parse(cycleRecord.cycleRecord)
+        if (cycleRecord.cycleRecord)
+          cycleRecord.cycleRecord = DeSerializeFromJsonString(cycleRecord.cycleRecord)
         return cycleRecord.cycleRecord
       })
     }

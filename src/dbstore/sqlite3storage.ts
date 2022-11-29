@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { Config } from '../Config'
+import { SerializeToJsonString } from '../utils/serialization'
 
 const sqlite3 = require('sqlite3').verbose()
 let db: any
@@ -66,7 +67,7 @@ export function extractValues(object: any): any {
     const inputs = []
     for (const column of Object.keys(object)) {
       let value = object[column]
-      if (typeof value === 'object') value = JSON.stringify(value)
+      if (typeof value === 'object') value = SerializeToJsonString(value)
       inputs.push(value)
     }
     return inputs
@@ -81,7 +82,7 @@ export function extractValuesFromArray(arr: any[]): any {
     for (const object of arr) {
       for (const column of Object.keys(object)) {
         let value = object[column]
-        if (typeof value === 'object') value = JSON.stringify(value)
+        if (typeof value === 'object') value = SerializeToJsonString(value)
         inputs.push(value)
       }
     }
