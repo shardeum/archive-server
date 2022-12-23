@@ -13,11 +13,11 @@ export enum RequestTypes {
 }
 export interface ArchiverJoinRequest {
   nodeInfo: State.ArchiverNodeInfo
-  requestType: string
+  requestType: RequestTypes.JOIN
 }
 export interface ArchiverLeaveRequest {
   nodeInfo: State.ArchiverNodeInfo
-  requestType: string
+  requestType: RequestTypes.LEAVE
 }
 export interface FirstNodeInfo {
   nodeInfo: {

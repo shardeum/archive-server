@@ -484,19 +484,6 @@ export async function subscribeMoreConsensors(numbersToSubscribe: number) {
   }
 }
 
-function calcIncomingTimes(record: Cycle) {
-  const SECOND = 1000
-  const cycleDuration = record.duration * SECOND
-  const quarterDuration = cycleDuration / 4
-  const start = record.start * SECOND + cycleDuration
-  const startQ1 = start
-  const startQ2 = start + quarterDuration
-  const startQ3 = start + 2 * quarterDuration
-  const startQ4 = start + 3 * quarterDuration
-  const end = start + cycleDuration
-  return { quarterDuration, startQ1, startQ2, startQ3, startQ4, end }
-}
-
 async function sendDataQuery(consensorNode: NodeList.ConsensusNodeInfo, dataQuery: any, validateFn: any) {
   const taggedDataQuery = Crypto.tag(dataQuery, consensorNode.publicKey)
   let result = await queryDataFromNode(consensorNode, taggedDataQuery, validateFn)
@@ -1443,25 +1430,3 @@ emitter.on(
     }
   }
 )
-
-emitter.on('submitJoinRequest', async (newSenderInfo: NodeList.ConsensusNodeInfo, joinRequest: any) => {
-  let request = {
-    ...joinRequest,
-    nodeInfo: State.getNodeInfo(),
-  }
-  let response = await P2P.postJson(`http://${newSenderInfo.ip}:${newSenderInfo.port}/joinarchiver`, request)
-  Logger.mainLogger.debug('Join request response:', response)
-})
-
-emitter.on('submitLeaveRequest', async (consensorInfo: NodeList.ConsensusNodeInfo, leaveRequest: any) => {
-  let request = {
-    ...leaveRequest,
-    nodeInfo: State.getNodeInfo(),
-  }
-  Logger.mainLogger.debug('Sending leave request to: ', consensorInfo.port)
-  let response = await P2P.postJson(
-    `http://${consensorInfo.ip}:${consensorInfo.port}/leavingarchivers`,
-    request
-  )
-  Logger.mainLogger.debug('Leave request response:', response)
-})

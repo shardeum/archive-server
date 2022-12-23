@@ -25,6 +25,7 @@ import { profilerInstance } from '../profiler/profiler'
 import { storeReceiptData, storeCycleData, storeAccountData, storingAccountData } from './Collector'
 import * as CycleDB from '../dbstore/cycles'
 import * as ReceiptDB from '../dbstore/receipts'
+import * as StateMetaData from '../archivedCycle/StateMetaData'
 
 // Socket modules
 export let socketServer: SocketIO.Server
@@ -37,7 +38,6 @@ export let combineAccountsData = {
   receipts: [],
 }
 let forwardGenesisAccounts = true
-let receivedCounters = {}
 let selectByConsensuRadius = true
 let selectingNewDataSender = false
 let queueForSelectingNewDataSenders: Map<string, string> = new Map()
@@ -263,8 +263,6 @@ export interface DataSender {
 
 export const dataSenders: Map<NodeList.ConsensusNodeInfo['publicKey'], DataSender> = new Map()
 
-const timeoutPadding = 1000
-
 export const emitter = new EventEmitter()
 
 export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
@@ -293,11 +291,7 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
   if (sender && sender.contactTimeout) {
     clearTimeout(sender.contactTimeout)
     sender.contactTimeout = null
-    sender.contactTimeout = createContactTimeout(
-      publicKey,
-      'This timeout is created to rotate this node',
-      2 * currentCycleDuration
-    )
+    sender.contactTimeout = createContactTimeout(publicKey, 'This timeout is created to rotate this node')
   }
   if (selectingNewDataSender) {
     queueForSelectingNewDataSenders.set(publicKey, publicKey)
@@ -312,7 +306,7 @@ export async function subscribeNodeForDataTransfer() {
     if (selectByConsensuRadius) await subscribeMoreConsensorsByConsensusRadius()
     else await subscribeRandomNodeForDataTransfer()
   } else {
-    await subscribeRandomNodeForDataTransfer()
+    await StateMetaData.subscribeRandomNodeForDataTransfer()
   }
 }
 
@@ -339,17 +333,8 @@ export async function subscribeRandomNodeForDataTransfer() {
  * Removes sender from dataSenders on timeout
  * Select a new dataSender
  */
-export function createContactTimeout(
-  publicKey: NodeList.ConsensusNodeInfo['publicKey'],
-  msg: string = '',
-  timeout: number | null = null
-) {
-  // TODO: check what is the best contact timeout
-  let ms: number
-  if (timeout) ms = timeout
-  else if (currentCycleDuration > 0) ms = 1.5 * currentCycleDuration + timeoutPadding
-  else ms = 1.5 * 60 * 1000 + timeoutPadding
-  if (config.experimentalSnapshot) ms = 15 * 1000 // Change contact timeout to 15s for now
+export function createContactTimeout(publicKey: NodeList.ConsensusNodeInfo['publicKey'], msg: string = '') {
+  let ms = 15 * 1000 // Change contact timeout to 15s for now
   Logger.mainLogger.debug('Created contact timeout: ' + ms)
   nestedCountersInstance.countEvent('archiver', 'contact_timeout_created')
   return setTimeout(() => {
@@ -362,7 +347,7 @@ export function createContactTimeout(
 }
 
 export function createReplaceTimeout(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
-  const ms = config.DATASENDER_TIMEOUT || 1000 * 60 * 60
+  const ms = config.DATASENDER_TIMEOUT || 1000 * 60 * 5
   return setTimeout(() => {
     nestedCountersInstance.countEvent('archiver', 'replace_timeout')
     Logger.mainLogger.debug('ROTATING sender due to ROTATION timeout')
@@ -574,8 +559,7 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
     types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
     contactTimeout: createContactTimeout(
       newSenderInfo.publicKey,
-      'This timeout is created during newSender selection',
-      2 * currentCycleDuration
+      'This timeout is created during newSender selection'
     ),
     replaceTimeout: createReplaceTimeout(newSenderInfo.publicKey),
   }
@@ -730,11 +714,16 @@ export async function subscribeExtraConsensors(extraConsensorsToSubscribe) {
   }
 }
 
-export function sendDataRequest(sender: DataSender, dataRequest: any) {
+export async function sendDataRequest(sender: DataSender, dataRequest: any) {
   const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey)
   Logger.mainLogger.info('Sending tagged data request to consensor.', sender)
-  if (socketClients.has(sender.nodeInfo.publicKey))
-    emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
+  if (socketClients.has(sender.nodeInfo.publicKey)) {
+    let response = await P2P.postJson(
+      `http://${sender.nodeInfo.ip}:${sender.nodeInfo.port}/requestdata`,
+      taggedDataRequest
+    )
+    Logger.mainLogger.debug('/requestdata response', response)
+  }
 }
 
 function calcIncomingTimes(record: Cycle) {
@@ -804,10 +793,11 @@ export async function submitJoin(
   }
 }
 
-export function sendLeaveRequest(nodeInfo: NodeList.ConsensusNodeInfo, cycle: Cycles.Cycle) {
+export async function sendLeaveRequest(nodeInfo: NodeList.ConsensusNodeInfo) {
   let leaveRequest = P2P.createArchiverLeaveRequest()
-  Logger.mainLogger.debug('Emitting submitLeaveRequest event')
-  emitter.emit('submitLeaveRequest', nodeInfo, leaveRequest)
+  Logger.mainLogger.debug('Sending leave request to: ', nodeInfo.port)
+  let response = await P2P.postJson(`http://${nodeInfo.ip}:${nodeInfo.port}/leavingarchivers`, leaveRequest)
+  Logger.mainLogger.debug('Leave request response:', response)
   return true
 }
 
@@ -1196,7 +1186,7 @@ export async function syncCyclesAndNodeList(
       savedCycleRecord = prevCycle
       combineCycles.push(prevCycle)
     }
-    if (config.experimentalSnapshot) await storeCycleData(combineCycles)
+    await storeCycleData(combineCycles)
     endCycle = nextEnd - 1
   }
 
@@ -1586,43 +1576,3 @@ export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo,
   }
   return { success, cycle }
 }
-
-emitter.on(
-  'selectNewDataSender',
-  async (newSenderInfo: NodeList.ConsensusNodeInfo, taggedDataRequest: any) => {
-    //let request = {
-    //...dataRequest,
-    //nodeInfo: State.getNodeInfo()
-    //}
-    if (socketClients.has(newSenderInfo.publicKey)) {
-      let response = await P2P.postJson(
-        `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
-        taggedDataRequest
-      )
-      Logger.mainLogger.debug('/requestdata response', response)
-    } else {
-    }
-  }
-)
-
-emitter.on('submitJoinRequest', async (newSenderInfo: NodeList.ConsensusNodeInfo, joinRequest: any) => {
-  let request = {
-    ...joinRequest,
-    nodeInfo: State.getNodeInfo(),
-  }
-  let response = await P2P.postJson(`http://${newSenderInfo.ip}:${newSenderInfo.port}/joinarchiver`, request)
-  Logger.mainLogger.debug('Join request response:', response)
-})
-
-emitter.on('submitLeaveRequest', async (consensorInfo: NodeList.ConsensusNodeInfo, leaveRequest: any) => {
-  let request = {
-    ...leaveRequest,
-    nodeInfo: State.getNodeInfo(),
-  }
-  Logger.mainLogger.debug('Sending leave request to: ', consensorInfo.port)
-  let response = await P2P.postJson(
-    `http://${consensorInfo.ip}:${consensorInfo.port}/leavingarchivers`,
-    request
-  )
-  Logger.mainLogger.debug('Leave request response:', response)
-})
