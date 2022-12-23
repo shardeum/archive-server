@@ -32,7 +32,7 @@ export function processCycles(cycles: Cycle[]) {
   if (nestedCountersInstance) nestedCountersInstance.countEvent('cycle', 'process', 1)
   for (const cycle of cycles) {
     Logger.mainLogger.debug(new Date(), 'New Cycle received', cycle.counter)
-    Logger.mainLogger.debug('Current cycle counter', currentCycleCounter)
+    // Logger.mainLogger.debug('Current cycle counter', currentCycleCounter)
     // Skip if already processed [TODO] make this check more secure
     if (cycle.counter <= currentCycleCounter) continue
 

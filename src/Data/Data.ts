@@ -335,13 +335,12 @@ export async function subscribeRandomNodeForDataTransfer() {
  */
 export function createContactTimeout(publicKey: NodeList.ConsensusNodeInfo['publicKey'], msg: string = '') {
   let ms = 15 * 1000 // Change contact timeout to 15s for now
-  Logger.mainLogger.debug('Created contact timeout: ' + ms)
+  Logger.mainLogger.debug('Created contact timeout: ' + ms, publicKey)
   nestedCountersInstance.countEvent('archiver', 'contact_timeout_created')
   return setTimeout(() => {
     // Logger.mainLogger.debug('nestedCountersInstance', nestedCountersInstance)
     if (nestedCountersInstance) nestedCountersInstance.countEvent('archiver', 'contact_timeout')
-    Logger.mainLogger.debug('REPLACING sender due to CONTACT timeout', msg)
-    console.log('REPLACING sender due to CONTACT timeout', msg, publicKey)
+    Logger.mainLogger.debug('REPLACING sender due to CONTACT timeout', msg, publicKey)
     replaceDataSender(publicKey)
   }, ms)
 }
@@ -583,8 +582,8 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
     publicKey: State.getNodeInfo().publicKey,
     nodeInfo: State.getNodeInfo(),
   }
-  sendDataRequest(newSender, dataRequest)
-  return true
+  const response = await sendDataRequest(newSender, dataRequest)
+  return response
 }
 
 export async function subscribeMoreConsensorsByConsensusRadius() {
@@ -716,14 +715,20 @@ export async function subscribeExtraConsensors(extraConsensorsToSubscribe) {
 
 export async function sendDataRequest(sender: DataSender, dataRequest: any) {
   const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey)
-  Logger.mainLogger.info('Sending tagged data request to consensor.', sender)
+  Logger.mainLogger.info(
+    'Sending tagged data request to consensor.',
+    sender.nodeInfo.ip + ':' + sender.nodeInfo.port
+  )
+  let reply = false
   if (socketClients.has(sender.nodeInfo.publicKey)) {
     let response = await P2P.postJson(
       `http://${sender.nodeInfo.ip}:${sender.nodeInfo.port}/requestdata`,
       taggedDataRequest
     )
     Logger.mainLogger.debug('/requestdata response', response)
+    if (response.success) reply = response.success
   }
+  return reply
 }
 
 function calcIncomingTimes(record: Cycle) {
