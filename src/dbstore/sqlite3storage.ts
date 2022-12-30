@@ -8,8 +8,8 @@ let db: any
 
 export async function init(config: Config) {
   console.log(config.ARCHIVER_DB)
-  createDirectories('archiver-db')
-  const dbName = `archiver-db/archiverdb-${config.ARCHIVER_PORT}.sqlite3`
+  createDirectories(config.ARCHIVER_DB)
+  const dbName = `${config.ARCHIVER_DB}/archiverdb-${config.ARCHIVER_PORT}.sqlite3`
   // const dbName = config.ARCHIVER_DB
   db = new sqlite3.Database(dbName)
   await run('PRAGMA journal_mode=WAL')
