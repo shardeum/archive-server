@@ -97,8 +97,7 @@ export function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInfo['pub
 }
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
-  if (config.VERBOSE) Logger.mainLogger.debug('Node Info to socker connect', node)
-  if (config.VERBOSE) console.log('Node Info to socker connect', node)
+  if (config.VERBOSE) Logger.mainLogger.debug('Node Info to socket connect', node)
   const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
 
   socketClient.on('connect', () => {
@@ -539,7 +538,27 @@ async function getConsensusRadius() {
   return activeList.length
 }
 
+async function verifyNode(newSenderInfo: NodeList.ConsensusNodeInfo) {
+  let status = false
+  Logger.mainLogger.debug(`Checking node info ${newSenderInfo.ip}:${newSenderInfo.port}`)
+  let response: any = await P2P.getJson(`http://${newSenderInfo.ip}:${newSenderInfo.port}/nodeInfo`)
+  if (response && response.nodeInfo) {
+    const nodeInfo = response.nodeInfo
+    if (
+      nodeInfo.id === newSenderInfo.id &&
+      nodeInfo.publicKey === newSenderInfo.publicKey &&
+      nodeInfo.status === NodeList.Statuses.ACTIVE
+    )
+      return (status = true)
+  }
+  Logger.mainLogger.error(`Node ${newSenderInfo.ip}:${newSenderInfo.port} status is not valid!`)
+  return status
+}
+
 export async function createDataTransferConnection(newSenderInfo: NodeList.ConsensusNodeInfo) {
+  // Verify node before subscribing for data transfer
+  const status = await verifyNode(newSenderInfo)
+  if (!status) return false
   initSocketClient(newSenderInfo)
   let count = 0
   while (!socketClients.has(newSenderInfo.publicKey) && count <= 50) {
