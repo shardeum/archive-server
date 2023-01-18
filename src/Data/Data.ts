@@ -72,8 +72,6 @@ export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
   )
 }
 
-export let currentDataSenders: string[] = []
-
 export function initSocketServer(io: SocketIO.Server) {
   socketServer = io
   socketServer.on('connection', (socket: SocketIO.Socket) => {
@@ -91,7 +89,6 @@ export function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInfo['pub
   removeDataSenders(publicKey)
   socketClients.delete(publicKey)
   socketConnectionsTracker.delete(publicKey)
-  currentDataSenders = currentDataSenders.filter((item) => item !== publicKey)
   if (config.VERBOSE) console.log('Subscribed socketClients', socketClients)
   Logger.mainLogger.debug('Subscribed socketClients', socketClients.size, dataSenders.size)
 }
@@ -114,9 +111,6 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   socketClient.once('disconnect', async () => {
     Logger.mainLogger.debug(`Connection request is refused by the consensor node ${node.ip}:${node.port}`)
     console.log(`Connection request is refused by the consensor node ${node.ip}:${node.port}`)
-    // socketClients.delete(node.publicKey)
-    // await Utils.sleep(3000)
-    // if (socketClients.has(node.publicKey)) replaceDataSender(node.publicKey)
     socketConnectionsTracker.set(node.publicKey, 'disconnected')
   })
 
@@ -132,7 +126,6 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
       // If tag is invalid, dont keepAlive, END
       if (Crypto.authenticate(newData) === false) {
         Logger.mainLogger.debug('This data cannot be authenticated')
-        console.log('Unsubscribe 1', node.publicKey)
         unsubscribeDataSender(node.publicKey)
         return
       }
@@ -356,14 +349,11 @@ export function createReplaceTimeout(publicKey: NodeList.ConsensusNodeInfo['publ
 export function addDataSenders(...senders: DataSender[]) {
   for (const sender of senders) {
     dataSenders.set(sender.nodeInfo.publicKey, sender)
-    currentDataSenders.push(sender.nodeInfo.publicKey)
   }
 }
 
 function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   Logger.mainLogger.debug(`${new Date()}: Removing data sender ${publicKey}`)
-  const removedSenders = []
-  // console.log('removeDataSenders', dataSenders)
   // Logger.mainLogger.debug('removeDataSenders', dataSenders)
   for (let [key, sender] of dataSenders) {
     // if (config.VERBOSE) Logger.mainLogger.debug(publicKey, key)
@@ -378,16 +368,10 @@ function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
         sender.replaceTimeout = null
       }
       nestedCountersInstance.countEvent('archiver', 'remove_data_sender')
-
-      // Record which sender was removed
-      removedSenders.push(sender)
-
       // Delete sender from dataSenders
       dataSenders.delete(key)
     }
   }
-
-  return removedSenders
 }
 
 async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.ConsensusNodeInfo['publicKey'][]) {
@@ -439,7 +423,6 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
             `There are already ${extraSubscribedNodesCountFromThisSubset} nodes that the archiver has picked from this nodes subset.`
           )
         if (nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
-          if (config.VERBOSE) console.log('Unsubscribe 4', publicKey)
           unsubscribeDataSender(publicKey)
           nodeIsUnsubscribed = false
         }
@@ -462,7 +445,6 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
           connectionStatus = await createDataTransferConnection(newSenderInfo)
           if (connectionStatus) {
             if (nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
-              if (config.VERBOSE) console.log('Unsubscribe 5', publicKey)
               unsubscribeDataSender(publicKey)
               nodeIsUnsubscribed = false
             }
@@ -483,7 +465,6 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
       }
     }
     if (nodeIsUnsubscribed && !nodeIsInTheActiveList) {
-      if (config.VERBOSE) console.log('Unsubscribe 6', publicKey)
       unsubscribeDataSender(publicKey)
       nodeIsUnsubscribed = false
     }
@@ -582,10 +563,6 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
     replaceTimeout: createReplaceTimeout(newSenderInfo.publicKey),
   }
 
-  // Add new dataSender to dataSenders
-  addDataSenders(newSender)
-  Logger.mainLogger.debug(`replaceDataSender: added new sender ${newSenderInfo.publicKey} to dataSenders`)
-
   // Send dataRequest to new dataSender
   const dataRequest = {
     dataRequestCycle: createDataRequest<Cycle>(
@@ -602,6 +579,11 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
     nodeInfo: State.getNodeInfo(),
   }
   const response = await sendDataRequest(newSender, dataRequest)
+  if (response) {
+    // Add new dataSender to dataSenders
+    addDataSenders(newSender)
+    Logger.mainLogger.debug(`added new sender ${newSenderInfo.publicKey} to dataSenders`)
+  }
   return response
 }
 
