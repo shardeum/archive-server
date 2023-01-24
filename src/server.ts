@@ -487,7 +487,11 @@ function startServer() {
       },
     },
     (_request, reply) => {
+      console.log('Full Node List Called')
+      const { activeOnly } = _request.query
       const activeNodeList = NodeList.getActiveList()
+      if (activeOnly === 'true') reply.send(Crypto.sign({ nodeList: activeNodeList }))
+
       const syncingNodeList = NodeList.getSyncingList()
       const fullNodeList = activeNodeList.concat(syncingNodeList)
       const res = Crypto.sign({
