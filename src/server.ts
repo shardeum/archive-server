@@ -1,6 +1,7 @@
 import { join } from 'path'
-import * as fastify from 'fastify'
-import * as fastifyCors from 'fastify-cors'
+import fastify, { FastifyInstance, FastifyRequest } from 'fastify'
+import fastifyCors from '@fastify/cors'
+import fastifyRateLimit from '@fastify/rate-limit'
 import { Server, IncomingMessage, ServerResponse } from 'http'
 import { overrideDefaultConfig, config } from './Config'
 import * as Crypto from './Crypto'
@@ -109,10 +110,10 @@ async function start() {
        */
 
       Logger.mainLogger.debug('We have successfully joined the network')
-      io = startServer()
+      io = await startServer()
       await Data.subscribeNodeForDataTransfer()
     } else {
-      io = startServer()
+      io = await startServer()
     }
   } else {
     Logger.mainLogger.debug('We are not first archiver. Syncing and starting archive-server')
@@ -120,7 +121,7 @@ async function start() {
   }
 }
 
-function initProfiler(server: fastify.FastifyInstance) {
+function initProfiler(server: FastifyInstance) {
   let memoryReporter = new MemoryReporting(server)
   let nestedCounter = new NestedCounters(server)
   let profiler = new Profiler(server)
@@ -279,7 +280,7 @@ async function syncAndStartServer() {
     await Utils.sleep(cycleDuration * 1000)
 
   // start fastify server
-  io = startServer()
+  io = await startServer()
   await Data.subscribeNodeForDataTransfer()
 }
 
@@ -350,11 +351,12 @@ export const isDebugMiddleware = (_req, res) => {
 }
 
 // Define all endpoints, all requests, and start REST server
-function startServer() {
-  const server: fastify.FastifyInstance<Server, IncomingMessage, ServerResponse> = fastify({
+async function startServer() {
+  const server: FastifyInstance<Server, IncomingMessage, ServerResponse> = fastify({
     logger: false,
   })
 
+  await server.register(fastifyCors)
   server.register(fastifyCors)
   // server.register(require('fastify-rate-limit'), {
   //   max: config.RATE_LIMIT,
@@ -377,10 +379,14 @@ function startServer() {
    *
    * CZ adds AZ's join reqeuest to cycle zero and sets AZ as cycleRecipient
    */
-  server.post('/nodelist', (request, reply) => {
+  type NodeListRequest = FastifyRequest<{
+    Body: P2P.FirstNodeInfo & Crypto.SignedMessage
+  }>
+
+  server.post('/nodelist', (request: NodeListRequest, reply) => {
     profilerInstance.profileSectionStart('POST_nodelist')
     nestedCountersInstance.countEvent('consensor', 'POST_nodelist', 1)
-    const signedFirstNodeInfo: P2P.FirstNodeInfo & Crypto.SignedMessage = request.body
+    const signedFirstNodeInfo = request.body
 
     if (State.isFirst && NodeList.isEmpty()) {
       try {
@@ -479,6 +485,10 @@ function startServer() {
     reply.send(res)
   })
 
+  type FullNodeListRequest = FastifyRequest<{
+    Querystring: { activeOnly: 'true' | 'false' }
+  }>
+
   server.get(
     '/full-nodelist',
     {
@@ -486,8 +496,7 @@ function startServer() {
         isDebugMiddleware(_request, reply)
       },
     },
-    (_request, reply) => {
-      console.log('Full Node List Called')
+    (_request: FullNodeListRequest, reply) => {
       const { activeOnly } = _request.query
       const activeNodeList = NodeList.getActiveList()
       if (activeOnly === 'true') reply.send(Crypto.sign({ nodeList: activeNodeList }))
@@ -501,7 +510,11 @@ function startServer() {
     }
   )
 
-  server.get('/lost', async (_request, reply) => {
+  type LostRequest = FastifyRequest<{
+    Querystring: { start: any; end: any }
+  }>
+
+  server.get('/lost', async (_request: LostRequest, reply) => {
     let { start, end } = _request.query
     if (!start) start = 0
     if (!end) end = Cycles.currentCycleCounter
@@ -529,7 +542,11 @@ function startServer() {
     })
   })
 
-  server.get('/cycleinfo', async (_request, reply) => {
+  type CycleInfoRequest = FastifyRequest<{
+    Querystring: { start: any; end: any; download: 'true' | 'false' }
+  }>
+
+  server.get('/cycleinfo', async (_request: CycleInfoRequest, reply) => {
     let { start, end, download } = _request.query
     if (!start) start = 0
     if (!end) end = Cycles.currentCycleCounter
@@ -564,7 +581,11 @@ function startServer() {
     }
   })
 
-  server.get('/cycleinfo/:count', async (_request, reply) => {
+  type CycleInfoCountRequest = FastifyRequest<{
+    Params: { count: string }
+  }>
+
+  server.get('/cycleinfo/:count', async (_request: CycleInfoCountRequest, reply) => {
     let err = Utils.validateTypes(_request.params, { count: 's' })
     if (err) {
       reply.send(Crypto.sign({ success: false, error: err }))
@@ -585,7 +606,18 @@ function startServer() {
     reply.send(res)
   })
 
-  server.get('/receipt', async (_request, reply) => {
+  type ReceiptRequest = FastifyRequest<{
+    Querystring: {
+      start: string
+      end: string
+      startCycle: string
+      endCycle: string
+      type: string
+      page: string
+    }
+  }>
+
+  server.get('/receipt', async (_request: ReceiptRequest, reply) => {
     let err = Utils.validateTypes(_request.query, {
       start: 's?',
       end: 's?',
@@ -665,7 +697,13 @@ function startServer() {
     reply.send(res)
   })
 
-  server.get('/receipt/:count', async (_request, reply) => {
+  type ReceiptCountRequest = FastifyRequest<{
+    Params: {
+      count: string
+    }
+  }>
+
+  server.get('/receipt/:count', async (_request: ReceiptCountRequest, reply) => {
     let err = Utils.validateTypes(_request.params, { count: 's' })
     if (err) {
       reply.send(Crypto.sign({ success: false, error: err }))
@@ -688,7 +726,19 @@ function startServer() {
     reply.send(res)
   })
 
-  server.get('/account', async (_request, reply) => {
+  type AccountRequest = FastifyRequest<{
+    Querystring: {
+      start: string
+      end: string
+      startCycle: string
+      endCycle: string
+      type: string
+      page: string
+      accountId: string
+    }
+  }>
+
+  server.get('/account', async (_request: AccountRequest, reply) => {
     let err = Utils.validateTypes(_request.query, {
       start: 's?',
       end: 's?',
@@ -787,7 +837,13 @@ function startServer() {
     reply.send(res)
   })
 
-  server.get('/account/:count', async (_request, reply) => {
+  type AccountCountRequest = FastifyRequest<{
+    Params: {
+      count: string
+    }
+  }>
+
+  server.get('/account/:count', async (_request: AccountCountRequest, reply) => {
     let err = Utils.validateTypes(_request.params, { count: 's' })
     if (err) {
       reply.send(Crypto.sign({ success: false, error: err }))
@@ -810,7 +866,19 @@ function startServer() {
     reply.send(res)
   })
 
-  server.get('/transaction', async (_request, reply) => {
+  type TransactionRequest = FastifyRequest<{
+    Querystring: {
+      start: string
+      end: string
+      startCycle: string
+      endCycle: string
+      txId: string
+      page: string
+      accountId: string
+    }
+  }>
+
+  server.get('/transaction', async (_request: TransactionRequest, reply) => {
     let err = Utils.validateTypes(_request.query, {
       start: 's?',
       end: 's?',
@@ -913,7 +981,13 @@ function startServer() {
     reply.send(res)
   })
 
-  server.get('/transaction/:count', async (_request, reply) => {
+  type TransactionCountRequest = FastifyRequest<{
+    Params: {
+      count: string
+    }
+  }>
+
+  server.get('/transaction/:count', async (_request: TransactionCountRequest, reply) => {
     let err = Utils.validateTypes(_request.params, { count: 's' })
     if (err) {
       reply.send(Crypto.sign({ success: false, error: err }))
@@ -949,7 +1023,14 @@ function startServer() {
     })
   })
 
-  server.post('/gossip-hashes', async (_request, reply) => {
+  type GossipHashesRequest = FastifyRequest<{
+    Body: {
+      sender: string
+      data: any
+    }
+  }>
+
+  server.post('/gossip-hashes', async (_request: GossipHashesRequest, reply) => {
     let gossipMessage = _request.body
     Logger.mainLogger.debug('Gossip received', JSON.stringify(gossipMessage))
     addHashesGossip(gossipMessage.sender, gossipMessage.data)
@@ -994,7 +1075,14 @@ function startServer() {
 
   // Old snapshot ArchivedCycle endpoint;
   if (!config.experimentalSnapshot) {
-    server.get('/full-archive', async (_request, reply) => {
+    type FullArchiveRequest = FastifyRequest<{
+      Querystring: {
+        start: string
+        end: string
+      }
+    }>
+
+    server.get('/full-archive', async (_request: FullArchiveRequest, reply) => {
       let err = Utils.validateTypes(_request.query, { start: 's', end: 's' })
       if (err) {
         reply.send(Crypto.sign({ success: false, error: err }))
@@ -1025,7 +1113,13 @@ function startServer() {
       reply.send(res)
     })
 
-    server.get('/full-archive/:count', async (_request, reply) => {
+    type FullArchiveCountRequest = FastifyRequest<{
+      Params: {
+        count: string
+      }
+    }>
+
+    server.get('/full-archive/:count', async (_request: FullArchiveCountRequest, reply) => {
       let err = Utils.validateTypes(_request.params, { count: 's' })
       if (err) {
         reply.send(Crypto.sign({ success: false, error: err }))
@@ -1050,15 +1144,21 @@ function startServer() {
   }
 
   // Start server and bind to port on all interfaces
-  server.listen(config.ARCHIVER_PORT, '0.0.0.0', (err, _address) => {
-    Logger.mainLogger.debug('Listening3', config.ARCHIVER_PORT)
-    if (err) {
-      server.log.error(err)
-      process.exit(1)
+  server.listen(
+    {
+      port: config.ARCHIVER_PORT,
+      host: '0.0.0.0',
+    },
+    (err, _address) => {
+      Logger.mainLogger.debug('Listening', config.ARCHIVER_PORT)
+      if (err) {
+        server.log.error(err)
+        process.exit(1)
+      }
+      Logger.mainLogger.debug('Archive-server has started.')
+      State.addSigListeners()
     }
-    Logger.mainLogger.debug('Archive-server has started.')
-    State.addSigListeners()
-  })
+  )
   return io
 }
 
