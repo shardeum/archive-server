@@ -357,11 +357,11 @@ async function startServer() {
   })
 
   await server.register(fastifyCors)
-  server.register(fastifyCors)
-  // server.register(require('fastify-rate-limit'), {
-  //   max: config.RATE_LIMIT,
-  //   timeWindow: 1000,
-  // })
+  await server.register(fastifyRateLimit, {
+    global: true,
+    max: config.RATE_LIMIT,
+    timeWindow: 60_000,
+  })
 
   // Socket server instance
   io = require('socket.io')(server.server)
