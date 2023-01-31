@@ -359,8 +359,8 @@ async function startServer() {
   await server.register(fastifyCors)
   await server.register(fastifyRateLimit, {
     global: true,
-    max: config.RATE_LIMIT,
-    timeWindow: 60_000,
+    max: 20,
+    timeWindow: 5000,
   })
 
   // Socket server instance
