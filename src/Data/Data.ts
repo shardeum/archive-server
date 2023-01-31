@@ -135,7 +135,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
         const sender = dataSenders.get(newData.publicKey)
         // If no sender entry, remove publicKey from senders, END
         if (!sender) {
-          Logger.mainLogger.error('No sender found for this data')
+          Logger.mainLogger.error('This sender is not in the subscribed nodes list')
           return
         }
         // Clear senders contactTimeout, if it has one
