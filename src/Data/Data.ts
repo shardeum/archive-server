@@ -98,7 +98,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
 
   socketClient.on('connect', () => {
-    Logger.mainLogger.debug('Connection to consensus node was made')
+    Logger.mainLogger.debug(`Connection to consensus node ${node.ip}:${node.port} is made`)
     // Send ehlo event right after connect:
     socketClient.emit('ARCHIVER_PUBLIC_KEY', config.ARCHIVER_PUBLIC_KEY)
     socketClients.set(node.publicKey, socketClient)
@@ -270,6 +270,7 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
     return
   }
   Logger.mainLogger.debug(`replaceDataSender: replacing ${publicKey}`)
+  Logger.mainLogger.debug(socketClients.has(publicKey), selectingNewDataSender)
 
   if (!socketClients.has(publicKey)) removeDataSenders(publicKey)
   // Extend the contactTimeout a bit longer for now to make sure the archiver has already got a new replacer node
@@ -374,7 +375,11 @@ function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
 }
 
 async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.ConsensusNodeInfo['publicKey'][]) {
-  if (publicKeys.length === 0) return
+  if (config.VERBOSE) Logger.mainLogger.debug('selectNewDataSendersByConsensusRadius publicKeys', publicKeys)
+  if (publicKeys.length === 0) {
+    selectingNewDataSender = false
+    return
+  }
   const calculatedConsensusRadius = await getConsensusRadius()
   let consensusRadius = calculatedConsensusRadius
   if (consensusRadius > 2) consensusRadius-- // Change default to 3 for now assuming nodesPerConsensusGroup 10
@@ -382,19 +387,19 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
   if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
   const totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
   Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
-  if (config.VERBOSE) console.log('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
   for (const publicKey of publicKeys) {
     let nodeIsUnsubscribed = true
     let nodeIsInTheActiveList = false
     for (let i = 0; i < activeList.length; i += consensusRadius) {
       const subsetList = activeList.slice(i, i + consensusRadius)
-      if (config.VERBOSE) console.log('Round', i, publicKey, 'subsetList', subsetList, socketClients.keys())
+      if (config.VERBOSE)
+        Logger.mainLogger.debug('Round', i, publicKey, 'subsetList', subsetList, socketClients.keys())
       let nodeToRotateIsFromThisSubset = false
       let noNodeFromThisSubset = true
       let extraSubscribedNodesCountFromThisSubset = 0
       for (let node of Object.values(subsetList)) {
         if (socketClients.has(node.publicKey)) {
-          if (config.VERBOSE) console.log('The node is found in this subset')
+          if (config.VERBOSE) Logger.mainLogger.debug('This node from the subset is in the subscribed list!')
           noNodeFromThisSubset = false
           extraSubscribedNodesCountFromThisSubset++
         }
@@ -462,6 +467,7 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
       }
     }
     if (nodeIsUnsubscribed && !nodeIsInTheActiveList) {
+      Logger.mainLogger.debug(`This publicKey is not in the active list!`)
       unsubscribeDataSender(publicKey)
       nodeIsUnsubscribed = false
     }
@@ -493,7 +499,13 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
     }
   }
   if (queueForSelectingNewDataSenders.size > 0) {
-    const newPublicKeys = Object.keys(queueForSelectingNewDataSenders)
+    if (config.VERBOSE)
+      Logger.mainLogger.debug('queueForSelectingNewDataSenders', queueForSelectingNewDataSenders)
+    let newPublicKeys = []
+    for (let [key, value] of queueForSelectingNewDataSenders) {
+      newPublicKeys.push(key)
+    }
+    if (config.VERBOSE) Logger.mainLogger.debug(newPublicKeys)
     queueForSelectingNewDataSenders.clear()
     selectNewDataSendersByConsensusRadius(newPublicKeys)
   } else {
