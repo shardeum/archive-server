@@ -20,7 +20,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
   if (currentTime - lastReceiptMapResetTimestamp >= 60000 && !newestReceiptsMapIsReset) {
     newestReceiptsMap = new Map() // To save 30s data; So even when receiptMap is reset, this still has the record and will skip saving if it finds one
     newestReceiptsMapIsReset = true
-    console.log('Newest Receipts Map Reset!', newestReceiptsMap)
+    if (config.VERBOSE) console.log('Newest Receipts Map Reset!', newestReceiptsMap)
   }
   let bucketSize = 1000
   let combineReceipts = []
@@ -207,7 +207,7 @@ export const storeAccountData = async (restoreData: any = {}) => {
     for (let i = 0; i < receipts.length; i++) {
       const receipt = receipts[i]
       const txObj = {
-        txId: receipt.data.txId,
+        txId: receipt.data.txId || receipt.txId,
         accountId: receipt.accountId,
         timestamp: receipt.timestamp,
         cycleNumber: receipt.cycleNumber,
@@ -239,7 +239,7 @@ export function resetReceiptsMap() {
     receiptsMap = new Map()
     lastReceiptMapResetTimestamp = Date.now()
     newestReceiptsMapIsReset = false
-    console.log('Receipts Map Reset!', receiptsMap)
+    if (config.VERBOSE) console.log('Receipts Map Reset!', receiptsMap)
     Logger.mainLogger.debug('Receipts Map Reset!', receiptsMap)
   }
 }

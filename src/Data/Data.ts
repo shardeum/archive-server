@@ -110,7 +110,6 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
 
   socketClient.once('disconnect', async () => {
     Logger.mainLogger.debug(`Connection request is refused by the consensor node ${node.ip}:${node.port}`)
-    console.log(`Connection request is refused by the consensor node ${node.ip}:${node.port}`)
     socketConnectionsTracker.set(node.publicKey, 'disconnected')
   })
 
@@ -327,7 +326,7 @@ export async function subscribeRandomNodeForDataTransfer() {
  */
 export function createContactTimeout(publicKey: NodeList.ConsensusNodeInfo['publicKey'], msg: string = '') {
   let ms = 15 * 1000 // Change contact timeout to 15s for now
-  Logger.mainLogger.debug('Created contact timeout: ' + ms, publicKey)
+  Logger.mainLogger.debug('Created contact timeout: ' + ms, `for ${publicKey}`)
   nestedCountersInstance.countEvent('archiver', 'contact_timeout_created')
   return setTimeout(() => {
     // Logger.mainLogger.debug('nestedCountersInstance', nestedCountersInstance)
@@ -410,8 +409,6 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
         Logger.mainLogger.debug(
           'There is already node from this subset or node to rotate is not from this subset!'
         )
-        if (config.VERBOSE)
-          console.log('There is already node from this subset or node to rotate is not from this subset!')
         continue
       }
       if (extraSubscribedNodesCountFromThisSubset >= 1) {
@@ -611,7 +608,6 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
       Logger.mainLogger.debug(
         'There is already node from this subset or node to rotate is not from this subset!'
       )
-      console.log('There is already node from this subset or node to rotate is not from this subset!')
       continue
     }
     // Pick a new dataSender
