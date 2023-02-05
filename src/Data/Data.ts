@@ -735,7 +735,7 @@ export async function sendDataRequest(sender: DataSender, dataRequest: any) {
       taggedDataRequest
     )
     Logger.mainLogger.debug('/requestdata response', response)
-    if (response.success) reply = response.success
+    if (response && response.success) reply = response.success
   }
   return reply
 }
