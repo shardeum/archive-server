@@ -138,7 +138,7 @@ export function parseRecord(record: any): Change {
 
   return {
     added: [...record.joinedConsensors],
-    removed: [...record.apoptosized],
+    removed: [...record.apoptosized, ...record.removed],
     updated: [...activated, ...refreshUpdated],
   }
 }

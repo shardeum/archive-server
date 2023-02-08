@@ -141,24 +141,26 @@ function updateNodeList(cycle: Cycle) {
   }, [])
   NodeList.removeNodes(removedPks)
 
+  // TODO: add a more scalable lostNodes collector (maybe removed nodes collector)
   // add lost nodes to lostNodes collector
-  lost.forEach((id: string) => {
-    const nodeInfo = NodeList.getNodeInfoById(id)
-    lostNodes.push({
-      counter: cycle.counter,
-      timestamp: Date.now(),
-      nodeInfo,
-    })
-  })
+  // lost.forEach((id: string) => {
+  //   const nodeInfo = NodeList.getNodeInfoById(id)
+  //   lostNodes.push({
+  //     counter: cycle.counter,
+  //     timestamp: Date.now(),
+  //     nodeInfo,
+  //   })
+  // })
 
-  const lostPks = lost.reduce((keys: string[], id) => {
-    const nodeInfo = NodeList.getNodeInfoById(id)
-    if (nodeInfo) {
-      keys.push(nodeInfo.publicKey)
-    }
-    return keys
-  }, [])
-  NodeList.removeNodes(lostPks)
+  // The archiver doesn't need to consider lost nodes; They will be in `apop` or `refuted` list in next cycle
+  // const lostPks = lost.reduce((keys: string[], id) => {
+  //   const nodeInfo = NodeList.getNodeInfoById(id)
+  //   if (nodeInfo) {
+  //     keys.push(nodeInfo.publicKey)
+  //   }
+  //   return keys
+  // }, [])
+  // NodeList.removeNodes(lostPks)
 
   const apoptosizedPks = apoptosized.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)
