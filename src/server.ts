@@ -216,9 +216,10 @@ async function syncAndStartServer() {
   let cycleDuration = await Data.getCycleDuration()
   do {
     try {
+      const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
       // Get active nodes from Archiver
-      const nodeList: any = await NodeList.getActiveListFromArchivers(State.activeArchivers)
-
+      const nodeList: any = await NodeList.getActiveNodeListFromArchiver(randomArchiver)
+      if (nodeList.length === 0) continue
       // try to join the network
       isJoined = await Data.joinNetwork(nodeList, firstTime)
     } catch (err: any) {

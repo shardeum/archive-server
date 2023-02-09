@@ -222,6 +222,19 @@ export function getActiveList() {
   return [...activeList.values()]
 }
 
+export async function getActiveNodeListFromArchiver(
+  archiver: State.ArchiverNodeInfo
+): Promise<ConsensusNodeInfo[]> {
+  let response: any = await P2P.getJson(`http://${archiver.ip}:${archiver.port}/nodelist`)
+  Logger.mainLogger.debug('response', `http://${archiver.ip}:${archiver.port}/nodelist`, response)
+  if (response && response.nodeList && response.nodeList.length > 0) {
+    // TODO: validate the reponse is from archiver
+    return response.nodeList
+  } else Logger.mainLogger.debug(`Fail To get nodeList from the archiver ${archiver.ip}:${archiver.port}`)
+  return []
+}
+
+// We can't get the same node list from all archivers; Each archiver would response with its max 30 random nodes
 export async function getActiveListFromArchivers(
   activeArchivers: State.ArchiverNodeInfo[]
 ): Promise<ConsensusNodeInfo> {
