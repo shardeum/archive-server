@@ -383,6 +383,11 @@ async function startServer() {
     Body: P2P.FirstNodeInfo & Crypto.SignedMessage
   }>
 
+  server.get('/myip', function (request, reply) {
+    const ip = request.raw.socket.remoteAddress
+    reply.send({ ip })
+  })
+
   server.post('/nodelist', (request: NodeListRequest, reply) => {
     profilerInstance.profileSectionStart('POST_nodelist')
     nestedCountersInstance.countEvent('consensor', 'POST_nodelist', 1)
