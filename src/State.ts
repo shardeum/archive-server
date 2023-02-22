@@ -91,7 +91,7 @@ export async function initFromConfig(config: Config) {
 
 export async function exitArchiver() {
   try {
-    const randomConsensor: NodeList.ConsensusNodeInfo = NodeList.getRandomActiveNode()[0]
+    const randomConsensor: NodeList.ConsensusNodeInfo = NodeList.getRandomActiveNodes()[0]
     if (randomConsensor) {
       // Send a leave request to a random consensus node from the nodelist
       let isLeaveRequestSent = await Data.sendLeaveRequest(randomConsensor)

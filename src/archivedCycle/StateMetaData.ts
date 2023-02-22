@@ -283,7 +283,7 @@ export async function subscribeRandomNodeForDataTransfer() {
   let nodeSubscribedFail = true
   // Set randomly select a consensor as dataSender
   while (nodeSubscribedFail && retry < 10) {
-    let randomConsensor = NodeList.getRandomActiveNode()[0]
+    let randomConsensor = NodeList.getRandomActiveNodes()[0]
     let connectionStatus = await createDataTransferConnection(randomConsensor)
     if (connectionStatus) nodeSubscribedFail = false
     else retry++
@@ -632,7 +632,7 @@ export async function processStateMetaData(response: any) {
         const cycleActiveNodesSize =
           parentCycle.active + parentCycle.activated.length - parentCycle.removed.length
         while (!isDownloadSuccess && sleepCount < 20) {
-          let randomConsensor = NodeList.getRandomActiveNode()[0]
+          let randomConsensor = NodeList.getRandomActiveNodes()[0]
           const queryRequest = createQueryRequest(
             'RECEIPT_MAP',
             receiptHashesForCycle.counter - 1,
