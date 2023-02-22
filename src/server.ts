@@ -395,7 +395,7 @@ async function startServer() {
 
     for (let index = 0; index < config.N_RANDOM_NODELIST_BUCKETS; index++) {
       const nodeList = NodeList.getRandomActiveNodes(nodeCount)
-      const sortedNodeList = nodeList.sort(byAscendingNodeId)
+      const sortedNodeList = [...nodeList].sort(byAscendingNodeId)
       const signedSortedNodeList = Crypto.sign({
         nodeList: sortedNodeList,
       })
