@@ -371,6 +371,51 @@ async function startServer() {
   initProfiler(server)
 
   /**
+   * Check the cache for the node list, if it's hot, return it. Otherwise,
+   * rebuild the cache and return the node list.
+   */
+  const getCachedNodeList = (): NodeList.SignedNodeList => {
+    const cacheUpdatedTime = NodeList.cacheUpdatedTimes.get('/nodelist')
+    const realUpdatedTime = NodeList.realUpdatedTimes.get('/nodelist')
+
+    const byAscendingNodeId = (a: NodeList.ConsensusNodeInfo, b: NodeList.ConsensusNodeInfo) =>
+      a.id > b.id ? 1 : -1
+    const bucketCacheKey = (index: number) => `/nodelist/${index}`
+
+    if (cacheUpdatedTime && realUpdatedTime && cacheUpdatedTime > realUpdatedTime) {
+      // cache is hot, send cache
+
+      const randomIndex = Math.floor(Math.random() * config.N_RANDOM_NODELIST_BUCKETS)
+      const cachedNodeList = NodeList.cache.get(bucketCacheKey(randomIndex))
+      return cachedNodeList
+    } else {
+      // cache is cold, remake cache
+      const nodeCount = Math.min(config.N_NODELIST, NodeList.getActiveList().length)
+
+      for (let index = 0; index < config.N_RANDOM_NODELIST_BUCKETS; index++) {
+        const nodeList = NodeList.getRandomActiveNodes(nodeCount)
+        const sortedNodeList = nodeList.sort(byAscendingNodeId)
+        const signedSortedNodeList = Crypto.sign({
+          nodeList: sortedNodeList,
+        })
+
+        // Update cache
+        NodeList.cache.set(bucketCacheKey(index), signedSortedNodeList)
+      }
+
+      // Update cache timestamps
+      if (NodeList.realUpdatedTimes.get('/nodelist') === undefined) {
+        // This gets set when the list of nodes changes. For the first time, set to a large value
+        NodeList.realUpdatedTimes.set('/nodelist', Infinity)
+      }
+      NodeList.cacheUpdatedTimes.set('/nodelist', Date.now())
+
+      const nodeList = NodeList.cache.get(bucketCacheKey(0))
+      return nodeList
+    }
+  }
+
+  /**
    * ENTRY POINT: New Shardus network
    *
    * Consensus node zero (CZ) posts IP and port to archiver node zero (AZ).
