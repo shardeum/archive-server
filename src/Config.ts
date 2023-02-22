@@ -16,6 +16,7 @@ export interface Config {
   DATASENDER_TIMEOUT: number
   RATE_LIMIT: number // number of allowed request per second,
   N_NODELIST: number
+  N_RANDOM_NODELIST_BUCKETS: number // Number of random node lists in the NodeList cache
   STATISTICS: {
     save: boolean
     interval: number
@@ -42,6 +43,7 @@ let config: Config = {
   DATASENDER_TIMEOUT: 1000 * 60 * 5,
   RATE_LIMIT: 100, // 100 req per second,
   N_NODELIST: 30, // number of active node list GET /nodelist should emit but if the total active nodelist is less than said value it will emit all the node list.
+  N_RANDOM_NODELIST_BUCKETS: 10,
   STATISTICS: {
     save: true,
     interval: 1,
