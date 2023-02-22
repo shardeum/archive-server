@@ -488,34 +488,8 @@ async function startServer() {
 
       reply.send(res)
     } else {
-      const cacheUpdatedTime = NodeList.cacheUpdatedTimes.get('/nodelist')
-      const realUpdatedTime = NodeList.realUpdatedTimes.get('/nodelist')
-      const cached = NodeList.cache.get('/nodelist')
-      if (cached && cacheUpdatedTime && realUpdatedTime && cacheUpdatedTime > realUpdatedTime) {
-        // cache is hot, send cache
-
-        reply.send(cached)
-      } else {
-        // cache is cold, remake cache
-
-        const NODE_COUNT = Math.min(config.N_NODELIST, NodeList.getActiveList().length)
-        // If we dont have any active nodes, send back the first node in our list
-        let nodeList: NodeList.ConsensusNodeInfo[] =
-          NODE_COUNT < 1 ? NodeList.getList().slice(0, 1) : NodeList.getRandomActiveNode(NODE_COUNT)
-        let sortedNodeList = [...nodeList].sort((a: any, b: any) => (a.id > b.id ? 1 : -1))
-        const res = Crypto.sign({
-          nodeList: sortedNodeList,
-        })
-
-        // Update cache
-        if (NodeList.realUpdatedTimes.get('/nodelist') === undefined) {
-          NodeList.realUpdatedTimes.set('/nodelist', 0)
-        }
-        NodeList.cache.set('/nodelist', res)
-        NodeList.cacheUpdatedTimes.set('/nodelist', Date.now())
-
-        reply.send(res)
-      }
+      const res = getCachedNodeList()
+      reply.send(res)
     }
     profilerInstance.profileSectionEnd('POST_nodelist')
   })
@@ -524,16 +498,10 @@ async function startServer() {
     profilerInstance.profileSectionStart('GET_nodelist')
     nestedCountersInstance.countEvent('consensor', 'GET_nodelist')
 
-    const NODE_COUNT = Math.min(config.N_NODELIST, NodeList.getActiveList().length)
-    let nodeList: NodeList.ConsensusNodeInfo[] =
-      NODE_COUNT < 1 ? NodeList.getList().slice(0, 1) : NodeList.getRandomActiveNode(NODE_COUNT)
-
-    let sortedNodeList = [...nodeList].sort((a: any, b: any) => (a.id > b.id ? 1 : -1))
-    const res = Crypto.sign({
-      nodeList: sortedNodeList,
-    })
+    const nodeList = getCachedNodeList()
     profilerInstance.profileSectionEnd('GET_nodelist')
-    reply.send(res)
+
+    reply.send(nodeList)
   })
 
   type FullNodeListRequest = FastifyRequest<{
