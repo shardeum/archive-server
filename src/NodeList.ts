@@ -1,12 +1,9 @@
-import { config } from './Config'
-import * as Crypto from './Crypto'
 import * as State from './State'
 import * as P2P from './P2P'
-import * as Data from './Data/Data'
 import * as Utils from './Utils'
 import { isDeepStrictEqual } from 'util'
 import * as Logger from './Logger'
-import { P2P as P2PTypes } from '@shardus/types'
+import * as Crypto from './Crypto'
 
 // TYPES
 
@@ -47,7 +44,11 @@ const byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
 export const byId: { [id: string]: ConsensusNodeInfo } = {}
 const publicKeyToId: { [publicKey: string]: string } = {}
 
-export const cache: Map<string, object> = new Map()
+export type SignedNodeList = {
+  nodeList: ConsensusNodeInfo[]
+} & Crypto.types.SignedObject
+
+export const cache: Map<string, SignedNodeList> = new Map()
 export const cacheUpdatedTimes: Map<string, number> = new Map()
 export const realUpdatedTimes: Map<string, number> = new Map()
 
@@ -255,7 +256,7 @@ export async function getActiveListFromArchivers(
   return nodeList[0]
 }
 
-export function getRandomActiveNode(node_count: number = 1): ConsensusNodeInfo[] {
+export function getRandomActiveNodes(node_count: number = 1): ConsensusNodeInfo[] {
   let nodeList = getActiveList()
   if (!node_count || node_count <= 1 || node_count > nodeList.length)
     return Utils.getRandomItemFromArr(nodeList)
