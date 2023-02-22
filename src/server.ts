@@ -388,31 +388,31 @@ async function startServer() {
       const randomIndex = Math.floor(Math.random() * config.N_RANDOM_NODELIST_BUCKETS)
       const cachedNodeList = NodeList.cache.get(bucketCacheKey(randomIndex))
       return cachedNodeList
-    } else {
-      // cache is cold, remake cache
-      const nodeCount = Math.min(config.N_NODELIST, NodeList.getActiveList().length)
-
-      for (let index = 0; index < config.N_RANDOM_NODELIST_BUCKETS; index++) {
-        const nodeList = NodeList.getRandomActiveNodes(nodeCount)
-        const sortedNodeList = nodeList.sort(byAscendingNodeId)
-        const signedSortedNodeList = Crypto.sign({
-          nodeList: sortedNodeList,
-        })
-
-        // Update cache
-        NodeList.cache.set(bucketCacheKey(index), signedSortedNodeList)
-      }
-
-      // Update cache timestamps
-      if (NodeList.realUpdatedTimes.get('/nodelist') === undefined) {
-        // This gets set when the list of nodes changes. For the first time, set to a large value
-        NodeList.realUpdatedTimes.set('/nodelist', Infinity)
-      }
-      NodeList.cacheUpdatedTimes.set('/nodelist', Date.now())
-
-      const nodeList = NodeList.cache.get(bucketCacheKey(0))
-      return nodeList
     }
+
+    // cache is cold, remake cache
+    const nodeCount = Math.min(config.N_NODELIST, NodeList.getActiveList().length)
+
+    for (let index = 0; index < config.N_RANDOM_NODELIST_BUCKETS; index++) {
+      const nodeList = NodeList.getRandomActiveNodes(nodeCount)
+      const sortedNodeList = nodeList.sort(byAscendingNodeId)
+      const signedSortedNodeList = Crypto.sign({
+        nodeList: sortedNodeList,
+      })
+
+      // Update cache
+      NodeList.cache.set(bucketCacheKey(index), signedSortedNodeList)
+    }
+
+    // Update cache timestamps
+    if (NodeList.realUpdatedTimes.get('/nodelist') === undefined) {
+      // This gets set when the list of nodes changes. For the first time, set to a large value
+      NodeList.realUpdatedTimes.set('/nodelist', Infinity)
+    }
+    NodeList.cacheUpdatedTimes.set('/nodelist', Date.now())
+
+    const nodeList = NodeList.cache.get(bucketCacheKey(0))
+    return nodeList
   }
 
   /**
