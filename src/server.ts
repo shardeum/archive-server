@@ -488,6 +488,8 @@ async function startServer() {
 
       reply.send(res)
     } else {
+      // Note, this is doing the same thing as GET /nodelist. However, it has been kept for backwards
+      // compatibility.
       const res = getCachedNodeList()
       reply.send(res)
     }
