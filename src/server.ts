@@ -518,6 +518,8 @@ async function startServer() {
       },
     },
     (_request: FullNodeListRequest, reply) => {
+      profilerInstance.profileSectionStart('FULL_nodelist')
+      nestedCountersInstance.countEvent('consensor', 'FULL_nodelist')
       const { activeOnly } = _request.query
       const activeNodeList = NodeList.getActiveList()
       if (activeOnly === 'true') reply.send(Crypto.sign({ nodeList: activeNodeList }))
@@ -527,6 +529,7 @@ async function startServer() {
       const res = Crypto.sign({
         nodeList: fullNodeList,
       })
+      profilerInstance.profileSectionEnd('FULL_nodelist')
       reply.send(res)
     }
   )
@@ -554,7 +557,7 @@ async function startServer() {
     reply.send(res)
   })
 
-  server.get('/nodeinfo', (_request, reply) => {
+  server.get('/nodeInfo', (_request, reply) => {
     reply.send({
       publicKey: config.ARCHIVER_PUBLIC_KEY,
       ip: config.ARCHIVER_IP,
