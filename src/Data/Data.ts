@@ -82,13 +82,12 @@ export function initSocketServer(io: SocketIO.Server) {
 export function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   Logger.mainLogger.debug('Disconnecting previous connection', publicKey)
   socketClient = socketClients.get(publicKey)
-  if (!socketClient) return
-  socketClient.emit('UNSUBSCRIBE', config.ARCHIVER_PUBLIC_KEY)
-  socketClient.disconnect()
-  if (config.VERBOSE) console.log('Killing the connection to', publicKey)
+  if (socketClient) {
+    socketClient.emit('UNSUBSCRIBE', config.ARCHIVER_PUBLIC_KEY)
+    socketClient.disconnect()
+    socketClients.delete(publicKey)
+  }
   removeDataSenders(publicKey)
-  socketClients.delete(publicKey)
-  socketConnectionsTracker.delete(publicKey)
   if (config.VERBOSE) console.log('Subscribed socketClients', socketClients)
   Logger.mainLogger.debug('Subscribed socketClients', socketClients.size, dataSenders.size)
 }
@@ -309,7 +308,7 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
   Logger.mainLogger.debug(`replaceDataSender: replacing ${publicKey}`)
   Logger.mainLogger.debug(socketClients.has(publicKey), selectingNewDataSender)
 
-  if (!socketClients.has(publicKey)) removeDataSenders(publicKey)
+  if (!socketClients.has(publicKey)) unsubscribeDataSender(publicKey)
   // Extend the contactTimeout a bit longer for now to make sure the archiver has already got a new replacer node
   const sender = dataSenders.get(publicKey)
   if (sender && sender.replaceTimeout) {
@@ -320,7 +319,11 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
   if (sender && sender.contactTimeout) {
     clearTimeout(sender.contactTimeout)
     sender.contactTimeout = null
-    sender.contactTimeout = createContactTimeout(publicKey, 'This timeout is created to rotate this node')
+    sender.contactTimeout = createContactTimeout(
+      publicKey,
+      'This timeout is created to rotate this node',
+      5 * 60 * 1000
+    )
   }
   if (selectingNewDataSender) {
     queueForSelectingNewDataSenders.set(publicKey, publicKey)
@@ -362,8 +365,12 @@ export async function subscribeRandomNodeForDataTransfer() {
  * Removes sender from dataSenders on timeout
  * Select a new dataSender
  */
-export function createContactTimeout(publicKey: NodeList.ConsensusNodeInfo['publicKey'], msg: string = '') {
-  let ms = 15 * 1000 // Change contact timeout to 15s for now
+export function createContactTimeout(
+  publicKey: NodeList.ConsensusNodeInfo['publicKey'],
+  msg: string = '',
+  ms: number = 0
+) {
+  if (!ms) ms = 15 * 1000 // Change contact timeout to 15s for now
   Logger.mainLogger.debug('Created contact timeout: ' + ms, `for ${publicKey}`)
   nestedCountersInstance.countEvent('archiver', 'contact_timeout_created')
   return setTimeout(() => {
@@ -420,13 +427,17 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
   const calculatedConsensusRadius = await getConsensusRadius()
   let consensusRadius = calculatedConsensusRadius
   if (consensusRadius > 2) consensusRadius-- // Change default to 3 for now assuming nodesPerConsensusGroup 10
-  const activeList = NodeList.getActiveList()
+  let activeList = NodeList.getActiveList()
   if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
-  const totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
+  let totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
   Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
   for (const publicKey of publicKeys) {
     let nodeIsUnsubscribed = true
     let nodeIsInTheActiveList = false
+    activeList = NodeList.getActiveList()
+    if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
+    totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
+    Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
     for (let i = 0; i < activeList.length; i += consensusRadius) {
       const subsetList = activeList.slice(i, i + consensusRadius)
       if (config.VERBOSE)
@@ -490,7 +501,7 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
             // if (noNodeFromThisSubset) await Utils.sleep(30000) // Start another node with 30s difference
             break
           } else {
-            if (socketClients.has(newSenderInfo.publicKey)) socketClients.delete(newSenderInfo.publicKey)
+            if (socketClients.has(newSenderInfo.publicKey)) unsubscribeDataSender(newSenderInfo.publicKey)
             newSubsetList = newSubsetList.filter((node) => node.publicKey !== newSenderInfo.publicKey)
           }
           socketConnectionsTracker.delete(newSenderInfo.publicKey)
@@ -518,6 +529,10 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
     //     if (connectionStatus) await Utils.sleep(10000) // sleep for 10
     //   }
     // }
+    activeList = NodeList.getActiveList()
+    if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
+    totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
+    Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
     let extraConsensorsToSubscribe = Math.floor((activeList.length / 4) * 3)
     if (socketClients.size < extraConsensorsToSubscribe) {
       extraConsensorsToSubscribe -= socketClients.size
@@ -751,7 +766,7 @@ export async function subscribeExtraConsensors(extraConsensorsToSubscribe) {
       if (connectionStatus) {
         subscribedSuccess++
       } else {
-        if (socketClients.has(newSenderInfo.publicKey)) socketClients.delete(newSenderInfo.publicKey)
+        if (socketClients.has(newSenderInfo.publicKey)) unsubscribeDataSender(newSenderInfo.publicKey)
       }
       socketConnectionsTracker.delete(newSenderInfo.publicKey)
     }
