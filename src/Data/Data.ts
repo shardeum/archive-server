@@ -686,7 +686,7 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
           // if (noNodeFromThisSubset) await Utils.sleep(30000) // Start another node with 30s difference
           break
         } else {
-          if (socketClients.has(newSenderInfo.publicKey)) socketClients.delete(newSenderInfo.publicKey)
+          if (socketClients.has(newSenderInfo.publicKey)) unsubscribeDataSender(newSenderInfo.publicKey)
           subsetList = subsetList.filter((node) => node.publicKey !== newSenderInfo.publicKey)
         }
         socketConnectionsTracker.delete(newSenderInfo.publicKey)
