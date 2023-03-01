@@ -161,6 +161,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
         }
         if (newData.responses && newData.responses.CYCLE) {
           for (const cycle of newData.responses.CYCLE) {
+            // Logger.mainLogger.debug('Cycle received', cycle.counter)
             let cycleToSave = [] as Cycle[]
             if (receivedCycleTracker[cycle.counter]) {
               if (receivedCycleTracker[cycle.counter][cycle.marker])
@@ -203,8 +204,8 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
             }
             if (cycleToSave.length > 0) {
               // Logger.mainLogger.debug('Cycle To Save', cycle.counter, receivedCycleTracker)
-              processCycles(newData.responses.CYCLE as Cycle[])
-              storeCycleData(newData.responses.CYCLE)
+              processCycles(cycleToSave as Cycle[])
+              storeCycleData(cycleToSave)
             }
           }
           if (Object.keys(receivedCycleTracker).length > 10) {
@@ -308,8 +309,10 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
   Logger.mainLogger.debug(`replaceDataSender: replacing ${publicKey}`)
   Logger.mainLogger.debug(socketClients.has(publicKey), selectingNewDataSender)
 
-  if (!socketClients.has(publicKey)) unsubscribeDataSender(publicKey)
-  // Extend the contactTimeout a bit longer for now to make sure the archiver has already got a new replacer node
+  if (!socketClients.has(publicKey) || !dataSenders.has(publicKey)) {
+    unsubscribeDataSender(publicKey)
+    return
+  } // Extend the contactTimeout a bit longer for now to make sure the archiver has already got a new replacer node
   const sender = dataSenders.get(publicKey)
   if (sender && sender.replaceTimeout) {
     clearTimeout(sender.replaceTimeout)
@@ -329,7 +332,7 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
     queueForSelectingNewDataSenders.set(publicKey, publicKey)
   } else {
     selectingNewDataSender = true
-    selectNewDataSendersByConsensusRadius([publicKey])
+    await selectNewDataSendersByConsensusRadius([publicKey])
   }
 }
 
@@ -557,9 +560,11 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
     for (let [key, value] of queueForSelectingNewDataSenders) {
       newPublicKeys.push(key)
     }
+    for (let key of newPublicKeys) {
+      queueForSelectingNewDataSenders.delete(key)
+    }
     if (config.VERBOSE) Logger.mainLogger.debug(newPublicKeys)
-    queueForSelectingNewDataSenders.clear()
-    selectNewDataSendersByConsensusRadius(newPublicKeys)
+    if (newPublicKeys.length > 0) await selectNewDataSendersByConsensusRadius(newPublicKeys)
   } else {
     selectingNewDataSender = false
   }
@@ -614,6 +619,7 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
   if (socketConnectionsTracker.get(newSenderInfo.publicKey) === 'disconnected') return false
   await Utils.sleep(200) // Wait 1s before sending data request to be sure if the connection is not refused
   if (socketConnectionsTracker.get(newSenderInfo.publicKey) === 'disconnected') return false
+  Logger.mainLogger.debug('currentCycleCounter', currentCycleCounter)
   const newSender: DataSender = {
     nodeInfo: newSenderInfo,
     types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
@@ -649,6 +655,7 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
 }
 
 export async function subscribeMoreConsensorsByConsensusRadius() {
+  if (selectingNewDataSender) return
   const calculatedConsensusRadius = await getConsensusRadius()
   let consensusRadius = calculatedConsensusRadius
   if (consensusRadius > 2) consensusRadius-- // Change default to 3 for now assuming nodesPerConsensusGroup 10
