@@ -90,6 +90,7 @@ export function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInfo['pub
   removeDataSenders(publicKey)
   if (config.VERBOSE) console.log('Subscribed socketClients', socketClients)
   Logger.mainLogger.debug('Subscribed socketClients', socketClients.size, dataSenders.size)
+  Logger.mainLogger.debug('Subscribed socketClients', [...socketClients.keys()], [...dataSenders.keys()])
 }
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
@@ -134,6 +135,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
         // If no sender entry, remove publicKey from senders, END
         if (!sender) {
           Logger.mainLogger.error('This sender is not in the subscribed nodes list')
+          // unsubscribeDataSender(newData.publicKey)
           return
         }
         // Clear senders contactTimeout, if it has one
@@ -307,7 +309,7 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
     return
   }
   Logger.mainLogger.debug(`replaceDataSender: replacing ${publicKey}`)
-  Logger.mainLogger.debug(socketClients.has(publicKey), selectingNewDataSender)
+  Logger.mainLogger.debug(socketClients.has(publicKey), dataSenders.has(publicKey), selectingNewDataSender)
 
   if (!socketClients.has(publicKey) || !dataSenders.has(publicKey)) {
     unsubscribeDataSender(publicKey)
@@ -435,7 +437,7 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
   let totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
   Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
   for (const publicKey of publicKeys) {
-    let nodeIsUnsubscribed = true
+    let nodeIsUnsubscribed = false
     let nodeIsInTheActiveList = false
     activeList = NodeList.getActiveList()
     if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
@@ -475,9 +477,9 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
           console.log(
             `There are already ${extraSubscribedNodesCountFromThisSubset} nodes that the archiver has picked from this nodes subset.`
           )
-        if (nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
+        if (!nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
           unsubscribeDataSender(publicKey)
-          nodeIsUnsubscribed = false
+          nodeIsUnsubscribed = true
         }
         continue
       }
@@ -497,9 +499,9 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
         if (!socketClients.has(newSenderInfo.publicKey) && publicKey !== newSenderInfo.publicKey) {
           connectionStatus = await createDataTransferConnection(newSenderInfo)
           if (connectionStatus) {
-            if (nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
+            if (!nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
               unsubscribeDataSender(publicKey)
-              nodeIsUnsubscribed = false
+              nodeIsUnsubscribed = true
             }
             // if (noNodeFromThisSubset) await Utils.sleep(30000) // Start another node with 30s difference
             break
@@ -517,10 +519,10 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
         retry++
       }
     }
-    if (nodeIsUnsubscribed && !nodeIsInTheActiveList) {
+    if (!nodeIsUnsubscribed && !nodeIsInTheActiveList) {
       Logger.mainLogger.debug(`This publicKey is not in the active list!`)
       unsubscribeDataSender(publicKey)
-      nodeIsUnsubscribed = false
+      nodeIsUnsubscribed = true
     }
   }
   // Temp hack to pick half of the nodes not to miss data at all
