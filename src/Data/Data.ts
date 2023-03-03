@@ -40,7 +40,7 @@ export let combineAccountsData = {
 let forwardGenesisAccounts = true
 let selectByConsensuRadius = true
 let selectingNewDataSender = false
-let queueForSelectingNewDataSenders: Map<string, string> = new Map()
+export let queueForSelectingNewDataSenders: Map<string, string> = new Map()
 let receivedCycleTracker = {}
 
 export interface DataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes> {
@@ -309,7 +309,7 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
     return
   }
   Logger.mainLogger.debug(`replaceDataSender: replacing ${publicKey}`)
-  Logger.mainLogger.debug(socketClients.has(publicKey), dataSenders.has(publicKey), selectingNewDataSender)
+  Logger.mainLogger.debug(socketClients.has(publicKey), dataSenders.has(publicKey), selectingNewDataSender, queueForSelectingNewDataSenders.size)
 
   if (!socketClients.has(publicKey) || !dataSenders.has(publicKey)) {
     unsubscribeDataSender(publicKey)
@@ -355,11 +355,7 @@ export async function subscribeRandomNodeForDataTransfer() {
     let randomConsensor = NodeList.getRandomActiveNodes()[0]
     let connectionStatus = await createDataTransferConnection(randomConsensor)
     if (connectionStatus) nodeSubscribedFail = false
-    else {
-      if (socketClients.has(randomConsensor.publicKey)) unsubscribeDataSender(randomConsensor.publicKey)
-    }
-    socketConnectionsTracker.delete(randomConsensor.publicKey)
-    retry++
+    else retry++
   }
   if (nodeSubscribedFail) {
     Logger.mainLogger.error(

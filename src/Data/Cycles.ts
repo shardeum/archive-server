@@ -6,7 +6,12 @@ import { P2P } from '@shardus/types'
 import { getJson } from '../P2P'
 import { profilerInstance } from '../profiler/profiler'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
-import { socketClients, subscribeMoreConsensorsByConsensusRadius } from './Data'
+import {
+  queueForSelectingNewDataSenders,
+  socketClients,
+  subscribeMoreConsensorsByConsensusRadius,
+  unsubscribeDataSender,
+} from './Data'
 import * as Utils from '../Utils'
 import { isDeepStrictEqual } from 'util'
 
@@ -189,6 +194,13 @@ function updateNodeList(cycle: Cycle) {
     // To pick nodes only when the archiver is active
     if (socketClients.size > 0) {
       subscribeMoreConsensorsByConsensusRadius()
+    }
+  }
+  const nodesToUnsubscribed = [...apoptosizedPks, ...removedPks]
+  if (nodesToUnsubscribed.length > 0) {
+    for (const key of nodesToUnsubscribed) {
+      queueForSelectingNewDataSenders.delete(key)
+      unsubscribeDataSender(key)
     }
   }
 }
