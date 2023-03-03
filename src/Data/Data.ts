@@ -355,7 +355,11 @@ export async function subscribeRandomNodeForDataTransfer() {
     let randomConsensor = NodeList.getRandomActiveNodes()[0]
     let connectionStatus = await createDataTransferConnection(randomConsensor)
     if (connectionStatus) nodeSubscribedFail = false
-    else retry++
+    else {
+      if (socketClients.has(randomConsensor.publicKey)) unsubscribeDataSender(randomConsensor.publicKey)
+    }
+    socketConnectionsTracker.delete(randomConsensor.publicKey)
+    retry++
   }
   if (nodeSubscribedFail) {
     Logger.mainLogger.error(
@@ -527,13 +531,6 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
   }
   // Temp hack to pick half of the nodes not to miss data at all
   if (calculatedConsensusRadius === 2) {
-    // const subsetList = activeList.slice(0, Math.floor(activeList.length / 2))
-    // for (let node of Object.values(subsetList)) {
-    //   if (!socketClients.has(node.publicKey)) {
-    //     let connectionStatus = await createDataTransferConnection(node)
-    //     if (connectionStatus) await Utils.sleep(10000) // sleep for 10
-    //   }
-    // }
     activeList = NodeList.getActiveList()
     if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
     totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
@@ -688,11 +685,9 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
     let connectionStatus = false
     let retry = 0
     while (true && retry < consensusRadius) {
-      // Retry 5 times to get the new Sender
       if (!socketClients.has(newSenderInfo.publicKey)) {
         connectionStatus = await createDataTransferConnection(newSenderInfo)
         if (connectionStatus) {
-          // if (noNodeFromThisSubset) await Utils.sleep(30000) // Start another node with 30s difference
           break
         } else {
           if (socketClients.has(newSenderInfo.publicKey)) unsubscribeDataSender(newSenderInfo.publicKey)
@@ -710,13 +705,6 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
   }
   // Temp hack to pick half of the nodes not to miss data at all
   if (calculatedConsensusRadius === 2) {
-    // const subsetList = activeList.slice(0, Math.floor(activeList.length / 2))
-    // for (let node of Object.values(subsetList)) {
-    //   if (!socketClients.has(node.publicKey)) {
-    //     let connectionStatus = await createDataTransferConnection(node)
-    //     if (connectionStatus) await Utils.sleep(10000) // sleep for 10
-    //   }
-    // }
     let extraConsensorsToSubscribe = Math.floor((activeList.length / 4) * 3)
     if (socketClients.size < extraConsensorsToSubscribe) {
       extraConsensorsToSubscribe -= socketClients.size
