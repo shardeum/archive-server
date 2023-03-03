@@ -30,7 +30,6 @@ import * as StateMetaData from '../archivedCycle/StateMetaData'
 // Socket modules
 export let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
-let socketClient: SocketIOClientStatic['Socket']
 export let socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
 let socketConnectionsTracker: Map<string, string> = new Map()
 export let combineAccountsData = {
@@ -81,7 +80,7 @@ export function initSocketServer(io: SocketIO.Server) {
 
 export function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   Logger.mainLogger.debug('Disconnecting previous connection', publicKey)
-  socketClient = socketClients.get(publicKey)
+  const socketClient = socketClients.get(publicKey)
   if (socketClient) {
     socketClient.emit('UNSUBSCRIBE', config.ARCHIVER_PUBLIC_KEY)
     socketClient.disconnect()
@@ -90,7 +89,8 @@ export function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInfo['pub
   removeDataSenders(publicKey)
   if (config.VERBOSE) console.log('Subscribed socketClients', socketClients)
   Logger.mainLogger.debug('Subscribed socketClients', socketClients.size, dataSenders.size)
-  Logger.mainLogger.debug('Subscribed socketClients', [...socketClients.keys()], [...dataSenders.keys()])
+  if (config.VERBOSE)
+    Logger.mainLogger.debug('Subscribed socketClients', [...socketClients.keys()], [...dataSenders.keys()])
 }
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
@@ -309,7 +309,13 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
     return
   }
   Logger.mainLogger.debug(`replaceDataSender: replacing ${publicKey}`)
-  Logger.mainLogger.debug(socketClients.has(publicKey), dataSenders.has(publicKey), selectingNewDataSender, queueForSelectingNewDataSenders.size)
+  Logger.mainLogger.debug(
+    'queueForSelectingNewDataSenders',
+    socketClients.has(publicKey),
+    dataSenders.has(publicKey),
+    selectingNewDataSender,
+    queueForSelectingNewDataSenders.size
+  )
 
   if (!socketClients.has(publicKey) || !dataSenders.has(publicKey)) {
     unsubscribeDataSender(publicKey)
@@ -519,7 +525,7 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
         retry++
       }
     }
-    if (!nodeIsUnsubscribed && !nodeIsInTheActiveList) {
+    if (!nodeIsUnsubscribed) {
       Logger.mainLogger.debug(`This publicKey is not in the active list!`)
       unsubscribeDataSender(publicKey)
       nodeIsUnsubscribed = true
