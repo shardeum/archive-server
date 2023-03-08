@@ -482,7 +482,7 @@ async function startServer() {
         res = Crypto.sign<P2P.FirstNodeResponse>({
           nodeList: NodeList.getList(),
           joinRequest: P2P.createArchiverJoinRequest(),
-          dataRequestCycle: 0,
+          dataRequestCycle: Cycles.currentCycleCounter,
         })
       } else {
         res = Crypto.sign<P2P.FirstNodeResponse>({
