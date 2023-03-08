@@ -466,26 +466,40 @@ async function startServer() {
       NodeList.addNodes(NodeList.Statuses.SYNCING, 'bogus', [firstNode])
 
       // Set first node as dataSender
-      Data.addDataSenders({
+      Data.addDataSender({
         nodeInfo: firstNode,
         types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
         replaceTimeout: Data.createReplaceTimeout(firstNode.publicKey),
+        contactTimeout: Data.createContactTimeout(
+          firstNode.publicKey,
+          'This timeout is created for the first node'
+        ),
       })
 
-      const res = Crypto.sign<P2P.FirstNodeResponse>({
-        nodeList: NodeList.getList(),
-        joinRequest: P2P.createArchiverJoinRequest(),
-        dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
-          P2PTypes.SnapshotTypes.TypeNames.CYCLE,
-          Cycles.currentCycleCounter,
-          publicKey
-        ),
-        dataRequestStateMetaData: Data.createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
-          P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
-          Cycles.lastProcessedMetaData,
-          publicKey
-        ),
-      })
+      let res: P2P.FirstNodeResponse
+
+      if (config.experimentalSnapshot) {
+        res = Crypto.sign<P2P.FirstNodeResponse>({
+          nodeList: NodeList.getList(),
+          joinRequest: P2P.createArchiverJoinRequest(),
+          dataRequestCycle: 0,
+        })
+      } else {
+        res = Crypto.sign<P2P.FirstNodeResponse>({
+          nodeList: NodeList.getList(),
+          joinRequest: P2P.createArchiverJoinRequest(),
+          dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
+            P2PTypes.SnapshotTypes.TypeNames.CYCLE,
+            Cycles.currentCycleCounter,
+            publicKey
+          ),
+          dataRequestStateMetaData: Data.createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
+            P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
+            Cycles.lastProcessedMetaData,
+            publicKey
+          ),
+        })
+      }
 
       reply.send(res)
     } else {

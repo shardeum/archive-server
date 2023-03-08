@@ -31,7 +31,7 @@ import * as StateMetaData from '../archivedCycle/StateMetaData'
 export let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
 export let socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
-let socketConnectionsTracker: Map<string, string> = new Map()
+// let socketConnectionsTracker: Map<string, string> = new Map()
 export let combineAccountsData = {
   accounts: [],
   receipts: [],
@@ -41,6 +41,11 @@ let selectByConsensuRadius = true
 let selectingNewDataSender = false
 export let queueForSelectingNewDataSenders: Map<string, string> = new Map()
 let receivedCycleTracker = {}
+
+export enum DataRequestTypes {
+  SUBSCRIBE = 'SUBSCRIBE',
+  UNSUBSCRIBE = 'UNSUBSCRIBE',
+}
 
 export interface DataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes> {
   type: P2PTypes.SnapshotTypes.TypeName<T>
@@ -78,19 +83,33 @@ export function initSocketServer(io: SocketIO.Server) {
   })
 }
 
-export function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
+export async function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   Logger.mainLogger.debug('Disconnecting previous connection', publicKey)
+  const sender = dataSenders.get(publicKey)
+  if (sender) {
+    // Clear contactTimeout associated with this sender
+    if (sender.contactTimeout) {
+      clearTimeout(sender.contactTimeout)
+      sender.contactTimeout = null
+    }
+    if (sender.replaceTimeout) {
+      clearTimeout(sender.replaceTimeout)
+      sender.replaceTimeout = null
+    }
+    // Delete sender from dataSenders
+    dataSenders.delete(publicKey)
+    await sendDataRequest(sender.nodeInfo, DataRequestTypes.UNSUBSCRIBE)
+  }
   const socketClient = socketClients.get(publicKey)
   if (socketClient) {
     socketClient.emit('UNSUBSCRIBE', config.ARCHIVER_PUBLIC_KEY)
     socketClient.disconnect()
     socketClients.delete(publicKey)
   }
-  removeDataSenders(publicKey)
-  if (config.VERBOSE) console.log('Subscribed socketClients', socketClients)
-  Logger.mainLogger.debug('Subscribed socketClients', socketClients.size, dataSenders.size)
+  nestedCountersInstance.countEvent('archiver', 'remove_data_sender')
+  Logger.mainLogger.debug('Subscribed dataSenders', socketClients.size, dataSenders.size)
   if (config.VERBOSE)
-    Logger.mainLogger.debug('Subscribed socketClients', [...socketClients.keys()], [...dataSenders.keys()])
+    Logger.mainLogger.debug('Subscribed dataSenders', socketClients.keys(), dataSenders.keys())
 }
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
@@ -102,15 +121,14 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
     // Send ehlo event right after connect:
     socketClient.emit('ARCHIVER_PUBLIC_KEY', config.ARCHIVER_PUBLIC_KEY)
     socketClients.set(node.publicKey, socketClient)
-    socketConnectionsTracker.set(node.publicKey, 'connected')
-    if (config.VERBOSE) console.log('Connected node', node)
-    if (config.VERBOSE) console.log('Init socketClients', socketClients)
-    if (config.VERBOSE) Logger.mainLogger.debug('Init socketClients', socketClients.size)
+    // socketConnectionsTracker.set(node.publicKey, 'connected')
+    if (config.VERBOSE) Logger.mainLogger.debug('Connected node', node)
+    if (config.VERBOSE) Logger.mainLogger.debug('Init socketClients', socketClients.size, dataSenders.size)
   })
 
   socketClient.once('disconnect', async () => {
     Logger.mainLogger.debug(`Connection request is refused by the consensor node ${node.ip}:${node.port}`)
-    socketConnectionsTracker.set(node.publicKey, 'disconnected')
+    // socketConnectionsTracker.set(node.publicKey, 'disconnected')
   })
 
   socketClient.on(
@@ -401,32 +419,8 @@ export function createReplaceTimeout(publicKey: NodeList.ConsensusNodeInfo['publ
   }, ms)
 }
 
-export function addDataSenders(...senders: DataSender[]) {
-  for (const sender of senders) {
-    dataSenders.set(sender.nodeInfo.publicKey, sender)
-  }
-}
-
-function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
-  Logger.mainLogger.debug(`${new Date()}: Removing data sender ${publicKey}`)
-  // Logger.mainLogger.debug('removeDataSenders', dataSenders)
-  for (let [key, sender] of dataSenders) {
-    // if (config.VERBOSE) Logger.mainLogger.debug(publicKey, key)
-    if (key === publicKey && sender) {
-      // Clear contactTimeout associated with this sender
-      if (sender.contactTimeout) {
-        clearTimeout(sender.contactTimeout)
-        sender.contactTimeout = null
-      }
-      if (sender.replaceTimeout) {
-        clearTimeout(sender.replaceTimeout)
-        sender.replaceTimeout = null
-      }
-      nestedCountersInstance.countEvent('archiver', 'remove_data_sender')
-      // Delete sender from dataSenders
-      dataSenders.delete(key)
-    }
-  }
+export function addDataSender(sender: DataSender) {
+  dataSenders.set(sender.nodeInfo.publicKey, sender)
 }
 
 async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.ConsensusNodeInfo['publicKey'][]) {
@@ -452,12 +446,12 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
     for (let i = 0; i < activeList.length; i += consensusRadius) {
       const subsetList = activeList.slice(i, i + consensusRadius)
       if (config.VERBOSE)
-        Logger.mainLogger.debug('Round', i, publicKey, 'subsetList', subsetList, socketClients.keys())
+        Logger.mainLogger.debug('Round', i, publicKey, 'subsetList', subsetList, dataSenders.keys())
       let nodeToRotateIsFromThisSubset = false
       let noNodeFromThisSubset = true
       let extraSubscribedNodesCountFromThisSubset = 0
       for (let node of Object.values(subsetList)) {
-        if (socketClients.has(node.publicKey)) {
+        if (dataSenders.has(node.publicKey)) {
           if (config.VERBOSE) Logger.mainLogger.debug('This node from the subset is in the subscribed list!')
           noNodeFromThisSubset = false
           extraSubscribedNodesCountFromThisSubset++
@@ -491,9 +485,9 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
       }
       let newSubsetList = subsetList.filter((node) => node.publicKey !== publicKey)
       if (newSubsetList.length === 0) {
-        if (subsetList[0].publicKey === publicKey) {
+        if (subsetList[0].publicKey !== publicKey) {
           // This isn't supposed to happen and just to log if it happens
-          Logger.mainLogger.error(`The node publicKey ${publicKey} is not in the subset list!`)
+          Logger.mainLogger.error(`The node publicKey ${publicKey} is in the subset list!`)
         }
         continue
       }
@@ -502,7 +496,7 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
       let connectionStatus = false
       let retry = 0
       while (true && retry < consensusRadius) {
-        if (!socketClients.has(newSenderInfo.publicKey) && publicKey !== newSenderInfo.publicKey) {
+        if (!dataSenders.has(newSenderInfo.publicKey) && publicKey !== newSenderInfo.publicKey) {
           connectionStatus = await createDataTransferConnection(newSenderInfo)
           if (connectionStatus) {
             if (!nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
@@ -512,10 +506,8 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
             // if (noNodeFromThisSubset) await Utils.sleep(30000) // Start another node with 30s difference
             break
           } else {
-            if (socketClients.has(newSenderInfo.publicKey)) unsubscribeDataSender(newSenderInfo.publicKey)
             newSubsetList = newSubsetList.filter((node) => node.publicKey !== newSenderInfo.publicKey)
           }
-          socketConnectionsTracker.delete(newSenderInfo.publicKey)
         }
         if (newSubsetList.length > 0) {
           newSenderInfo = newSubsetList[Math.floor(Math.random() * newSubsetList.length)]
@@ -538,8 +530,8 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
     totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
     Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
     let extraConsensorsToSubscribe = Math.floor((activeList.length / 4) * 3)
-    if (socketClients.size < extraConsensorsToSubscribe) {
-      extraConsensorsToSubscribe -= socketClients.size
+    if (dataSenders.size < extraConsensorsToSubscribe) {
+      extraConsensorsToSubscribe -= dataSenders.size
       Logger.mainLogger.debug('extraConsensorsToSubscribe', extraConsensorsToSubscribe)
       await subscribeExtraConsensors(extraConsensorsToSubscribe)
     }
@@ -548,8 +540,8 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
   // Pick one node out of 10 nodes
   if (Math.floor(activeList.length / 5) > totalNumberOfNodesToSubscribe) {
     let extraConsensorsToSubscribe = Math.floor(activeList.length / 5)
-    if (socketClients.size < extraConsensorsToSubscribe) {
-      extraConsensorsToSubscribe -= socketClients.size
+    if (dataSenders.size < extraConsensorsToSubscribe) {
+      extraConsensorsToSubscribe -= dataSenders.size
       Logger.mainLogger.debug('extraConsensorsToSubscribe', extraConsensorsToSubscribe)
       await subscribeExtraConsensors(extraConsensorsToSubscribe)
     }
@@ -607,50 +599,31 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
   // Verify node before subscribing for data transfer
   const status = await verifyNode(newSenderInfo)
   if (!status) return false
-  initSocketClient(newSenderInfo)
-  let count = 0
-  while (!socketClients.has(newSenderInfo.publicKey) && count <= 50) {
-    await Utils.sleep(100)
-    count++
-    if (count === 50) {
-      // This means the socket connection to the node is not successful.
-      return false
-    }
-  }
-  if (socketConnectionsTracker.get(newSenderInfo.publicKey) === 'disconnected') return false
-  await Utils.sleep(200) // Wait 1s before sending data request to be sure if the connection is not refused
-  if (socketConnectionsTracker.get(newSenderInfo.publicKey) === 'disconnected') return false
-  Logger.mainLogger.debug('currentCycleCounter', currentCycleCounter)
-  const newSender: DataSender = {
-    nodeInfo: newSenderInfo,
-    types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
-    contactTimeout: createContactTimeout(
-      newSenderInfo.publicKey,
-      'This timeout is created during newSender selection'
-    ),
-    replaceTimeout: createReplaceTimeout(newSenderInfo.publicKey),
-  }
-
-  // Send dataRequest to new dataSender
-  const dataRequest = {
-    dataRequestCycle: createDataRequest<Cycle>(
-      P2PTypes.SnapshotTypes.TypeNames.CYCLE,
-      currentCycleCounter,
-      State.getNodeInfo().publicKey
-    ),
-    dataRequestStateMetaData: createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
-      P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA,
-      lastProcessedMetaData,
-      State.getNodeInfo().publicKey
-    ),
-    publicKey: State.getNodeInfo().publicKey,
-    nodeInfo: State.getNodeInfo(),
-  }
-  const response = await sendDataRequest(newSender, dataRequest)
+  // Subscribe this node for dataRequest
+  const response = await sendDataRequest(newSenderInfo, DataRequestTypes.SUBSCRIBE)
   if (response) {
     // Add new dataSender to dataSenders
-    addDataSenders(newSender)
+    const newSender: DataSender = {
+      nodeInfo: newSenderInfo,
+      types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
+      contactTimeout: createContactTimeout(
+        newSenderInfo.publicKey,
+        'This timeout is created during newSender selection'
+      ),
+      replaceTimeout: createReplaceTimeout(newSenderInfo.publicKey),
+    }
+    addDataSender(newSender)
     Logger.mainLogger.debug(`added new sender ${newSenderInfo.publicKey} to dataSenders`)
+    initSocketClient(newSenderInfo)
+    // let count = 0
+    // while (!socketClients.has(newSenderInfo.publicKey) && count <= 50) {
+    //   await Utils.sleep(100)
+    //   count++
+    //   if (count === 50) {
+    //     // This means the socket connection to the node is not successful.
+    //     return false
+    //   }
+    // }
   }
   return response
 }
@@ -664,14 +637,13 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
   if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
   const totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
   Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
-  if (config.VERBOSE) console.log('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
   for (let i = 0; i < activeList.length; i += consensusRadius) {
     let subsetList = activeList.slice(i, i + consensusRadius)
-    if (config.VERBOSE) console.log('Round', i, 'subsetList', subsetList, socketClients.keys())
+    if (config.VERBOSE) Logger.mainLogger.debug('Round', i, 'subsetList', subsetList, dataSenders.keys())
     let noNodeFromThisSubset = true
     for (let node of Object.values(subsetList)) {
-      if (socketClients.has(node.publicKey)) {
-        if (config.VERBOSE) console.log('The node is found in this subset')
+      if (dataSenders.has(node.publicKey)) {
+        if (config.VERBOSE) Logger.mainLogger.debug('The node is found in this subset')
         noNodeFromThisSubset = false
       }
     }
@@ -687,15 +659,13 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
     let connectionStatus = false
     let retry = 0
     while (true && retry < consensusRadius) {
-      if (!socketClients.has(newSenderInfo.publicKey)) {
+      if (!dataSenders.has(newSenderInfo.publicKey)) {
         connectionStatus = await createDataTransferConnection(newSenderInfo)
         if (connectionStatus) {
           break
         } else {
-          if (socketClients.has(newSenderInfo.publicKey)) unsubscribeDataSender(newSenderInfo.publicKey)
           subsetList = subsetList.filter((node) => node.publicKey !== newSenderInfo.publicKey)
         }
-        socketConnectionsTracker.delete(newSenderInfo.publicKey)
       }
       if (subsetList.length > 0) {
         newSenderInfo = subsetList[Math.floor(Math.random() * subsetList.length)]
@@ -708,8 +678,8 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
   // Temp hack to pick half of the nodes not to miss data at all
   if (calculatedConsensusRadius === 2) {
     let extraConsensorsToSubscribe = Math.floor((activeList.length / 4) * 3)
-    if (socketClients.size < extraConsensorsToSubscribe) {
-      extraConsensorsToSubscribe -= socketClients.size
+    if (dataSenders.size < extraConsensorsToSubscribe) {
+      extraConsensorsToSubscribe -= dataSenders.size
       Logger.mainLogger.debug('extraConsensorsToSubscribe', extraConsensorsToSubscribe)
       await subscribeExtraConsensors(extraConsensorsToSubscribe)
     }
@@ -718,13 +688,13 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
   // Pick one node out of 10 nodes
   if (Math.floor(activeList.length / 5) > totalNumberOfNodesToSubscribe) {
     let extraConsensorsToSubscribe = Math.floor(activeList.length / 5)
-    if (socketClients.size < extraConsensorsToSubscribe) {
-      extraConsensorsToSubscribe -= socketClients.size
+    if (dataSenders.size < extraConsensorsToSubscribe) {
+      extraConsensorsToSubscribe -= dataSenders.size
       Logger.mainLogger.debug('extraConsensorsToSubscribe', extraConsensorsToSubscribe)
       await subscribeExtraConsensors(extraConsensorsToSubscribe)
     }
   }
-  Logger.mainLogger.debug('Subscribed socketClients', socketClients.size, dataSenders.size)
+  Logger.mainLogger.debug('Subscribed dataSenders', socketClients.size, dataSenders.size)
 }
 
 export async function subscribeExtraConsensors(extraConsensorsToSubscribe) {
@@ -735,11 +705,11 @@ export async function subscribeExtraConsensors(extraConsensorsToSubscribe) {
 
   let remainingActiveList = [...activeList]
   if (subscribedSuccess < extraConsensorsToSubscribe) {
-    for (const key of socketClients.keys()) {
+    for (const key of dataSenders.keys()) {
       remainingActiveList = remainingActiveList.filter((node) => node.publicKey !== key)
     }
     if (config.VERBOSE)
-      Logger.mainLogger.debug('remainingActiveList', remainingActiveList.length, socketClients.keys())
+      Logger.mainLogger.debug('remainingActiveList', remainingActiveList.length, dataSenders.keys())
   }
 
   while (subscribedSuccess < extraConsensorsToSubscribe) {
@@ -749,7 +719,7 @@ export async function subscribeExtraConsensors(extraConsensorsToSubscribe) {
     if (remainingActiveList.length === 0) {
       remainingActiveList = [...activeList]
       if (subscribedSuccess < extraConsensorsToSubscribe) {
-        for (const key of socketClients.keys()) {
+        for (const key of dataSenders.keys()) {
           remainingActiveList = remainingActiveList.filter((node) => node.publicKey !== key)
         }
       }
@@ -760,34 +730,33 @@ export async function subscribeExtraConsensors(extraConsensorsToSubscribe) {
     }
     let newSenderInfo = remainingActiveList[Math.floor(Math.random() * remainingActiveList.length)]
     // Logger.mainLogger.debug('newSenderInfo', newSenderInfo, remainingActiveList)
-    if (!socketClients.has(newSenderInfo.publicKey)) {
+    if (!dataSenders.has(newSenderInfo.publicKey)) {
       let connectionStatus = await createDataTransferConnection(newSenderInfo)
       if (connectionStatus) {
         subscribedSuccess++
-      } else {
-        if (socketClients.has(newSenderInfo.publicKey)) unsubscribeDataSender(newSenderInfo.publicKey)
       }
-      socketConnectionsTracker.delete(newSenderInfo.publicKey)
     }
     remainingActiveList = remainingActiveList.filter((node) => node.publicKey !== newSenderInfo.publicKey)
   }
 }
 
-export async function sendDataRequest(sender: DataSender, dataRequest: any) {
-  const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey)
-  Logger.mainLogger.info(
-    'Sending tagged data request to consensor.',
-    sender.nodeInfo.ip + ':' + sender.nodeInfo.port
-  )
-  let reply = false
-  if (socketClients.has(sender.nodeInfo.publicKey)) {
-    let response = await P2P.postJson(
-      `http://${sender.nodeInfo.ip}:${sender.nodeInfo.port}/requestdata`,
-      taggedDataRequest
-    )
-    Logger.mainLogger.debug('/requestdata response', response)
-    if (response && response.success) reply = response.success
+// This function is used for both subscribe and unsubscribe for data request
+export async function sendDataRequest(
+  nodeInfo: NodeList.ConsensusNodeInfo,
+  dataRequestType: DataRequestTypes
+) {
+  const dataRequest = {
+    dataRequestCycle: currentCycleCounter,
+    dataRequestType,
+    publicKey: State.getNodeInfo().publicKey,
+    nodeInfo: State.getNodeInfo(),
   }
+  const taggedDataRequest = Crypto.tag(dataRequest, nodeInfo.publicKey)
+  Logger.mainLogger.info('Sending tagged data request to consensor.', nodeInfo.ip + ':' + nodeInfo.port)
+  let reply = false
+  let response = await P2P.postJson(`http://${nodeInfo.ip}:${nodeInfo.port}/requestdata`, taggedDataRequest)
+  Logger.mainLogger.debug('/requestdata response', response)
+  if (response && response.success) reply = response.success
   return reply
 }
 

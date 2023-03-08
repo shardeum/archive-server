@@ -29,7 +29,7 @@ export interface FirstNodeInfo {
 export interface FirstNodeResponse {
   nodeList: NodeList.ConsensusNodeInfo[]
   joinRequest?: ArchiverJoinRequest & Crypto.SignedMessage
-  dataRequestCycle?: Data.DataRequest<Cycle> & Crypto.TaggedMessage
+  dataRequestCycle?: (Data.DataRequest<Cycle> & Crypto.TaggedMessage) | number
   dataRequestStateMetaData?: Data.DataRequest<P2PTypes.SnapshotTypes.StateMetaData> & Crypto.TaggedMessage
 }
 
