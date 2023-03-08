@@ -152,7 +152,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
         const sender = dataSenders.get(newData.publicKey)
         // If no sender entry, remove publicKey from senders, END
         if (!sender) {
-          Logger.mainLogger.error('This sender is not in the subscribed nodes list')
+          Logger.mainLogger.error('This sender is not in the subscribed nodes list', newData.publicKey)
           // unsubscribeDataSender(newData.publicKey)
           return
         }
