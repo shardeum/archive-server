@@ -96,9 +96,9 @@ export async function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInf
       clearTimeout(sender.replaceTimeout)
       sender.replaceTimeout = null
     }
+    await sendDataRequest(sender.nodeInfo, DataRequestTypes.UNSUBSCRIBE)
     // Delete sender from dataSenders
     dataSenders.delete(publicKey)
-    await sendDataRequest(sender.nodeInfo, DataRequestTypes.UNSUBSCRIBE)
   }
   const socketClient = socketClients.get(publicKey)
   if (socketClient) {
@@ -752,7 +752,10 @@ export async function sendDataRequest(
     nodeInfo: State.getNodeInfo(),
   }
   const taggedDataRequest = Crypto.tag(dataRequest, nodeInfo.publicKey)
-  Logger.mainLogger.info('Sending tagged data request to consensor.', nodeInfo.ip + ':' + nodeInfo.port)
+  Logger.mainLogger.info(
+    `Sending ${dataRequestType} data request to consensor.`,
+    nodeInfo.ip + ':' + nodeInfo.port
+  )
   let reply = false
   let response = await P2P.postJson(`http://${nodeInfo.ip}:${nodeInfo.port}/requestdata`, taggedDataRequest)
   Logger.mainLogger.debug('/requestdata response', response)
