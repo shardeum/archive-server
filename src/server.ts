@@ -362,6 +362,7 @@ async function startServer() {
     global: true,
     max: config.RATE_LIMIT,
     timeWindow: 10,
+    allowList: ['127.0.0.1', '0.0.0.0'], // Excludes local IPs from rate limits
   })
 
   // Socket server instance
