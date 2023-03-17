@@ -1097,6 +1097,26 @@ async function startServer() {
     }
   )
 
+  // dataSenders Endpoint
+  server.get(
+    '/dataSenders',
+    {
+      preHandler: async (_request, reply) => {
+        isDebugMiddleware(_request, reply)
+      },
+    },
+    (_request, reply) => {
+      let data = {
+        dataSendersSize: Data.dataSenders.size,
+        socketClientsSize: Data.socketClients.size,
+      }
+      if (_request.query && _request.query['dataSendersList'] === 'true')
+        data['dataSendersList'] = Array.from(Data.dataSenders.values()).map((item) => item.nodeInfo.ip + ':' + item.nodeInfo.port)
+      const res = Crypto.sign(data)
+      reply.send(res)
+    }
+  )
+
   // Old snapshot ArchivedCycle endpoint;
   if (!config.experimentalSnapshot) {
     type FullArchiveRequest = FastifyRequest<{
