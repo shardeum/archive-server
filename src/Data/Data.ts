@@ -438,14 +438,14 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
   const calculatedConsensusRadius = await getConsensusRadius()
   let consensusRadius = calculatedConsensusRadius
   if (consensusRadius > 2) consensusRadius-- // Change default to 3 for now assuming nodesPerConsensusGroup 10
-  let activeList = NodeList.getActiveList()
+  let activeList = [...NodeList.activeListByIdSorted]
   if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
   let totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
   Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
   for (const publicKey of publicKeys) {
     let nodeIsUnsubscribed = false
     let nodeIsInTheActiveList = false
-    activeList = NodeList.getActiveList()
+    activeList = [...NodeList.activeListByIdSorted]
     if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
     totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
     Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
@@ -533,7 +533,7 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
   }
   // Temp hack to pick half of the nodes not to miss data at all
   if (calculatedConsensusRadius === 2) {
-    activeList = NodeList.getActiveList()
+    activeList = [...NodeList.activeListByIdSorted]
     if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
     totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
     Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
@@ -660,7 +660,7 @@ export async function subscribeMoreConsensorsByConsensusRadius() {
   const calculatedConsensusRadius = await getConsensusRadius()
   let consensusRadius = calculatedConsensusRadius
   if (consensusRadius > 2) consensusRadius-- // Change default to 3 for now assuming nodesPerConsensusGroup 10
-  const activeList = NodeList.getActiveList()
+  const activeList = [...NodeList.activeListByIdSorted]
   if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
   const totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
   Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
@@ -731,7 +731,7 @@ export async function subscribeExtraConsensors(extraConsensorsToSubscribe) {
   const retryTimes = 2
   let subscribedSuccess = 0
   let retry = 0
-  const activeList = NodeList.getActiveList()
+  const activeList = [...NodeList.activeListByIdSorted]
 
   let remainingActiveList = [...activeList]
   if (subscribedSuccess < extraConsensorsToSubscribe) {
@@ -1608,16 +1608,14 @@ export async function compareWithOldReceiptsData(
 export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo, lastCycleCounter = 0) {
   let downloadedCycles
   const response: any = await P2P.getJson(
-    `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${lastCycleCounter - 10}&end=${
-      lastCycleCounter - 1
+    `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${lastCycleCounter - 10}&end=${lastCycleCounter - 1
     }`
   )
   if (response && response.cycleInfo) {
     downloadedCycles = response.cycleInfo
   } else {
     throw Error(
-      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${
-        lastCycleCounter - 1
+      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${lastCycleCounter - 1
       }  from archiver ${archiver}`
     )
   }

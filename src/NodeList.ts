@@ -4,6 +4,7 @@ import * as Utils from './Utils'
 import { isDeepStrictEqual } from 'util'
 import * as Logger from './Logger'
 import * as Crypto from './Crypto'
+import { config } from './Config'
 
 // TYPES
 
@@ -33,12 +34,16 @@ export interface JoinedConsensor extends ConsensusNodeInfo {
   id: string
 }
 
+const byAscendingNodeId = (a: ConsensusNodeInfo, b: ConsensusNodeInfo) =>
+  a.id > b.id ? 1 : -1
+
 // STATE
 
 const list: ConsensusNodeInfo[] = []
 const metadata: Map<string, ConsensusNodeMetadata> = new Map()
 const syncingList: Map<string, ConsensusNodeInfo> = new Map()
 export const activeList: Map<string, ConsensusNodeInfo> = new Map()
+export let activeListByIdSorted: ConsensusNodeInfo[] = []
 export const byPublicKey: { [publicKey: string]: ConsensusNodeInfo } = {}
 const byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
 export const byId: { [id: string]: ConsensusNodeInfo } = {}
@@ -86,6 +91,12 @@ export function addNodes(
         syncingList.set(node.publicKey, node)
       } else if (status === Statuses.ACTIVE) {
         activeList.set(node.publicKey, node)
+        activeListByIdSorted.push(node)
+        if (config.VERBOSE)
+          Logger.mainLogger.debug('activeListByIdSorted', activeListByIdSorted.map((node) => node.publicKey))
+        activeListByIdSorted.sort(byAscendingNodeId)
+        if (config.VERBOSE)
+          Logger.mainLogger.debug('activeListByIdSorted', activeListByIdSorted.map((node) => node.publicKey))
       }
 
       byPublicKey[node.publicKey] = node
@@ -132,6 +143,12 @@ export function refreshNodes(
         syncingList.set(node.publicKey, node)
       } else if (status === Statuses.ACTIVE) {
         activeList.set(node.publicKey, node)
+        activeListByIdSorted.push(node)
+        if (config.VERBOSE)
+          Logger.mainLogger.debug('activeListByIdSorted', activeListByIdSorted.map((node) => node.publicKey))
+        activeListByIdSorted.sort(byAscendingNodeId)
+        if (config.VERBOSE)
+          Logger.mainLogger.debug('activeListByIdSorted', activeListByIdSorted.map((node) => node.publicKey))
       }
 
       byPublicKey[node.publicKey] = node
@@ -169,6 +186,7 @@ export function removeNodes(publicKeys: string[]): string[] {
     delete byIpPort[getIpPort(byPublicKey[key])]
     delete byPublicKey[key]
     const id = publicKeyToId[key]
+    activeListByIdSorted = activeListByIdSorted.filter((node) => node.id !== id)
     delete byId[id]
     delete publicKeyToId[key]
   }
@@ -206,6 +224,12 @@ export function setStatus(status: Statuses, ...publicKeys: string[]) {
       if (syncingList.has(key)) syncingList.delete(key)
       if (activeList.has(key)) continue
       activeList.set(key, node)
+      activeListByIdSorted.push(node)
+      if (config.VERBOSE)
+        Logger.mainLogger.debug('activeListByIdSorted', activeListByIdSorted.map((node) => node.publicKey))
+      activeListByIdSorted.sort(byAscendingNodeId)
+      if (config.VERBOSE)
+        Logger.mainLogger.debug('activeListByIdSorted', activeListByIdSorted.map((node) => node.publicKey))
     }
   }
 
