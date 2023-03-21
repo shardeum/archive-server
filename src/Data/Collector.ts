@@ -90,9 +90,9 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
       timestamp: tx.timestamp,
       cycleNumber: cycle,
       data: receipt ? receipt.data : {},
-      keys: tx.keys,
+      // keys: tx.keys,
       result: result,
-      originTxData: tx.data,
+      originTxData: tx.originalTxData,
       sign: sign,
     }
     // await Transaction.insertTransaction(txObj)
@@ -212,7 +212,7 @@ export const storeAccountData = async (restoreData: any = {}) => {
         timestamp: receipt.timestamp,
         cycleNumber: receipt.cycleNumber,
         data: receipt.data,
-        keys: {},
+        // keys: {},
         result: {},
         originTxData: {},
         sign: {},

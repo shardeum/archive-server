@@ -11,7 +11,7 @@ export interface Transaction {
   timestamp: number
   cycleNumber: number
   data: any
-  keys: any
+  // keys: any // TODO: Remove this field in the places it is used
   result: TxResult
   originTxData: any
   sign: Signature
