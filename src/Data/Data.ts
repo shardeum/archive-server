@@ -96,7 +96,7 @@ export async function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInf
       clearTimeout(sender.replaceTimeout)
       sender.replaceTimeout = null
     }
-    await sendDataRequest(sender.nodeInfo, DataRequestTypes.UNSUBSCRIBE)
+    sendDataRequest(sender.nodeInfo, DataRequestTypes.UNSUBSCRIBE)
     // Delete sender from dataSenders
     dataSenders.delete(publicKey)
   }
@@ -557,9 +557,15 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
       queueForSelectingNewDataSenders.delete(key)
     }
     if (config.VERBOSE) Logger.mainLogger.debug(newPublicKeys)
+    Logger.mainLogger.debug('DataSenders to switch', newPublicKeys)
     if (newPublicKeys.length > 0) await selectNewDataSendersByConsensusRadius(newPublicKeys)
+    else { // This should not happen, but putting just in case
+      selectingNewDataSender = false
+      Logger.mainLogger.debug('selectingNewDataSender', selectingNewDataSender)
+    }
   } else {
     selectingNewDataSender = false
+    Logger.mainLogger.debug('selectingNewDataSender', selectingNewDataSender)
   }
 }
 

@@ -7,6 +7,7 @@ import { getJson } from '../P2P'
 import { profilerInstance } from '../profiler/profiler'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import {
+  dataSenders,
   queueForSelectingNewDataSenders,
   socketClients,
   subscribeMoreConsensorsByConsensusRadius,
@@ -199,8 +200,8 @@ function updateNodeList(cycle: Cycle) {
   const nodesToUnsubscribed = [...apoptosizedPks, ...removedPks]
   if (nodesToUnsubscribed.length > 0) {
     for (const key of nodesToUnsubscribed) {
-      queueForSelectingNewDataSenders.delete(key)
-      unsubscribeDataSender(key)
+      if (queueForSelectingNewDataSenders.has(key)) queueForSelectingNewDataSenders.delete(key)
+      if (dataSenders.has(key)) unsubscribeDataSender(key)
     }
   }
 }

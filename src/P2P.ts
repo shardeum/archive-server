@@ -55,6 +55,7 @@ export async function postJson(url: string, body: object): Promise<Data.DataQuer
       method: 'post',
       body: JSON.stringify(body),
       headers: { 'Content-Type': 'application/json' },
+      timeout: 5000,
     })
     if (res.ok) {
       return await res.json()
@@ -77,6 +78,7 @@ export async function getJson(url: string): Promise<object | null> {
     const res = await fetch(url, {
       method: 'get',
       headers: { 'Content-Type': 'application/json' },
+      timeout: 5000,
     })
     if (res.ok) {
       return await res.json()
