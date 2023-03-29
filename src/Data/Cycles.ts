@@ -15,6 +15,7 @@ import {
 } from './Data'
 import * as Utils from '../Utils'
 import { isDeepStrictEqual } from 'util'
+import { config } from '../Config'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
@@ -33,7 +34,7 @@ export let lastProcessedMetaData = -1
 export let CycleChain: Map<Cycle['counter'], any> = new Map()
 export let lostNodes: LostNode[] = []
 
-export function processCycles(cycles: Cycle[]) {
+export async function processCycles(cycles: Cycle[]) {
   if (profilerInstance) profilerInstance.profileSectionStart('process_cycle', false)
   if (nestedCountersInstance) nestedCountersInstance.countEvent('cycle', 'process', 1)
   for (const cycle of cycles) {
@@ -50,6 +51,9 @@ export function processCycles(cycles: Cycle[]) {
     currentCycleCounter = cycle.counter
 
     Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
+
+    // Check the active archivers status
+    await checkActiveArchiversStatus()
   }
   if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
 }
@@ -197,6 +201,7 @@ function updateNodeList(cycle: Cycle) {
 
   for (let leavingArchiver of leavingArchivers) {
     State.removeActiveArchiver(leavingArchiver.publicKey)
+    State.activeArchiversStatusTracker.delete(leavingArchiver.publicKey)
   }
 
   // To start picking nodes for data transfer as soon as if there is active node
@@ -256,4 +261,27 @@ export async function getNewestCycleFromArchivers(activeArchivers: State.Archive
   }
   let cycleInfo: any = await Utils.robustQuery(activeArchivers, queryFn, isSameCyceInfo)
   return cycleInfo[0]
+}
+
+export async function checkActiveArchiversStatus() {
+  const activeArchivers = State.activeArchivers
+  for (const archiver of activeArchivers) {
+    const response: any = await getJson(`http://${archiver.ip}:${archiver.port}/cycleinfo/1`)
+    Logger.mainLogger.debug(currentCycleCounter, archiver, response)
+    if (response && response.cycleInfo && response.cycleInfo.length > 0) {
+      const cycleRecord = response.cycleInfo[0]
+      // Means the archiver is up and still keeping up with the latest cycle; by checking if it's within 6 cycles
+      if (currentCycleCounter - cycleRecord.counter <= 3 && currentCycleCounter - cycleRecord.counter >= -3) {
+        State.activeArchiversStatusTracker.set(archiver.publicKey, 'up')
+      } else {
+        Logger.mainLogger.debug(`Archiver  ${archiver.ip}:${archiver.port} has fallen behind the latest cycle`)
+        State.activeArchiversStatusTracker.set(archiver.publicKey, 'down')
+      }
+    } else {
+      Logger.mainLogger.debug(`Archiver is not responding correctly ${archiver.ip}:${archiver.port}`)
+      State.activeArchiversStatusTracker.set(archiver.publicKey, 'down')
+    }
+  }
+  if (config.VERBOSE)
+    Logger.mainLogger.debug('Active archivers status', State.activeArchiversStatusTracker)
 }
