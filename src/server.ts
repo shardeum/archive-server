@@ -582,8 +582,11 @@ async function startServer() {
     for (const archiver of archivers) {
       if (State.activeArchiversStatusTracker.has(archiver.publicKey)) {
         if (State.activeArchiversStatusTracker.get(archiver.publicKey) === 'up') {
-          delete archiver.curvePk
-          activeArchivers.push(archiver)
+          activeArchivers.push({
+            publicKey: archiver.publicKey,
+            ip: archiver.ip,
+            port: archiver.port,
+          })
         }
       }
     }
