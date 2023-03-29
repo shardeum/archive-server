@@ -116,6 +116,7 @@ function updateNodeList(cycle: Cycle) {
     joinedArchivers,
     leavingArchivers,
     refreshedConsensors,
+    refreshedArchivers
   } = cycle
 
   const consensorInfos = joinedConsensors.map((jc) => ({
@@ -184,6 +185,14 @@ function updateNodeList(cycle: Cycle) {
       Logger.mainLogger.debug('New archiver added to active list', joinedArchiver)
     }
     Logger.mainLogger.debug('active archiver list', State.activeArchivers)
+  }
+
+  for (let refreshedArchiver of refreshedArchivers) {
+    let foundArchiver = State.activeArchivers.find((a) => a.publicKey === refreshedArchiver.publicKey)
+    if (!foundArchiver) {
+      State.activeArchivers.push(refreshedArchiver)
+      Logger.mainLogger.debug('Refreshed archiver added to active list', refreshedArchiver)
+    }
   }
 
   for (let leavingArchiver of leavingArchivers) {
