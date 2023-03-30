@@ -16,6 +16,7 @@ import {
 import * as Utils from '../Utils'
 import { isDeepStrictEqual } from 'util'
 import { config } from '../Config'
+import fetch from 'node-fetch'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
@@ -120,7 +121,7 @@ function updateNodeList(cycle: Cycle) {
     joinedArchivers,
     leavingArchivers,
     refreshedConsensors,
-    refreshedArchivers
+    refreshedArchivers,
   } = cycle
 
   const consensorInfos = joinedConsensors.map((jc) => ({
@@ -201,7 +202,7 @@ function updateNodeList(cycle: Cycle) {
 
   for (let leavingArchiver of leavingArchivers) {
     State.removeActiveArchiver(leavingArchiver.publicKey)
-    State.activeArchiversStatusTracker.delete(leavingArchiver.publicKey)
+    State.archiversReputation.delete(leavingArchiver.publicKey)
   }
 
   // To start picking nodes for data transfer as soon as if there is active node
@@ -265,23 +266,46 @@ export async function getNewestCycleFromArchivers(activeArchivers: State.Archive
 
 export async function checkActiveArchiversStatus() {
   const activeArchivers = State.activeArchivers
-  for (const archiver of activeArchivers) {
-    const response: any = await getJson(`http://${archiver.ip}:${archiver.port}/cycleinfo/1`)
-    Logger.mainLogger.debug('Checking active archivers status', currentCycleCounter)
-    if (response && response.cycleInfo && response.cycleInfo.length > 0) {
-      const cycleRecord = response.cycleInfo[0]
-      // Means the archiver is up and still keeping up with the latest cycle; by checking if it's within 5 cycles
-      if (Math.abs(currentCycleCounter - cycleRecord.counter) <= 5) {
-        State.activeArchiversStatusTracker.set(archiver.publicKey, 'up')
-      } else {
-        Logger.mainLogger.debug(`Archiver  ${archiver.ip}:${archiver.port} has fallen behind the latest cycle`)
-        State.activeArchiversStatusTracker.set(archiver.publicKey, 'down')
+
+  const promises = activeArchivers.map((archiver) =>
+    fetch(`http://${archiver.ip}:${archiver.port}/cycleinfo/1`, {
+      method: 'get',
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 5000,
+    }).then((res) => res.json())
+  )
+
+  Promise.allSettled(promises)
+    .then((responses) => {
+      let i = 0
+      for (const response of responses) {
+        const archiver = activeArchivers[i]
+        if (response.status === 'fulfilled') {
+          const res = response.value
+          if (res && res.cycleInfo && res.cycleInfo.length > 0) {
+            const cycleRecord = res.cycleInfo[0]
+            if (cycleRecord.counter - currentCycleCounter >= -10) {
+              State.archiversReputation.set(archiver.publicKey, 'up')
+            } else {
+              Logger.mainLogger.debug(
+                `Archiver  ${archiver.ip}:${archiver.port} has fallen behind the latest cycle`
+              )
+              State.archiversReputation.set(archiver.publicKey, 'down')
+            }
+          } else {
+            Logger.mainLogger.debug(`Archiver is not responding correctly ${archiver.ip}:${archiver.port}`)
+            State.archiversReputation.set(archiver.publicKey, 'down')
+          }
+        } else {
+          Logger.mainLogger.debug(`Archiver is not responding ${archiver.ip}:${archiver.port}`)
+          State.archiversReputation.set(archiver.publicKey, 'down')
+        }
+        i++
       }
-    } else {
-      Logger.mainLogger.debug(`Archiver is not responding correctly ${archiver.ip}:${archiver.port}`)
-      State.activeArchiversStatusTracker.set(archiver.publicKey, 'down')
-    }
-  }
-  if (config.VERBOSE)
-    Logger.mainLogger.debug('Active archivers status', State.activeArchiversStatusTracker)
+    })
+    .catch((error) => {
+      // Handle any errors that occurred
+      console.error(error)
+    })
+  if (config.VERBOSE) Logger.mainLogger.debug('Active archivers status', State.archiversReputation)
 }

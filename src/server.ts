@@ -578,8 +578,12 @@ async function startServer() {
     profilerInstance.profileSectionStart('GET_archivers')
     nestedCountersInstance.countEvent('consensor', 'GET_archivers')
     const activeArchivers = State.activeArchivers
-      .filter((archiver) => State.activeArchiversStatusTracker.has(archiver.publicKey) && State.activeArchiversStatusTracker.get(archiver.publicKey) === 'up')
-      .map(({ publicKey, ip, port }) => ({ publicKey, ip, port }));
+      .filter(
+        (archiver) =>
+          State.archiversReputation.has(archiver.publicKey) &&
+          State.archiversReputation.get(archiver.publicKey) === 'up'
+      )
+      .map(({ publicKey, ip, port }) => ({ publicKey, ip, port }))
     profilerInstance.profileSectionEnd('GET_archivers')
     const res = Crypto.sign({
       activeArchivers,

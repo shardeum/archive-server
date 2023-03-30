@@ -30,7 +30,7 @@ const nodeState: ArchiverNodeState = {
 export let existingArchivers: ArchiverNodeInfo[] = []
 export let activeArchivers: ArchiverNodeInfo[] = []
 export let isFirst = false
-export let activeArchiversStatusTracker: Map<string, string> = new Map()
+export let archiversReputation: Map<string, string> = new Map()
 
 export async function initFromConfig(config: Config) {
   // Get own nodeInfo from config
