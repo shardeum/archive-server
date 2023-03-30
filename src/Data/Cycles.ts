@@ -52,7 +52,7 @@ export async function processCycles(cycles: Cycle[]) {
 
     Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
 
-    // Check the active archivers status
+    // Check the active archivers status in every new cycle & record the status
     await checkActiveArchiversStatus()
   }
   if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
@@ -267,11 +267,11 @@ export async function checkActiveArchiversStatus() {
   const activeArchivers = State.activeArchivers
   for (const archiver of activeArchivers) {
     const response: any = await getJson(`http://${archiver.ip}:${archiver.port}/cycleinfo/1`)
-    Logger.mainLogger.debug(currentCycleCounter, archiver, response)
+    Logger.mainLogger.debug('Checking active archivers status', currentCycleCounter)
     if (response && response.cycleInfo && response.cycleInfo.length > 0) {
       const cycleRecord = response.cycleInfo[0]
-      // Means the archiver is up and still keeping up with the latest cycle; by checking if it's within 6 cycles
-      if (currentCycleCounter - cycleRecord.counter <= 3 && currentCycleCounter - cycleRecord.counter >= -3) {
+      // Means the archiver is up and still keeping up with the latest cycle; by checking if it's within 5 cycles
+      if (Math.abs(currentCycleCounter - cycleRecord.counter) <= 5) {
         State.activeArchiversStatusTracker.set(archiver.publicKey, 'up')
       } else {
         Logger.mainLogger.debug(`Archiver  ${archiver.ip}:${archiver.port} has fallen behind the latest cycle`)
