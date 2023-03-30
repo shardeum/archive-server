@@ -53,8 +53,8 @@ export async function processCycles(cycles: Cycle[]) {
 
     Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
 
-    // Check the active archivers status in every new cycle & record the status
-    await checkActiveArchiversStatus()
+    // Check the archivers reputaion in every new cycle & record the status
+    await recordArchiversReputation()
   }
   if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
 }
@@ -264,8 +264,8 @@ export async function getNewestCycleFromArchivers(activeArchivers: State.Archive
   return cycleInfo[0]
 }
 
-export async function checkActiveArchiversStatus() {
-  const activeArchivers = State.activeArchivers
+export async function recordArchiversReputation() {
+  const activeArchivers = [...State.activeArchivers]
 
   const promises = activeArchivers.map((archiver) =>
     fetch(`http://${archiver.ip}:${archiver.port}/cycleinfo/1`, {
@@ -284,6 +284,7 @@ export async function checkActiveArchiversStatus() {
           const res = response.value
           if (res && res.cycleInfo && res.cycleInfo.length > 0) {
             const cycleRecord = res.cycleInfo[0]
+            // Set the archiver's reputation to 'up' if it is still 10 cycles behind or has higher than our current cycle
             if (cycleRecord.counter - currentCycleCounter >= -10) {
               State.archiversReputation.set(archiver.publicKey, 'up')
             } else {
