@@ -374,26 +374,22 @@ export function getRandomItemFromArr<T>(
   if (!Array.isArray(arr)) return undefined
   if (arr.length === 0) return undefined
 
-  const nodesToKeep = Math.floor(((100 - nodeRejectPercentage) * arr.length) / 100) || 1
-  const recentlyJoinedNodes = []
-  for (let i = arr.length - nodesToKeep; i < arr.length; i++) {
-    recentlyJoinedNodes.push(arr[i])
-  }
-
   let result: T[] = new Array(n),
-    len: number = recentlyJoinedNodes.length,
+    len: number = arr.length,
     taken: number[] = new Array(len)
 
+  const oldNodesToAvoid = Math.floor(nodeRejectPercentage * len / 100) 
+
   if (n > len || n <= 1) {
-    const randomIndex = Math.floor(Math.random() * recentlyJoinedNodes.length)
-    return [recentlyJoinedNodes[randomIndex]]
+    const randomIndex = Math.floor(Math.random() * arr.length)
+    return [arr[randomIndex]]
     // we can throw an error but no
     // let's just return one random item in this case for the safety
   }
 
   while (n--) {
-    const x = Math.floor(Math.random() * len)
-    result[n] = recentlyJoinedNodes[x in taken ? taken[x] : x]
+    const x = Math.floor(oldNodesToAvoid + Math.random() * (len - oldNodesToAvoid))
+    result[n] = arr[x in taken ? taken[x] : x]
     taken[x] = --len in taken ? taken[len] : len
   }
   return result

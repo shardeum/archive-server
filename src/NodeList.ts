@@ -282,7 +282,7 @@ export async function getActiveListFromArchivers(
 
 export function getRandomActiveNodes(node_count: number = 1): ConsensusNodeInfo[] {
   let nodeList = getActiveList()
-  if (!node_count || node_count <= 1 || node_count > nodeList.length)
+  if (node_count <= 1 || node_count > nodeList.length)
     return Utils.getRandomItemFromArr(nodeList, config.N_NODE_REJECT_PERCENT)
 
   return Utils.getRandomItemFromArr(nodeList, config.N_NODE_REJECT_PERCENT, node_count)
