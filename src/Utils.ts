@@ -366,24 +366,34 @@ export const binarySearch = function (arr: any[], el: any, comparator?: Function
 // fail safe and fast
 // this function will pick non-repeating multiple random elements from an array if given amount n > 1
 //(partial) fisher-yates shuffle
-export function getRandomItemFromArr<T>(arr: T[], n: number = 1): T[] | undefined {
+export function getRandomItemFromArr<T>(
+  arr: T[],
+  nodeRejectPercentage: number = 0,
+  n: number = 1
+): T[] | undefined {
   if (!Array.isArray(arr)) return undefined
   if (arr.length === 0) return undefined
 
+  const nodesToKeep = Math.floor(((100 - nodeRejectPercentage) * arr.length) / 100) || 1
+  const recentlyJoinedNodes = []
+  for (let i = arr.length - nodesToKeep; i < arr.length; i++) {
+    recentlyJoinedNodes.push(arr[i])
+  }
+
   let result: T[] = new Array(n),
-    len: number = arr.length,
+    len: number = recentlyJoinedNodes.length,
     taken: number[] = new Array(len)
 
   if (n > len || n <= 1) {
-    const randomIndex = Math.floor(Math.random() * arr.length)
-    return [arr[randomIndex]]
+    const randomIndex = Math.floor(Math.random() * recentlyJoinedNodes.length)
+    return [recentlyJoinedNodes[randomIndex]]
     // we can throw an error but no
     // let's just return one random item in this case for the safety
   }
 
   while (n--) {
     const x = Math.floor(Math.random() * len)
-    result[n] = arr[x in taken ? taken[x] : x]
+    result[n] = recentlyJoinedNodes[x in taken ? taken[x] : x]
     taken[x] = --len in taken ? taken[len] : len
   }
   return result

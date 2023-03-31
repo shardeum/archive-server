@@ -15,6 +15,7 @@ export interface Config {
   ARCHIVER_DB: string
   DATASENDER_TIMEOUT: number
   RATE_LIMIT: number // number of allowed request per second,
+  N_NODE_REJECT_PERCENT: number
   N_NODELIST: number
   N_RANDOM_NODELIST_BUCKETS: number // Number of random node lists in the NodeList cache
   STATISTICS: {
@@ -42,6 +43,7 @@ let config: Config = {
   ARCHIVER_DB: 'archiver-db',
   DATASENDER_TIMEOUT: 1000 * 60 * 5,
   RATE_LIMIT: 100, // 100 req per second,
+  N_NODE_REJECT_PERCENT: 5, // Percentage of old nodes to remove from nodelist
   N_NODELIST: 30, // number of active node list GET /nodelist should emit but if the total active nodelist is less than said value it will emit all the node list.
   N_RANDOM_NODELIST_BUCKETS: 10,
   STATISTICS: {
