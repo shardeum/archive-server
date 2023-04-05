@@ -395,7 +395,9 @@ async function startServer() {
     const nodeCount = Math.min(config.N_NODELIST, NodeList.getActiveList().length)
 
     for (let index = 0; index < config.N_RANDOM_NODELIST_BUCKETS; index++) {
-      const nodeList = NodeList.getRandomActiveNodes(nodeCount)
+      // If we dont have any active nodes, send back the first node in our list
+      const nodeList =
+        nodeCount < 1 ? NodeList.getList().slice(0, 1) : NodeList.getRandomActiveNodes(nodeCount)
       const sortedNodeList = [...nodeList].sort(byAscendingNodeId)
       const signedSortedNodeList = Crypto.sign({
         nodeList: sortedNodeList,
@@ -1126,7 +1128,9 @@ async function startServer() {
         socketClientsSize: Data.socketClients.size,
       }
       if (_request.query && _request.query['dataSendersList'] === 'true')
-        data['dataSendersList'] = Array.from(Data.dataSenders.values()).map((item) => item.nodeInfo.ip + ':' + item.nodeInfo.port)
+        data['dataSendersList'] = Array.from(Data.dataSenders.values()).map(
+          (item) => item.nodeInfo.ip + ':' + item.nodeInfo.port
+        )
       const res = Crypto.sign(data)
       reply.send(res)
     }
