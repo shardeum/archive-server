@@ -152,7 +152,7 @@ async function syncAndStartServer() {
   let lastStoredCycleInfo = await CycleDB.queryLatestCycleRecords(1)
   const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
   let lastStoredReceiptCycle = 0
-  let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`)
+  let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 10)
   if (
     !response ||
     response.totalCycles < 0 ||

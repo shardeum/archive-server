@@ -221,7 +221,10 @@ export async function fetchCycleRecords(
   }
 
   const queryFn = async (node: any) => {
-    const response: any = await getJson(`http://${node.ip}:${node.port}/cycleinfo?start=${start}&end=${end}`)
+    const response: any = await getJson(
+      `http://${node.ip}:${node.port}/cycleinfo?start=${start}&end=${end}`,
+      20
+    )
     return response.cycleInfo
   }
   const { result } = await Utils.sequentialQuery(activeArchivers, queryFn)

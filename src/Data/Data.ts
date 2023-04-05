@@ -559,7 +559,8 @@ async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.Consen
     if (config.VERBOSE) Logger.mainLogger.debug(newPublicKeys)
     Logger.mainLogger.debug('DataSenders to switch', newPublicKeys)
     if (newPublicKeys.length > 0) await selectNewDataSendersByConsensusRadius(newPublicKeys)
-    else { // This should not happen, but putting just in case
+    else {
+      // This should not happen, but putting just in case
       selectingNewDataSender = false
       Logger.mainLogger.debug('selectingNewDataSender', selectingNewDataSender)
     }
@@ -942,7 +943,8 @@ export async function syncGenesisAccountsFromArchiver(activeArchivers: State.Arc
   //   return;
   // }
   let res: any = await P2P.getJson(
-    `http://${randomArchiver.ip}:${randomArchiver.port}/account?startCycle=0&endCycle=5`
+    `http://${randomArchiver.ip}:${randomArchiver.port}/account?startCycle=0&endCycle=5`,
+    20
   )
   if (res && res.totalAccounts) {
     totalGenesisAccounts = res.totalAccounts
@@ -956,7 +958,8 @@ export async function syncGenesisAccountsFromArchiver(activeArchivers: State.Arc
   while (!complete) {
     Logger.mainLogger.debug(`Downloading accounts from ${startAccount} to ${endAccount}`)
     let response: any = await P2P.getJson(
-      `http://${randomArchiver.ip}:${randomArchiver.port}/account?startCycle=0&endCycle=5&page=${page}`
+      `http://${randomArchiver.ip}:${randomArchiver.port}/account?startCycle=0&endCycle=5&page=${page}`,
+      20
     )
     if (response && response.accounts) {
       if (response.accounts.length < 10000) {
@@ -984,7 +987,8 @@ export async function syncGenesisTransactionsFromArchiver(activeArchivers: State
   let totalGenesisTransactions = 0
 
   let res: any = await P2P.getJson(
-    `http://${randomArchiver.ip}:${randomArchiver.port}/transaction?startCycle=0&endCycle=5`
+    `http://${randomArchiver.ip}:${randomArchiver.port}/transaction?startCycle=0&endCycle=5`,
+    20
   )
   if (res && res.totalTransactions) {
     totalGenesisTransactions = res.totalTransactions
@@ -998,7 +1002,8 @@ export async function syncGenesisTransactionsFromArchiver(activeArchivers: State
   while (!complete) {
     Logger.mainLogger.debug(`Downloading transactions from ${startTransaction} to ${endTransaction}`)
     let response: any = await P2P.getJson(
-      `http://${randomArchiver.ip}:${randomArchiver.port}/transaction?startCycle=0&endCycle=5&page=${page}`
+      `http://${randomArchiver.ip}:${randomArchiver.port}/transaction?startCycle=0&endCycle=5&page=${page}`,
+      20
     )
     if (response && response.transactions) {
       if (response.transactions.length < 10000) {
@@ -1030,7 +1035,8 @@ export async function syncGenesisAccountsFromConsensor(
   while (startAccount <= totalGenesisAccounts) {
     Logger.mainLogger.debug(`Downloading accounts from ${startAccount}`)
     let response: any = await P2P.getJson(
-      `http://${firstConsensor.ip}:${firstConsensor.port}/genesis_accounts?start=${startAccount}`
+      `http://${firstConsensor.ip}:${firstConsensor.port}/genesis_accounts?start=${startAccount}`,
+      20
     )
     if (response && response.accounts) {
       if (response.accounts.length < 1000) {
@@ -1241,7 +1247,7 @@ export async function syncReceipts(
   lastStoredReceiptCount: number = 0
 ) {
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
-  let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`)
+  let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 20)
   if (!response || response.totalReceipts < 0) {
     return false
   }
@@ -1257,7 +1263,7 @@ export const downloadReceipts = async (to: number, from: number = 0, archiver: S
   let end = start + 1000
   while (!complete) {
     if (end >= to) {
-      let res: any = await P2P.getJson(`http://${archiver.ip}:${archiver.port}/totalData`)
+      let res: any = await P2P.getJson(`http://${archiver.ip}:${archiver.port}/totalData`, 20)
       if (res && res.totalReceipts > 0) {
         if (res.totalReceipts > to) to = res.totalReceipts
         Logger.mainLogger.debug('totalReceiptsToSync', to)
@@ -1265,14 +1271,15 @@ export const downloadReceipts = async (to: number, from: number = 0, archiver: S
     }
     Logger.mainLogger.debug(`Downloading receipts from ${start} to  ${end}`)
     let response: any = await P2P.getJson(
-      `http://${archiver.ip}:${archiver.port}/receipt?start=${start}&end=${end}`
+      `http://${archiver.ip}:${archiver.port}/receipt?start=${start}&end=${end}`,
+      20
     )
     if (response && response.receipts) {
       const downloadedReceipts = response.receipts
       Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
       await storeReceiptData(downloadedReceipts)
       if (response.receipts.length < 1000) {
-        let res: any = await P2P.getJson(`http://${archiver.ip}:${archiver.port}/totalData`)
+        let res: any = await P2P.getJson(`http://${archiver.ip}:${archiver.port}/totalData`, 20)
         start += response.receipts.length
         end = start + 1000
         if (res && res.totalReceipts > 0) {
@@ -1297,7 +1304,7 @@ export async function syncReceiptsByCycle(
   lastStoredReceiptCycle: number = 0
 ) {
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
-  let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`)
+  let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 20)
   if (!response || response.totalReceipts < 0) {
     return false
   }
@@ -1314,7 +1321,7 @@ export async function syncReceiptsByCycle(
       totalSavedReceiptsCount = await ReceiptDB.queryReceiptCount()
     }
     if (totalSavedReceiptsCount >= totalReceipts) {
-      let res: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`)
+      let res: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 20)
       if (res && res.totalReceipts > 0) {
         if (res.totalReceipts > totalReceipts) totalReceipts = res.totalReceipts
         if (res.totalCycles > totalCycles) totalCycles = res.totalCycles
@@ -1338,7 +1345,8 @@ export async function syncReceiptsByCycle(
     }
     Logger.mainLogger.debug(`Downloading receipts from cycle ${startCycle} to cycle ${endCycle}`)
     let response: any = await P2P.getJson(
-      `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&type=count`
+      `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&type=count`,
+      20
     )
     if (response && response.receipts > 0) {
       receiptsCountToSyncBetweenCycles = response.receipts
@@ -1346,7 +1354,8 @@ export async function syncReceiptsByCycle(
       savedReceiptsCountBetweenCycles = 0
       while (savedReceiptsCountBetweenCycles < receiptsCountToSyncBetweenCycles) {
         response = await P2P.getJson(
-          `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&page=${page}`
+          `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&page=${page}`,
+          10
         )
         if (response && response.receipts) {
           const downloadedReceipts = response.receipts
@@ -1355,7 +1364,8 @@ export async function syncReceiptsByCycle(
           savedReceiptsCountBetweenCycles += downloadedReceipts.length
           if (savedReceiptsCountBetweenCycles > receiptsCountToSyncBetweenCycles) {
             response = await P2P.getJson(
-              `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&type=count`
+              `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&type=count`,
+              20
             )
             if (response && response.receipts) receiptsCountToSyncBetweenCycles = response.receipts
             if (receiptsCountToSyncBetweenCycles > savedReceiptsCountBetweenCycles) {
@@ -1402,7 +1412,7 @@ export const syncCyclesAndReceiptsData = async (
   lastStoredReceiptCount: number = 0
 ) => {
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
-  let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`)
+  let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 20)
   if (!response || response.totalCycles < 0 || response.totalReceipts < 0) {
     return false
   }
@@ -1427,7 +1437,7 @@ export const syncCyclesAndReceiptsData = async (
 
   while (!completeForReceipt || !completeForCycle) {
     if (endReceipt >= totalReceiptsToSync || endCycle >= totalCyclesToSync) {
-      response = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`)
+      response = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 20)
       if (response && response.totalReceipts && response.totalCycles) {
         if (response.totalReceipts !== totalReceiptsToSync) {
           completeForReceipt = false
@@ -1454,7 +1464,8 @@ export const syncCyclesAndReceiptsData = async (
     if (!completeForReceipt) {
       Logger.mainLogger.debug(`Downloading receipts from ${startReceipt} to ${endReceipt}`)
       const res: any = await P2P.getJson(
-        `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?start=${startReceipt}&end=${endReceipt}`
+        `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?start=${startReceipt}&end=${endReceipt}`,
+        20
       )
       if (res && res.receipts) {
         const downloadedReceipts = res.receipts
@@ -1474,7 +1485,8 @@ export const syncCyclesAndReceiptsData = async (
     if (!completeForCycle) {
       Logger.mainLogger.debug(`Downloading cycles from ${startCycle} to ${endCycle}`)
       const res: any = await P2P.getJson(
-        `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo?start=${startCycle}&end=${endCycle}`
+        `http://${randomArchiver.ip}:${randomArchiver.port}/cycleinfo?start=${startCycle}&end=${endCycle}`,
+        20
       )
       if (res && res.cycleInfo) {
         Logger.mainLogger.debug(`Downloaded cycles`, res.cycleInfo.length)
@@ -1553,7 +1565,8 @@ export async function compareWithOldReceiptsData(
   let endCycle = lastStoredReceiptCycle
   let startCycle = endCycle - 10 > 0 ? endCycle - 10 : 0
   const response: any = await P2P.getJson(
-    `http://${archiver.ip}:${archiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&type=tally`
+    `http://${archiver.ip}:${archiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&type=tally`,
+    20
   )
   let downloadedReceiptCountByCycles: string | any[]
   if (response && response.receipts) {
@@ -1586,14 +1599,17 @@ export async function compareWithOldReceiptsData(
 export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo, lastCycleCounter = 0) {
   let downloadedCycles
   const response: any = await P2P.getJson(
-    `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${lastCycleCounter - 10}&end=${lastCycleCounter - 1
-    }`
+    `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${lastCycleCounter - 10}&end=${
+      lastCycleCounter - 1
+    }`,
+    20
   )
   if (response && response.cycleInfo) {
     downloadedCycles = response.cycleInfo
   } else {
     throw Error(
-      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${lastCycleCounter - 1
+      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${
+        lastCycleCounter - 1
       }  from archiver ${archiver}`
     )
   }

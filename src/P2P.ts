@@ -49,13 +49,17 @@ export function createArchiverLeaveRequest() {
   return Crypto.sign(leaveRequest)
 }
 
-export async function postJson(url: string, body: object): Promise<Data.DataQueryResponse | null> {
+export async function postJson(
+  url: string,
+  body: object,
+  timeoutInSecond: number = 5
+): Promise<Data.DataQueryResponse | null> {
   try {
     const res = await fetch(url, {
       method: 'post',
       body: JSON.stringify(body),
       headers: { 'Content-Type': 'application/json' },
-      timeout: 5000,
+      timeout: timeoutInSecond * 1000,
     })
     if (res.ok) {
       return await res.json()
@@ -73,12 +77,12 @@ export async function postJson(url: string, body: object): Promise<Data.DataQuer
   }
 }
 
-export async function getJson(url: string): Promise<object | null> {
+export async function getJson(url: string, timeoutInSecond: number = 5): Promise<object | null> {
   try {
     const res = await fetch(url, {
       method: 'get',
       headers: { 'Content-Type': 'application/json' },
-      timeout: 5000,
+      timeout: timeoutInSecond * 1000,
     })
     if (res.ok) {
       return await res.json()
