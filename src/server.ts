@@ -95,7 +95,7 @@ async function start() {
           Logger.mainLogger.error(err)
           Logger.mainLogger.error(err.stack)
           Logger.mainLogger.debug(`Trying to join again in ${cycleDuration} seconds...`)
-          await Utils.sleep(cycleDuration * 1000)
+          await Utils.sleep(cycleDuration)
         }
         firstTime = false
       } while (!isJoined)
