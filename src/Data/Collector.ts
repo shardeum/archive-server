@@ -162,8 +162,10 @@ export const storeCycleData = async (cycles = []) => {
       // await Cycle.insertCycle(cycleObj)
       combineCycles.push(cycleObj)
     }
-    if (combineCycles.length >= bucketSize || i === cycles.length - 1)
+    if (combineCycles.length >= bucketSize || i === cycles.length - 1) {
       if (combineCycles.length > 0) await Cycle.bulkInsertCycles(combineCycles)
+      combineCycles = []
+    }
   }
 }
 
