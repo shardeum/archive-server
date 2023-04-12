@@ -153,17 +153,38 @@ export function parse(record: any): Change {
 export function applyNodeListChange(change: Change) {
   // console.log('change', change)
   if (change.added.length > 0) {
-    const consensorInfos = change.added.map((jc: any) => ({
-      ip: jc.externalIp,
-      port: jc.externalPort,
-      publicKey: jc.publicKey,
-      id: jc.id,
-    }))
-
-    NodeList.addNodes(NodeList.Statuses.ACTIVE, change.added[0].cycleJoined, consensorInfos)
+    let nodesBycycleJoined: { [cycleJoined: number]: JoinedConsensor[] } = {}
+    for (const node of change.added) {
+      const joinedConsensor: any = node
+      const consensorInfo: any = {
+        ip: joinedConsensor.externalIp,
+        port: joinedConsensor.externalPort,
+        publicKey: joinedConsensor.publicKey,
+        id: joinedConsensor.id,
+      }
+      if (!nodesBycycleJoined[joinedConsensor.cycleJoined]) {
+        nodesBycycleJoined[joinedConsensor.cycleJoined] = [consensorInfo]
+      } else nodesBycycleJoined[joinedConsensor.cycleJoined].push(consensorInfo)
+    }
+    for (let cycleJoined in nodesBycycleJoined) {
+      NodeList.addNodes(NodeList.Statuses.SYNCING, cycleJoined, nodesBycycleJoined[cycleJoined])
+    }
   }
-  if (change.removed.length > 0) {
-    NodeList.removeNodes(change.removed)
+  // This is not needed though since no removed nodes are ever added to this list
+  // If we ever add removed nodes to this list, we need to update to removeNodes by publicKey instead of id
+  // Commenting out for now
+  // if (change.removed.length > 0) {
+  //   NodeList.removeNodes(change.removed)
+  // }
+  if (change.updated.length > 0) {
+    const activatedPublicKeys = change.updated.reduce((keys: string[], update: Update) => {
+      const nodeInfo = NodeList.getNodeInfoById(update.id)
+      if (nodeInfo) {
+        keys.push(nodeInfo.publicKey)
+      }
+      return keys
+    }, [])
+    NodeList.setStatus(NodeList.Statuses.ACTIVE, ...activatedPublicKeys)
   }
 }
 export function activeNodeCount(cycle: Cycle) {
