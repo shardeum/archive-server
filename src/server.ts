@@ -524,7 +524,7 @@ async function startServer() {
   })
 
   type FullNodeListRequest = FastifyRequest<{
-    Querystring: { activeOnly: 'true' | 'false' }
+    Querystring: { activeOnly: 'true' | 'false'; syncingOnly: 'true' | 'false' }
   }>
 
   server.get(
@@ -537,17 +537,16 @@ async function startServer() {
     (_request: FullNodeListRequest, reply) => {
       profilerInstance.profileSectionStart('FULL_nodelist')
       nestedCountersInstance.countEvent('consensor', 'FULL_nodelist')
-      const { activeOnly } = _request.query
+      const { activeOnly, syncingOnly } = _request.query
       const activeNodeList = NodeList.getActiveList()
-      if (activeOnly === 'true') reply.send(Crypto.sign({ nodeList: activeNodeList }))
-
       const syncingNodeList = NodeList.getSyncingList()
-      const fullNodeList = activeNodeList.concat(syncingNodeList)
-      const res = Crypto.sign({
-        nodeList: fullNodeList,
-      })
+      if (activeOnly === 'true') reply.send(Crypto.sign({ nodeList: activeNodeList }))
+      else if (syncingOnly === 'true') reply.send(Crypto.sign({ nodeList: syncingNodeList }))
+      else {
+        const fullNodeList = activeNodeList.concat(syncingNodeList)
+        reply.send(Crypto.sign({ nodeList: fullNodeList }))
+      }
       profilerInstance.profileSectionEnd('FULL_nodelist')
-      reply.send(res)
     }
   )
 
