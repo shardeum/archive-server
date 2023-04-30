@@ -224,9 +224,11 @@ function updateNodeList(cycle: Cycle) {
       if (dataSenders.has(key)) unsubscribeDataSender(key)
     }
   }
-  removedNodes.push({ cycle: cycle.counter, nodes: removedAndApopedNodes })
-  while (removedNodes.length > 10) {
-    removedNodes.shift()
+  if (removedAndApopedNodes.length > 0) {
+    removedNodes.push({ cycle: cycle.counter, nodes: removedAndApopedNodes })
+    while (removedNodes.length > 10) {
+      removedNodes.shift()
+    }
   }
 }
 
