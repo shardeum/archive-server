@@ -34,6 +34,7 @@ export let currentCycleCounter = -1
 export let lastProcessedMetaData = -1
 export let CycleChain: Map<Cycle['counter'], any> = new Map()
 export let lostNodes: LostNode[] = []
+export const removedNodes = []
 
 export async function processCycles(cycles: Cycle[]) {
   if (profilerInstance) profilerInstance.profileSectionStart('process_cycle', false)
@@ -144,9 +145,12 @@ function updateNodeList(cycle: Cycle) {
 
   NodeList.refreshNodes(NodeList.Statuses.ACTIVE, cycle.marker, refreshedConsensorInfos)
 
+  let removedAndApopedNodes: NodeList.ConsensusNodeInfo[] = []
+
   const removedPks = removed.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)
     if (nodeInfo) {
+      removedAndApopedNodes.push(nodeInfo)
       keys.push(nodeInfo.publicKey)
     }
     return keys
@@ -177,6 +181,7 @@ function updateNodeList(cycle: Cycle) {
   const apoptosizedPks = apoptosized.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)
     if (nodeInfo) {
+      removedAndApopedNodes.push(nodeInfo)
       keys.push(nodeInfo.publicKey)
     }
     return keys
@@ -218,6 +223,10 @@ function updateNodeList(cycle: Cycle) {
       if (queueForSelectingNewDataSenders.has(key)) queueForSelectingNewDataSenders.delete(key)
       if (dataSenders.has(key)) unsubscribeDataSender(key)
     }
+  }
+  removedNodes.push({ cycle: cycle.counter, nodes: removedAndApopedNodes })
+  while (removedNodes.length > 10) {
+    removedNodes.shift()
   }
 }
 

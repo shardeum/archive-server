@@ -550,6 +550,21 @@ async function startServer() {
     }
   )
 
+  server.get(
+    '/removed',
+    {
+      preHandler: async (_request, reply) => {
+        isDebugMiddleware(_request, reply)
+      },
+    },
+    (_request: FullNodeListRequest, reply) => {
+      profilerInstance.profileSectionStart('removed')
+      nestedCountersInstance.countEvent('consensor', 'removed')
+      reply.send(Crypto.sign({ removedNodes: Cycles.removedNodes }))
+      profilerInstance.profileSectionEnd('removed')
+    }
+  )
+
   type LostRequest = FastifyRequest<{
     Querystring: { start: any; end: any }
   }>
