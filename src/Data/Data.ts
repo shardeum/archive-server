@@ -116,10 +116,14 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   if (config.VERBOSE) Logger.mainLogger.debug('Node Info to socket connect', node)
   const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
 
+  let archiverKeyisEmitted = false
+
   socketClient.on('connect', () => {
     Logger.mainLogger.debug(`Connection to consensus node ${node.ip}:${node.port} is made`)
+    if (archiverKeyisEmitted) return
     // Send ehlo event right after connect:
     socketClient.emit('ARCHIVER_PUBLIC_KEY', config.ARCHIVER_PUBLIC_KEY)
+    archiverKeyisEmitted = true
     socketClients.set(node.publicKey, socketClient)
     // socketConnectionsTracker.set(node.publicKey, 'connected')
     if (config.VERBOSE) Logger.mainLogger.debug('Connected node', node)
