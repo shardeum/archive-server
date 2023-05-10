@@ -17,7 +17,7 @@
     "check": "gts check",
     "clean": "npm-run-all clean:*",
     "clean:typescript": "gts clean",
-    "clean:artifacts": "shx rm -rf logs/ db/",
+    "clean:artifacts": "shx rm -rf archiver-logs/ archiver-db/",
     "compile": "tsc -p .",
     "fix": "gts fix",
     "prepare": "npm run compile",
