@@ -51,8 +51,12 @@ async function start() {
     config.ARCHIVER_PUBLIC_KEY = keypair.publicKey
     config.ARCHIVER_SECRET_KEY = keypair.secretKey
   }
-
-  const logsConfig = JSON.parse(readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8'))
+  let logsConfig
+  try {
+    logsConfig = JSON.parse(readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8'))
+  } catch (err) {
+    console.log('Failed to parse archiver log file:', err)
+  }
   logDir = `${config.ARCHIVER_LOGS}/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
   const baseDir = '.'
   logsConfig.dir = logDir
