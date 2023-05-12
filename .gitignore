@@ -7,3 +7,4 @@ db/
 archiver-db
 archiver-db.idx.db
 archiver-logs
+.direnv/
