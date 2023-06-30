@@ -44,7 +44,7 @@
   },
   "homepage": "https://gitlab.com/shardus/archive/archive-server#readme",
   "devDependencies": {
-    "@types/node": "^16.11.0",
+    "@types/node": "18.16.1",
     "@types/node-fetch": "^2.5.4",
     "@types/socket.io": "^2.1.11",
     "@typescript-eslint/eslint-plugin": "^5.60.0",
