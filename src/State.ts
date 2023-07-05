@@ -4,9 +4,9 @@ import * as P2P from './P2P'
 import * as NodeList from './NodeList'
 import * as Data from './Data/Data'
 import * as Utils from './Utils'
-import { isString } from 'util'
-import { Node } from 'tydb/dist/core'
 import * as Logger from './Logger'
+import { getArchiverList } from '@shardus/archiver-discovery'
+import * as ShardusCrypto from '@shardus/crypto-utils'
 
 export interface ArchiverNodeState {
   ip: string
@@ -43,12 +43,24 @@ export async function initFromConfig(config: Config) {
 
   // Parse existing archivers list
   try {
-    existingArchivers = config.ARCHIVER_EXISTING
+    console.log('Getting existing archivers list from archiver-discovery.')
+    existingArchivers = (
+      await getArchiverList({
+        customConfigPath: 'archiver-config.json',
+      })
+    ).map(({ ip, port, publicKey }) => ({
+      ip,
+      port,
+      publicKey,
+      curvePk: ShardusCrypto.convertPkToCurve(publicKey),
+    }))
+    console.log(`Got existing archivers list using archiver-discovery. [count: ${existingArchivers.length}]`)
   } catch (e) {
-    console.warn('Failed to parse ARCHIVER_EXISTING array:', config.ARCHIVER_EXISTING)
+    console.warn('No existing archivers were found:', JSON.stringify(e))
   }
 
   if (existingArchivers.length === 0) {
+    console.log('No existing archivers were found. This is the first archiver.')
     isFirst = true
     return
   }
@@ -70,8 +82,11 @@ export async function initFromConfig(config: Config) {
         `http://${existingArchivers[i].ip}:${existingArchivers[i].port}/nodelist`,
         response
       )
+      if (!ShardusCrypto.verifyObj(response)) {
+        /* prettier-ignore */ console.log(`Invalid signature when fetching from archiver ${existingArchivers[i].ip}:${existingArchivers[i].port}`)
+        continue
+      }
       if (response && response.nodeList && response.nodeList.length > 0) {
-        // TODO: validate the reponse is from archiver
         activeArchivers.push(existingArchivers[i])
       }
     }

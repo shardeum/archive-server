@@ -11,7 +11,6 @@ export interface Config {
   ARCHIVER_HASH_KEY: string
   ARCHIVER_PUBLIC_KEY: string
   ARCHIVER_SECRET_KEY: string
-  ARCHIVER_EXISTING: ArchiverNodeInfo[]
   ARCHIVER_DB: string
   DATASENDER_TIMEOUT: number
   RATE_LIMIT: number // number of allowed request per second,
@@ -39,7 +38,6 @@ let config: Config = {
   ARCHIVER_PUBLIC_KEY: process.env.ARCHIVER_PUBLIC_KEY || '758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3',
   ARCHIVER_SECRET_KEY: process.env.ARCHIVER_SECRET_KEY ||
     '3be00019f23847529bd63e41124864983175063bb524bd54ea3c155f2fa12969758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3',
-  ARCHIVER_EXISTING: [],
   ARCHIVER_LOGS: 'archiver-logs',
   ARCHIVER_DB: 'archiver-db',
   DATASENDER_TIMEOUT: 1000 * 60 * 5,
