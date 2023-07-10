@@ -42,7 +42,7 @@ let selectingNewDataSender = false
 export let removeReplaceTimeout = true
 export let newSubscription = true // Will remove this later after this feature is tested
 let currentConsensusRadius = 0
-const subsetNodesMapByConsensusRadius: Map<number, NodeList.ConsensusNodeInfo[]> = new Map()
+let subsetNodesMapByConsensusRadius: Map<number, NodeList.ConsensusNodeInfo[]> = new Map()
 export let queueForSelectingNewDataSenders: Map<string, string> = new Map()
 let receivedCycleTracker = {}
 
@@ -367,6 +367,12 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
       if (nodeIndex > -1) {
         const subsetIndex = Math.floor(nodeIndex / currentConsensusRadius)
         const subsetNodesList = subsetNodesMapByConsensusRadius.get(subsetIndex)
+        if (!subsetNodesList) {
+          Logger.mainLogger.error(
+            `There is no nodes in the index ${subsetIndex} of subsetNodesMapByConsensusRadius!`
+          )
+          return
+        }
 
         // Check if there is any subscribed node from this subset
         let foundSubscribedNodeFromThisSubset = false
@@ -684,6 +690,7 @@ export async function createNodesGroupByConsensusRadius() {
   if (config.VERBOSE) Logger.mainLogger.debug('activeList', activeList.length, activeList)
   const totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
   Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
+  subsetNodesMapByConsensusRadius = new Map()
   let round = 0
   for (let i = 0; i < activeList.length; i += consensusRadius) {
     let subsetList: NodeList.ConsensusNodeInfo[] = activeList.slice(i, i + consensusRadius)
