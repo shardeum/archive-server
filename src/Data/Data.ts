@@ -39,6 +39,10 @@ export let combineAccountsData = {
 let forwardGenesisAccounts = true
 let selectByConsensuRadius = true
 let selectingNewDataSender = false
+let removeReplaceTimeout = true
+export let newSubscription = true // Will remove this later after this feature is tested
+let currentConsensusRadius = 0
+const subsetNodesMapByConsensusRadius: Map<number, NodeList.ConsensusNodeInfo[]> = new Map()
 export let queueForSelectingNewDataSenders: Map<string, string> = new Map()
 let receivedCycleTracker = {}
 
@@ -92,7 +96,7 @@ export async function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInf
       clearTimeout(sender.contactTimeout)
       sender.contactTimeout = null
     }
-    if (sender.replaceTimeout) {
+    if (!removeReplaceTimeout && sender.replaceTimeout) {
       clearTimeout(sender.replaceTimeout)
       sender.replaceTimeout = null
     }
@@ -322,7 +326,7 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
   if (NodeList.getActiveList().length < 2) {
     Logger.mainLogger.debug('There is only one active node in the network. Unable to replace data sender')
     let sender = dataSenders.get(publicKey)
-    if (sender && sender.replaceTimeout) {
+    if (sender && !removeReplaceTimeout && sender.replaceTimeout) {
       nestedCountersInstance.countEvent('archiver', 'clear_replace_timeout')
       clearTimeout(sender.replaceTimeout)
       sender.replaceTimeout = null
@@ -344,7 +348,38 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
     return
   } // Extend the contactTimeout a bit longer for now to make sure the archiver has already got a new replacer node
   const sender = dataSenders.get(publicKey)
-  if (sender && sender.replaceTimeout) {
+  if (newSubscription) {
+    unsubscribeDataSender(publicKey)
+    const node = NodeList.byPublicKey[publicKey]
+    if (node) {
+      const nodeIndex = NodeList.activeListByIdSorted.findIndex((node) => node.publicKey === publicKey)
+      if (nodeIndex > -1) {
+        const subsetIndex = Math.floor(nodeIndex / currentConsensusRadius)
+        const subsetNodesList = subsetNodesMapByConsensusRadius.get(subsetIndex)
+
+        // Check if there is any subscribed node from this subset
+        let foundSubscribedNodeFromThisSubset = false
+        for (let node of Object.values(subsetNodesList)) {
+          if (dataSenders.has(node.publicKey)) {
+            if (config.VERBOSE) Logger.mainLogger.debug('The node is found in this subset')
+            if (foundSubscribedNodeFromThisSubset) {
+              // Unsubscribe the extra nodes from this subset
+              unsubscribeDataSender(node.publicKey)
+            }
+            foundSubscribedNodeFromThisSubset = true
+          }
+        }
+
+        if (!foundSubscribedNodeFromThisSubset) {
+          Logger.mainLogger.debug('There is no subscribed node from this subset!')
+          // Pick a new dataSender from this subset
+          subscribeNodeFromThisSubset(subsetNodesList)
+        }
+      }
+    }
+    return
+  }
+  if (sender && !removeReplaceTimeout && sender.replaceTimeout) {
     clearTimeout(sender.replaceTimeout)
     sender.replaceTimeout = null
     sender.replaceTimeout = createReplaceTimeout(publicKey)
@@ -394,7 +429,7 @@ export async function subscribeRandomNodeForDataTransfer() {
 }
 
 /**
- * Sets timeout to current cycle duration + some padding
+ * Sets 15s timeout
  * Removes sender from dataSenders on timeout
  * Select a new dataSender
  */
@@ -621,22 +656,79 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
         newSenderInfo.publicKey,
         'This timeout is created during newSender selection'
       ),
-      replaceTimeout: createReplaceTimeout(newSenderInfo.publicKey),
     }
+    if (!removeReplaceTimeout) newSender.replaceTimeout = createReplaceTimeout(newSenderInfo.publicKey)
     addDataSender(newSender)
     Logger.mainLogger.debug(`added new sender ${newSenderInfo.publicKey} to dataSenders`)
     initSocketClient(newSenderInfo)
-    // let count = 0
-    // while (!socketClients.has(newSenderInfo.publicKey) && count <= 50) {
-    //   await Utils.sleep(100)
-    //   count++
-    //   if (count === 50) {
-    //     // This means the socket connection to the node is not successful.
-    //     return false
-    //   }
-    // }
   }
   return response
+}
+
+export async function createNodesGroupByConsensusRadius() {
+  const consensusRadius = await getConsensusRadius()
+  currentConsensusRadius = consensusRadius
+  const activeList = [...NodeList.activeListByIdSorted]
+  if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
+  const totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
+  Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
+  let round = 0
+  for (let i = 0; i < activeList.length; i += consensusRadius) {
+    let subsetList: NodeList.ConsensusNodeInfo[] = activeList.slice(i, i + consensusRadius)
+    subsetNodesMapByConsensusRadius.set(round, subsetList)
+    round++
+  }
+}
+
+export async function subscribeConsensorsByConsensusRadius() {
+  for (const [i, subsetList] of subsetNodesMapByConsensusRadius) {
+    if (config.VERBOSE) Logger.mainLogger.debug('Round', i, 'subsetList', subsetList, dataSenders.keys())
+    let foundSubscribedNodeFromThisSubset = false
+    for (let node of Object.values(subsetList)) {
+      if (dataSenders.has(node.publicKey)) {
+        if (config.VERBOSE) Logger.mainLogger.debug('The node is found in this subset')
+        if (foundSubscribedNodeFromThisSubset) {
+          // Unsubscribe the extra nodes from this subset
+          unsubscribeDataSender(node.publicKey)
+        }
+        foundSubscribedNodeFromThisSubset = true
+      }
+    }
+
+    if (!foundSubscribedNodeFromThisSubset) {
+      Logger.mainLogger.debug('There is no subscribed node from this subset!')
+      // Pick a new dataSender from this subset
+      subscribeNodeFromThisSubset(subsetList)
+    }
+  }
+}
+
+export async function subscribeNodeFromThisSubset(nodeList: NodeList.ConsensusNodeInfo[]) {
+  let subsetList = [...nodeList]
+  // Pick a new dataSender
+  let newSenderInfo = nodeList[Math.floor(Math.random() * nodeList.length)]
+  let connectionStatus = false
+  let retry = 0
+  let maxRetry = 3
+  while (retry < maxRetry) {
+    if (!dataSenders.has(newSenderInfo.publicKey)) {
+      connectionStatus = await createDataTransferConnection(newSenderInfo)
+      if (connectionStatus) {
+        break
+      } else {
+        subsetList = subsetList.filter((node) => node.publicKey !== newSenderInfo.publicKey)
+      }
+    } else {
+      // This means there is already a subscribed node from this subset
+      break
+    }
+    if (subsetList.length > 0) {
+      newSenderInfo = subsetList[Math.floor(Math.random() * subsetList.length)]
+    } else {
+      subsetList = [...nodeList]
+      retry++
+    }
+  }
 }
 
 export async function subscribeMoreConsensorsByConsensusRadius() {
@@ -768,7 +860,11 @@ export async function sendDataRequest(
     nodeInfo.ip + ':' + nodeInfo.port
   )
   let reply = false
-  let response = await P2P.postJson(`http://${nodeInfo.ip}:${nodeInfo.port}/requestdata`, taggedDataRequest)
+  let response = await P2P.postJson(
+    `http://${nodeInfo.ip}:${nodeInfo.port}/requestdata`,
+    taggedDataRequest,
+    2000 // 2s timeout
+  )
   Logger.mainLogger.debug('/requestdata response', response)
   if (response && response.success) reply = response.success
   return reply

@@ -7,11 +7,14 @@ import { getJson } from '../P2P'
 import { profilerInstance } from '../profiler/profiler'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import {
+  createNodesGroupByConsensusRadius,
   dataSenders,
   queueForSelectingNewDataSenders,
   socketClients,
+  subscribeConsensorsByConsensusRadius,
   subscribeMoreConsensorsByConsensusRadius,
   unsubscribeDataSender,
+  newSubscription,
 } from './Data'
 import * as Utils from '../Utils'
 import { isDeepStrictEqual } from 'util'
@@ -211,7 +214,7 @@ function updateNodeList(cycle: Cycle) {
   }
 
   // To start picking nodes for data transfer as soon as if there is active node
-  if (activatedPublicKeys.length > 0) {
+  if (!newSubscription && activatedPublicKeys.length > 0) {
     // To pick nodes only when the archiver is active
     if (socketClients.size > 0) {
       subscribeMoreConsensorsByConsensusRadius()
@@ -229,6 +232,11 @@ function updateNodeList(cycle: Cycle) {
     while (removedNodes.length > 10) {
       removedNodes.shift()
     }
+  }
+  // To pick nodes only when the archiver is active
+  if (newSubscription && socketClients.size > 0) {
+    createNodesGroupByConsensusRadius()
+    subscribeConsensorsByConsensusRadius()
   }
 }
 
