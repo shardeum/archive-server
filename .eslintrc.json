@@ -1,0 +1,48 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "env": {
+    "node": true
+  },
+  "plugins": ["@typescript-eslint", "security", "xss"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:security/recommended",
+    "plugin:no-unsanitized/DOM",
+    "prettier"
+  ],
+  "ignorePatterns": [
+    "**/dbstore/**/*.ts",
+    "**/utils/**/*.ts",
+    "**/test/**/*.ts",
+    "**/statistics/index.ts",
+    "server.ts",
+    "**/profiler/**/*.ts",
+    "utils.ts",
+    "**/archivedCycle/**/*.ts",
+    "**/Data/**/*.ts",
+    "State.ts",
+    "P2P.ts",
+    "NodeList.ts",
+    "Logger.ts",
+    "Config.ts",
+    "Crypto.ts",
+    "module-declarations.d.ts",
+    "saveConsoleOutput.ts",
+    "shardus-crypto-types.ts"
+  ],
+  "rules": {
+    "no-empty": [
+      1,
+      {
+        "allowEmptyCatch": true
+      }
+    ],
+    "@typescript-eslint/camelcase": "off",
+    "@typescript-eslint/member-delimiter-style": "off",
+    "@typescript-eslint/no-non-null-assertion": "off",
+    "@typescript-eslint/explicit-function-return-type": "error"
+  }
+}
