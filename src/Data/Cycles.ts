@@ -7,7 +7,6 @@ import { getJson } from '../P2P'
 import { profilerInstance } from '../profiler/profiler'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import {
-  createNodesGroupByConsensusRadius,
   dataSenders,
   queueForSelectingNewDataSenders,
   socketClients,
@@ -235,7 +234,6 @@ function updateNodeList(cycle: Cycle) {
   }
   // To pick nodes only when the archiver is active
   if (newSubscription && socketClients.size > 0) {
-    createNodesGroupByConsensusRadius()
     subscribeConsensorsByConsensusRadius()
   }
 }

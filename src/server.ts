@@ -472,16 +472,17 @@ async function startServer() {
       NodeList.addNodes(NodeList.Statuses.SYNCING, 'bogus', [firstNode])
 
       // Set first node as dataSender
-      Data.addDataSender({
+      const firstDataSender: Data.DataSender = {
         nodeInfo: firstNode,
         types: [P2PTypes.SnapshotTypes.TypeNames.CYCLE, P2PTypes.SnapshotTypes.TypeNames.STATE_METADATA],
-        replaceTimeout: Data.createReplaceTimeout(firstNode.publicKey),
         contactTimeout: Data.createContactTimeout(
           firstNode.publicKey,
           'This timeout is created for the first node'
         ),
-      })
-
+      }
+      if (!Data.removeReplaceTimeout)
+        firstDataSender.replaceTimeout = Data.createReplaceTimeout(firstNode.publicKey)
+      Data.addDataSender(firstDataSender)
       let res: P2P.FirstNodeResponse
 
       if (config.experimentalSnapshot) {

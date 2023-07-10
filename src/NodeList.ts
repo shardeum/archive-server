@@ -92,8 +92,6 @@ export function addNodes(
       } else if (status === Statuses.ACTIVE) {
         activeList.set(node.publicKey, node)
         activeListByIdSorted.push(node)
-        if (config.VERBOSE)
-          Logger.mainLogger.debug('activeListByIdSorted', activeListByIdSorted.map((node) => node.publicKey))
         activeListByIdSorted.sort(byAscendingNodeId)
         if (config.VERBOSE)
           Logger.mainLogger.debug('activeListByIdSorted', activeListByIdSorted.map((node) => node.publicKey))
@@ -144,8 +142,6 @@ export function refreshNodes(
       } else if (status === Statuses.ACTIVE) {
         activeList.set(node.publicKey, node)
         activeListByIdSorted.push(node)
-        if (config.VERBOSE)
-          Logger.mainLogger.debug('activeListByIdSorted', activeListByIdSorted.map((node) => node.publicKey))
         activeListByIdSorted.sort(byAscendingNodeId)
         if (config.VERBOSE)
           Logger.mainLogger.debug('activeListByIdSorted', activeListByIdSorted.map((node) => node.publicKey))
