@@ -8,12 +8,9 @@ import { profilerInstance } from '../profiler/profiler'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import {
   dataSenders,
-  queueForSelectingNewDataSenders,
   socketClients,
   subscribeConsensorsByConsensusRadius,
-  subscribeMoreConsensorsByConsensusRadius,
   unsubscribeDataSender,
-  newSubscription,
 } from './Data'
 import * as Utils from '../Utils'
 import { isDeepStrictEqual } from 'util'
@@ -212,17 +209,9 @@ function updateNodeList(cycle: Cycle) {
     State.archiversReputation.delete(leavingArchiver.publicKey)
   }
 
-  // To start picking nodes for data transfer as soon as if there is active node
-  if (!newSubscription && activatedPublicKeys.length > 0) {
-    // To pick nodes only when the archiver is active
-    if (socketClients.size > 0) {
-      subscribeMoreConsensorsByConsensusRadius()
-    }
-  }
   const nodesToUnsubscribed = [...apoptosizedPks, ...removedPks]
   if (nodesToUnsubscribed.length > 0) {
     for (const key of nodesToUnsubscribed) {
-      if (queueForSelectingNewDataSenders.has(key)) queueForSelectingNewDataSenders.delete(key)
       if (dataSenders.has(key)) unsubscribeDataSender(key)
     }
   }
@@ -233,7 +222,7 @@ function updateNodeList(cycle: Cycle) {
     }
   }
   // To pick nodes only when the archiver is active
-  if (newSubscription && socketClients.size > 0) {
+  if (socketClients.size > 0) {
     subscribeConsensorsByConsensusRadius()
   }
 }

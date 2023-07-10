@@ -480,8 +480,6 @@ async function startServer() {
           'This timeout is created for the first node'
         ),
       }
-      if (!Data.removeReplaceTimeout)
-        firstDataSender.replaceTimeout = Data.createReplaceTimeout(firstNode.publicKey)
       Data.addDataSender(firstDataSender)
       let res: P2P.FirstNodeResponse
 

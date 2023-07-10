@@ -37,13 +37,8 @@ export let combineAccountsData = {
   receipts: [],
 }
 let forwardGenesisAccounts = true
-let selectByConsensuRadius = true
-let selectingNewDataSender = false
-export let removeReplaceTimeout = true
-export let newSubscription = true // Will remove this later after this feature is tested
 let currentConsensusRadius = 0
 let subsetNodesMapByConsensusRadius: Map<number, NodeList.ConsensusNodeInfo[]> = new Map()
-export let queueForSelectingNewDataSenders: Map<string, string> = new Map()
 let receivedCycleTracker = {}
 
 export enum DataRequestTypes {
@@ -95,10 +90,6 @@ export async function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInf
     if (sender.contactTimeout) {
       clearTimeout(sender.contactTimeout)
       sender.contactTimeout = null
-    }
-    if (!removeReplaceTimeout && sender.replaceTimeout) {
-      clearTimeout(sender.replaceTimeout)
-      sender.replaceTimeout = null
     }
     sendDataRequest(sender.nodeInfo, DataRequestTypes.UNSUBSCRIBE)
     // Delete sender from dataSenders
@@ -328,25 +319,9 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
   nestedCountersInstance.countEvent('archiver', 'replace_data_sender')
   if (NodeList.getActiveList().length < 2) {
     Logger.mainLogger.debug('There is only one active node in the network. Unable to replace data sender')
-    let sender = dataSenders.get(publicKey)
-    if (sender && !removeReplaceTimeout && sender.replaceTimeout) {
-      nestedCountersInstance.countEvent('archiver', 'clear_replace_timeout')
-      clearTimeout(sender.replaceTimeout)
-      sender.replaceTimeout = null
-      sender.replaceTimeout = createReplaceTimeout(publicKey)
-    }
     return
   }
   Logger.mainLogger.debug(`replaceDataSender: replacing ${publicKey}`)
-  if (!newSubscription) {
-    Logger.mainLogger.debug(
-      'queueForSelectingNewDataSenders',
-      socketClients.has(publicKey),
-      dataSenders.has(publicKey),
-      selectingNewDataSender,
-      queueForSelectingNewDataSenders.size
-    )
-  }
 
   if (!socketClients.has(publicKey) || !dataSenders.has(publicKey)) {
     Logger.mainLogger.debug(
@@ -357,96 +332,48 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
     )
     unsubscribeDataSender(publicKey)
     return
-  } // Extend the contactTimeout a bit longer for now to make sure the archiver has already got a new replacer node
-  const sender = dataSenders.get(publicKey)
-  if (newSubscription) {
-    unsubscribeDataSender(publicKey)
-    const node = NodeList.byPublicKey[publicKey]
-    if (node) {
-      const nodeIndex = NodeList.activeListByIdSorted.findIndex((node) => node.publicKey === publicKey)
-      if (nodeIndex > -1) {
-        const subsetIndex = Math.floor(nodeIndex / currentConsensusRadius)
-        const subsetNodesList = subsetNodesMapByConsensusRadius.get(subsetIndex)
-        if (!subsetNodesList) {
-          Logger.mainLogger.error(
-            `There is no nodes in the index ${subsetIndex} of subsetNodesMapByConsensusRadius!`
-          )
-          return
-        }
+  }
+  unsubscribeDataSender(publicKey)
+  const node = NodeList.byPublicKey[publicKey]
+  if (node) {
+    const nodeIndex = NodeList.activeListByIdSorted.findIndex((node) => node.publicKey === publicKey)
+    if (nodeIndex > -1) {
+      const subsetIndex = Math.floor(nodeIndex / currentConsensusRadius)
+      const subsetNodesList = subsetNodesMapByConsensusRadius.get(subsetIndex)
+      if (!subsetNodesList) {
+        Logger.mainLogger.error(
+          `There is no nodes in the index ${subsetIndex} of subsetNodesMapByConsensusRadius!`
+        )
+        return
+      }
 
-        // Check if there is any subscribed node from this subset
-        let foundSubscribedNodeFromThisSubset = false
-        for (let node of Object.values(subsetNodesList)) {
-          if (dataSenders.has(node.publicKey)) {
-            if (config.VERBOSE)
-              Logger.mainLogger.debug('This node from the subset is in the subscribed list!')
-            if (foundSubscribedNodeFromThisSubset) {
-              // Unsubscribe the extra nodes from this subset
-              unsubscribeDataSender(node.publicKey)
-            }
-            foundSubscribedNodeFromThisSubset = true
+      // Check if there is any subscribed node from this subset
+      let foundSubscribedNodeFromThisSubset = false
+      for (let node of Object.values(subsetNodesList)) {
+        if (dataSenders.has(node.publicKey)) {
+          if (config.VERBOSE) Logger.mainLogger.debug('This node from the subset is in the subscribed list!')
+          if (foundSubscribedNodeFromThisSubset) {
+            // Unsubscribe the extra nodes from this subset
+            unsubscribeDataSender(node.publicKey)
           }
-        }
-
-        if (!foundSubscribedNodeFromThisSubset) {
-          Logger.mainLogger.debug('There is no subscribed node from this subset!')
-          // Pick a new dataSender from this subset
-          subscribeNodeFromThisSubset(subsetNodesList)
+          foundSubscribedNodeFromThisSubset = true
         }
       }
+
+      if (!foundSubscribedNodeFromThisSubset) {
+        Logger.mainLogger.debug('There is no subscribed node from this subset!')
+        // Pick a new dataSender from this subset
+        subscribeNodeFromThisSubset(subsetNodesList)
+      }
     }
-    return
-  }
-  if (sender && !removeReplaceTimeout && sender.replaceTimeout) {
-    clearTimeout(sender.replaceTimeout)
-    sender.replaceTimeout = null
-    sender.replaceTimeout = createReplaceTimeout(publicKey)
-  }
-  if (sender && sender.contactTimeout) {
-    clearTimeout(sender.contactTimeout)
-    sender.contactTimeout = null
-    sender.contactTimeout = createContactTimeout(
-      publicKey,
-      'This timeout is created to rotate this node',
-      5 * 60 * 1000
-    )
-  }
-  if (selectingNewDataSender) {
-    queueForSelectingNewDataSenders.set(publicKey, publicKey)
-  } else {
-    selectingNewDataSender = true
-    await selectNewDataSendersByConsensusRadius([publicKey])
   }
 }
 
 export async function subscribeNodeForDataTransfer() {
   if (config.experimentalSnapshot) {
-    if (newSubscription) {
-      await subscribeConsensorsByConsensusRadius()
-      return
-    }
-    if (selectByConsensuRadius) await subscribeMoreConsensorsByConsensusRadius()
-    else await subscribeRandomNodeForDataTransfer()
+    await subscribeConsensorsByConsensusRadius()
   } else {
     await StateMetaData.subscribeRandomNodeForDataTransfer()
-  }
-}
-
-export async function subscribeRandomNodeForDataTransfer() {
-  let retry = 0
-  let nodeSubscribedFail = true
-  // Set randomly select a consensor as dataSender
-  while (nodeSubscribedFail && retry < 10) {
-    let randomConsensor = NodeList.getRandomActiveNodes()[0]
-    let connectionStatus = await createDataTransferConnection(randomConsensor)
-    if (connectionStatus) nodeSubscribedFail = false
-    else retry++
-  }
-  if (nodeSubscribedFail) {
-    Logger.mainLogger.error(
-      'The archiver fails to subscribe to any node for data transfer! and exit the network.'
-    )
-    await State.exitArchiver()
   }
 }
 
@@ -471,160 +398,8 @@ export function createContactTimeout(
   }, ms)
 }
 
-export function createReplaceTimeout(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
-  const ms = config.DATASENDER_TIMEOUT || 1000 * 60 * 5
-  return setTimeout(() => {
-    nestedCountersInstance.countEvent('archiver', 'replace_timeout')
-    Logger.mainLogger.debug('ROTATING sender due to ROTATION timeout')
-    replaceDataSender(publicKey)
-  }, ms)
-}
-
 export function addDataSender(sender: DataSender) {
   dataSenders.set(sender.nodeInfo.publicKey, sender)
-}
-
-async function selectNewDataSendersByConsensusRadius(publicKeys: NodeList.ConsensusNodeInfo['publicKey'][]) {
-  if (config.VERBOSE) Logger.mainLogger.debug('selectNewDataSendersByConsensusRadius publicKeys', publicKeys)
-  if (publicKeys.length === 0) {
-    selectingNewDataSender = false
-    return
-  }
-  const calculatedConsensusRadius = await getConsensusRadius()
-  let consensusRadius = calculatedConsensusRadius
-  if (consensusRadius > 2) consensusRadius-- // Change default to 3 for now assuming nodesPerConsensusGroup 10
-  let activeList = [...NodeList.activeListByIdSorted]
-  if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
-  let totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
-  Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
-  for (const publicKey of publicKeys) {
-    let nodeIsUnsubscribed = false
-    let nodeIsInTheActiveList = false
-    activeList = [...NodeList.activeListByIdSorted]
-    if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
-    totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
-    Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
-    for (let i = 0; i < activeList.length; i += consensusRadius) {
-      const subsetList = activeList.slice(i, i + consensusRadius)
-      if (config.VERBOSE)
-        Logger.mainLogger.debug('Round', i, publicKey, 'subsetList', subsetList, dataSenders.keys())
-      let nodeToRotateIsFromThisSubset = false
-      let noNodeFromThisSubset = true
-      let extraSubscribedNodesCountFromThisSubset = 0
-      for (let node of Object.values(subsetList)) {
-        if (dataSenders.has(node.publicKey)) {
-          if (config.VERBOSE) Logger.mainLogger.debug('This node from the subset is in the subscribed list!')
-          noNodeFromThisSubset = false
-          extraSubscribedNodesCountFromThisSubset++
-        }
-        if (node.publicKey === publicKey) {
-          extraSubscribedNodesCountFromThisSubset--
-          nodeToRotateIsFromThisSubset = true
-          nodeIsInTheActiveList = true
-        }
-      }
-
-      if (!nodeToRotateIsFromThisSubset && !noNodeFromThisSubset) {
-        Logger.mainLogger.debug(
-          'There is already node from this subset or node to rotate is not from this subset!'
-        )
-        continue
-      }
-      if (extraSubscribedNodesCountFromThisSubset >= 1) {
-        Logger.mainLogger.debug(
-          `There are already ${extraSubscribedNodesCountFromThisSubset} nodes that the archiver has picked from this nodes subset.`
-        )
-        if (!nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
-          unsubscribeDataSender(publicKey)
-          nodeIsUnsubscribed = true
-        }
-        continue
-      }
-      let newSubsetList = subsetList.filter((node) => node.publicKey !== publicKey)
-      if (newSubsetList.length === 0) {
-        if (subsetList[0].publicKey !== publicKey) {
-          // This isn't supposed to happen and just to log if it happens
-          Logger.mainLogger.error(`The node publicKey ${publicKey} is in the subset list!`)
-        }
-        continue
-      }
-      // Pick a new dataSender
-      let newSenderInfo = newSubsetList[Math.floor(Math.random() * newSubsetList.length)]
-      let connectionStatus = false
-      let retry = 0
-      while (true && retry < consensusRadius) {
-        if (!dataSenders.has(newSenderInfo.publicKey) && publicKey !== newSenderInfo.publicKey) {
-          connectionStatus = await createDataTransferConnection(newSenderInfo)
-          if (connectionStatus) {
-            if (!nodeIsUnsubscribed && nodeToRotateIsFromThisSubset) {
-              unsubscribeDataSender(publicKey)
-              nodeIsUnsubscribed = true
-            }
-            // if (noNodeFromThisSubset) await Utils.sleep(30000) // Start another node with 30s difference
-            break
-          } else {
-            newSubsetList = newSubsetList.filter((node) => node.publicKey !== newSenderInfo.publicKey)
-          }
-        }
-        if (newSubsetList.length > 0) {
-          newSenderInfo = newSubsetList[Math.floor(Math.random() * newSubsetList.length)]
-        } else {
-          newSenderInfo = activeList[Math.floor(Math.random() * activeList.length)]
-        }
-        retry++
-      }
-    }
-    if (!nodeIsUnsubscribed) {
-      Logger.mainLogger.debug(`This publicKey is not in the active list!`)
-      unsubscribeDataSender(publicKey)
-      nodeIsUnsubscribed = true
-    }
-  }
-  // Temp hack to pick half of the nodes not to miss data at all
-  if (calculatedConsensusRadius === 2) {
-    activeList = [...NodeList.activeListByIdSorted]
-    if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
-    totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
-    Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
-    let extraConsensorsToSubscribe = Math.floor((activeList.length / 4) * 3)
-    if (dataSenders.size < extraConsensorsToSubscribe) {
-      extraConsensorsToSubscribe -= dataSenders.size
-      Logger.mainLogger.debug('extraConsensorsToSubscribe', extraConsensorsToSubscribe)
-      await subscribeExtraConsensors(extraConsensorsToSubscribe)
-    }
-  }
-  // Temp hack to pick more nodes when consensusRadius is high
-  // Pick one node out of 10 nodes
-  if (Math.floor(activeList.length / 5) > totalNumberOfNodesToSubscribe) {
-    let extraConsensorsToSubscribe = Math.floor(activeList.length / 5)
-    if (dataSenders.size < extraConsensorsToSubscribe) {
-      extraConsensorsToSubscribe -= dataSenders.size
-      Logger.mainLogger.debug('extraConsensorsToSubscribe', extraConsensorsToSubscribe)
-      await subscribeExtraConsensors(extraConsensorsToSubscribe)
-    }
-  }
-  if (queueForSelectingNewDataSenders.size > 0) {
-    if (config.VERBOSE)
-      Logger.mainLogger.debug('queueForSelectingNewDataSenders', queueForSelectingNewDataSenders)
-    let newPublicKeys = []
-    for (let [key, value] of queueForSelectingNewDataSenders) {
-      newPublicKeys.push(key)
-    }
-    for (let key of newPublicKeys) {
-      queueForSelectingNewDataSenders.delete(key)
-    }
-    if (config.VERBOSE) Logger.mainLogger.debug(newPublicKeys)
-    Logger.mainLogger.debug('DataSenders to switch', newPublicKeys)
-    if (newPublicKeys.length > 0) await selectNewDataSendersByConsensusRadius(newPublicKeys)
-    else {
-      // This should not happen, but putting just in case
-      selectingNewDataSender = false
-      Logger.mainLogger.debug('selectingNewDataSender', selectingNewDataSender)
-    }
-  } else {
-    selectingNewDataSender = false
-    Logger.mainLogger.debug('selectingNewDataSender', selectingNewDataSender)
-  }
 }
 
 async function getConsensusRadius() {
@@ -660,9 +435,9 @@ async function verifyNode(newSenderInfo: NodeList.ConsensusNodeInfo) {
 }
 
 export async function createDataTransferConnection(newSenderInfo: NodeList.ConsensusNodeInfo) {
-  // Verify node before subscribing for data transfer
-  const status = await verifyNode(newSenderInfo)
-  if (!status) return false
+  // // Verify node before subscribing for data transfer
+  // const status = await verifyNode(newSenderInfo)
+  // if (!status) return false
   // Subscribe this node for dataRequest
   const response = await sendDataRequest(newSenderInfo, DataRequestTypes.SUBSCRIBE)
   if (response) {
@@ -675,7 +450,6 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
         'This timeout is created during newSender selection'
       ),
     }
-    if (!removeReplaceTimeout) newSender.replaceTimeout = createReplaceTimeout(newSenderInfo.publicKey)
     addDataSender(newSender)
     Logger.mainLogger.debug(`added new sender ${newSenderInfo.publicKey} to dataSenders`)
     initSocketClient(newSenderInfo)
@@ -727,7 +501,7 @@ export async function subscribeConsensorsByConsensusRadius() {
 
 export async function subscribeNodeFromThisSubset(nodeList: NodeList.ConsensusNodeInfo[]) {
   let subsetList = [...nodeList]
-  // Pick a new dataSender
+  // Pick a random dataSender
   let newSenderInfo = nodeList[Math.floor(Math.random() * nodeList.length)]
   let connectionStatus = false
   let retry = 0
@@ -750,118 +524,6 @@ export async function subscribeNodeFromThisSubset(nodeList: NodeList.ConsensusNo
       subsetList = [...nodeList]
       retry++
     }
-  }
-}
-
-export async function subscribeMoreConsensorsByConsensusRadius() {
-  if (selectingNewDataSender) return
-  const calculatedConsensusRadius = await getConsensusRadius()
-  let consensusRadius = calculatedConsensusRadius
-  if (consensusRadius > 2) consensusRadius-- // Change default to 3 for now assuming nodesPerConsensusGroup 10
-  const activeList = [...NodeList.activeListByIdSorted]
-  if (config.VERBOSE) console.log('activeList', activeList.length, activeList)
-  const totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
-  Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
-  for (let i = 0; i < activeList.length; i += consensusRadius) {
-    let subsetList = activeList.slice(i, i + consensusRadius)
-    if (config.VERBOSE) Logger.mainLogger.debug('Round', i, 'subsetList', subsetList, dataSenders.keys())
-    let noNodeFromThisSubset = true
-    for (let node of Object.values(subsetList)) {
-      if (dataSenders.has(node.publicKey)) {
-        if (config.VERBOSE) Logger.mainLogger.debug('The node is found in this subset')
-        noNodeFromThisSubset = false
-      }
-    }
-
-    if (!noNodeFromThisSubset) {
-      Logger.mainLogger.debug(
-        'There is already node from this subset or node to rotate is not from this subset!'
-      )
-      continue
-    }
-    // Pick a new dataSender
-    let newSenderInfo = subsetList[Math.floor(Math.random() * subsetList.length)]
-    let connectionStatus = false
-    let retry = 0
-    while (true && retry < consensusRadius) {
-      if (!dataSenders.has(newSenderInfo.publicKey)) {
-        connectionStatus = await createDataTransferConnection(newSenderInfo)
-        if (connectionStatus) {
-          break
-        } else {
-          subsetList = subsetList.filter((node) => node.publicKey !== newSenderInfo.publicKey)
-        }
-      }
-      if (subsetList.length > 0) {
-        newSenderInfo = subsetList[Math.floor(Math.random() * subsetList.length)]
-      } else {
-        break
-      }
-      retry++
-    }
-  }
-  // Temp hack to pick half of the nodes not to miss data at all
-  if (calculatedConsensusRadius === 2) {
-    let extraConsensorsToSubscribe = Math.floor((activeList.length / 4) * 3)
-    if (dataSenders.size < extraConsensorsToSubscribe) {
-      extraConsensorsToSubscribe -= dataSenders.size
-      Logger.mainLogger.debug('extraConsensorsToSubscribe', extraConsensorsToSubscribe)
-      await subscribeExtraConsensors(extraConsensorsToSubscribe)
-    }
-  }
-  // Temp hack to pick more nodes when consensusRadius is high
-  // Pick one node out of 10 nodes
-  if (Math.floor(activeList.length / 5) > totalNumberOfNodesToSubscribe) {
-    let extraConsensorsToSubscribe = Math.floor(activeList.length / 5)
-    if (dataSenders.size < extraConsensorsToSubscribe) {
-      extraConsensorsToSubscribe -= dataSenders.size
-      Logger.mainLogger.debug('extraConsensorsToSubscribe', extraConsensorsToSubscribe)
-      await subscribeExtraConsensors(extraConsensorsToSubscribe)
-    }
-  }
-  Logger.mainLogger.debug('Subscribed dataSenders', socketClients.size, dataSenders.size)
-}
-
-export async function subscribeExtraConsensors(extraConsensorsToSubscribe) {
-  const retryTimes = 2
-  let subscribedSuccess = 0
-  let retry = 0
-  const activeList = [...NodeList.activeListByIdSorted]
-
-  let remainingActiveList = [...activeList]
-  if (subscribedSuccess < extraConsensorsToSubscribe) {
-    for (const key of dataSenders.keys()) {
-      remainingActiveList = remainingActiveList.filter((node) => node.publicKey !== key)
-    }
-    if (config.VERBOSE)
-      Logger.mainLogger.debug('remainingActiveList', remainingActiveList.length, dataSenders.keys())
-  }
-
-  while (subscribedSuccess < extraConsensorsToSubscribe) {
-    if (retry === retryTimes) {
-      break
-    }
-    if (remainingActiveList.length === 0) {
-      remainingActiveList = [...activeList]
-      if (subscribedSuccess < extraConsensorsToSubscribe) {
-        for (const key of dataSenders.keys()) {
-          remainingActiveList = remainingActiveList.filter((node) => node.publicKey !== key)
-        }
-      }
-      if (remainingActiveList.length === 0) {
-        break
-      }
-      retry++
-    }
-    let newSenderInfo = remainingActiveList[Math.floor(Math.random() * remainingActiveList.length)]
-    // Logger.mainLogger.debug('newSenderInfo', newSenderInfo, remainingActiveList)
-    if (!dataSenders.has(newSenderInfo.publicKey)) {
-      let connectionStatus = await createDataTransferConnection(newSenderInfo)
-      if (connectionStatus) {
-        subscribedSuccess++
-      }
-    }
-    remainingActiveList = remainingActiveList.filter((node) => node.publicKey !== newSenderInfo.publicKey)
   }
 }
 
