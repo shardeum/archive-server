@@ -458,6 +458,8 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
 }
 
 export async function createNodesGroupByConsensusRadius() {
+  // There is only one active node in the network. no need to create groups
+  if (NodeList.getActiveList().length < 2) return
   const consensusRadius = await getConsensusRadius()
   currentConsensusRadius = consensusRadius
   const activeList = [...NodeList.activeListByIdSorted]
@@ -549,7 +551,7 @@ export async function sendDataRequest(
     taggedDataRequest,
     2000 // 2s timeout
   )
-  Logger.mainLogger.debug('/requestdata response', response)
+  Logger.mainLogger.debug('/requestdata response', response, nodeInfo.ip + ':' + nodeInfo.port)
   if (response && response.success) reply = response.success
   return reply
 }
