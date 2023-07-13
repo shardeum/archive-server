@@ -419,8 +419,12 @@ async function getConsensusRadius() {
 
 async function verifyNode(newSenderInfo: NodeList.ConsensusNodeInfo) {
   let status = false
+  const _2_MS_TIMEOUT = 2 * 1000
   Logger.mainLogger.debug(`Checking node info ${newSenderInfo.ip}:${newSenderInfo.port}`)
-  let response: any = await P2P.getJson(`http://${newSenderInfo.ip}:${newSenderInfo.port}/nodeInfo`, 2000) // 2s timeout
+  let response: any = await P2P.getJson(
+    `http://${newSenderInfo.ip}:${newSenderInfo.port}/nodeInfo`,
+    _2_MS_TIMEOUT
+  ) // 2s timeout
   if (response && response.nodeInfo) {
     const nodeInfo = response.nodeInfo
     if (
@@ -546,10 +550,11 @@ export async function sendDataRequest(
     nodeInfo.ip + ':' + nodeInfo.port
   )
   let reply = false
+  const _2_MS_TIMEOUT = 2000
   let response = await P2P.postJson(
     `http://${nodeInfo.ip}:${nodeInfo.port}/requestdata`,
     taggedDataRequest,
-    2000 // 2s timeout
+    _2_MS_TIMEOUT // 2s timeout
   )
   Logger.mainLogger.debug('/requestdata response', response, nodeInfo.ip + ':' + nodeInfo.port)
   if (response && response.success) reply = response.success
