@@ -419,11 +419,11 @@ async function getConsensusRadius() {
 
 async function verifyNode(newSenderInfo: NodeList.ConsensusNodeInfo) {
   let status = false
-  const _2_MS_TIMEOUT = 2 * 1000
+  const QUERY_NODE_INFO_TIMEOUT_MS = 2 * 1000
   Logger.mainLogger.debug(`Checking node info ${newSenderInfo.ip}:${newSenderInfo.port}`)
   let response: any = await P2P.getJson(
     `http://${newSenderInfo.ip}:${newSenderInfo.port}/nodeInfo`,
-    _2_MS_TIMEOUT
+    QUERY_NODE_INFO_TIMEOUT_MS
   ) // 2s timeout
   if (response && response.nodeInfo) {
     const nodeInfo = response.nodeInfo
@@ -511,8 +511,8 @@ export async function subscribeNodeFromThisSubset(nodeList: NodeList.ConsensusNo
   let newSenderInfo = nodeList[Math.floor(Math.random() * nodeList.length)]
   let connectionStatus = false
   let retry = 0
-  let maxRetry = 3
-  while (retry < maxRetry) {
+  const MAX_RETRY_SUBSCRIPTION = 3
+  while (retry < MAX_RETRY_SUBSCRIPTION) {
     if (!dataSenders.has(newSenderInfo.publicKey)) {
       connectionStatus = await createDataTransferConnection(newSenderInfo)
       if (connectionStatus) {
@@ -550,11 +550,11 @@ export async function sendDataRequest(
     nodeInfo.ip + ':' + nodeInfo.port
   )
   let reply = false
-  const _2_MS_TIMEOUT = 2000
+  const REQUEST_DATA_TIMEOUT_MS = 2 * 1000
   let response = await P2P.postJson(
     `http://${nodeInfo.ip}:${nodeInfo.port}/requestdata`,
     taggedDataRequest,
-    _2_MS_TIMEOUT // 2s timeout
+    REQUEST_DATA_TIMEOUT_MS // 2s timeout
   )
   Logger.mainLogger.debug('/requestdata response', response, nodeInfo.ip + ':' + nodeInfo.port)
   if (response && response.success) reply = response.success
