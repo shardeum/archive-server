@@ -689,6 +689,7 @@ async function startServer() {
       endCycle: string
       type: string
       page: string
+      txId: string
     }
   }>
 
@@ -700,14 +701,17 @@ async function startServer() {
       endCycle: 's?',
       type: 's?',
       page: 's?',
+      txId: 's?',
     })
     if (err) {
       reply.send(Crypto.sign({ success: false, error: err }))
       return
     }
-    let { start, end, startCycle, endCycle, type, page } = _request.query
+    let { start, end, startCycle, endCycle, type, page, txId } = _request.query
     let receipts = []
-    if (start && end) {
+    if (txId) {
+      receipts = await ReceiptDB.queryReceiptByReceiptId(txId)
+    } else if (start && end) {
       let from = parseInt(start)
       let to = parseInt(end)
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
