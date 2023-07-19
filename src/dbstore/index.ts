@@ -20,7 +20,7 @@ export const initializeDB = async (config: Config) => {
     'CREATE INDEX if not exists `accounts_idx` ON `accounts` (`cycleNumber` DESC, `timestamp` DESC)'
   )
   await db.runCreate(
-    'CREATE TABLE if not exists `receipts` (`receiptId` TEXT NOT NULL UNIQUE PRIMARY KEY, `tx` JSON NOT NULL, `cycle` NUMBER NOT NULL, `timestamp` BIGINT NOT NULL, `result` JSON NOT NULL, `accounts` JSON NOT NULL, `receipt` JSON, `sign` JSON NOT NULL)'
+    'CREATE TABLE if not exists `receipts` (`receiptId` TEXT NOT NULL UNIQUE PRIMARY KEY, `tx` JSON NOT NULL, `cycle` NUMBER NOT NULL, `timestamp` BIGINT NOT NULL, `result` JSON NOT NULL, `beforeStateAccounts` JSON, `accounts` JSON NOT NULL, `receipt` JSON, `sign` JSON NOT NULL)'
   )
   await db.runCreate('CREATE INDEX if not exists `receipts_idx` ON `receipts` (`cycle` ASC, `timestamp` ASC)')
 }
