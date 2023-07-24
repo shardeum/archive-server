@@ -222,17 +222,6 @@ async function syncAndStartServer() {
   // If there are stored receipts, validate the old receipt data
   if (lastStoredReceiptCount > 0) {
     Logger.mainLogger.debug('Validating old receipts data!')
-    // const receiptResult = await Data.compareWithOldReceiptsData(
-    //   randomArchiver,
-    //   lastStoredReceiptCount
-    // )
-    // if (!receiptResult.success) {
-    //   throw Error(
-    //     'The last saved 10 receipts data does not match with the archiver data! Clear the DB and start the server again!'
-    //   )
-    // }
-    // lastStoredReceiptCount =
-    //   lastStoredReceiptCount - receiptResult.receiptsToMatchCount
 
     // Query latest receipts from the DB
     let lastStoredReceiptInfo = await ReceiptDB.queryLatestReceipts(1)
