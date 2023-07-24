@@ -159,14 +159,28 @@ function initProfiler(server: FastifyInstance) {
   profiler.registerEndpoints()
 }
 
+/** Asynchronous function to synchronize and start the server. */
 async function syncAndStartServer() {
   // Validate data if there is any in db
+  // Retrieve the count of receipts currently stored in the database
   let lastStoredReceiptCount = await ReceiptDB.queryReceiptCount()
+
+  // Retrieve the count of cycles currently stored in the database
   let lastStoredCycleCount = await CycleDB.queryCyleCount()
+
+  // Query the latest cycle record from the database
   let lastStoredCycleInfo = await CycleDB.queryLatestCycleRecords(1)
+
+  // Select a random active archiver node from the state
   const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
+
+  // Initialize last stored receipt cycle as 0
   let lastStoredReceiptCycle = 0
+
+  // Request total data from the random archiver
   let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 10)
+
+  // Check if the response is valid and all data fields are non-negative
   if (
     !response ||
     response.totalCycles < 0 ||
@@ -176,22 +190,36 @@ async function syncAndStartServer() {
   ) {
     throw Error(`Can't fetch data from the archiver ${randomArchiver.ip}:${randomArchiver.port}`)
   }
+
+  // Destructure the response to get total counts for cycles, accounts, transactions and receipts
   const { totalCycles, totalAccounts, totalTransactions, totalReceipts } = response
+
+  // Check if local database has more data than the network, if so, clear the database
   if (lastStoredReceiptCount > totalReceipts || lastStoredCycleCount > totalCycles) {
     throw Error(
       'The existing db has more data than the network data! Clear the DB and start the server again!'
     )
   }
+
+  // If there are stored cycles, validate the old cycle data
   if (lastStoredCycleCount > 0) {
     Logger.mainLogger.debug('Validating old cycles data!')
+
+    // Compare old cycle data with the archiver data
     const cycleResult = await Data.compareWithOldCyclesData(randomArchiver, lastStoredCycleCount)
+
+    // If the cycle data does not match, clear the DB and start again
     if (!cycleResult.success) {
       throw Error(
         'The last saved 10 cycles data does not match with the archiver data! Clear the DB and start the server again!'
       )
     }
+
+    // Update the last stored cycle count
     lastStoredCycleCount = cycleResult.cycle
   }
+
+  // If there are stored receipts, validate the old receipt data
   if (lastStoredReceiptCount > 0) {
     Logger.mainLogger.debug('Validating old receipts data!')
     // const receiptResult = await Data.compareWithOldReceiptsData(
@@ -206,43 +234,70 @@ async function syncAndStartServer() {
     // lastStoredReceiptCount =
     //   lastStoredReceiptCount - receiptResult.receiptsToMatchCount
 
+    // Query latest receipts from the DB
     let lastStoredReceiptInfo = await ReceiptDB.queryLatestReceipts(1)
+
+    // If there's any stored receipt, update lastStoredReceiptCycle
     if (lastStoredReceiptInfo && lastStoredReceiptInfo.length > 0)
       lastStoredReceiptCycle = lastStoredReceiptInfo[0].cycle
+
+    // Compare old receipts data with the archiver data
     const receiptResult = await Data.compareWithOldReceiptsData(randomArchiver, lastStoredReceiptCycle)
+
+    // If the receipt data does not match, clear the DB and start again
     if (!receiptResult.success) {
       throw Error(
         'The last saved receipts of last 10 cycles data do not match with the archiver data! Clear the DB and start the server again!'
       )
     }
+
+    // Update the last stored receipt cycle
     lastStoredReceiptCycle = receiptResult.matchedCycle
   }
 
+  // Log the last stored cycle and receipt counts
   Logger.mainLogger.debug(
     'lastStoredCycleCount',
     lastStoredCycleCount,
     'lastStoredReceiptCount',
     lastStoredReceiptCount
   )
+
   // If your not the first archiver node, get a nodelist from the others
+
+  // Initialize variables for joining the network
   let isJoined = false
   let firstTime = true
+
+  // Get the cycle duration
   let cycleDuration = await Data.getCycleDuration()
+
+  // Attempt to join the network until successful
   do {
     try {
+      // Get a random active archiver node
       const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
-      // Get active nodes from Archiver
+
+      // Get the active nodes list from the archiver
       const nodeList: any = await NodeList.getActiveNodeListFromArchiver(randomArchiver)
+
+      // If no nodes are active, retry the loop
       if (nodeList.length === 0) continue
-      // try to join the network
+
+      // Attempt to join the network
       isJoined = await Data.joinNetwork(nodeList, firstTime)
     } catch (err: any) {
+      // Log the error if the joining process fails
       Logger.mainLogger.error('Error while joining network:')
       Logger.mainLogger.error(err)
       Logger.mainLogger.error(err.stack)
+
+      // Sleep for a cycle duration and then retry
       Logger.mainLogger.debug(`Trying to join again in ${cycleDuration} seconds...`)
       await Utils.sleep(cycleDuration * 1000)
     }
+
+    // After the first attempt, set firstTime to false
     firstTime = false
   } while (!isJoined)
 
@@ -258,21 +313,30 @@ async function syncAndStartServer() {
   Logger.mainLogger.debug('We have successfully joined the network')
 
   // TODO - update to sync geneis transaction receipts data also from the archiver
+
+  // Synchronize Genesis accounts and transactions from the network archivers
   await Data.syncGenesisAccountsFromArchiver(State.activeArchivers) // Sync Genesis Accounts that the network start with.
   await Data.syncGenesisTransactionsFromArchiver(State.activeArchivers)
 
+  // Sync cycle and node list information
   await Data.syncCyclesAndNodeList(State.activeArchivers, lastStoredCycleCount)
 
+  // If experimentalSnapshot is enabled, perform receipt synchronization
   if (config.experimentalSnapshot) {
+    // If no receipts stored, synchronize all receipts, otherwise synchronize by cycle
     if (lastStoredReceiptCount === 0) await Data.syncReceipts(State.activeArchivers, lastStoredReceiptCount)
     else {
       Logger.mainLogger.debug('lastStoredReceiptCycle', lastStoredReceiptCycle)
       await Data.syncReceiptsByCycle(State.activeArchivers, lastStoredReceiptCycle)
     }
     // After receipt data syncing completes, check cycle and receipt again to be sure it's not missing any data
+
+    // Query for the cycle and receipt counts
     lastStoredReceiptCount = await ReceiptDB.queryReceiptCount()
     lastStoredCycleCount = await CycleDB.queryCyleCount()
     lastStoredCycleInfo = await CycleDB.queryLatestCycleRecords(1)
+
+    // Check for any missing data and perform syncing if necessary
     if (lastStoredCycleCount && lastStoredCycleInfo && lastStoredCycleInfo.length > 0) {
       if (lastStoredCycleCount - 1 !== lastStoredCycleInfo[0].counter) {
         throw Error(
@@ -290,12 +354,13 @@ async function syncAndStartServer() {
     await syncStateMetaData(State.activeArchivers)
   }
 
-  if (!config.experimentalSnapshot)
-    // wait for one cycle before sending data request
-    await Utils.sleep(cycleDuration * 1000)
+  // Wait for one cycle before sending data request if experimentalSnapshot is not enabled
+  if (!config.experimentalSnapshot) await Utils.sleep(cycleDuration * 1000)
 
-  // start fastify server
+  // Start the server
   io = await startServer()
+
+  // Subscribe to the node for data transfer
   await Data.subscribeNodeForDataTransfer()
 }
 
