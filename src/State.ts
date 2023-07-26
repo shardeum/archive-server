@@ -43,6 +43,7 @@ export async function initFromConfig(config: Config) {
 
   // Parse existing archivers list
   try {
+    console.log('ARCHIVER_INFO', process.env.ARCHIVER_INFO)
     console.log('Getting existing archivers list from archiver-discovery.')
     existingArchivers = (
       await getArchiverList({
