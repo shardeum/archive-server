@@ -5,7 +5,8 @@ import * as NodeList from './NodeList'
 import 'node-fetch'
 import fetch from 'node-fetch'
 import { Cycle } from './Data/Cycles'
-import { P2P as P2PTypes, StateManager } from '@shardus/types'
+import { P2P as P2PTypes } from '@shardus/types'
+import { RequestInit, Response } from 'node-fetch'
 
 export enum RequestTypes {
   JOIN = 'JOIN',
@@ -79,10 +80,8 @@ export async function postJson(
 
 export async function getJson(url: string, timeoutInSecond: number = 5): Promise<object | null> {
   try {
-    const res = await fetch(url, {
-      method: 'get',
+    const res = await get(url, timeoutInSecond, {
       headers: { 'Content-Type': 'application/json' },
-      timeout: timeoutInSecond * 1000,
     })
     if (res.ok) {
       return await res.json()
@@ -98,4 +97,12 @@ export async function getJson(url: string, timeoutInSecond: number = 5): Promise
     console.warn(err)
     return null
   }
+}
+
+export async function get(url: string, timeoutInSecond: number = 5, opts?: RequestInit): Promise<Response> {
+  return fetch(url, {
+    method: 'get',
+    timeout: timeoutInSecond * 1000,
+    ...opts,
+  })
 }
