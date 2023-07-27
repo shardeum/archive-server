@@ -112,6 +112,12 @@ type TallyItem<N, R> = {
   nodes: N[] // Shardus.Node[] Not using this because robustQuery uses a generic Node, maybe it should be non generic?
 }
 
+export type RobustQueryResult<N, R> = {
+  topResult: R
+  winningNodes: N[]
+  isRobustResult: boolean
+}
+
 export async function robustQuery<Node = unknown, Response = unknown>(
   nodes: Node[] = [],
   queryFn: QueryFunction<Node, Response>,
