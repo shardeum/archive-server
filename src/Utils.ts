@@ -106,6 +106,12 @@ export const robustPromiseAll = async (promises: any) => {
   return [resolved, errors]
 }
 
+type TallyItem<N, R> = {
+  value: R // Response type is from a template
+  count: number
+  nodes: N[] // Shardus.Node[] Not using this because robustQuery uses a generic Node, maybe it should be non generic?
+}
+
 export async function robustQuery<Node = unknown, Response = unknown>(
   nodes: Node[] = [],
   queryFn: QueryFunction<Node, Response>,
