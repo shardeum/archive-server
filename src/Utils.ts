@@ -29,7 +29,7 @@ export function getRandom<T>(arr: T[], n: number): T[] {
   return result
 }
 
-export type QueryFunction<Node, Response> = (node: Node) => Promise<Response>
+export type QueryFunction<Node, Response> = (node: Node) => PromiseLike<Response>
 
 export type VerifyFunction<Result> = (result: Result) => boolean
 
