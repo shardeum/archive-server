@@ -112,6 +112,70 @@ type TallyItem<N, R> = {
   nodes: N[] // Shardus.Node[] Not using this because robustQuery uses a generic Node, maybe it should be non generic?
 }
 
+class Tally<Node = unknown, Response = unknown> {
+  winCount: number
+  equalFn: EqualityFunction<Response>
+  items: Array<TallyItem<Node, Response>>
+  constructor(winCount: number, equalFn: EqualityFunction<Response>) {
+    this.winCount = winCount
+    this.equalFn = equalFn
+    this.items = []
+  }
+  add(newItem: Response, node: Node): TallyItem<Node, Response> | null {
+    if (newItem === null) return null
+    // We search to see if we've already seen this item before
+    for (const item of this.items) {
+      // If the value of the new item is not equal to the current item, we continue searching
+      if (!this.equalFn(newItem, item.value)) continue
+      // If the new item is equal to the current item in the list,
+      // we increment the current item's counter and add the current node to the list
+      item.count++
+      item.nodes.push(node)
+      // Here we check our win condition if the current item's counter was incremented
+      // If we meet the win requirement, we return an array with the value of the item,
+      // and the list of nodes who voted for that item
+      if (item.count >= this.winCount) {
+        return item
+      }
+      // Otherwise, if the win condition hasn't been met,
+      // We return null to indicate no winner yet
+      return null
+    }
+    // If we made it through the entire items list without finding a match,
+    // We create a new item and set the count to 1
+    const newTallyItem = { value: newItem, count: 1, nodes: [node] }
+    this.items.push(newTallyItem)
+    // Finally, we check to see if the winCount is 1,
+    // and return the item we just created if that is the case
+    if (this.winCount === 1) return newTallyItem
+    else return null
+  }
+  getHighestCount() {
+    if (!this.items.length) return 0
+    let highestCount = 0
+    for (const item of this.items) {
+      if (item.count > highestCount) {
+        highestCount = item.count
+      }
+    }
+    return highestCount
+  }
+  getHighestCountItem(): TallyItem<Node, Response> | null {
+    if (!this.items.length) return null
+    let highestCount = 0
+    let highestIndex = 0
+    let i = 0
+    for (const item of this.items) {
+      if (item.count > highestCount) {
+        highestCount = item.count
+        highestIndex = i
+      }
+      i += 1
+    }
+    return this.items[highestIndex]
+  }
+}
+
 export type RobustQueryResult<N, R> = {
   topResult: R
   winningNodes: N[]
@@ -132,73 +196,7 @@ export async function robustQuery<Node = unknown, Response = unknown>(
   if (redundancy < 1) redundancy = 3
   if (redundancy > nodes.length) redundancy = nodes.length
 
-  class Tally {
-    winCount: number
-    equalFn: EqualityFunction<Response>
-    items: Array<{
-      value: Response
-      count: number
-      nodes: Node[]
-    }>
-    constructor(winCount: number, equalFn: EqualityFunction<Response>) {
-      this.winCount = winCount
-      this.equalFn = equalFn
-      this.items = []
-    }
-    add(newItem: Response, node: Node) {
-      if (newItem === null) return null
-      // We search to see if we've already seen this item before
-      for (const item of this.items) {
-        // If the value of the new item is not equal to the current item, we continue searching
-        if (!this.equalFn(newItem, item.value)) continue
-        // If the new item is equal to the current item in the list,
-        // we increment the current item's counter and add the current node to the list
-        item.count++
-        item.nodes.push(node)
-        // Here we check our win condition if the current item's counter was incremented
-        // If we meet the win requirement, we return an array with the value of the item,
-        // and the list of nodes who voted for that item
-        if (item.count >= this.winCount) {
-          return [item.value, item.nodes]
-        }
-        // Otherwise, if the win condition hasn't been met,
-        // We return null to indicate no winner yet
-        return null
-      }
-      // If we made it through the entire items list without finding a match,
-      // We create a new item and set the count to 1
-      this.items.push({ value: newItem, count: 1, nodes: [node] })
-      // Finally, we check to see if the winCount is 1,
-      // and return the item we just created if that is the case
-      if (this.winCount === 1) return [newItem, [node]]
-      else return null
-    }
-    getHighestCount() {
-      if (!this.items.length) return 0
-      let highestCount = 0
-      for (const item of this.items) {
-        if (item.count > highestCount) {
-          highestCount = item.count
-        }
-      }
-      return highestCount
-    }
-    getHighestCountItem() {
-      if (!this.items.length) return {}
-      let highestCount = 0
-      let highestIndex = 0
-      let i = 0
-      for (const item of this.items) {
-        if (item.count > highestCount) {
-          highestCount = item.count
-          highestIndex = i
-        }
-        i += 1
-      }
-      return this.items[highestIndex]
-    }
-  }
-  const responses = new Tally(redundancy, equalityFn)
+  const responses = new Tally<Node, Response>(redundancy, equalityFn)
   let errors = 0
 
   // [TODO] - Change the way we shuffle the array.
