@@ -188,7 +188,7 @@ export async function robustQuery<Node = unknown, Response = unknown>(
   equalityFn: EqualityFunction<Response> = util.isDeepStrictEqual,
   redundancy = 3,
   shuffleNodes = true
-) {
+): Promise<TallyItem<Node, Response>> {
   if (nodes.length === 0) throw new Error('No nodes given.')
   if (typeof queryFn !== 'function') {
     throw new Error(`Provided queryFn ${queryFn} is not a valid function.`)
@@ -210,7 +210,7 @@ export async function robustQuery<Node = unknown, Response = unknown>(
   }
   const nodeCount = nodes.length
 
-  const queryNodes = async (nodes: Node[]) => {
+  const queryNodes = async (nodes: Node[]): Promise<TallyItem<Node, Response>> => {
     // Wrap the query so that we know which node it's coming from
     const wrappedQuery = async (node: any) => {
       const response = await queryFn(node)
@@ -225,7 +225,7 @@ export async function robustQuery<Node = unknown, Response = unknown>(
     }
     const [results, errs] = await robustPromiseAll(queries)
 
-    let finalResult
+    let finalResult: TallyItem<Node, Response>
     for (const result of results) {
       const { response, node } = result
       if (responses === null) continue // ignore null response; can be null if we tried to query ourself
