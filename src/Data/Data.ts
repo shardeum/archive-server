@@ -927,15 +927,15 @@ export async function syncCyclesAndNodeList(
   const cyclesToGet = 2 * Math.floor(Math.sqrt(cycleToSyncTo.active)) + 2
   Logger.mainLogger.debug(`Cycles to get is ${cyclesToGet}`)
 
-  let CycleChain = []
+  let cycleChain = []
   const squasher = new ChangeSquasher()
 
-  CycleChain.unshift(cycleToSyncTo)
-  squasher.addChange(parse(CycleChain[0]))
+  cycleChain.unshift(cycleToSyncTo)
+  squasher.addChange(parse(cycleChain[0]))
 
   do {
     // Get prevCycles from the network
-    let end: number = CycleChain[0].counter - 1
+    let end: number = cycleChain[0].counter - 1
     let start: number = end - cyclesToGet
     if (start < 0) start = 0
     if (end < start) end = start
@@ -951,12 +951,12 @@ export async function syncCyclesAndNodeList(
     let prepended = 0
     for (const prevCycle of prevCycles) {
       // Stop prepending prevCycles if one of them is invalid
-      if (validateCycle(prevCycle, CycleChain[0]) === false) {
+      if (validateCycle(prevCycle, cycleChain[0]) === false) {
         Logger.mainLogger.error(`Record ${prevCycle.counter} failed validation`)
         break
       }
       // Prepend the cycle to our cycle chain
-      CycleChain.unshift(prevCycle)
+      cycleChain.unshift(prevCycle)
       squasher.addChange(parse(prevCycle))
       prepended++
 
@@ -987,23 +987,23 @@ export async function syncCyclesAndNodeList(
   applyNodeListChange(squasher.final)
   Logger.mainLogger.debug('NodeList after sync', NodeList.getActiveList())
 
-  for (let i = 0; i < CycleChain.length; i++) {
-    let record = CycleChain[i]
+  for (let i = 0; i < cycleChain.length; i++) {
+    let record = cycleChain[i]
     Cycles.CycleChain.set(record.counter, { ...record })
-    if (i === CycleChain.length - 1) await storeCycleData(CycleChain)
+    if (i === cycleChain.length - 1) await storeCycleData(cycleChain)
     Cycles.setCurrentCycleCounter(record.counter)
   }
   Logger.mainLogger.debug('Cycle chain is synced. Size of CycleChain', Cycles.CycleChain.size)
 
   // Download old cycle Records
-  let endCycle = CycleChain[0].counter - 1
+  let endCycle = cycleChain[0].counter - 1
   Logger.mainLogger.debug('endCycle counter', endCycle, 'lastStoredCycleCount', lastStoredCycleCount)
   if (endCycle > lastStoredCycleCount) {
     Logger.mainLogger.debug(
       `Downloading old cycles from cycles ${lastStoredCycleCount} to cycle ${endCycle}!`
     )
   }
-  let savedCycleRecord = CycleChain[0]
+  let savedCycleRecord = cycleChain[0]
   while (endCycle > lastStoredCycleCount) {
     let nextEnd: number = endCycle - 10000 // Downloading max 1000 cycles each time
     if (nextEnd < 0) nextEnd = 0
