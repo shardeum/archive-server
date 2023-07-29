@@ -1,6 +1,7 @@
 import * as NodeList from '../NodeList'
 import { JoinedConsensor } from '../NodeList'
 import { Cycle } from './Cycles'
+import { P2P } from '@shardus/types';
 
 export enum NodeStatus {
   ACTIVE = 'active',
@@ -187,7 +188,7 @@ export function applyNodeListChange(change: Change) {
     NodeList.setStatus(NodeList.Statuses.ACTIVE, ...activatedPublicKeys)
   }
 }
-export function activeNodeCount(cycle: Cycle) {
+export function activeNodeCount(cycle: P2P.CycleCreatorTypes.CycleRecord) {
   return (
     cycle.active +
     cycle.activated.length +
@@ -197,7 +198,7 @@ export function activeNodeCount(cycle: Cycle) {
   )
 }
 
-export function totalNodeCount(cycle: Cycle) {
+export function totalNodeCount(cycle: P2P.CycleCreatorTypes.CycleRecord) {
   return (
     cycle.syncing +
     cycle.joinedConsensors.length +
