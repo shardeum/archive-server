@@ -996,39 +996,7 @@ export async function syncCyclesAndNodeList(
   Logger.mainLogger.debug('Cycle chain is synced. Size of CycleChain', Cycles.CycleChain.size)
 
   // Download old cycle Records
-  let endCycle = cycleChain[0].counter - 1
-  Logger.mainLogger.debug('endCycle counter', endCycle, 'lastStoredCycleCount', lastStoredCycleCount)
-  if (endCycle > lastStoredCycleCount) {
-    Logger.mainLogger.debug(
-      `Downloading old cycles from cycles ${lastStoredCycleCount} to cycle ${endCycle}!`
-    )
-  }
-  let savedCycleRecord = cycleChain[0]
-  while (endCycle > lastStoredCycleCount) {
-    let nextEnd: number = endCycle - 10000 // Downloading max 1000 cycles each time
-    if (nextEnd < 0) nextEnd = 0
-    Logger.mainLogger.debug(`Getting cycles ${nextEnd} - ${endCycle} ...`)
-    const prevCycles = await fetchCycleRecords(activeArchivers, nextEnd, endCycle)
-
-    // If prevCycles is empty, start over
-    if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
-    prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
-
-    // Add prevCycles to our cycle chain
-    let combineCycles = []
-    for (const prevCycle of prevCycles) {
-      // Stop saving prevCycles if one of them is invalid
-      if (validateCycle(prevCycle, savedCycleRecord) === false) {
-        Logger.mainLogger.error(`Record ${prevCycle.counter} failed validation`)
-        Logger.mainLogger.debug('fail', prevCycle, savedCycleRecord)
-        break
-      }
-      savedCycleRecord = prevCycle
-      combineCycles.push(prevCycle)
-    }
-    await storeCycleData(combineCycles)
-    endCycle = nextEnd - 1
-  }
+  await downloadOldCycles(cycleToSyncTo, lastStoredCycleCount, activeArchivers)
 
   return true
 }
@@ -1423,4 +1391,41 @@ export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo,
     cycle = downloadedCycle.counter
   }
   return { success, cycle }
+}
+
+async function downloadOldCycles(cycleToSyncTo: P2PTypes.CycleCreatorTypes.CycleRecord, lastStoredCycleCount: number, activeArchivers: State.ArchiverNodeInfo[]) {
+  let endCycle = cycleToSyncTo.counter - 1
+  Logger.mainLogger.debug('endCycle counter', endCycle, 'lastStoredCycleCount', lastStoredCycleCount)
+  if (endCycle > lastStoredCycleCount) {
+    Logger.mainLogger.debug(
+      `Downloading old cycles from cycles ${lastStoredCycleCount} to cycle ${endCycle}!`
+    )
+  }
+
+  let savedCycleRecord = cycleToSyncTo
+  while (endCycle > lastStoredCycleCount) {
+    let nextEnd: number = endCycle - 10000 // Downloading max 1000 cycles each time
+    if (nextEnd < 0) nextEnd = 0
+    Logger.mainLogger.debug(`Getting cycles ${nextEnd} - ${endCycle} ...`)
+    const prevCycles = await fetchCycleRecords(activeArchivers, nextEnd, endCycle)
+
+    // If prevCycles is empty, start over
+    if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
+    prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
+
+    // Add prevCycles to our cycle chain
+    let combineCycles = []
+    for (const prevCycle of prevCycles) {
+      // Stop saving prevCycles if one of them is invalid
+      if (validateCycle(prevCycle, savedCycleRecord) === false) {
+        Logger.mainLogger.error(`Record ${prevCycle.counter} failed validation`)
+        Logger.mainLogger.debug('fail', prevCycle, savedCycleRecord)
+        break
+      }
+      savedCycleRecord = prevCycle
+      combineCycles.push(prevCycle)
+    }
+    await storeCycleData(combineCycles)
+    endCycle = nextEnd - 1
+  }
 }
