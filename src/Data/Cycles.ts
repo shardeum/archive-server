@@ -16,6 +16,7 @@ import * as Utils from '../Utils'
 import { isDeepStrictEqual } from 'util'
 import { config } from '../Config'
 import fetch from 'node-fetch'
+import { CycleRecord } from '@shardus/types/build/src/p2p/CycleCreatorTypes'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
@@ -87,12 +88,11 @@ export function computeCycleMarker(fields: Cycle) {
 }
 
 // validation of cycle record against previous marker
-export function validateCycle(prev: Cycle, next: Cycle): boolean {
+export function validateCycle(prev: Cycle, next: P2P.CycleCreatorTypes.CycleRecord): boolean {
   let previousRecordWithoutMarker: Cycle = { ...prev }
   delete previousRecordWithoutMarker.marker
   const prevMarker = computeCycleMarker(previousRecordWithoutMarker)
-  if (next.previous !== prevMarker) return false
-  return true
+  return next.previous === prevMarker
 }
 
 interface P2PNode {
