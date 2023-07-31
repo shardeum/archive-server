@@ -6,11 +6,9 @@ import {
   currentCycleCounter,
   currentCycleDuration,
   Cycle,
-  lastProcessedMetaData,
   processCycles,
   validateCycle,
   fetchCycleRecords,
-  getNewestCycleFromArchivers,
 } from './Cycles'
 import { ChangeSquasher, parse, totalNodeCount, activeNodeCount, applyNodeListChange } from './CycleParser'
 import * as State from '../State'
@@ -21,11 +19,11 @@ import { config } from '../Config'
 import { P2P as P2PTypes } from '@shardus/types'
 import * as Logger from '../Logger'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
-import { profilerInstance } from '../profiler/profiler'
 import { storeReceiptData, storeCycleData, storeAccountData, storingAccountData } from './Collector'
 import * as CycleDB from '../dbstore/cycles'
 import * as ReceiptDB from '../dbstore/receipts'
 import * as StateMetaData from '../archivedCycle/StateMetaData'
+import { syncV2 } from '../sync-v2'
 
 // Socket modules
 export let socketServer: SocketIO.Server
@@ -919,81 +917,18 @@ export async function syncCyclesAndNodeList(
   activeArchivers: State.ArchiverNodeInfo[],
   lastStoredCycleCount: number = 0
 ) {
-  // Get the networks newest cycle as the anchor point for sync
-  Logger.mainLogger.debug('Getting newest cycle...')
-  const [cycleToSyncTo] = await getNewestCycleFromArchivers(activeArchivers)
+  // Sync validator list and get the latest cycle from the network
+  Logger.mainLogger.debug('Syncing validators and latest cycle...')
+  const syncResult = await syncV2(activeArchivers);
+  let cycleToSyncTo: P2PTypes.CycleCreatorTypes.CycleRecord;
+  if (syncResult.isOk()) {
+    cycleToSyncTo = syncResult.value;
+  } else {
+    throw syncResult.error;
+  }
+
   Logger.mainLogger.debug('cycleToSyncTo', cycleToSyncTo)
   Logger.mainLogger.debug(`Syncing till cycle ${cycleToSyncTo.counter}...`)
-  const cyclesToGet = 2 * Math.floor(Math.sqrt(cycleToSyncTo.active)) + 2
-  Logger.mainLogger.debug(`Cycles to get is ${cyclesToGet}`)
-
-  let cycleChain = []
-  const squasher = new ChangeSquasher()
-
-  cycleChain.unshift(cycleToSyncTo)
-  squasher.addChange(parse(cycleChain[0]))
-
-  do {
-    // Get prevCycles from the network
-    let end: number = cycleChain[0].counter - 1
-    let start: number = end - cyclesToGet
-    if (start < 0) start = 0
-    if (end < start) end = start
-    Logger.mainLogger.debug(`Getting cycles ${start} - ${end}...`)
-    const prevCycles = await fetchCycleRecords(activeArchivers, start, end)
-
-    // If prevCycles is empty, start over
-    if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
-
-    prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
-
-    // Add prevCycles to our cycle chain
-    let prepended = 0
-    for (const prevCycle of prevCycles) {
-      // Stop prepending prevCycles if one of them is invalid
-      if (validateCycle(prevCycle, cycleChain[0]) === false) {
-        Logger.mainLogger.error(`Record ${prevCycle.counter} failed validation`)
-        break
-      }
-      // Prepend the cycle to our cycle chain
-      cycleChain.unshift(prevCycle)
-      squasher.addChange(parse(prevCycle))
-      prepended++
-
-      if (
-        squasher.final.updated.length >= activeNodeCount(cycleToSyncTo) &&
-        squasher.final.added.length >= totalNodeCount(cycleToSyncTo)
-      ) {
-        break
-      }
-    }
-
-    Logger.mainLogger.debug(
-      `Got ${squasher.final.updated.length} active nodes, need ${activeNodeCount(cycleToSyncTo)}`
-    )
-    Logger.mainLogger.debug(
-      `Got ${squasher.final.added.length} total nodes, need ${totalNodeCount(cycleToSyncTo)}`
-    )
-    if (squasher.final.added.length < totalNodeCount(cycleToSyncTo))
-      Logger.mainLogger.debug('Short on nodes. Need to get more cycles. Cycle:' + cycleToSyncTo.counter)
-
-    // If you weren't able to prepend any of the prevCycles, start over
-    if (prepended < 1) throw new Error('Unable to prepend any previous cycles')
-  } while (
-    squasher.final.updated.length < activeNodeCount(cycleToSyncTo) ||
-    squasher.final.added.length < totalNodeCount(cycleToSyncTo)
-  )
-
-  applyNodeListChange(squasher.final)
-  Logger.mainLogger.debug('NodeList after sync', NodeList.getActiveList())
-
-  for (let i = 0; i < cycleChain.length; i++) {
-    let record = cycleChain[i]
-    Cycles.CycleChain.set(record.counter, { ...record })
-    if (i === cycleChain.length - 1) await storeCycleData(cycleChain)
-    Cycles.setCurrentCycleCounter(record.counter)
-  }
-  Logger.mainLogger.debug('Cycle chain is synced. Size of CycleChain', Cycles.CycleChain.size)
 
   // Download old cycle Records
   await downloadOldCycles(cycleToSyncTo, lastStoredCycleCount, activeArchivers)
