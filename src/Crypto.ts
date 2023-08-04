@@ -46,7 +46,7 @@ function getOrCreateSharedKey(pk: cryptoTypes.publicKey): cryptoTypes.sharedKey 
   if (!sharedK) {
     const ourCurveSk = State.getCurveSk()
     const theirCurvePk = getOrCreateCurvePk(pk)
-    sharedK = core.generateSharedKey(ourCurveSk, theirCurvePk)
+    sharedK = core.generateSharedKey(ourCurveSk, theirCurvePk) as unknown as string
   }
   return sharedK
 }
