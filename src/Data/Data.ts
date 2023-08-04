@@ -930,6 +930,9 @@ export async function syncCyclesAndNodeList(
   Logger.mainLogger.debug('cycleToSyncTo', cycleToSyncTo)
   Logger.mainLogger.debug(`Syncing till cycle ${cycleToSyncTo.counter}...`)
 
+  // TODO store cycleToSyncTo in the database
+  await storeCycleData([cycleToSyncTo])
+
   // Download old cycle Records
   await downloadOldCycles(cycleToSyncTo, lastStoredCycleCount, activeArchivers)
 
