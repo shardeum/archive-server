@@ -654,8 +654,8 @@ export async function getNewestCycleFromConsensors(
   }
 
   const queryFn = async (node: any) => {
-    const response: any = await P2P.getJson(`http://${node.ip}:${node.port}/sync-newest-cycle`)
-    if (response.newestCycle) return response.newestCycle
+    const response: any = await P2P.getJson(`http://${node.ip}:${node.port}/newest-cycle-record`)
+    return response
   }
   let newestCycle: any = await Utils.robustQuery(activeNodes, queryFn, isSameCyceInfo)
   return newestCycle[0]
