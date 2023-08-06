@@ -111,7 +111,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
       data: receipt ? receipt.data : {},
       // keys: tx.keys,
       result: result,
-      originTxData: tx.originalTxData,
+      originalTxData: tx.originalTxData,
       sign: sign,
     }
     // await Transaction.insertTransaction(txObj)
@@ -233,7 +233,7 @@ export const storeAccountData = async (restoreData: any = {}) => {
         data: receipt.data,
         // keys: {},
         result: {},
-        originTxData: {},
+        originalTxData: {},
         sign: {},
       } as Transaction.Transaction
       combineTransactions.push(txObj)

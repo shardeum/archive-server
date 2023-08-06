@@ -13,7 +13,7 @@ export interface Transaction {
   data: any
   // keys: any // TODO: Remove this field in the places it is used
   result: TxResult
-  originTxData: any
+  originalTxData: any
   sign: Signature
 }
 
@@ -73,8 +73,8 @@ export async function queryTransactionByTxId(txId: string) {
       if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
       if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
       if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
-      if (transaction.originTxData)
-        transaction.originTxData = DeSerializeFromJsonString(transaction.originTxData)
+      if (transaction.originalTxData)
+        transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
       if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
     }
     if (config.VERBOSE) {
@@ -94,8 +94,8 @@ export async function queryTransactionByAccountId(accountId: string) {
       if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
       if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
       if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
-      if (transaction.originTxData)
-        transaction.originTxData = DeSerializeFromJsonString(transaction.originTxData)
+      if (transaction.originalTxData)
+        transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
       if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
     }
     if (config.VERBOSE) {
@@ -118,8 +118,8 @@ export async function queryLatestTransactions(count: number) {
         if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
         if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
         if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
-        if (transaction.originTxData)
-          transaction.originTxData = DeSerializeFromJsonString(transaction.originTxData)
+        if (transaction.originalTxData)
+          transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
         if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
       })
     }
@@ -142,8 +142,8 @@ export async function queryTransactions(skip: number = 0, limit: number = 10000)
         if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
         if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
         if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
-        if (transaction.originTxData)
-          transaction.originTxData = DeSerializeFromJsonString(transaction.originTxData)
+        if (transaction.originalTxData)
+          transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
         if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
       })
     }
@@ -208,8 +208,8 @@ export async function queryTransactionsBetweenCycles(
         if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
         if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
         if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
-        if (transaction.originTxData)
-          transaction.originTxData = DeSerializeFromJsonString(transaction.originTxData)
+        if (transaction.originalTxData)
+          transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
         if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
       })
     }
