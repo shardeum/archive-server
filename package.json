@@ -70,7 +70,7 @@
   "dependencies": {
     "@fastify/cors": "^8.2.0",
     "@fastify/rate-limit": "^7.6.0",
-    "@shardus/archiver-discovery": "^1.0.2",
+    "@shardus/archiver-discovery": "^1.1.0",
     "@shardus/crypto-utils": "^4.0.4",
     "@shardus/types": "^1.0.8",
     "deepmerge": "^4.2.2",
