@@ -658,7 +658,7 @@ export async function getNewestCycleFromConsensors(
     return response
   }
   let newestCycle: any = await Utils.robustQuery(activeNodes, queryFn, isSameCyceInfo)
-  return newestCycle[0]
+  return newestCycle.value
 }
 
 export function checkJoinStatus(): Promise<boolean> {
