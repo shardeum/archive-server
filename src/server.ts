@@ -29,6 +29,7 @@ import * as AccountDB from './dbstore/accounts'
 import * as TransactionDB from './dbstore/transactions'
 import * as ReceiptDB from './dbstore/receipts'
 import { startSaving } from './saveConsoleOutput'
+import { setupArchiverDiscovery } from '@shardus/archiver-discovery'
 
 // Socket modules
 let io: SocketIO.Server
@@ -42,8 +43,14 @@ let logDir: string
 async function start() {
   overrideDefaultConfig(file, env, args)
 
-  // Set crypto hash key from config
-  Crypto.setCryptoHashKey(config.ARCHIVER_HASH_KEY)
+  // Set crypto hash keys from config
+  const hashKey = config.ARCHIVER_HASH_KEY
+  Crypto.setCryptoHashKey(hashKey)
+  try {
+    await setupArchiverDiscovery({ hashKey, disableGlobalArchiverList: true })
+  } catch (e) {
+    console.log('Error setting up archiver discovery: ', e)
+  }
 
   // If no keypair provided, generate one
   if (config.ARCHIVER_SECRET_KEY === '' || config.ARCHIVER_PUBLIC_KEY === '') {
