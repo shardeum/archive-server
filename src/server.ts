@@ -47,7 +47,10 @@ async function start() {
   const hashKey = config.ARCHIVER_HASH_KEY
   Crypto.setCryptoHashKey(hashKey)
   try {
-    await setupArchiverDiscovery({ hashKey, disableGlobalArchiverList: true })
+    await setupArchiverDiscovery({
+      hashKey,
+      customConfigPath: file.toString()
+    })
   } catch (e) {
     console.log('Error setting up archiver discovery: ', e)
   }
