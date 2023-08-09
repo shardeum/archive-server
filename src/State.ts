@@ -83,6 +83,10 @@ export async function initFromConfig(config: Config) {
         `http://${existingArchivers[i].ip}:${existingArchivers[i].port}/nodelist`,
         response
       )
+      if (!response) {
+        Logger.mainLogger.warn(`No response when fetching from archiver ${existingArchivers[i].ip}:${existingArchivers[i].port}`)
+        continue
+      }
       if (!ShardusCrypto.verifyObj(response)) {
         /* prettier-ignore */ console.log(`Invalid signature when fetching from archiver ${existingArchivers[i].ip}:${existingArchivers[i].port}`)
         continue
