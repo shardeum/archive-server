@@ -5,7 +5,7 @@ import * as NodeList from './NodeList'
 import * as Data from './Data/Data'
 import * as Utils from './Utils'
 import * as Logger from './Logger'
-import { getArchiverList } from '@shardus/archiver-discovery'
+import { getFinalArchiverList } from '@shardus/archiver-discovery'
 import * as ShardusCrypto from '@shardus/crypto-utils'
 
 export interface ArchiverNodeState {
@@ -45,11 +45,7 @@ export async function initFromConfig(config: Config) {
   try {
     console.log('ARCHIVER_INFO', process.env.ARCHIVER_INFO)
     console.log('Getting existing archivers list from archiver-discovery.')
-    existingArchivers = (
-      await getArchiverList({
-        customConfigPath: 'archiver-config.json',
-      })
-    ).map(({ ip, port, publicKey }) => ({
+    existingArchivers = getFinalArchiverList().map(({ ip, port, publicKey }) => ({
       ip,
       port,
       publicKey,
