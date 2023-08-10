@@ -16,7 +16,6 @@ import * as Utils from '../Utils'
 import { isDeepStrictEqual } from 'util'
 import { config } from '../Config'
 import fetch from 'node-fetch'
-import { CycleRecord } from '@shardus/types/build/src/p2p/CycleCreatorTypes'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string

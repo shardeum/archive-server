@@ -192,7 +192,7 @@ async function syncAndStartServer() {
   }
 
   // Destructure the response to get total counts for cycles, accounts, transactions and receipts
-  const { totalCycles, totalAccounts, totalTransactions, totalReceipts } = response
+  const { totalCycles, totalReceipts } = response
 
   // Check if local database has more data than the network, if so, clear the database
   if (lastStoredReceiptCount > totalReceipts || lastStoredCycleCount > totalCycles) {

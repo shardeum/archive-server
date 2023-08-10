@@ -415,27 +415,6 @@ async function getConsensusRadius() {
   return activeList.length
 }
 
-async function verifyNode(newSenderInfo: NodeList.ConsensusNodeInfo) {
-  let status = false
-  const QUERY_NODE_INFO_TIMEOUT_MS = 2 * 1000
-  Logger.mainLogger.debug(`Checking node info ${newSenderInfo.ip}:${newSenderInfo.port}`)
-  let response: any = await P2P.getJson(
-    `http://${newSenderInfo.ip}:${newSenderInfo.port}/nodeInfo`,
-    QUERY_NODE_INFO_TIMEOUT_MS
-  ) // 2s timeout
-  if (response && response.nodeInfo) {
-    const nodeInfo = response.nodeInfo
-    if (
-      nodeInfo.id === newSenderInfo.id &&
-      nodeInfo.publicKey === newSenderInfo.publicKey &&
-      nodeInfo.status === NodeList.Statuses.ACTIVE
-    )
-      return (status = true)
-  }
-  Logger.mainLogger.error(`Node ${newSenderInfo.ip}:${newSenderInfo.port} status is not valid!`)
-  return status
-}
-
 export async function createDataTransferConnection(newSenderInfo: NodeList.ConsensusNodeInfo) {
   // // Verify node before subscribing for data transfer
   // const status = await verifyNode(newSenderInfo)
@@ -930,7 +909,7 @@ export async function syncCyclesAndNodeList(
   Logger.mainLogger.debug('cycleToSyncTo', cycleToSyncTo)
   Logger.mainLogger.debug(`Syncing till cycle ${cycleToSyncTo.counter}...`)
 
-  // TODO store cycleToSyncTo in the database
+  // store cycleToSyncTo in the database
   await storeCycleData([cycleToSyncTo])
 
   // Download old cycle Records
