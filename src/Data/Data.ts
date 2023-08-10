@@ -899,7 +899,7 @@ export async function syncCyclesAndNodeList(
   // Sync validator list and get the latest cycle from the network
   Logger.mainLogger.debug('Syncing validators and latest cycle...')
   const syncResult = await syncV2(activeArchivers);
-  let cycleToSyncTo: P2PTypes.CycleCreatorTypes.CycleRecord;
+  let cycleToSyncTo: Cycle;
   if (syncResult.isOk()) {
     cycleToSyncTo = syncResult.value;
   } else {

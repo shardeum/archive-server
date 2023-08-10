@@ -14,6 +14,8 @@ import {
 import { ArchiverNodeInfo } from '../State'
 import { getActiveNodeListFromArchiver } from '../NodeList'
 import * as NodeList from '../NodeList'
+import { Cycle as DbCycle } from '../dbstore/cycles'
+import { Cycle } from '../Data/Cycles'
 
 /**
  * Given a list of archivers, queries each one until one returns an active node list.
@@ -43,7 +45,7 @@ async function getActiveListFromSomeArchiver(
 /**
   * Synchronizes the NodeList and gets the latest CycleRecord from other validators.
   */
-export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<P2P.CycleCreatorTypes.CycleRecord, Error> {
+export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, Error> {
   return ResultAsync.fromPromise(getActiveListFromSomeArchiver(activeArchivers), (e: Error) => e).andThen(
     (nodeList) =>
       syncValidatorList(nodeList).andThen((validatorList) =>
@@ -58,7 +60,12 @@ export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<P2P.Cyc
 
           NodeList.addNodes(NodeList.Statuses.ACTIVE, cycleMarker, consensusNodeList)
 
-          return cycle
+          // return a cycle that we'll store in the database
+          return {
+            ...cycle,
+            marker: cycleMarker,
+            certificate: "",
+          }
         })
       )
   )
