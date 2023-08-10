@@ -1,12 +1,13 @@
 import * as Account from '../dbstore/accounts'
 import * as Transaction from '../dbstore/transactions'
-import * as Cycle from '../dbstore/cycles'
 import * as Receipt from '../dbstore/receipts'
 import * as Crypto from '../Crypto'
 import { clearCombinedAccountsData, combineAccountsData, socketServer } from './Data'
 import { config } from '../Config'
 import * as Logger from '../Logger'
 import { profilerInstance } from '../profiler/profiler'
+import { Cycle } from './Cycles'
+import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 
 export let storingAccountData = false
 export let receiptsMap: Map<string, boolean> = new Map()
@@ -137,13 +138,14 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
   resetReceiptsMap()
 }
 
-export const storeCycleData = async (cycles = []) => {
+export const storeCycleData = async (cycles: Cycle[] = []) => {
   if (cycles && cycles.length <= 0) return
   const bucketSize = 1000
   let combineCycles = []
   for (let i = 0; i < cycles.length; i++) {
     const cycleRecord = cycles[i]
-    const cycleObj: Cycle.Cycle = {
+
+    const cycleObj: DbCycle = {
       counter: cycleRecord.counter,
       cycleMarker: cycleRecord.marker,
       cycleRecord,
@@ -154,16 +156,16 @@ export const storeCycleData = async (cycles = []) => {
       })
       socketServer.emit('RECEIPT', signedDataToSend)
     }
-    const cycleExist = await Cycle.queryCycleByMarker(cycleObj.cycleMarker)
+    const cycleExist = await queryCycleByMarker(cycleObj.cycleMarker)
     if (cycleExist) {
       if (JSON.stringify(cycleObj) !== JSON.stringify(cycleExist))
-        await Cycle.updateCycle(cycleObj.cycleMarker, cycleObj)
+        await updateCycle(cycleObj.cycleMarker, cycleObj)
     } else {
       // await Cycle.insertCycle(cycleObj)
       combineCycles.push(cycleObj)
     }
     if (combineCycles.length >= bucketSize || i === cycles.length - 1) {
-      if (combineCycles.length > 0) await Cycle.bulkInsertCycles(combineCycles)
+      if (combineCycles.length > 0) await bulkInsertCycles(combineCycles)
       combineCycles = []
     }
   }
