@@ -9,6 +9,7 @@ import {
   processCycles,
   validateCycle,
   fetchCycleRecords,
+  getNewestCycleFromArchivers,
 } from './Cycles'
 import { ChangeSquasher, parse, totalNodeCount, activeNodeCount, applyNodeListChange } from './CycleParser'
 import * as State from '../State'
@@ -893,6 +894,124 @@ export async function buildNodeListFromStoredCycle(lastStoredCycle: Cycles.Cycle
 }
 
 export async function syncCyclesAndNodeList(
+  activeArchivers: State.ArchiverNodeInfo[],
+  lastStoredCycleCount: number = 0
+) {
+  // Get the networks newest cycle as the anchor point for sync
+  Logger.mainLogger.debug('Getting newest cycle...')
+  const [cycleToSyncTo] = await getNewestCycleFromArchivers(activeArchivers)
+  Logger.mainLogger.debug('cycleToSyncTo', cycleToSyncTo)
+  Logger.mainLogger.debug(`Syncing till cycle ${cycleToSyncTo.counter}...`)
+  const cyclesToGet = 2 * Math.floor(Math.sqrt(cycleToSyncTo.active)) + 2
+  Logger.mainLogger.debug(`Cycles to get is ${cyclesToGet}`)
+
+  let CycleChain = []
+  const squasher = new ChangeSquasher()
+
+  CycleChain.unshift(cycleToSyncTo)
+  squasher.addChange(parse(CycleChain[0]))
+
+  do {
+    // Get prevCycles from the network
+    let end: number = CycleChain[0].counter - 1
+    let start: number = end - cyclesToGet
+    if (start < 0) start = 0
+    if (end < start) end = start
+    Logger.mainLogger.debug(`Getting cycles ${start} - ${end}...`)
+    const prevCycles = await fetchCycleRecords(activeArchivers, start, end)
+
+    // If prevCycles is empty, start over
+    if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
+
+    prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
+
+    // Add prevCycles to our cycle chain
+    let prepended = 0
+    for (const prevCycle of prevCycles) {
+      // Stop prepending prevCycles if one of them is invalid
+      if (validateCycle(prevCycle, CycleChain[0]) === false) {
+        Logger.mainLogger.error(`Record ${prevCycle.counter} failed validation`)
+        break
+      }
+      // Prepend the cycle to our cycle chain
+      CycleChain.unshift(prevCycle)
+      squasher.addChange(parse(prevCycle))
+      prepended++
+
+      if (
+        squasher.final.updated.length >= activeNodeCount(cycleToSyncTo) &&
+        squasher.final.added.length >= totalNodeCount(cycleToSyncTo)
+      ) {
+        break
+      }
+    }
+
+    Logger.mainLogger.debug(
+      `Got ${squasher.final.updated.length} active nodes, need ${activeNodeCount(cycleToSyncTo)}`
+    )
+    Logger.mainLogger.debug(
+      `Got ${squasher.final.added.length} total nodes, need ${totalNodeCount(cycleToSyncTo)}`
+    )
+    if (squasher.final.added.length < totalNodeCount(cycleToSyncTo))
+      Logger.mainLogger.debug('Short on nodes. Need to get more cycles. Cycle:' + cycleToSyncTo.counter)
+
+    // If you weren't able to prepend any of the prevCycles, start over
+    if (prepended < 1) throw new Error('Unable to prepend any previous cycles')
+  } while (
+    squasher.final.updated.length < activeNodeCount(cycleToSyncTo) ||
+    squasher.final.added.length < totalNodeCount(cycleToSyncTo)
+  )
+
+  applyNodeListChange(squasher.final)
+  Logger.mainLogger.debug('NodeList after sync', NodeList.getActiveList())
+
+  for (let i = 0; i < CycleChain.length; i++) {
+    let record = CycleChain[i]
+    Cycles.CycleChain.set(record.counter, { ...record })
+    if (i === CycleChain.length - 1) await storeCycleData(CycleChain)
+    Cycles.setCurrentCycleCounter(record.counter)
+  }
+  Logger.mainLogger.debug('Cycle chain is synced. Size of CycleChain', Cycles.CycleChain.size)
+
+  // Download old cycle Records
+  let endCycle = CycleChain[0].counter - 1
+  Logger.mainLogger.debug('endCycle counter', endCycle, 'lastStoredCycleCount', lastStoredCycleCount)
+  if (endCycle > lastStoredCycleCount) {
+    Logger.mainLogger.debug(
+      `Downloading old cycles from cycles ${lastStoredCycleCount} to cycle ${endCycle}!`
+    )
+  }
+  let savedCycleRecord = CycleChain[0]
+  while (endCycle > lastStoredCycleCount) {
+    let nextEnd: number = endCycle - 10000 // Downloading max 1000 cycles each time
+    if (nextEnd < 0) nextEnd = 0
+    Logger.mainLogger.debug(`Getting cycles ${nextEnd} - ${endCycle} ...`)
+    const prevCycles = await fetchCycleRecords(activeArchivers, nextEnd, endCycle)
+
+    // If prevCycles is empty, start over
+    if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
+    prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
+
+    // Add prevCycles to our cycle chain
+    let combineCycles = []
+    for (const prevCycle of prevCycles) {
+      // Stop saving prevCycles if one of them is invalid
+      if (validateCycle(prevCycle, savedCycleRecord) === false) {
+        Logger.mainLogger.error(`Record ${prevCycle.counter} failed validation`)
+        Logger.mainLogger.debug('fail', prevCycle, savedCycleRecord)
+        break
+      }
+      savedCycleRecord = prevCycle
+      combineCycles.push(prevCycle)
+    }
+    await storeCycleData(combineCycles)
+    endCycle = nextEnd - 1
+  }
+
+  return true
+}
+
+export async function syncCyclesAndNodeListV2(
   activeArchivers: State.ArchiverNodeInfo[],
   lastStoredCycleCount: number = 0
 ) {
