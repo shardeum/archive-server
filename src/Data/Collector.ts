@@ -6,22 +6,20 @@ import { clearCombinedAccountsData, combineAccountsData, socketServer } from './
 import { config } from '../Config'
 import * as Logger from '../Logger'
 import { profilerInstance } from '../profiler/profiler'
-import { Cycle } from './Cycles'
+import { Cycle, currentCycleCounter } from './Cycles'
 import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 
 export let storingAccountData = false
-export let receiptsMap: Map<string, boolean> = new Map()
-export let newestReceiptsMap: Map<string, boolean> = new Map()
+export let receiptsMap: Map<string, number> = new Map()
 export let lastReceiptMapResetTimestamp = 0
-export let newestReceiptsMapIsReset = false
 
 export const storeReceiptData = async (receipts = [], senderInfo = '') => {
   if (receipts && receipts.length <= 0) return
   let currentTime = Date.now()
-  if (currentTime - lastReceiptMapResetTimestamp >= 60000 && !newestReceiptsMapIsReset) {
-    newestReceiptsMap = new Map() // To save 30s data; So even when receiptMap is reset, this still has the record and will skip saving if it finds one
-    newestReceiptsMapIsReset = true
-    if (config.VERBOSE) console.log('Newest Receipts Map Reset!', newestReceiptsMap)
+  if (currentTime - lastReceiptMapResetTimestamp >= 120000) {
+    lastReceiptMapResetTimestamp = currentTime
+    cleanOldReceipts()
+    if (config.VERBOSE) console.log('Clean old receipts!')
   }
   let bucketSize = 1000
   let combineReceipts = []
@@ -31,7 +29,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
   for (let i = 0; i < receipts.length; i++) {
     const { accounts, cycle, result, sign, tx, receipt } = receipts[i]
     if (config.VERBOSE) console.log(tx.txId, senderInfo)
-    if (receiptsMap.has(tx.txId) || newestReceiptsMap.has(tx.txId)) {
+    if (receiptsMap.has(tx.txId)) {
       // console.log('Skip', tx.txId, senderInfo)
       continue
     }
@@ -46,8 +44,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
       timestamp: tx.timestamp,
     })
     // receiptsToSend.push(receipts[i])
-    receiptsMap.set(tx.txId, true)
-    newestReceiptsMap.set(tx.txId, true)
+    receiptsMap.set(tx.txId, cycle)
     // console.log('Save', tx.txId, senderInfo)
     for (let j = 0; j < accounts.length; j++) {
       const account = accounts[j]
@@ -135,7 +132,6 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
   }
   if (combineAccounts.length > 0) await Account.bulkInsertAccounts(combineAccounts)
   if (combineTransactions.length > 0) await Transaction.bulkInsertTransactions(combineTransactions)
-  resetReceiptsMap()
 }
 
 export const storeCycleData = async (cycles: Cycle[] = []) => {
@@ -238,12 +234,11 @@ export const storeAccountData = async (restoreData: any = {}) => {
   }
 }
 
-export function resetReceiptsMap() {
-  if (Date.now() - lastReceiptMapResetTimestamp >= 120000) {
-    receiptsMap = new Map()
-    lastReceiptMapResetTimestamp = Date.now()
-    newestReceiptsMapIsReset = false
-    if (config.VERBOSE) console.log('Receipts Map Reset!', receiptsMap)
-    Logger.mainLogger.debug('Receipts Map Reset!', receiptsMap)
-  }
+export function cleanOldReceipts() {
+    for (let [key, value] of receiptsMap) {
+      // Clean receipts that are older than 2 cycles
+      if (value < currentCycleCounter - 2) {
+        receiptsMap.delete(key)
+      }
+    }
 }
