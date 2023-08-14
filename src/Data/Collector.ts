@@ -15,12 +15,6 @@ export let lastReceiptMapResetTimestamp = 0
 
 export const storeReceiptData = async (receipts = [], senderInfo = '') => {
   if (receipts && receipts.length <= 0) return
-  let currentTime = Date.now()
-  if (currentTime - lastReceiptMapResetTimestamp >= 120000) {
-    lastReceiptMapResetTimestamp = currentTime
-    cleanOldReceipts()
-    if (config.VERBOSE) console.log('Clean old receipts!')
-  }
   let bucketSize = 1000
   let combineReceipts = []
   let combineAccounts = []
@@ -236,9 +230,17 @@ export const storeAccountData = async (restoreData: any = {}) => {
 
 export function cleanOldReceipts() {
     for (let [key, value] of receiptsMap) {
-      // Clean receipts that are older than 2 cycles
-      if (value < currentCycleCounter - 2) {
+      // Clean receipts that are older than current cycle
+      if (value < currentCycleCounter) {
         receiptsMap.delete(key)
       }
     }
+    if (config.VERBOSE) console.log('Clean old receipts!', currentCycleCounter)
+}
+
+export const addCleanOldReceiptsInterval = () => {
+  // Set to clean old receipts every minute
+  setInterval(() => {
+    cleanOldReceipts()
+  }, 60000)
 }

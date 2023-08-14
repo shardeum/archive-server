@@ -30,6 +30,7 @@ import * as TransactionDB from './dbstore/transactions'
 import * as ReceiptDB from './dbstore/receipts'
 import { startSaving } from './saveConsoleOutput'
 import { setupArchiverDiscovery } from '@shardus/archiver-discovery'
+import { addCleanOldReceiptsInterval } from './Data/Collector'
 
 // Socket modules
 let io: SocketIO.Server
@@ -1326,6 +1327,7 @@ async function startServer() {
       }
       Logger.mainLogger.debug('Archive-server has started.')
       State.addSigListeners()
+      addCleanOldReceiptsInterval()
     }
   )
   return io
