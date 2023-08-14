@@ -20,7 +20,14 @@ import { config } from '../Config'
 import { P2P as P2PTypes } from '@shardus/types'
 import * as Logger from '../Logger'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
-import { storeReceiptData, storeCycleData, storeAccountData, storingAccountData } from './Collector'
+import { profilerInstance } from '../profiler/profiler'
+import {
+  storeReceiptData,
+  storeCycleData,
+  storeAccountData,
+  storingAccountData,
+  storeOriginalTxData,
+} from './Collector'
 import * as CycleDB from '../dbstore/cycles'
 import * as ReceiptDB from '../dbstore/receipts'
 import * as StateMetaData from '../archivedCycle/StateMetaData'
@@ -163,8 +170,19 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
         }
 
         if (config.VERBOSE)
-          console.log('RECEIPT RECEIPT', sender.nodeInfo.publicKey, sender.nodeInfo.ip, sender.nodeInfo.port)
+          console.log('DATA', sender.nodeInfo.publicKey, sender.nodeInfo.ip, sender.nodeInfo.port)
 
+        if (newData.responses && newData.responses.ORIGINAL_TX_DATA) {
+          if (config.VERBOSE)
+            Logger.mainLogger.debug(
+              'ORIGINAL_TX_DATA',
+              sender.nodeInfo.publicKey,
+              sender.nodeInfo.ip,
+              sender.nodeInfo.port,
+              newData.responses.ORIGINAL_TX_DATA.length
+            )
+          storeOriginalTxData(newData.responses.ORIGINAL_TX_DATA)
+        }
         if (newData.responses && newData.responses.RECEIPT) {
           if (config.VERBOSE)
             Logger.mainLogger.debug(
@@ -174,7 +192,6 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
               sender.nodeInfo.port,
               newData.responses.RECEIPT.length
             )
-          // clearFalseNodes(sender.nodeInfo.publicKey)
           storeReceiptData(newData.responses.RECEIPT, sender.nodeInfo.ip + ':' + sender.nodeInfo.port)
         }
         if (newData.responses && newData.responses.CYCLE) {
@@ -645,7 +662,7 @@ export async function getNewestCycleFromConsensors(
       if (response.newestCycle) return response.newestCycle
     }
   }
-  
+
   let newestCycle = await Utils.robustQuery(activeNodes, queryFn, isSameCyceInfo)
   return newestCycle.value
 }
@@ -1026,12 +1043,12 @@ export async function syncCyclesAndNodeListV2(
 ) {
   // Sync validator list and get the latest cycle from the network
   Logger.mainLogger.debug('Syncing validators and latest cycle...')
-  const syncResult = await syncV2(activeArchivers);
-  let cycleToSyncTo: Cycle;
+  const syncResult = await syncV2(activeArchivers)
+  let cycleToSyncTo: Cycle
   if (syncResult.isOk()) {
-    cycleToSyncTo = syncResult.value;
+    cycleToSyncTo = syncResult.value
   } else {
-    throw syncResult.error;
+    throw syncResult.error
   }
 
   Logger.mainLogger.debug('cycleToSyncTo', cycleToSyncTo)
@@ -1438,7 +1455,11 @@ export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo,
   return { success, cycle }
 }
 
-async function downloadOldCycles(cycleToSyncTo: P2PTypes.CycleCreatorTypes.CycleRecord, lastStoredCycleCount: number, activeArchivers: State.ArchiverNodeInfo[]) {
+async function downloadOldCycles(
+  cycleToSyncTo: P2PTypes.CycleCreatorTypes.CycleRecord,
+  lastStoredCycleCount: number,
+  activeArchivers: State.ArchiverNodeInfo[]
+) {
   let endCycle = cycleToSyncTo.counter - 1
   Logger.mainLogger.debug('endCycle counter', endCycle, 'lastStoredCycleCount', lastStoredCycleCount)
   if (endCycle > lastStoredCycleCount) {

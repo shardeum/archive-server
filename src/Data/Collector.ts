@@ -1,6 +1,7 @@
 import * as Account from '../dbstore/accounts'
 import * as Transaction from '../dbstore/transactions'
 import * as Receipt from '../dbstore/receipts'
+import * as OriginalTxsData from '../dbstore/originalTxsData'
 import * as Crypto from '../Crypto'
 import { clearCombinedAccountsData, combineAccountsData, socketServer } from './Data'
 import { config } from '../Config'
@@ -12,6 +13,7 @@ import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } f
 export let storingAccountData = false
 export let receiptsMap: Map<string, number> = new Map()
 export let lastReceiptMapResetTimestamp = 0
+export let originalTxsMap: Map<string, number> = new Map()
 
 export const storeReceiptData = async (receipts = [], senderInfo = '') => {
   if (receipts && receipts.length <= 0) return
@@ -228,14 +230,40 @@ export const storeAccountData = async (restoreData: any = {}) => {
   }
 }
 
-export function cleanOldReceipts() {
-    for (let [key, value] of receiptsMap) {
-      // Clean receipts that are older than current cycle
-      if (value < currentCycleCounter) {
-        receiptsMap.delete(key)
+export const storeOriginalTxData = async (originalTxsData = []) => {
+  if (originalTxsData && originalTxsData.length <= 0) return
+  const bucketSize = 1000
+  let combineOriginalTxsData = []
+  for (const originalTxData of originalTxsData) {
+    const txId = originalTxData.txId
+    if (originalTxsMap.has(txId)) continue
+    originalTxsMap.set(txId, originalTxData.cycleNumber)
+    // console.log('originalTxData', originalTxData)
+    combineOriginalTxsData.push(originalTxData)
+    if (combineOriginalTxsData.length >= bucketSize) {
+      let cloneCombineOriginalTxsData = [...combineOriginalTxsData]
+      combineOriginalTxsData = []
+      if (socketServer) {
+        let signedDataToSend = Crypto.sign({
+          originalTxsData: cloneCombineOriginalTxsData,
+        })
+        socketServer.emit('RECEIPT', signedDataToSend)
       }
+      await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
     }
-    if (config.VERBOSE) console.log('Clean old receipts!', currentCycleCounter)
+  }
+  if (combineOriginalTxsData.length > 0)
+    await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
+}
+
+export function cleanOldReceipts() {
+  for (let [key, value] of receiptsMap) {
+    // Clean receipts that are older than current cycle
+    if (value < currentCycleCounter) {
+      receiptsMap.delete(key)
+    }
+  }
+  if (config.VERBOSE) console.log('Clean old receipts!', currentCycleCounter)
 }
 
 export const addCleanOldReceiptsInterval = () => {
