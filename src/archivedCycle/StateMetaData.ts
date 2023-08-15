@@ -938,7 +938,7 @@ export async function syncCyclesAndNodeList(
 ) {
   // Get the networks newest cycle as the anchor point for sync
   Logger.mainLogger.debug('Getting newest cycle...')
-  const [cycleToSyncTo] = await getNewestCycleFromArchivers(activeArchivers)
+  const cycleToSyncTo = await getNewestCycleFromArchivers(activeArchivers)
   Logger.mainLogger.debug('cycleToSyncTo', cycleToSyncTo)
   Logger.mainLogger.debug(`Syncing till cycle ${cycleToSyncTo.counter}...`)
   const cyclesToGet = 2 * Math.floor(Math.sqrt(cycleToSyncTo.active)) + 2
