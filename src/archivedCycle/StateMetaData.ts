@@ -863,8 +863,8 @@ export async function fetchStateHashes(archivers: any) {
     const response: any = await P2P.getJson(`http://${node.ip}:${node.port}/statehashes`)
     return response.stateHashes
   }
-  const stateHashes: any = await Utils.robustQuery(archivers, queryFn, _isSameStateHashes)
-  return stateHashes[0]
+  const stateHashes = await Utils.robustQuery(archivers, queryFn, _isSameStateHashes)
+  return stateHashes.value[0]
 }
 
 export async function buildNodeListFromStoredCycle(lastStoredCycle: Cycles.Cycle) {

@@ -265,8 +265,8 @@ export async function getNewestCycleFromArchivers(activeArchivers: State.Archive
     const response: any = await getJson(`http://${node.ip}:${node.port}/cycleinfo/1`)
     return response.cycleInfo
   }
-  let cycleInfo: any = await Utils.robustQuery(activeArchivers, queryFn, isSameCyceInfo)
-  return cycleInfo[0]
+  let cycleInfo = await Utils.robustQuery(activeArchivers, queryFn, isSameCyceInfo)
+  return cycleInfo.value[0]
 }
 
 export async function recordArchiversReputation() {

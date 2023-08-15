@@ -272,8 +272,8 @@ export async function getActiveListFromArchivers(
     const response: any = await P2P.getJson(`http://${node.ip}:${node.port}/nodelist`)
     if (response.nodeList) return response.nodeList.sort((a: any, b: any) => a.publicKey - b.publicKey)
   }
-  let nodeList: any = await Utils.robustQuery(activeArchivers, queryFn, isSameCyceInfo)
-  return nodeList[0]
+  let nodeList = await Utils.robustQuery(activeArchivers, queryFn, isSameCyceInfo)
+  return nodeList.value[0]
 }
 
 export function getRandomActiveNodes(node_count: number = 1): ConsensusNodeInfo[] {
