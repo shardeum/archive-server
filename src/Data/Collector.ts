@@ -252,8 +252,15 @@ export const storeOriginalTxData = async (originalTxsData = []) => {
       await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
     }
   }
-  if (combineOriginalTxsData.length > 0)
+  if (combineOriginalTxsData.length > 0) {
+    if (socketServer) {
+      let signedDataToSend = Crypto.sign({
+        originalTxsData: combineOriginalTxsData,
+      })
+      socketServer.emit('RECEIPT', signedDataToSend)
+    }
     await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
+  }
 }
 
 export function cleanOldReceiptsMap() {
