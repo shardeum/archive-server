@@ -256,19 +256,30 @@ export const storeOriginalTxData = async (originalTxsData = []) => {
     await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
 }
 
-export function cleanOldReceipts() {
+export function cleanOldReceiptsMap() {
   for (let [key, value] of receiptsMap) {
     // Clean receipts that are older than current cycle
     if (value < currentCycleCounter) {
       receiptsMap.delete(key)
     }
   }
-  if (config.VERBOSE) console.log('Clean old receipts!', currentCycleCounter)
+  if (config.VERBOSE) console.log('Clean old receipts map!', currentCycleCounter)
 }
 
-export const addCleanOldReceiptsInterval = () => {
-  // Set to clean old receipts every minute
+export function cleanOldOriginalTxsMap() {
+  for (let [key, value] of originalTxsMap) {
+    // Clean originalTxs that are older than current cycle
+    if (value < currentCycleCounter) {
+      originalTxsMap.delete(key)
+    }
+  }
+  if (config.VERBOSE) console.log('Clean old originalTxs map!', currentCycleCounter)
+}
+
+export const addCleanOldCacheMapInterval = () => {
+  // Set to clean old receipts and originalTxs map every minute
   setInterval(() => {
-    cleanOldReceipts()
+    cleanOldReceiptsMap()
+    cleanOldOriginalTxsMap()
   }, 60000)
 }
