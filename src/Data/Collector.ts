@@ -249,7 +249,7 @@ export const storeOriginalTxData = async (originalTxsData = []) => {
         })
         socketServer.emit('RECEIPT', signedDataToSend)
       }
-      await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
+      await OriginalTxsData.bulkInsertOriginalTxsData(cloneCombineOriginalTxsData)
     }
   }
   if (combineOriginalTxsData.length > 0) {
