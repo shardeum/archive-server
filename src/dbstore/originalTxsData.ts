@@ -8,7 +8,7 @@ import { DeSerializeFromJsonString } from '../utils/serialization'
 export interface OriginalTxData {
   txId: string
   timestamp: number
-  cycleNumber: number
+  cycle: number
   originalTxData: any
   sign: Signature
 }
@@ -89,7 +89,7 @@ export async function queryOriginalTxsData(
       values.push(startCycle, endCycle)
     }
     sql += sqlSuffix
-    originalTxsData = await db.all(sql, [values])
+    originalTxsData = await db.all(sql, values)
     originalTxsData.forEach((originalTxData: DbOriginalTxData) => {
       if (originalTxData.originalTxData)
         originalTxData.originalTxData = DeSerializeFromJsonString(originalTxData.originalTxData)

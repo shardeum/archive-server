@@ -241,15 +241,14 @@ export const storeOriginalTxData = async (originalTxsData = []) => {
     // console.log('originalTxData', originalTxData)
     combineOriginalTxsData.push(originalTxData)
     if (combineOriginalTxsData.length >= bucketSize) {
-      let cloneCombineOriginalTxsData = [...combineOriginalTxsData]
-      combineOriginalTxsData = []
       if (socketServer) {
         let signedDataToSend = Crypto.sign({
-          originalTxsData: cloneCombineOriginalTxsData,
+          originalTxsData: combineOriginalTxsData,
         })
         socketServer.emit('RECEIPT', signedDataToSend)
       }
-      await OriginalTxsData.bulkInsertOriginalTxsData(cloneCombineOriginalTxsData)
+      await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
+      combineOriginalTxsData = []
     }
   }
   if (combineOriginalTxsData.length > 0) {
