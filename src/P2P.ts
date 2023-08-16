@@ -17,10 +17,12 @@ export interface ArchiverJoinRequest {
   nodeInfo: State.ArchiverNodeInfo
   appData: unknown
   requestType: RequestTypes.JOIN
+  requestTimestamp: number // in ms
 }
 export interface ArchiverLeaveRequest {
   nodeInfo: State.ArchiverNodeInfo
   requestType: RequestTypes.LEAVE
+  requestTimestamp: number // in ms
 }
 export interface FirstNodeInfo {
   nodeInfo: {
@@ -41,6 +43,7 @@ export function createArchiverJoinRequest() {
     nodeInfo: State.getNodeInfo(),
     appData: { version },
     requestType: RequestTypes.JOIN,
+    requestTimestamp: Date.now(),
   }
   return Crypto.sign(joinRequest)
 }
@@ -49,6 +52,7 @@ export function createArchiverLeaveRequest() {
   const leaveRequest: ArchiverLeaveRequest = {
     nodeInfo: State.getNodeInfo(),
     requestType: RequestTypes.LEAVE,
+    requestTimestamp: Date.now(),
   }
   return Crypto.sign(leaveRequest)
 }
