@@ -120,21 +120,15 @@ export async function initFromConfig(config: Config) {
 
 export async function exitArchiver() {
   try {
-    const randomConsensor: NodeList.ConsensusNodeInfo = NodeList.getRandomActiveNodes()[0]
-    if (randomConsensor) {
-      // Send a leave request to a random consensus node from the nodelist
-      let isLeaveRequestSent = await Data.sendLeaveRequest(randomConsensor)
-      Logger.mainLogger.debug('isLeaveRequestSent', isLeaveRequestSent)
-      if (isLeaveRequestSent) {
-        Logger.mainLogger.debug('Archiver will exit in 3 seconds.')
-        setTimeout(process.exit, 3000)
-      }
-    } else {
-      Logger.mainLogger.debug('Archiver will exit in 3 seconds.')
-      setTimeout(() => {
-        process.exit()
-      }, 3000)
+    const randomConsensors: NodeList.ConsensusNodeInfo[] = NodeList.getRandomActiveNodes(5)
+    if (randomConsensors.length > 0) {
+      // Send a leave request to some random consensus nodes from the nodelist
+      await Data.sendLeaveRequest(randomConsensors)
     }
+    Logger.mainLogger.debug('Archiver will exit in 3 seconds.')
+    setTimeout(() => {
+      process.exit()
+    }, 3000)
   } catch (e) {
     Logger.mainLogger.error(e)
   }

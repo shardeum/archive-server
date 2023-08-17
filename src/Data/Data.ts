@@ -32,6 +32,7 @@ import * as CycleDB from '../dbstore/cycles'
 import * as ReceiptDB from '../dbstore/receipts'
 import * as OriginalTxDB from '../dbstore/originalTxsData'
 import * as StateMetaData from '../archivedCycle/StateMetaData'
+import fetch from 'node-fetch'
 import { syncV2 } from '../sync-v2'
 
 // Socket modules
@@ -595,7 +596,6 @@ export async function joinNetwork(
 
   // Figure out when Q1 is from the latestCycle
   const { startQ1 } = calcIncomingTimes(latestCycle)
-  let request = P2P.createArchiverJoinRequest()
   let shuffledNodes = [...nodeList]
   Utils.shuffleArray(shuffledNodes)
 
@@ -608,6 +608,8 @@ export async function joinNetwork(
   Logger.mainLogger.debug(`Waiting ${untilQ1 + 500} ms for Q1 before sending join...`)
   await Utils.sleep(untilQ1 + 500) // Not too early
 
+  // Create a fresh join request, so that the request timestamp range is acceptable
+  let request = P2P.createArchiverJoinRequest()
   await submitJoin(nodeList, request)
 
   // Wait approx. one cycle then check again
@@ -629,12 +631,38 @@ export async function submitJoin(
   }
 }
 
-export async function sendLeaveRequest(nodeInfo: NodeList.ConsensusNodeInfo) {
+export async function sendLeaveRequest(nodes: NodeList.ConsensusNodeInfo[]) {
   let leaveRequest = P2P.createArchiverLeaveRequest()
-  Logger.mainLogger.debug('Sending leave request to: ', nodeInfo.port)
-  let response = await P2P.postJson(`http://${nodeInfo.ip}:${nodeInfo.port}/leavingarchivers`, leaveRequest)
-  Logger.mainLogger.debug('Leave request response:', response)
-  return true
+  Logger.mainLogger.debug(`Sending leave request to ${nodes.map((n) => `${n.ip}:${n.port}`)}`)
+
+  const promises = nodes.map((node) =>
+    fetch(`http://${node.ip}:${node.port}/leavingarchivers`, {
+      method: 'post',
+      body: JSON.stringify(leaveRequest),
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 2 * 1000, // 2s timeout
+    }).then((res) => res.json())
+  )
+
+  await Promise.allSettled(promises)
+    .then((responses) => {
+      let i = 0
+      let isLeaveRequestSent = false
+      for (const response of responses) {
+        const node = nodes[i]
+        if (response.status === 'fulfilled') {
+          const res = response.value
+          if (res.success) isLeaveRequestSent = true
+          Logger.mainLogger.debug(`Leave request response from ${node.ip}:${node.port}:`, res)
+        } else Logger.mainLogger.debug(`Node is not responding ${node.ip}:${node.port}`)
+        i++
+      }
+      Logger.mainLogger.debug('isLeaveRequestSent', isLeaveRequestSent)
+    })
+    .catch((error) => {
+      // Handle any errors that occurred
+      console.error(error)
+    })
 }
 
 export async function getCycleDuration() {
