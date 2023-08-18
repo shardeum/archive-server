@@ -154,7 +154,7 @@ export async function queryLatestOriginalTxs(count: number) {
       })
     }
     if (config.VERBOSE) {
-      Logger.mainLogger.debug('Receipt latest', originalTxs)
+      Logger.mainLogger.debug('Latest Original-Tx: ', originalTxs)
     }
     return originalTxs
   } catch (e) {
