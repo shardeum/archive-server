@@ -10,7 +10,7 @@ export interface OriginalTxData {
   timestamp: number
   cycle: number
   originalTxData: any
-  sign: Signature
+  sign: Signature | string
 }
 
 type DbOriginalTxData = OriginalTxData & {
@@ -141,4 +141,23 @@ export async function queryOriginalTxDataCountByCycles(start: number, end: numbe
     })
   }
   return originalTxsData
+}
+
+export async function queryLatestOriginalTxs(count: number) {
+  try {
+    const sql = `SELECT * FROM originalTxsData ORDER BY cycle DESC, timestamp DESC LIMIT ${count ? count : 100}`
+    const originalTxs: any = await db.all(sql)
+    if (originalTxs.length > 0) {
+      originalTxs.forEach((tx: OriginalTxData) => {
+        if (tx.originalTxData) tx.originalTxData = DeSerializeFromJsonString(tx.originalTxData)
+        if (tx.sign) tx.sign = DeSerializeFromJsonString(tx.sign as string)
+      })
+    }
+    if (config.VERBOSE) {
+      Logger.mainLogger.debug('Receipt latest', originalTxs)
+    }
+    return originalTxs
+  } catch (e) {
+    Logger.mainLogger.error(e)
+  }
 }

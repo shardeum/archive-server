@@ -30,6 +30,7 @@ import {
 } from './Collector'
 import * as CycleDB from '../dbstore/cycles'
 import * as ReceiptDB from '../dbstore/receipts'
+import * as OriginalTxDB from '../dbstore/originalTxsData'
 import * as StateMetaData from '../archivedCycle/StateMetaData'
 import { syncV2 } from '../sync-v2'
 
@@ -1120,6 +1121,49 @@ export const downloadReceipts = async (to: number, from: number = 0, archiver: S
   }
 }
 
+export const downloadOriginalTxs = async (to: number, from: number = 0, archiver: State.ArchiverNodeInfo) => {
+  let complete = false
+  let start = from
+  let end = start + 1000
+  while (!complete) {
+    if (end >= to) {
+      // If the number of new original txs to sync is within 1000 => Update to the latest totalOriginalTxs.
+      let res: any = await P2P.getJson(`http://${archiver.ip}:${archiver.port}/totalData`, 20)
+      if (res && res.totalOriginalTxs > 0) {
+        if (res.totalOriginalTxs > to) to = res.totalOriginalTxs
+        Logger.mainLogger.debug('totalOriginalTxs: ', to)
+      }
+    }
+    Logger.mainLogger.debug(`Downloading Original-Txs from ${start} to ${end}`)
+    const response: any = await P2P.getJson(
+      `http://${archiver.ip}:${archiver.port}/originalTxs?start=${start}&end=${end}`,
+      20
+    )
+    if (response && response.originalTxs) {
+      const downloadedOriginalTxs = response.originalTxs
+      Logger.mainLogger.debug('Downloaded Original-Txs: ', downloadedOriginalTxs.length)
+      await storeOriginalTxData(downloadedOriginalTxs)
+      if (response.originalTxs.length < 1000) {
+        let totalData: any = await P2P.getJson(`http://${archiver.ip}:${archiver.port}/totalData`, 20)
+        start += response.originalTxs.length
+        end = start + 1000
+        if (totalData && totalData.totalOriginalTxs > 0) {
+          if (totalData.totalOriginalTxs > to) to = totalData.totalOriginalTxs
+          if (start === to) {
+            complete = true
+            Logger.mainLogger.debug('Download Original-Txs Completed!')
+          }
+          continue
+        }
+      }
+    } else {
+      Logger.mainLogger.debug('Invalid Original-Txs download response')
+    }
+    start = end
+    end += 1000
+  }
+}
+
 export async function syncReceiptsByCycle(
   activeArchivers: State.ArchiverNodeInfo[],
   lastStoredReceiptCycle: number = 0
@@ -1227,42 +1271,184 @@ export async function syncReceiptsByCycle(
   return false
 }
 
+export const syncOriginalTxs = async (
+  activeArchivers: State.ArchiverNodeInfo[],
+  lastStoredOriginalTxsCount: number = 0
+) => {
+  const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
+  const totalData: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 20)
+  if (!totalData || totalData.totalOriginalTxs < 0) {
+    return false
+  }
+  const { totalOriginalTxs } = totalData
+  if (totalOriginalTxs > 0)
+    await downloadOriginalTxs(totalOriginalTxs, lastStoredOriginalTxsCount, randomArchiver)
+  Logger.mainLogger.debug('Sync Original-Txs Data Completed!')
+  return false
+}
+
+export const syncOriginalTxsByCycle = async (
+  activeArchivers: State.ArchiverNodeInfo[],
+  lastStoredOriginalTxCycle: number = 0
+) => {
+  const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
+  let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 20)
+  if (!response || response.totalOriginalTxs < 0) {
+    return false
+  }
+  let { totalCycles, totalOriginalTxs } = response
+  let complete = false
+  let startCycle = lastStoredOriginalTxCycle
+  let endCycle = startCycle + 100
+  let originalTxCountToSyncBetweenCycles = 0
+  let savedOriginalTxCountBetweenCycles = 0
+  let totalSavedOriginalTxCount = 0
+  while (!complete) {
+    if (endCycle > totalCycles) {
+      endCycle = totalCycles
+      totalSavedOriginalTxCount = await OriginalTxDB.queryOriginalTxDataCount()
+    }
+    if (totalSavedOriginalTxCount >= totalOriginalTxs) {
+      let res: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 20)
+      if (res && res.totalOriginalTxs > 0) {
+        if (res.totalOriginalTxs > totalOriginalTxs) totalOriginalTxs = res.totalOriginalTxs
+        if (res.totalCycles > totalCycles) totalCycles = res.totalCycles
+        Logger.mainLogger.debug(
+          'totalOriginalTxsToSync: ',
+          totalOriginalTxs,
+          'totalSavedOriginalTxs: ',
+          totalSavedOriginalTxCount
+        )
+        if (totalSavedOriginalTxCount === totalOriginalTxs) {
+          Logger.mainLogger.debug('Sync Original-Tx data completed!')
+          break
+        }
+      }
+    }
+    if (startCycle > endCycle) {
+      Logger.mainLogger.error(
+        `Got some issues in syncing Original-Tx data. Original-Tx query startCycle ${startCycle} is greater than endCycle ${endCycle}`
+      )
+      break
+    }
+    Logger.mainLogger.debug(`Downloading Original-Tx data from cycle ${startCycle} to cycle ${endCycle}`)
+    let response: any = await P2P.getJson(
+      `http://${randomArchiver.ip}:${randomArchiver.port}/originalTxs?startCycle=${startCycle}&endCycle=${endCycle}&type=count`,
+      20
+    )
+    if (response && response.originalTxs > 0) {
+      originalTxCountToSyncBetweenCycles = response.originalTxs
+      let page = 1
+      savedOriginalTxCountBetweenCycles = 0
+      while (savedOriginalTxCountBetweenCycles < originalTxCountToSyncBetweenCycles) {
+        response = await P2P.getJson(
+          `http://${randomArchiver.ip}:${randomArchiver.port}/originalTxs?startCycle=${startCycle}&endCycle=${endCycle}&page=${page}`,
+          10
+        )
+        if (response && response.originalTxs) {
+          const downloadedOriginalTxs = response.originalTxs
+          Logger.mainLogger.debug('Downloaded Original-Txs: ', downloadedOriginalTxs.length)
+          await storeOriginalTxData(downloadedOriginalTxs)
+          savedOriginalTxCountBetweenCycles += downloadedOriginalTxs.length
+          if (savedOriginalTxCountBetweenCycles > originalTxCountToSyncBetweenCycles) {
+            response = await P2P.getJson(
+              `http://${randomArchiver.ip}:${randomArchiver.port}/originalTxs?startCycle=${startCycle}&endCycle=${endCycle}&type=count`,
+              20
+            )
+            if (response && response.originalTxs) originalTxCountToSyncBetweenCycles = response.originalTxs
+            if (originalTxCountToSyncBetweenCycles > savedOriginalTxCountBetweenCycles) {
+              savedOriginalTxCountBetweenCycles -= downloadedOriginalTxs.length
+              continue
+            }
+          }
+          Logger.mainLogger.debug(
+            'savedOriginalTxCountBetweenCycles',
+            savedOriginalTxCountBetweenCycles,
+            'originalTxCountToSyncBetweenCycles',
+            originalTxCountToSyncBetweenCycles
+          )
+          if (savedOriginalTxCountBetweenCycles > originalTxCountToSyncBetweenCycles) {
+            Logger.mainLogger.debug('There are more cycles than it supposed to have')
+          }
+          totalSavedOriginalTxCount += downloadedOriginalTxs.length
+          page++
+        } else {
+          Logger.mainLogger.debug('Invalid Original-Txs download response')
+          continue
+        }
+      }
+      Logger.mainLogger.debug(`Download Original-Txs completed for ${startCycle} - ${endCycle}`)
+      startCycle = endCycle + 1
+      endCycle += 100
+    } else {
+      originalTxCountToSyncBetweenCycles = response.originalTxs
+      if (originalTxCountToSyncBetweenCycles === 0) {
+        startCycle = endCycle + 1
+        endCycle += 100
+        continue
+      }
+      Logger.mainLogger.debug('Invalid Original-Txs download response')
+      continue
+    }
+  }
+}
+
 export const syncCyclesAndReceiptsData = async (
   activeArchivers: State.ArchiverNodeInfo[],
   lastStoredCycleCount: number = 0,
-  lastStoredReceiptCount: number = 0
+  lastStoredReceiptCount: number = 0,
+  lastStoredOriginalTxCount: number = 0
 ) => {
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
   let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 20)
   if (!response || response.totalCycles < 0 || response.totalReceipts < 0) {
     return false
   }
-  const { totalCycles, totalReceipts } = response
+  const { totalCycles, totalReceipts, totalOriginalTxs } = response
   Logger.mainLogger.debug('totalCycles', totalCycles, 'lastStoredCycleCount', lastStoredCycleCount)
   Logger.mainLogger.debug('totalReceipts', totalReceipts, 'lastStoredReceiptCount', lastStoredReceiptCount)
+  Logger.mainLogger.debug(
+    'totalOriginalTxs',
+    totalOriginalTxs,
+    'lastStoredOriginalTxCount',
+    lastStoredOriginalTxCount
+  )
   if (totalCycles === lastStoredCycleCount && totalReceipts === lastStoredReceiptCount) {
     Logger.mainLogger.debug('The archiver has synced the lastest cycle and receipts data!')
     return false
   }
   let totalReceiptsToSync = totalReceipts
+  let totalOriginalTxsToSync = totalOriginalTxs
   let totalCyclesToSync = totalCycles
   let completeForReceipt = false
+  let completeForOriginalTx = false
   let completeForCycle = false
   let startReceipt = lastStoredReceiptCount
+  let startOriginalTx = lastStoredOriginalTxCount
   let startCycle = lastStoredCycleCount
   let endReceipt = startReceipt + 1000
+  let endOriginalTx = startOriginalTx + 1000
   let endCycle = startCycle + 1000
 
   if (totalCycles === lastStoredCycleCount) completeForCycle = true
   if (totalReceipts === lastStoredReceiptCount) completeForReceipt = true
+  if (totalOriginalTxs === lastStoredOriginalTxCount) completeForOriginalTx = true
 
-  while (!completeForReceipt || !completeForCycle) {
-    if (endReceipt >= totalReceiptsToSync || endCycle >= totalCyclesToSync) {
+  while (!completeForReceipt || !completeForCycle || !completeForOriginalTx) {
+    if (
+      endReceipt >= totalReceiptsToSync ||
+      endCycle >= totalCyclesToSync ||
+      endOriginalTx >= totalOriginalTxsToSync
+    ) {
       response = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 20)
-      if (response && response.totalReceipts && response.totalCycles) {
+      if (response && response.totalReceipts && response.totalCycles && response.totalOriginalTxs) {
         if (response.totalReceipts !== totalReceiptsToSync) {
           completeForReceipt = false
           totalReceiptsToSync = response.totalReceipts
+        }
+        if (response.totalOriginalTxs !== totalOriginalTxsToSync) {
+          completeForOriginalTx = false
+          totalOriginalTxsToSync = response.totalOriginalTxs
         }
         if (response.totalCycles !== totalCyclesToSync) {
           completeForCycle = false
@@ -1271,12 +1457,17 @@ export const syncCyclesAndReceiptsData = async (
         if (totalReceiptsToSync === startReceipt) {
           completeForReceipt = true
         }
+        if (totalOriginalTxsToSync === startOriginalTx) {
+          completeForOriginalTx = true
+        }
         if (totalCyclesToSync === startCycle) {
           completeForCycle = true
         }
         Logger.mainLogger.debug(
           'totalReceiptsToSync',
           totalReceiptsToSync,
+          'totalOriginalTxsToSync',
+          totalOriginalTxsToSync,
           'totalCyclesToSync',
           totalCyclesToSync
         )
@@ -1303,6 +1494,27 @@ export const syncCyclesAndReceiptsData = async (
       startReceipt = endReceipt
       endReceipt += 1000
     }
+    if (!completeForOriginalTx) {
+      Logger.mainLogger.debug(`Downloading Original-Txs from ${startOriginalTx} to ${endOriginalTx}`)
+      const res: any = await P2P.getJson(
+        `http://${randomArchiver.ip}:${randomArchiver.port}/originalTxs?start=${startOriginalTx}&end=${endOriginalTx}`,
+        20
+      )
+      if (res && res.originalTxs) {
+        const downloadedOriginalTxs = res.originalTxs
+        Logger.mainLogger.debug(`Downloaded Original-Txs: `, downloadedOriginalTxs.length)
+        await storeOriginalTxData(downloadedOriginalTxs)
+        if (downloadedOriginalTxs.length < 1000) {
+          startOriginalTx += downloadedOriginalTxs.length
+          endOriginalTx = startOriginalTx + 1000
+          continue
+        }
+      } else {
+        Logger.mainLogger.debug('Invalid Original-Tx download response')
+      }
+      startOriginalTx = endOriginalTx
+      endOriginalTx += 1000
+    }
     if (!completeForCycle) {
       Logger.mainLogger.debug(`Downloading cycles from ${startCycle} to ${endCycle}`)
       const res: any = await P2P.getJson(
@@ -1326,7 +1538,7 @@ export const syncCyclesAndReceiptsData = async (
       endCycle += 1000
     }
   }
-  Logger.mainLogger.debug('Sync Cycle and Receipt data completed!')
+  Logger.mainLogger.debug('Sync Cycle, Receipt & Original-Tx data completed!')
   return false
 }
 
@@ -1378,6 +1590,47 @@ export const syncCyclesAndReceiptsData = async (
 //   }
 //   return { success, receiptsToMatchCount }
 // }
+export async function compareWithOldOriginalTxsData(
+  archiver: State.ArchiverNodeInfo,
+  lastStoredOriginalTxCycle: number = 0
+) {
+  let endCycle = lastStoredOriginalTxCycle
+  let startCycle = endCycle - 10 > 0 ? endCycle - 10 : 0
+  const response: any = await P2P.getJson(
+    `http://${archiver.ip}:${archiver.port}/originalTxs?startCycle=${startCycle}&endCycle=${endCycle}&type=tally`,
+    20
+  )
+  let downloadedOriginalTxsByCycles: string | any[]
+  if (response && response.originalTxs) {
+    downloadedOriginalTxsByCycles = response.originalTxs
+  } else {
+    throw Error(
+      `Can't fetch original tx data from cycle ${startCycle} to cycle ${endCycle} from archiver ${archiver}`
+    )
+  }
+  let oldOriginalTxCountByCycle = await OriginalTxDB.queryOriginalTxDataCountByCycles(startCycle, endCycle)
+
+  let success = false
+  let matchedCycle = 0
+  for (let i = 0; i < downloadedOriginalTxsByCycles.length; i++) {
+    const downloadedOriginalTx = downloadedOriginalTxsByCycles[i]
+    const oldOriginalTx = oldOriginalTxCountByCycle[i]
+    Logger.mainLogger.debug(downloadedOriginalTx, oldOriginalTx)
+    if (
+      downloadedOriginalTx.cycle !== oldOriginalTx.cycle ||
+      downloadedOriginalTx.originalTxData !== oldOriginalTx.originalTxData
+    ) {
+      return {
+        success,
+        matchedCycle,
+      }
+    }
+    success = true
+    matchedCycle = downloadedOriginalTx.cycle
+  }
+  success = true
+  return { success, matchedCycle }
+}
 
 export async function compareWithOldReceiptsData(
   archiver: State.ArchiverNodeInfo,

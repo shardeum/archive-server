@@ -28,6 +28,7 @@ import * as CycleDB from './dbstore/cycles'
 import * as AccountDB from './dbstore/accounts'
 import * as TransactionDB from './dbstore/transactions'
 import * as ReceiptDB from './dbstore/receipts'
+import * as OriginalTxDB from './dbstore/originalTxsData'
 import { startSaving } from './saveConsoleOutput'
 import { setupArchiverDiscovery } from '@shardus/archiver-discovery'
 import { addCleanOldCacheMapInterval } from './Data/Collector'
@@ -168,7 +169,7 @@ async function syncAndStartServer() {
 
   // Retrieve the count of cycles currently stored in the database
   let lastStoredCycleCount = await CycleDB.queryCyleCount()
-
+  let lastStoredOriginalTxCount = await OriginalTxDB.queryOriginalTxDataCount()
   // Query the latest cycle record from the database
   let lastStoredCycleInfo = await CycleDB.queryLatestCycleRecords(1)
 
@@ -177,6 +178,7 @@ async function syncAndStartServer() {
 
   // Initialize last stored receipt cycle as 0
   let lastStoredReceiptCycle = 0
+  let lastStoredOriginalTxCycle = 0
 
   // Request total data from the random archiver
   let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 10)
@@ -223,7 +225,6 @@ async function syncAndStartServer() {
   // If there are stored receipts, validate the old receipt data
   if (lastStoredReceiptCount > 0) {
     Logger.mainLogger.debug('Validating old receipts data!')
-
     // Query latest receipts from the DB
     let lastStoredReceiptInfo = await ReceiptDB.queryLatestReceipts(1)
 
@@ -245,12 +246,28 @@ async function syncAndStartServer() {
     lastStoredReceiptCycle = receiptResult.matchedCycle
   }
 
+  if (lastStoredOriginalTxCount > 0) {
+    Logger.mainLogger.debug('Validating old Original Txs data!')
+    let lastStoredOriginalTxInfo = await OriginalTxDB.queryLatestOriginalTxs(1)
+    if (lastStoredOriginalTxInfo && lastStoredOriginalTxInfo.length > 0)
+      lastStoredOriginalTxCycle = lastStoredOriginalTxInfo[0].cycle
+    const txResult = await Data.compareWithOldOriginalTxsData(randomArchiver, lastStoredOriginalTxCycle)
+    if (!txResult.success) {
+      throw Error(
+        'The saved Original-Txs of last 10 cycles data do not match with the archiver data! Clear the DB and start the server again!'
+      )
+    }
+    lastStoredOriginalTxCycle = txResult.matchedCycle
+  }
+
   // Log the last stored cycle and receipt counts
   Logger.mainLogger.debug(
     'lastStoredCycleCount',
     lastStoredCycleCount,
     'lastStoredReceiptCount',
-    lastStoredReceiptCount
+    lastStoredReceiptCount,
+    'lastStoredOriginalTxCount',
+    lastStoredOriginalTxCount
   )
 
   // If your not the first archiver node, get a nodelist from the others
@@ -323,10 +340,18 @@ async function syncAndStartServer() {
       Logger.mainLogger.debug('lastStoredReceiptCycle', lastStoredReceiptCycle)
       await Data.syncReceiptsByCycle(State.activeArchivers, lastStoredReceiptCycle)
     }
+
+    if (lastStoredOriginalTxCount === 0)
+      await Data.syncOriginalTxs(State.activeArchivers, lastStoredOriginalTxCount)
+    else {
+      Logger.mainLogger.debug('lastStoredOriginalTxCycle', lastStoredOriginalTxCycle)
+      await Data.syncOriginalTxsByCycle(State.activeArchivers, lastStoredOriginalTxCycle)
+    }
     // After receipt data syncing completes, check cycle and receipt again to be sure it's not missing any data
 
     // Query for the cycle and receipt counts
     lastStoredReceiptCount = await ReceiptDB.queryReceiptCount()
+    lastStoredOriginalTxCount = await OriginalTxDB.queryOriginalTxDataCount()
     lastStoredCycleCount = await CycleDB.queryCyleCount()
     lastStoredCycleInfo = await CycleDB.queryLatestCycleRecords(1)
 
@@ -337,10 +362,12 @@ async function syncAndStartServer() {
           `The archiver has ${lastStoredCycleCount} and the latest stored cycle is ${lastStoredCycleInfo[0].counter}`
         )
       }
+      // The following function also syncs Original-tx data
       await Data.syncCyclesAndReceiptsData(
         State.activeArchivers,
         lastStoredCycleCount,
-        lastStoredReceiptCount
+        lastStoredReceiptCount,
+        lastStoredOriginalTxCount
       )
     }
   } else {
@@ -762,6 +789,89 @@ async function startServer() {
     }
   }>
 
+  server.get('/originalTxs', async (_request: ReceiptRequest, reply) => {
+    let err = Utils.validateTypes(_request.query, {
+      start: 's?',
+      end: 's?',
+      startCycle: 's?',
+      endCycle: 's?',
+      type: 's?',
+      page: 's?',
+      txId: 's?',
+    })
+    if (err) {
+      reply.send(Crypto.sign({ success: false, error: err }))
+      return
+    }
+    let { start, end, startCycle, endCycle, type, page, txId } = _request.query
+    let originalTxs: any = []
+    if (txId) {
+      originalTxs = await OriginalTxDB.queryOriginalTxDataByTxId(txId)
+    } else if (start && end) {
+      let from = parseInt(start)
+      let to = parseInt(end)
+      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Invalid start and end counters`,
+          })
+        )
+        return
+      }
+      let count = to - from
+      if (count > 10000) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Exceed maximum limit of 10000 original transactions`,
+          })
+        )
+        return
+      }
+      originalTxs = await OriginalTxDB.queryOriginalTxsData(from, count)
+    } else if (startCycle && endCycle) {
+      let from = parseInt(startCycle)
+      let to = parseInt(endCycle)
+      if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Invalid startCycle and endCycle counters`,
+          })
+        )
+        return
+      }
+      let count = to - from
+      if (count > 1000) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Exceed maximum limit of 1000 cycles`,
+          })
+        )
+        return
+      }
+      if (type === 'tally') {
+        originalTxs = await OriginalTxDB.queryOriginalTxDataCountByCycles(from, to)
+      } else if (type === 'count') {
+        originalTxs = await OriginalTxDB.queryOriginalTxsData(0, 10, from, to)
+      } else {
+        let skip = 0
+        let limit = 100
+        if (page) {
+          skip = parseInt(page) - 1
+          if (skip > 0) skip = skip * limit
+        }
+        originalTxs = await OriginalTxDB.queryOriginalTxsData(skip, limit, from, to)
+      }
+    }
+    const res = Crypto.sign({
+      originalTxs,
+    })
+    reply.send(res)
+  })
+
   server.get('/receipt', async (_request: ReceiptRequest, reply) => {
     let err = Utils.validateTypes(_request.query, {
       start: 's?',
@@ -1163,11 +1273,13 @@ async function startServer() {
     const totalAccounts = await AccountDB.queryAccountCount()
     const totalTransactions = await TransactionDB.queryTransactionCount()
     const totalReceipts = await ReceiptDB.queryReceiptCount()
+    const totalOriginalTxs = await OriginalTxDB.queryOriginalTxDataCount()
     reply.send({
       totalCycles,
       totalAccounts,
       totalTransactions,
       totalReceipts,
+      totalOriginalTxs,
     })
   })
 
