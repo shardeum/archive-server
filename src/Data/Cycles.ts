@@ -16,6 +16,7 @@ import * as Utils from '../Utils'
 import { isDeepStrictEqual } from 'util'
 import { config } from '../Config'
 import fetch from 'node-fetch'
+import { getAdjacentLeftAndRightArchivers } from './GossipTxData'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
@@ -46,6 +47,7 @@ export async function processCycles(cycles: Cycle[]) {
 
     // Update NodeList from cycle info
     updateNodeList(cycle)
+    getAdjacentLeftAndRightArchivers()
 
     // Update currentCycle state
     currentCycleDuration = cycle.duration * 1000
@@ -190,6 +192,15 @@ function updateNodeList(cycle: Cycle) {
     let foundArchiver = State.activeArchivers.find((a) => a.publicKey === joinedArchiver.publicKey)
     if (!foundArchiver) {
       State.activeArchivers.push(joinedArchiver)
+      Utils.insertSorted(
+        State.activeArchiversByPublicKeySorted,
+        joinedArchiver,
+        NodeList.byAscendingPublicKey
+      )
+      Logger.mainLogger.debug(
+        'activeArchiversByPublicKeySorted',
+        State.activeArchiversByPublicKeySorted.map((archiver) => archiver.publicKey)
+      )
       Logger.mainLogger.debug('New archiver added to active list', joinedArchiver)
     }
     Logger.mainLogger.debug('active archiver list', State.activeArchivers)
@@ -199,6 +210,15 @@ function updateNodeList(cycle: Cycle) {
     let foundArchiver = State.activeArchivers.find((a) => a.publicKey === refreshedArchiver.publicKey)
     if (!foundArchiver) {
       State.activeArchivers.push(refreshedArchiver)
+      Utils.insertSorted(
+        State.activeArchiversByPublicKeySorted,
+        refreshedArchiver,
+        NodeList.byAscendingPublicKey
+      )
+      Logger.mainLogger.debug(
+        'activeArchiversByPublicKeySorted',
+        State.activeArchiversByPublicKeySorted.map((archiver) => archiver.publicKey)
+      )
       Logger.mainLogger.debug('Refreshed archiver added to active list', refreshedArchiver)
     }
   }

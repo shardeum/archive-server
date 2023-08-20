@@ -29,6 +29,7 @@ const nodeState: ArchiverNodeState = {
 }
 export let existingArchivers: ArchiverNodeInfo[] = []
 export let activeArchivers: ArchiverNodeInfo[] = []
+export let activeArchiversByPublicKeySorted: ArchiverNodeInfo[] = []
 export let isFirst = false
 export let archiversReputation: Map<string, string> = new Map()
 
@@ -80,7 +81,9 @@ export async function initFromConfig(config: Config) {
         response
       )
       if (!response) {
-        Logger.mainLogger.warn(`No response when fetching from archiver ${existingArchivers[i].ip}:${existingArchivers[i].port}`)
+        Logger.mainLogger.warn(
+          `No response when fetching from archiver ${existingArchivers[i].ip}:${existingArchivers[i].port}`
+        )
         continue
       }
       if (!ShardusCrypto.verifyObj(response)) {
@@ -146,6 +149,9 @@ export function addSigListeners(sigint = true, sigterm = true) {
 
 export function removeActiveArchiver(publicKey: string) {
   activeArchivers = activeArchivers.filter((a: any) => a.publicKey !== publicKey)
+  activeArchiversByPublicKeySorted = activeArchiversByPublicKeySorted.filter(
+    (a: any) => a.publicKey !== publicKey
+  )
 }
 
 export function getNodeInfo(): ArchiverNodeInfo {

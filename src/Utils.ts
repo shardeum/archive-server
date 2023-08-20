@@ -388,19 +388,23 @@ export function getRandomItemFromArr<T>(
     len: number = arr.length,
     taken: number[] = new Array(len)
 
-  const oldNodesToAvoid = Math.floor(nodeRejectPercentage * len / 100) 
+  const oldNodesToAvoid = Math.floor((nodeRejectPercentage * len) / 100)
 
-  if (n > len || n <= 1) {
+  if (n <= 1) {
     const randomIndex = Math.floor(Math.random() * arr.length)
     return [arr[randomIndex]]
     // we can throw an error but no
     // let's just return one random item in this case for the safety
   }
 
-  while (n--) {
+  while (n-- && len > 0) {
     const x = Math.floor(oldNodesToAvoid + Math.random() * (len - oldNodesToAvoid))
     result[n] = arr[x in taken ? taken[x] : x]
     taken[x] = --len in taken ? taken[len] : len
+  }
+  // remove empty slots
+  if (len === 0) {
+    result = result.filter((item) => item !== undefined)
   }
   return result
 }

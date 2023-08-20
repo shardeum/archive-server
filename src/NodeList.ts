@@ -34,8 +34,10 @@ export interface JoinedConsensor extends ConsensusNodeInfo {
   id: string
 }
 
-const byAscendingNodeId = (a: ConsensusNodeInfo, b: ConsensusNodeInfo) =>
-  a.id > b.id ? 1 : -1
+const byAscendingNodeId = (a: ConsensusNodeInfo, b: ConsensusNodeInfo) => (a.id > b.id ? 1 : -1)
+
+export const byAscendingPublicKey = (a: State.ArchiverNodeInfo, b: State.ArchiverNodeInfo) =>
+  a.publicKey > b.publicKey ? 1 : -1
 
 // STATE
 
@@ -93,8 +95,11 @@ export function addNodes(
         activeList.set(node.publicKey, node)
         activeListByIdSorted.push(node)
         activeListByIdSorted.sort(byAscendingNodeId)
-        if (config.VERBOSE)
-          Logger.mainLogger.debug('activeListByIdSorted', activeListByIdSorted.map((node) => node.publicKey))
+        Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
+        Logger.mainLogger.debug(
+          'activeListByIdSorted',
+          activeListByIdSorted.map((node) => node.publicKey)
+        )
       }
 
       byPublicKey[node.publicKey] = node
@@ -141,10 +146,11 @@ export function refreshNodes(
         syncingList.set(node.publicKey, node)
       } else if (status === Statuses.ACTIVE) {
         activeList.set(node.publicKey, node)
-        activeListByIdSorted.push(node)
-        activeListByIdSorted.sort(byAscendingNodeId)
-        if (config.VERBOSE)
-          Logger.mainLogger.debug('activeListByIdSorted', activeListByIdSorted.map((node) => node.publicKey))
+        Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
+        Logger.mainLogger.debug(
+          'activeListByIdSorted',
+          activeListByIdSorted.map((node) => node.publicKey)
+        )
       }
 
       byPublicKey[node.publicKey] = node
@@ -220,12 +226,11 @@ export function setStatus(status: Statuses, ...publicKeys: string[]) {
       if (syncingList.has(key)) syncingList.delete(key)
       if (activeList.has(key)) continue
       activeList.set(key, node)
-      activeListByIdSorted.push(node)
-      if (config.VERBOSE)
-        Logger.mainLogger.debug('activeListByIdSorted', activeListByIdSorted.map((node) => node.publicKey))
-      activeListByIdSorted.sort(byAscendingNodeId)
-      if (config.VERBOSE)
-        Logger.mainLogger.debug('activeListByIdSorted', activeListByIdSorted.map((node) => node.publicKey))
+      Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
+      Logger.mainLogger.debug(
+        'activeListByIdSorted',
+        activeListByIdSorted.map((node) => node.publicKey)
+      )
     }
   }
 

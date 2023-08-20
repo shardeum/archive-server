@@ -31,7 +31,8 @@ import * as ReceiptDB from './dbstore/receipts'
 import * as OriginalTxDB from './dbstore/originalTxsData'
 import { startSaving } from './saveConsoleOutput'
 import { setupArchiverDiscovery } from '@shardus/archiver-discovery'
-import { addCleanOldCacheMapInterval } from './Data/Collector'
+import * as Collector from './Data/Collector'
+import * as GossipTxData from './Data/GossipTxData'
 
 // Socket modules
 let io: SocketIO.Server
@@ -41,6 +42,8 @@ const file = join(process.cwd(), 'archiver-config.json')
 const env = process.env
 const args = process.argv
 let logDir: string
+
+const TXID_LENGTH = 64
 
 async function start() {
   overrideDefaultConfig(file, env, args)
@@ -786,6 +789,7 @@ async function startServer() {
       type: string
       page: string
       txId: string
+      txIdList: string
     }
   }>
 
@@ -881,15 +885,51 @@ async function startServer() {
       type: 's?',
       page: 's?',
       txId: 's?',
+      txIdList: 's?',
     })
     if (err) {
       reply.send(Crypto.sign({ success: false, error: err }))
       return
     }
-    let { start, end, startCycle, endCycle, type, page, txId } = _request.query
+    let { start, end, startCycle, endCycle, type, page, txId, txIdList } = _request.query
     let receipts = []
     if (txId) {
+      if (txId.length !== TXID_LENGTH) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Invalid txId ${txId}`,
+          })
+        )
+        return
+      }
       receipts = await ReceiptDB.queryReceiptByReceiptId(txId)
+    } else if (txIdList) {
+      let txIdListArr = []
+      try {
+        txIdListArr = JSON.parse(txIdList)
+      } catch (e) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Invalid txIdList ${txIdList}`,
+          })
+        )
+        return
+      }
+      for (const txId of txIdListArr) {
+        if (typeof txId !== 'string' || txId.length !== TXID_LENGTH) {
+          reply.send(
+            Crypto.sign({
+              success: false,
+              error: `Invalid txId ${txId} in the List`,
+            })
+          )
+          return
+        }
+        const receipt = await ReceiptDB.queryReceiptByReceiptId(txId)
+        if (receipt) receipts.push(receipt)
+      }
     } else if (start && end) {
       let from = parseInt(start)
       let to = parseInt(end)
@@ -1283,21 +1323,23 @@ async function startServer() {
     })
   })
 
-  type GossipHashesRequest = FastifyRequest<{
-    Body: {
-      sender: string
-      data: any
-    }
+  type GossipTxDataRequest = FastifyRequest<{
+    Body: GossipTxData.GossipTxData
   }>
 
-  server.post('/gossip-hashes', async (_request: GossipHashesRequest, reply) => {
-    let gossipMessage = _request.body
-    Logger.mainLogger.debug('Gossip received', JSON.stringify(gossipMessage))
-    addHashesGossip(gossipMessage.sender, gossipMessage.data)
+  server.post('/gossip-tx-data', async (_request: GossipTxDataRequest, reply) => {
+    let gossipPayload = _request.body
+    Logger.mainLogger.debug('Gossip Data received', JSON.stringify(gossipPayload))
+    const result = Collector.validateGossipTxData(gossipPayload)
+    if (!result.success) {
+      reply.send(Crypto.sign({ success: false, error: result.error }))
+      return
+    }
     const res = Crypto.sign({
       success: true,
     })
     reply.send(res)
+    Collector.processGossipTxData(gossipPayload)
   })
 
   // [TODO] Remove this before production
@@ -1423,6 +1465,23 @@ async function startServer() {
       })
       reply.send(res)
     })
+
+    type GossipHashesRequest = FastifyRequest<{
+      Body: {
+        sender: string
+        data: any
+      }
+    }>
+
+    server.post('/gossip-hashes', async (_request: GossipHashesRequest, reply) => {
+      let gossipMessage = _request.body
+      Logger.mainLogger.debug('Gossip received', JSON.stringify(gossipMessage))
+      addHashesGossip(gossipMessage.sender, gossipMessage.data)
+      const res = Crypto.sign({
+        success: true,
+      })
+      reply.send(res)
+    })
   }
 
   // Start server and bind to port on all interfaces
@@ -1439,7 +1498,8 @@ async function startServer() {
       }
       Logger.mainLogger.debug('Archive-server has started.')
       State.addSigListeners()
-      addCleanOldCacheMapInterval()
+      Collector.scheduleCacheCleanup()
+      Collector.scheduleMissingTxsDataQuery()
     }
   )
   return io
