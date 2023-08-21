@@ -20,6 +20,10 @@ export interface GossipTxData {
 }
 
 export const getAdjacentLeftAndRightArchivers = () => {
+  if (State.activeArchivers.length <= 1) {
+    adjacentArchivers = new Map()
+    return
+  }
   // Treat the archivers list as a circular list and get one left and one right archivers of the current archiver
   const currentArchiverIndex = State.activeArchiversByPublicKeySorted.findIndex(
     (archiver) => archiver.publicKey === State.getNodeInfo().publicKey
