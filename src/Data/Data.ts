@@ -1290,11 +1290,11 @@ export const syncOriginalTxs = async (
 export const syncOriginalTxsByCycle = async (
   activeArchivers: State.ArchiverNodeInfo[],
   lastStoredOriginalTxCycle: number = 0
-) => {
+): Promise<void> => {
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
   let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totalData`, 20)
   if (!response || response.totalOriginalTxs < 0) {
-    return false
+    return
   }
   let { totalCycles, totalOriginalTxs } = response
   let complete = false
