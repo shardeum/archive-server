@@ -182,7 +182,10 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
               sender.nodeInfo.port,
               newData.responses.ORIGINAL_TX_DATA.length
             )
-          storeOriginalTxData(newData.responses.ORIGINAL_TX_DATA)
+          storeOriginalTxData(
+            newData.responses.ORIGINAL_TX_DATA,
+            sender.nodeInfo.ip + ':' + sender.nodeInfo.port
+          )
         }
         if (newData.responses && newData.responses.RECEIPT) {
           if (config.VERBOSE)
@@ -425,13 +428,15 @@ async function getConsensusRadius() {
   Logger.mainLogger.debug(`Checking network configs from random node ${randomNode.ip}:${randomNode.port}`)
   let response: any = await P2P.getJson(`http://${randomNode.ip}:${randomNode.port}/netconfig`)
   if (response && response.config) {
-    const nodesPerConsensusGroup = response.config.sharding.nodesPerConsensusGroup
+    let nodesPerConsensusGroup = response.config.sharding.nodesPerConsensusGroup
+    // Upgrading consensus size to odd number
+    if (nodesPerConsensusGroup % 2 === 0) nodesPerConsensusGroup++
     const consensusRadius = Math.floor((nodesPerConsensusGroup - 1) / 2)
     Logger.mainLogger.debug('consensusRadius', consensusRadius)
     if (config.VERBOSE) console.log('consensusRadius', consensusRadius)
     return consensusRadius
   }
-  return activeList.length
+  return currentConsensusRadius
 }
 
 export async function createDataTransferConnection(newSenderInfo: NodeList.ConsensusNodeInfo) {

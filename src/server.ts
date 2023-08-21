@@ -196,7 +196,6 @@ async function syncAndStartServer() {
   ) {
     throw Error(`Can't fetch data from the archiver ${randomArchiver.ip}:${randomArchiver.port}`)
   }
-
   // Destructure the response to get total counts for cycles, accounts, transactions and receipts
   const { totalCycles, totalReceipts } = response
 

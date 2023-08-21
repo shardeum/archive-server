@@ -92,6 +92,15 @@ export async function initFromConfig(config: Config) {
       }
       if (response && response.nodeList && response.nodeList.length > 0) {
         activeArchivers.push(existingArchivers[i])
+        Utils.insertSorted(
+          activeArchiversByPublicKeySorted,
+          existingArchivers[i],
+          NodeList.byAscendingPublicKey
+        )
+        Logger.mainLogger.debug(
+          'activeArchiversByPublicKeySorted',
+          activeArchiversByPublicKeySorted.map((archiver) => archiver.publicKey)
+        )
       }
     }
     if (activeArchivers.length === 0) {

@@ -19,6 +19,8 @@ export interface GossipTxData {
   sign: Signature
 }
 
+const stopGossipTxData = true
+
 export const getAdjacentLeftAndRightArchivers = () => {
   if (State.activeArchivers.length <= 1) {
     adjacentArchivers = new Map()
@@ -47,6 +49,7 @@ export const getAdjacentLeftAndRightArchivers = () => {
 }
 
 export async function sendDataToAdjacentArchivers(txDataType: TxDataType, txsData: TxsData[]) {
+  if (stopGossipTxData) return
   if (adjacentArchivers.size === 0) return
   const gossipPayload = {
     txDataType,
@@ -55,8 +58,8 @@ export async function sendDataToAdjacentArchivers(txDataType: TxDataType, txsDat
   } as GossipTxData
   try {
     Logger.mainLogger.debug(
-      `Sending data request to these archivers: ${JSON.stringify(
-        adjacentArchivers.forEach((archiver) => archiver.ip + ':' + archiver.port)
+      `Sending tx data to the archivers: ${Array.from(adjacentArchivers.values()).map(
+        (n) => `${n.ip}:${n.port}`
       )}`
     )
     const promises = []

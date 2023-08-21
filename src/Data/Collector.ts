@@ -41,7 +41,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
     const { accounts, cycle, result, sign, tx, receipt } = receipts[i]
     if (config.VERBOSE) console.log(tx.txId, senderInfo)
     if (receiptsMap.has(tx.txId)) {
-      // console.log('Skip', tx.txId, senderInfo)
+      console.log('RECEIPT', 'Skip', tx.txId, senderInfo)
       continue
     }
     // await Receipt.insertReceipt({
@@ -60,7 +60,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '') => {
       txId: tx.txId,
       cycle: cycle,
     })
-    // console.log('Save', tx.txId, senderInfo)
+    console.log('RECEIPT', 'Save', tx.txId, senderInfo)
     for (let j = 0; j < accounts.length; j++) {
       const account = accounts[j]
       const accObj: Account.AccountCopy = {
@@ -247,7 +247,10 @@ export const storeAccountData = async (restoreData: any = {}) => {
   }
 }
 
-export const storeOriginalTxData = async (originalTxsData: OriginalTxsData.OriginalTxData[] = []) => {
+export const storeOriginalTxData = async (
+  originalTxsData: OriginalTxsData.OriginalTxData[] = [],
+  senderInfo = ''
+) => {
   if (originalTxsData && originalTxsData.length <= 0) return
   const bucketSize = 1000
   let combineOriginalTxsData = []
@@ -256,6 +259,10 @@ export const storeOriginalTxData = async (originalTxsData: OriginalTxsData.Origi
   for (const originalTxData of originalTxsData) {
     const txId = originalTxData.txId
     if (originalTxsMap.has(txId)) continue
+    if (originalTxsMap.has(txId)) {
+      console.log('ORIGINAL_TX_DATA', 'Skip', txId, senderInfo)
+      continue
+    }
     originalTxsMap.set(txId, originalTxData.cycle)
     if (missingOriginalTxsMap.has(txId)) missingOriginalTxsMap.delete(txId)
     // console.log('originalTxData', originalTxData)
@@ -264,6 +271,7 @@ export const storeOriginalTxData = async (originalTxsData: OriginalTxsData.Origi
       txId: txId,
       cycle: originalTxData.cycle,
     })
+    console.log('ORIGINAL_TX_DATA', 'Save', txId, senderInfo)
     if (combineOriginalTxsData.length >= bucketSize) {
       if (socketServer) {
         let signedDataToSend = Crypto.sign({
