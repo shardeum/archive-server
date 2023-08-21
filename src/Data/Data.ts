@@ -1141,7 +1141,7 @@ export const downloadOriginalTxs = async (to: number, from: number = 0, archiver
     }
     Logger.mainLogger.debug(`Downloading Original-Txs from ${start} to ${end}`)
     const response: any = await P2P.getJson(
-      `http://${archiver.ip}:${archiver.port}/originalTxs?start=${start}&end=${end}`,
+      `http://${archiver.ip}:${archiver.port}/originalTx?start=${start}&end=${end}`,
       20
     )
     if (response && response.originalTxs) {
@@ -1338,7 +1338,7 @@ export const syncOriginalTxsByCycle = async (
     }
     Logger.mainLogger.debug(`Downloading Original-Tx data from cycle ${startCycle} to cycle ${endCycle}`)
     let response: any = await P2P.getJson(
-      `http://${randomArchiver.ip}:${randomArchiver.port}/originalTxs?startCycle=${startCycle}&endCycle=${endCycle}&type=count`,
+      `http://${randomArchiver.ip}:${randomArchiver.port}/originalTx?startCycle=${startCycle}&endCycle=${endCycle}&type=count`,
       20
     )
     if (response && response.originalTxs > 0) {
@@ -1347,7 +1347,7 @@ export const syncOriginalTxsByCycle = async (
       savedOriginalTxCountBetweenCycles = 0
       while (savedOriginalTxCountBetweenCycles < originalTxCountToSyncBetweenCycles) {
         response = await P2P.getJson(
-          `http://${randomArchiver.ip}:${randomArchiver.port}/originalTxs?startCycle=${startCycle}&endCycle=${endCycle}&page=${page}`,
+          `http://${randomArchiver.ip}:${randomArchiver.port}/originalTx?startCycle=${startCycle}&endCycle=${endCycle}&page=${page}`,
           10
         )
         if (response && response.originalTxs) {
@@ -1357,7 +1357,7 @@ export const syncOriginalTxsByCycle = async (
           savedOriginalTxCountBetweenCycles += downloadedOriginalTxs.length
           if (savedOriginalTxCountBetweenCycles > originalTxCountToSyncBetweenCycles) {
             response = await P2P.getJson(
-              `http://${randomArchiver.ip}:${randomArchiver.port}/originalTxs?startCycle=${startCycle}&endCycle=${endCycle}&type=count`,
+              `http://${randomArchiver.ip}:${randomArchiver.port}/originalTx?startCycle=${startCycle}&endCycle=${endCycle}&type=count`,
               20
             )
             if (response && response.originalTxs) originalTxCountToSyncBetweenCycles = response.originalTxs
@@ -1418,8 +1418,12 @@ export const syncCyclesAndReceiptsData = async (
     'lastStoredOriginalTxCount',
     lastStoredOriginalTxCount
   )
-  if (totalCycles === lastStoredCycleCount && totalReceipts === lastStoredReceiptCount) {
-    Logger.mainLogger.debug('The archiver has synced the lastest cycle and receipts data!')
+  if (
+    totalCycles === lastStoredCycleCount &&
+    totalReceipts === lastStoredReceiptCount &&
+    totalOriginalTxs === lastStoredOriginalTxCount
+  ) {
+    Logger.mainLogger.debug('The archiver has synced the lastest cycle ,receipts and originalTxs data!')
     return false
   }
   let totalReceiptsToSync = totalReceipts
@@ -1502,7 +1506,7 @@ export const syncCyclesAndReceiptsData = async (
     if (!completeForOriginalTx) {
       Logger.mainLogger.debug(`Downloading Original-Txs from ${startOriginalTx} to ${endOriginalTx}`)
       const res: any = await P2P.getJson(
-        `http://${randomArchiver.ip}:${randomArchiver.port}/originalTxs?start=${startOriginalTx}&end=${endOriginalTx}`,
+        `http://${randomArchiver.ip}:${randomArchiver.port}/originalTx?start=${startOriginalTx}&end=${endOriginalTx}`,
         20
       )
       if (res && res.originalTxs) {
@@ -1602,7 +1606,7 @@ export async function compareWithOldOriginalTxsData(
   let endCycle = lastStoredOriginalTxCycle
   let startCycle = endCycle - 10 > 0 ? endCycle - 10 : 0
   const response: any = await P2P.getJson(
-    `http://${archiver.ip}:${archiver.port}/originalTxs?startCycle=${startCycle}&endCycle=${endCycle}&type=tally`,
+    `http://${archiver.ip}:${archiver.port}/originalTx?startCycle=${startCycle}&endCycle=${endCycle}&type=tally`,
     20
   )
   let downloadedOriginalTxsByCycles: string | any[]

@@ -792,7 +792,7 @@ async function startServer() {
     }
   }>
 
-  server.get('/originalTxs', async (_request: ReceiptRequest, reply) => {
+  server.get('/originalTx', async (_request: ReceiptRequest, reply) => {
     let err = Utils.validateTypes(_request.query, {
       start: 's?',
       end: 's?',
@@ -801,15 +801,51 @@ async function startServer() {
       type: 's?',
       page: 's?',
       txId: 's?',
+      txIdList: 's?',
     })
     if (err) {
       reply.send(Crypto.sign({ success: false, error: err }))
       return
     }
-    let { start, end, startCycle, endCycle, type, page, txId } = _request.query
+    let { start, end, startCycle, endCycle, type, page, txId, txIdList } = _request.query
     let originalTxs: any = []
     if (txId) {
+      if (txId.length !== TXID_LENGTH) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Invalid txId ${txId}`,
+          })
+        )
+        return
+      }
       originalTxs = await OriginalTxDB.queryOriginalTxDataByTxId(txId)
+    } else if (txIdList) {
+      let txIdListArr = []
+      try {
+        txIdListArr = JSON.parse(txIdList)
+      } catch (e) {
+        reply.send(
+          Crypto.sign({
+            success: false,
+            error: `Invalid txIdList ${txIdList}`,
+          })
+        )
+        return
+      }
+      for (const txId of txIdListArr) {
+        if (typeof txId !== 'string' || txId.length !== TXID_LENGTH) {
+          reply.send(
+            Crypto.sign({
+              success: false,
+              error: `Invalid txId ${txId} in the List`,
+            })
+          )
+          return
+        }
+        const originalTx = await OriginalTxDB.queryOriginalTxDataByTxId(txId)
+        if (originalTx) originalTxs.push(originalTx)
+      }
     } else if (start && end) {
       let from = parseInt(start)
       let to = parseInt(end)

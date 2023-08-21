@@ -258,7 +258,6 @@ export const storeOriginalTxData = async (
   if (stopSavingTxData) return
   for (const originalTxData of originalTxsData) {
     const txId = originalTxData.txId
-    if (originalTxsMap.has(txId)) continue
     if (originalTxsMap.has(txId)) {
       console.log('ORIGINAL_TX_DATA', 'Skip', txId, senderInfo)
       continue
@@ -443,7 +442,7 @@ export const queryTxDataFromArchivers = async (txDataType: TxDataType, txIdList:
   if (txDataType === TxDataType.RECEIPT) {
     // Query from other archivers using receipt endpoint
     // Using the existing GET /receipts endpoint for now; might have to change to POST /receipts endpoint
-    api_route = `receipts?txIdList=${JSON.stringify(txIdList)}`
+    api_route = `receipt?txIdList=${JSON.stringify(txIdList)}`
   } else if (txDataType === TxDataType.ORIGINAL_TX_DATA) {
     api_route = `originTx?txIdList=${JSON.stringify(txIdList)}`
   }
