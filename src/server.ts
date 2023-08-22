@@ -1537,7 +1537,6 @@ async function startServer() {
   }>
 
   server.get('/get-network-account', (_request: GetNetworkAccountRequest, reply) => {
-    console.log('call get-network-account', _request.query)
     const useHash = _request.query?.hash !== 'false'
 
     const res = getGlobalAccount(useHash)
