@@ -31,6 +31,7 @@ export interface Config {
   useSerialization: boolean
   useSyncV2: boolean
   sendActiveMessage: boolean
+  globalAccount: string
 }
 
 let config: Config = {
@@ -63,6 +64,7 @@ let config: Config = {
   useSerialization: false,
   useSyncV2: false,
   sendActiveMessage: false,
+  globalAccount: process.env.GLOBAL_ACCOUNT || '0'.repeat(64), //this address will change in the future
 }
 
 export function overrideDefaultConfig(file: string, env: NodeJS.ProcessEnv, args: string[]) {

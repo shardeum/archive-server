@@ -13,6 +13,7 @@ import * as State from '../State'
 import * as Utils from '../Utils'
 import { TxDataType, GossipTxData, adjacentArchivers, sendDataToAdjacentArchivers } from './GossipTxData'
 import { getJson } from '../P2P'
+import { setGlobalAccount } from '../GlobalAccount'
 
 export let storingAccountData = false
 export let receiptsMap: Map<string, number> = new Map()
@@ -76,6 +77,11 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
       } else {
         // await Account.insertAccount(accObj)
         combineAccounts.push(accObj)
+      }
+
+      //check global account updates
+      if (accObj.accountId === config.globalAccount) {
+        setGlobalAccount(accObj)
       }
     }
     // if (receipt) {

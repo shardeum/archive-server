@@ -34,6 +34,7 @@ import { setupArchiverDiscovery } from '@shardus/archiver-discovery'
 import * as Collector from './Data/Collector'
 import * as GossipTxData from './Data/GossipTxData'
 const { version } = require('../package.json')
+import { getGlobalAccount } from './GlobalAccount'
 
 // Socket modules
 let io: SocketIO.Server
@@ -1530,6 +1531,19 @@ async function startServer() {
       reply.send(res)
     })
   }
+
+  type GetNetworkAccountRequest = FastifyRequest<{
+    Querystring: { hash: 'true' | 'false' }
+  }>
+
+  server.get('/get-network-account', (_request: GetNetworkAccountRequest, reply) => {
+    console.log('call get-network-account', _request.query)
+    const useHash = _request.query?.hash !== 'false'
+
+    const res = getGlobalAccount(useHash)
+
+    reply.send(res)
+  })
 
   // Start server and bind to port on all interfaces
   server.listen(
