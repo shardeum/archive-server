@@ -1,5 +1,6 @@
 import * as State from '../State'
 import * as Logger from '../Logger'
+import * as Crypto from '../Crypto'
 import { postJson } from '../P2P'
 import { Signature } from 'shardus-crypto-types'
 import { TxsData } from './Collector'
@@ -19,7 +20,7 @@ export interface GossipTxData {
   sign: Signature
 }
 
-const stopGossipTxData = true
+const stopGossipTxData = false
 
 export const getAdjacentLeftAndRightArchivers = () => {
   if (State.activeArchivers.length <= 1) {
@@ -56,6 +57,7 @@ export async function sendDataToAdjacentArchivers(txDataType: TxDataType, txsDat
     txsData,
     sender: State.getNodeInfo().publicKey,
   } as GossipTxData
+  let signedTxDataToSend = Crypto.sign(gossipPayload)
   try {
     Logger.mainLogger.debug(
       `Sending tx data to the archivers: ${Array.from(adjacentArchivers.values()).map(
@@ -66,7 +68,7 @@ export async function sendDataToAdjacentArchivers(txDataType: TxDataType, txsDat
     for (const [, archiver] of adjacentArchivers) {
       const url = `http://${archiver.ip}:${archiver.port}/gossip-tx-data`
       try {
-        const promise = postJson(url, gossipPayload)
+        const promise = postJson(url, signedTxDataToSend)
         promise.catch((err) => {
           Logger.mainLogger.error(`Unable to send archiver ${archiver.ip}: ${archiver.port}`, err)
         })

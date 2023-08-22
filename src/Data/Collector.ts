@@ -298,34 +298,34 @@ export const storeOriginalTxData = async (
 
 export const validateGossipTxData = (data: GossipTxData) => {
   let err = Utils.validateTypes(data, {
-    dataType: 's',
+    txDataType: 's',
     txsData: 'a',
     sender: 's',
     sign: 'o',
   })
   if (err) {
-    Logger.errorLogger.error('Invalid gossip data', data)
+    Logger.mainLogger.error('Invalid gossip data', data)
     return { success: false, reason: 'Invalid gossip data' + err }
   }
   err = Utils.validateTypes(data.sign, { owner: 's', sig: 's' })
   if (err) {
-    Logger.errorLogger.error('Invalid gossip data signature', err)
+    Logger.mainLogger.error('Invalid gossip data signature', err)
     return { success: false, reason: 'Invalid gossip data signature' + err }
   }
   if (data.sign.owner !== data.sender) {
-    Logger.errorLogger.error('Data sender publicKey and sign owner key does not match')
+    Logger.mainLogger.error('Data sender publicKey and sign owner key does not match')
     return { success: false, error: 'Data sender publicKey and sign owner key does not match' }
   }
-  if (adjacentArchivers.has(data.sender)) {
-    Logger.errorLogger.error('Data sender is not the adjacent archiver')
+  if (!adjacentArchivers.has(data.sender)) {
+    Logger.mainLogger.error('Data sender is not the adjacent archiver')
     return { success: false, error: 'Data sender not the adjacent archiver' }
   }
   if (data.txDataType !== TxDataType.RECEIPT && data.txDataType !== TxDataType.ORIGINAL_TX_DATA) {
-    Logger.errorLogger.error('Invalid dataType', data)
+    Logger.mainLogger.error('Invalid dataType', data)
     return { success: false, error: 'Invalid dataType' }
   }
   if (!Crypto.verify(data)) {
-    Logger.errorLogger.error('Invalid signature', data)
+    Logger.mainLogger.error('Invalid signature', data)
     return { success: false, error: 'Invalid signature' }
   }
   return { success: true }
@@ -337,20 +337,20 @@ export const processGossipTxData = (data: GossipTxData) => {
     for (const txData of txsData) {
       const { txId, cycle } = txData
       if (receiptsMap.has(txId) && receiptsMap.get(txId) === cycle) {
-        console.log('Skip Receipt', txId, sender)
+        console.log('GOSSIP', 'RECEIPT', 'SKIP', txId, sender)
         continue
       } else missingReceiptsMap.set(txId, cycle)
-      console.log('Save Receipt', txId, sender)
+      console.log('GOSSIP', 'RECEIPT', 'MISS', txId, sender)
     }
   }
   if (txDataType === TxDataType.ORIGINAL_TX_DATA) {
     for (const txData of txsData) {
       const { txId, cycle } = txData
       if (originalTxsMap.has(txId) && originalTxsMap.get(txId) === cycle) {
-        console.log('Skip OriginalTx', txId, sender)
+        console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'SKIP', txId, sender)
         continue
       } else missingOriginalTxsMap.set(txId, cycle)
-      console.log('Save OriginalTx', txId, sender)
+      console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'MISS', txId, sender)
     }
   }
 }
@@ -363,12 +363,18 @@ export const collectMissingReceipts = async () => {
     cloneMissingReceiptsMap.set(txId, cycle)
     missingReceiptsMap.delete(txId)
   }
+  Logger.mainLogger.debug(
+    'Collecting missing receipts',
+    cloneMissingReceiptsMap.size,
+    cloneMissingReceiptsMap
+  )
   // Try to get missing receipts from 3 different archivers if one archiver fails to return some receipts
   let maxRetry = 3
   let retry = 0
   let archiversToUse: State.ArchiverNodeInfo[] = getArchiversToUse()
   while (cloneMissingReceiptsMap.size > 0 && retry < maxRetry) {
-    const archiver = archiversToUse[retry]
+    let archiver = archiversToUse[retry]
+    if (!archiver) archiver = archiversToUse[0]
     let missingReceipts = [...cloneMissingReceiptsMap.keys()]
     for (let start = 0; start < missingReceipts.length; ) {
       let txIdList = []
@@ -412,8 +418,12 @@ export const getArchiversToUse = () => {
         adjacentArchivers.has(archiver.publicKey) || archiver.publicKey === State.getNodeInfo().publicKey
     )
     archiversToUse = Utils.getRandomItemFromArr(activeArchivers, 0, 3)
-    if (archiversToUse.length < 3) {
-      const adjacentArchiversToUse = [...adjacentArchivers.values()]
+    while (archiversToUse.length < 3) {
+      let adjacentArchiversToUse = [...adjacentArchivers.values()]
+      adjacentArchiversToUse = adjacentArchiversToUse.filter(
+        (archiver) => !archiversToUse.find((archiverToUse) => archiverToUse.publicKey === archiver.publicKey)
+      )
+      if (adjacentArchiversToUse.length <= 0) break
       archiversToUse.push(Utils.getRandomItemFromArr(adjacentArchiversToUse)[0])
     }
   }
@@ -431,7 +441,7 @@ export const queryTxDataFromArchivers = async (
     // Using the existing GET /receipts endpoint for now; might have to change to POST /receipts endpoint
     api_route = `receipt?txIdList=${JSON.stringify(txIdList)}`
   } else if (txDataType === TxDataType.ORIGINAL_TX_DATA) {
-    api_route = `originTx?txIdList=${JSON.stringify(txIdList)}`
+    api_route = `originalTx?txIdList=${JSON.stringify(txIdList)}`
   }
   const response: any = await getJson(`http://${archiver.ip}:${archiver.port}/${api_route}`)
   if (response) {
@@ -458,12 +468,18 @@ export const collectMissingOriginalTxsData = async () => {
     cloneMissingOriginalTxsMap.set(txId, cycle)
     missingOriginalTxsMap.delete(txId)
   }
+  Logger.mainLogger.debug(
+    'Collecting missing originalTxsData',
+    cloneMissingOriginalTxsMap.size,
+    cloneMissingOriginalTxsMap
+  )
   // Try to get missing originalTxs from 3 different archivers if one archiver fails to return some receipts
   let maxRetry = 3
   let retry = 0
   let archiversToUse: State.ArchiverNodeInfo[] = getArchiversToUse()
   while (cloneMissingOriginalTxsMap.size > 0 && retry < maxRetry) {
-    const archiver = archiversToUse[retry]
+    let archiver = archiversToUse[retry]
+    if (!archiver) archiver = archiversToUse[0]
     let missingOriginalTxs = [...cloneMissingOriginalTxsMap.keys()]
     for (let start = 0; start < missingOriginalTxs.length; ) {
       let txIdList = []
