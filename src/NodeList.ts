@@ -93,12 +93,10 @@ export function addNodes(
         syncingList.set(node.publicKey, node)
       } else if (status === Statuses.ACTIVE) {
         activeList.set(node.publicKey, node)
-        activeListByIdSorted.push(node)
-        activeListByIdSorted.sort(byAscendingNodeId)
         Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
         Logger.mainLogger.debug(
           'activeListByIdSorted',
-          activeListByIdSorted.map((node) => node.publicKey)
+          activeListByIdSorted.map((node) => node.id)
         )
       }
 
@@ -149,7 +147,7 @@ export function refreshNodes(
         Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
         Logger.mainLogger.debug(
           'activeListByIdSorted',
-          activeListByIdSorted.map((node) => node.publicKey)
+          activeListByIdSorted.map((node) => node.id)
         )
       }
 
@@ -229,7 +227,7 @@ export function setStatus(status: Statuses, ...publicKeys: string[]) {
       Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
       Logger.mainLogger.debug(
         'activeListByIdSorted',
-        activeListByIdSorted.map((node) => node.publicKey)
+        activeListByIdSorted.map((node) => node.id)
       )
     }
   }

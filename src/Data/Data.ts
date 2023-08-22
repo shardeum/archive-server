@@ -730,6 +730,20 @@ export function checkJoinStatusFromConsensor(nodeList: NodeList.ConsensusNodeInf
   })
 }
 
+export async function getTotalDataFromArchivers() {
+  const maxRetry = 3
+  const randomArchivers = Utils.getRandomItemFromArr(State.activeArchivers)[maxRetry]
+  const retry = 0
+  while (retry < maxRetry) {
+    let randomArchiver = randomArchivers[retry]
+    if (!randomArchiver) randomArchiver = randomArchivers[0]
+    let response: any = await P2P.getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/totaldata`)
+    if (response && response.totalData) {
+      return response.totalData
+    }
+  }
+}
+
 export async function syncGenesisAccountsFromArchiver(activeArchivers: State.ArchiverNodeInfo[]) {
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
   let complete = false
