@@ -357,19 +357,25 @@ export const processGossipTxData = (data: GossipTxData) => {
 
 export const collectMissingReceipts = async () => {
   const bucketSize = 100
-  if (missingReceiptsMap.size > 0) {
-    const cloneMissingReceiptsMap = new Map()
-    for (const [txId, cycle] of missingReceiptsMap) {
-      cloneMissingReceiptsMap.set(txId, cycle)
-      missingReceiptsMap.delete(txId)
-    }
+  if (missingOriginalTxsMap.size === 0) return
+  const cloneMissingReceiptsMap = new Map()
+  for (const [txId, cycle] of missingReceiptsMap) {
+    cloneMissingReceiptsMap.set(txId, cycle)
+    missingReceiptsMap.delete(txId)
+  }
+  // Try to get missing receipts from 3 different archivers if one archiver fails to return some receipts
+  let maxRetry = 3
+  let retry = 0
+  let archiversToUse: State.ArchiverNodeInfo[] = getArchiversToUse()
+  while (cloneMissingReceiptsMap.size > 0 && retry < maxRetry) {
+    const archiver = archiversToUse[retry]
     let missingReceipts = [...cloneMissingReceiptsMap.keys()]
     for (let start = 0; start < missingReceipts.length; ) {
       let txIdList = []
       const end = start + bucketSize
       if (start > missingReceipts.length) txIdList = missingReceipts.slice(start, end)
       else txIdList = missingReceipts.slice(start)
-      const receipts: any = await queryTxDataFromArchivers(TxDataType.RECEIPT, txIdList)
+      const receipts: any = await queryTxDataFromArchivers(archiver, TxDataType.RECEIPT, txIdList)
       if (receipts && receipts.length > -1) {
         const receiptsToSave = []
         for (const receipt of receipts) {
@@ -383,44 +389,17 @@ export const collectMissingReceipts = async () => {
       }
       start = end
     }
-
-    if (cloneMissingReceiptsMap.size > 0) {
-      // There are still some missing receipts; Retry to get them from other archivers
-      missingReceipts = [...cloneMissingReceiptsMap.keys()]
-      for (let start = 0; start < missingReceipts.length; ) {
-        let txIdList = []
-        const end = start + bucketSize
-        if (start > missingReceipts.length) txIdList = missingReceipts.slice(start, end)
-        else txIdList = missingReceipts.slice(start)
-        const receipts: any = await queryTxDataFromArchivers(TxDataType.RECEIPT, txIdList)
-        if (receipts && receipts.length > -1) {
-          const receiptsToSave = []
-          for (const receipt of receipts) {
-            const { tx, cycle } = receipt
-            if (
-              tx &&
-              cloneMissingReceiptsMap.has(tx.txId) &&
-              cloneMissingReceiptsMap.get(tx.txId) === cycle
-            ) {
-              cloneMissingReceiptsMap.delete(tx.txId)
-              receiptsToSave.push(receipt)
-            }
-          }
-          await storeReceiptData(receiptsToSave)
-        }
-        start = end
-      }
-      if (cloneMissingReceiptsMap.size > 0) {
-        Logger.mainLogger.debug(
-          'Receipts TxId that are failed to get from other archivers',
-          cloneMissingReceiptsMap
-        )
-      }
-    }
+    retry++
+  }
+  if (cloneMissingReceiptsMap.size > 0) {
+    Logger.mainLogger.debug(
+      'Receipts TxId that are failed to get from other archivers',
+      cloneMissingReceiptsMap
+    )
   }
 }
 
-export const queryTxDataFromArchivers = async (txDataType: TxDataType, txIdList: string[]) => {
+export const getArchiversToUse = () => {
   let archiversToUse: State.ArchiverNodeInfo[] = []
   // Choosing 3 random archivers from the active archivers list
   if (State.activeArchivers.length <= 3) {
@@ -438,6 +417,14 @@ export const queryTxDataFromArchivers = async (txDataType: TxDataType, txIdList:
       archiversToUse.push(Utils.getRandomItemFromArr(adjacentArchiversToUse)[0])
     }
   }
+  return archiversToUse
+}
+
+export const queryTxDataFromArchivers = async (
+  archiver: State.ArchiverNodeInfo,
+  txDataType: TxDataType,
+  txIdList: string[]
+) => {
   let api_route = ''
   if (txDataType === TxDataType.RECEIPT) {
     // Query from other archivers using receipt endpoint
@@ -446,95 +433,68 @@ export const queryTxDataFromArchivers = async (txDataType: TxDataType, txIdList:
   } else if (txDataType === TxDataType.ORIGINAL_TX_DATA) {
     api_route = `originTx?txIdList=${JSON.stringify(txIdList)}`
   }
-  let maxRetryForEachBucket = 3
-  let retry = 0
-  // This means if fails to get from one archiver, it will try to get from another archiver; max 3 times for each bucket
-  while (retry < maxRetryForEachBucket) {
-    const randomArchiver = archiversToUse[retry]
-    const response: any = await getJson(`http://${randomArchiver.ip}:${randomArchiver.port}/${api_route}`)
-    if (response) {
-      if (txDataType === TxDataType.RECEIPT) {
-        const receipts = response.receipts || null
-        if (receipts && receipts.length > -1) {
-          return receipts
-        } else retry++
-      } else if (txDataType === TxDataType.ORIGINAL_TX_DATA) {
-        const originalTxs = response.originalTxs || null
-        if (originalTxs && originalTxs.length > -1) {
-          return originalTxs
-        } else retry++
+  const response: any = await getJson(`http://${archiver.ip}:${archiver.port}/${api_route}`)
+  if (response) {
+    if (txDataType === TxDataType.RECEIPT) {
+      const receipts = response.receipts || null
+      if (receipts && receipts.length > -1) {
+        return receipts
       }
-    } else retry++
+    } else if (txDataType === TxDataType.ORIGINAL_TX_DATA) {
+      const originalTxs = response.originalTxs || null
+      if (originalTxs && originalTxs.length > -1) {
+        return originalTxs
+      }
+    }
   }
   return null
 }
 
 export const collectMissingOriginalTxsData = async () => {
   const bucketSize = 100
-  if (missingOriginalTxsMap.size > 0) {
-    const cloneMissingOriginalTxsMap = new Map()
-    for (const [txId, cycle] of missingOriginalTxsMap) {
-      cloneMissingOriginalTxsMap.set(txId, cycle)
-      missingOriginalTxsMap.delete(txId)
-    }
+  if (missingOriginalTxsMap.size === 0) return
+  const cloneMissingOriginalTxsMap = new Map()
+  for (const [txId, cycle] of missingOriginalTxsMap) {
+    cloneMissingOriginalTxsMap.set(txId, cycle)
+    missingOriginalTxsMap.delete(txId)
+  }
+  // Try to get missing originalTxs from 3 different archivers if one archiver fails to return some receipts
+  let maxRetry = 3
+  let retry = 0
+  let archiversToUse: State.ArchiverNodeInfo[] = getArchiversToUse()
+  while (cloneMissingOriginalTxsMap.size > 0 && retry < maxRetry) {
+    const archiver = archiversToUse[retry]
     let missingOriginalTxs = [...cloneMissingOriginalTxsMap.keys()]
     for (let start = 0; start < missingOriginalTxs.length; ) {
       let txIdList = []
       const end = start + bucketSize
       if (start > missingOriginalTxs.length) txIdList = missingOriginalTxs.slice(start, end)
       else txIdList = missingOriginalTxs.slice(start)
-      const receipts: any = await queryTxDataFromArchivers(TxDataType.RECEIPT, txIdList)
-      if (receipts && receipts.length > -1) {
-        const receiptsToSave = []
-        for (const receipt of receipts) {
-          const { tx, cycle } = receipt
+      const originalTxs: any = await queryTxDataFromArchivers(archiver, TxDataType.ORIGINAL_TX_DATA, txIdList)
+      if (originalTxs && originalTxs.length > -1) {
+        const originalTxsDataToSave = []
+        for (const originalTx of originalTxs) {
+          const { tx, cycle } = originalTx
           if (
             tx &&
             cloneMissingOriginalTxsMap.has(tx.txId) &&
             cloneMissingOriginalTxsMap.get(tx.txId) === cycle
           ) {
             cloneMissingOriginalTxsMap.delete(tx.txId)
-            receiptsToSave.push(receipt)
+            originalTxsDataToSave.push(originalTx)
           }
         }
-        await storeReceiptData(receiptsToSave)
+        await storeOriginalTxData(originalTxsDataToSave)
       }
       start = end
     }
-
-    if (cloneMissingOriginalTxsMap.size > 0) {
-      // There are still some missing receipts; Retry to get them from other archivers
-      missingOriginalTxs = [...cloneMissingOriginalTxsMap.keys()]
-      for (let start = 0; start < missingOriginalTxs.length; ) {
-        let txIdList = []
-        const end = start + bucketSize
-        if (start > missingOriginalTxs.length) txIdList = missingOriginalTxs.slice(start, end)
-        else txIdList = missingOriginalTxs.slice(start)
-        const originalTxs: any = await queryTxDataFromArchivers(TxDataType.RECEIPT, txIdList)
-        if (originalTxs && originalTxs.length > -1) {
-          const originalTxsDataToSave = []
-          for (const originalTx of originalTxs) {
-            const { tx, cycle } = originalTx
-            if (
-              tx &&
-              cloneMissingOriginalTxsMap.has(tx.txId) &&
-              cloneMissingOriginalTxsMap.get(tx.txId) === cycle
-            ) {
-              cloneMissingOriginalTxsMap.delete(tx.txId)
-              originalTxsDataToSave.push(originalTx)
-            }
-          }
-          await storeOriginalTxData(originalTxsDataToSave)
-        }
-        start = end
-      }
-      if (cloneMissingOriginalTxsMap.size > 0) {
-        Logger.mainLogger.debug(
-          'OriginalTxsData TxId that are failed to get from other archivers',
-          cloneMissingOriginalTxsMap
-        )
-      }
-    }
+    retry++
+  }
+  if (cloneMissingOriginalTxsMap.size > 0) {
+    Logger.mainLogger.debug(
+      'OriginalTxsData TxId that are failed to get from other archivers',
+      cloneMissingOriginalTxsMap
+    )
   }
 }
 
