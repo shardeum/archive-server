@@ -1118,7 +1118,7 @@ export const downloadReceipts = async (to: number, from: number = 0, archiver: S
     if (response && response.receipts) {
       const downloadedReceipts = response.receipts
       Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
-      await storeReceiptData(downloadedReceipts)
+      await storeReceiptData(downloadedReceipts, archiver.ip + ':' + archiver.port, true)
       if (response.receipts.length < 1000) {
         let res: any = await P2P.getJson(`http://${archiver.ip}:${archiver.port}/totalData`, 20)
         start += response.receipts.length
@@ -1161,7 +1161,7 @@ export const downloadOriginalTxs = async (to: number, from: number = 0, archiver
     if (response && response.originalTxs) {
       const downloadedOriginalTxs = response.originalTxs
       Logger.mainLogger.debug('Downloaded Original-Txs: ', downloadedOriginalTxs.length)
-      await storeOriginalTxData(downloadedOriginalTxs)
+      await storeOriginalTxData(downloadedOriginalTxs, archiver.ip + ':' + archiver.port, true)
       if (response.originalTxs.length < 1000) {
         let totalData: any = await P2P.getJson(`http://${archiver.ip}:${archiver.port}/totalData`, 20)
         start += response.originalTxs.length
@@ -1244,7 +1244,7 @@ export async function syncReceiptsByCycle(
         if (response && response.receipts) {
           const downloadedReceipts = response.receipts
           Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
-          await storeReceiptData(downloadedReceipts)
+          await storeReceiptData(downloadedReceipts, randomArchiver.ip + ':' + randomArchiver.port, true)
           savedReceiptsCountBetweenCycles += downloadedReceipts.length
           if (savedReceiptsCountBetweenCycles > receiptsCountToSyncBetweenCycles) {
             response = await P2P.getJson(
@@ -1367,7 +1367,11 @@ export const syncOriginalTxsByCycle = async (
         if (response && response.originalTxs) {
           const downloadedOriginalTxs = response.originalTxs
           Logger.mainLogger.debug('Downloaded Original-Txs: ', downloadedOriginalTxs.length)
-          await storeOriginalTxData(downloadedOriginalTxs)
+          await storeOriginalTxData(
+            downloadedOriginalTxs,
+            randomArchiver.ip + ':' + randomArchiver.port,
+            true
+          )
           savedOriginalTxCountBetweenCycles += downloadedOriginalTxs.length
           if (savedOriginalTxCountBetweenCycles > originalTxCountToSyncBetweenCycles) {
             response = await P2P.getJson(
@@ -1505,7 +1509,7 @@ export const syncCyclesAndReceiptsData = async (
       if (res && res.receipts) {
         const downloadedReceipts = res.receipts
         Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
-        await storeReceiptData(downloadedReceipts)
+        await storeReceiptData(downloadedReceipts, randomArchiver.ip + ':' + randomArchiver.port, true)
         if (downloadedReceipts.length < 1000) {
           startReceipt += downloadedReceipts.length
           endReceipt = startReceipt + 1000
@@ -1526,7 +1530,7 @@ export const syncCyclesAndReceiptsData = async (
       if (res && res.originalTxs) {
         const downloadedOriginalTxs = res.originalTxs
         Logger.mainLogger.debug(`Downloaded Original-Txs: `, downloadedOriginalTxs.length)
-        await storeOriginalTxData(downloadedOriginalTxs)
+        await storeOriginalTxData(downloadedOriginalTxs, randomArchiver.ip + ':' + randomArchiver.port, true)
         if (downloadedOriginalTxs.length < 1000) {
           startOriginalTx += downloadedOriginalTxs.length
           endOriginalTx = startOriginalTx + 1000

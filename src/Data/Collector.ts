@@ -29,14 +29,14 @@ export interface TxsData {
 // For debugging purpose, set this to true to stop saving tx data
 const stopSavingTxData = false
 
-export const storeReceiptData = async (receipts = [], senderInfo = '', saved = false) => {
+export const storeReceiptData = async (receipts = [], senderInfo = '', forceSaved = false) => {
   if (receipts && receipts.length <= 0) return
   let bucketSize = 1000
   let combineReceipts = []
   let combineAccounts = []
   let combineTransactions = []
   let txsData: TxsData[] = []
-  if (!saved) if (stopSavingTxData) return
+  if (!forceSaved) if (stopSavingTxData) return
   for (let i = 0; i < receipts.length; i++) {
     const { accounts, cycle, result, sign, tx, receipt } = receipts[i]
     if (config.VERBOSE) console.log(tx.txId, senderInfo)
@@ -250,13 +250,13 @@ export const storeAccountData = async (restoreData: any = {}) => {
 export const storeOriginalTxData = async (
   originalTxsData: OriginalTxsData.OriginalTxData[] = [],
   senderInfo = '',
-  saved = false
+  forceSaved = false
 ) => {
   if (originalTxsData && originalTxsData.length <= 0) return
   const bucketSize = 1000
   let combineOriginalTxsData = []
   let txsData: TxsData[] = []
-  if (!saved) if (stopSavingTxData) return
+  if (!forceSaved) if (stopSavingTxData) return
   for (const originalTxData of originalTxsData) {
     const txId = originalTxData.txId
     if (originalTxsMap.has(txId)) {
