@@ -5,15 +5,14 @@ let cachedGlobalAccount: object
 let cachedGlobalAccountHash: string
 
 export function getGlobalAccount(hash: boolean): object | string {
-    if(hash){
-        return cachedGlobalAccountHash
-    }
+  if (hash) {
+    return cachedGlobalAccountHash
+  }
 
-    return cachedGlobalAccount
+  return cachedGlobalAccount
 }
 
-
 export function setGlobalAccount(account: object): void {
-    cachedGlobalAccount = rfdc()(account)
-    cachedGlobalAccountHash = Crypto.hashObj(account)
+  cachedGlobalAccount = rfdc()(account)
+  cachedGlobalAccountHash = Crypto.hashObj(account)
 }
