@@ -491,13 +491,9 @@ export const collectMissingOriginalTxsData = async () => {
       if (originalTxs && originalTxs.length > -1) {
         const originalTxsDataToSave = []
         for (const originalTx of originalTxs) {
-          const { tx, cycle } = originalTx
-          if (
-            tx &&
-            cloneMissingOriginalTxsMap.has(tx.txId) &&
-            cloneMissingOriginalTxsMap.get(tx.txId) === cycle
-          ) {
-            cloneMissingOriginalTxsMap.delete(tx.txId)
+          const { txId, cycle } = originalTx
+          if (cloneMissingOriginalTxsMap.has(txId) && cloneMissingOriginalTxsMap.get(txId) === cycle) {
+            cloneMissingOriginalTxsMap.delete(txId)
             originalTxsDataToSave.push(originalTx)
           }
         }
