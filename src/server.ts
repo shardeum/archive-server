@@ -49,7 +49,7 @@ async function start() {
   try {
     await setupArchiverDiscovery({
       hashKey,
-      customConfigPath: file.toString()
+      customConfigPath: file.toString(),
     })
   } catch (e) {
     console.log('Error setting up archiver discovery: ', e)
@@ -308,7 +308,11 @@ async function syncAndStartServer() {
   await Data.syncGenesisTransactionsFromArchiver(State.activeArchivers)
 
   // Sync cycle and node list information
-  await Data.syncCyclesAndNodeList(State.activeArchivers, lastStoredCycleCount)
+  if (config.useSyncV2 === true) {
+    await Data.syncCyclesAndNodeListV2(State.activeArchivers, lastStoredCycleCount)
+  } else {
+    await Data.syncCyclesAndNodeList(State.activeArchivers, lastStoredCycleCount)
+  }
 
   // If experimentalSnapshot is enabled, perform receipt synchronization
   if (config.experimentalSnapshot) {
