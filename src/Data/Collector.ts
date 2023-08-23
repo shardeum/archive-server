@@ -358,7 +358,7 @@ export const processGossipTxData = (data: GossipTxData) => {
 
 export const collectMissingReceipts = async () => {
   const bucketSize = 100
-  if (missingOriginalTxsMap.size === 0) return
+  if (missingReceiptsMap.size === 0) return
   const cloneMissingReceiptsMap = new Map()
   for (const [txId, cycle] of missingReceiptsMap) {
     cloneMissingReceiptsMap.set(txId, cycle)
