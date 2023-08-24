@@ -33,6 +33,7 @@ import { startSaving } from './saveConsoleOutput'
 import { setupArchiverDiscovery } from '@shardus/archiver-discovery'
 import * as Collector from './Data/Collector'
 import * as GossipTxData from './Data/GossipTxData'
+const { version } = require('../package.json')
 
 // Socket modules
 let io: SocketIO.Server
@@ -711,6 +712,7 @@ async function startServer() {
       publicKey: config.ARCHIVER_PUBLIC_KEY,
       ip: config.ARCHIVER_IP,
       port: config.ARCHIVER_PORT,
+      version,
       time: Date.now(),
     })
   })

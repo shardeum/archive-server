@@ -7,6 +7,7 @@ import fetch from 'node-fetch'
 import { Cycle } from './Data/Cycles'
 import { P2P as P2PTypes } from '@shardus/types'
 import { RequestInit, Response } from 'node-fetch'
+const { version } = require('../package.json')
 
 export enum RequestTypes {
   JOIN = 'JOIN',
@@ -14,6 +15,7 @@ export enum RequestTypes {
 }
 export interface ArchiverJoinRequest {
   nodeInfo: State.ArchiverNodeInfo
+  appData: unknown
   requestType: RequestTypes.JOIN
 }
 export interface ArchiverLeaveRequest {
@@ -37,6 +39,7 @@ export interface FirstNodeResponse {
 export function createArchiverJoinRequest() {
   const joinRequest: ArchiverJoinRequest = {
     nodeInfo: State.getNodeInfo(),
+    appData: { version },
     requestType: RequestTypes.JOIN,
   }
   return Crypto.sign(joinRequest)
