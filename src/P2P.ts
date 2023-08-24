@@ -11,6 +11,7 @@ const { version } = require('../package.json')
 
 export enum RequestTypes {
   JOIN = 'JOIN',
+  ACTIVE = 'ACTIVE',
   LEAVE = 'LEAVE',
 }
 export interface ArchiverJoinRequest {
@@ -18,6 +19,10 @@ export interface ArchiverJoinRequest {
   appData: unknown
   requestType: RequestTypes.JOIN
   requestTimestamp: number // in ms
+}
+export interface ArchiverActiveRequest {
+  nodeInfo: State.ArchiverNodeInfo
+  requestType: RequestTypes.ACTIVE
 }
 export interface ArchiverLeaveRequest {
   nodeInfo: State.ArchiverNodeInfo
@@ -46,6 +51,14 @@ export function createArchiverJoinRequest() {
     requestTimestamp: Date.now(),
   }
   return Crypto.sign(joinRequest)
+}
+
+export function createArchiverActiveRequest() {
+  const activeRequest: ArchiverActiveRequest = {
+    nodeInfo: State.getNodeInfo(),
+    requestType: RequestTypes.ACTIVE,
+  }
+  return Crypto.sign(activeRequest)
 }
 
 export function createArchiverLeaveRequest() {

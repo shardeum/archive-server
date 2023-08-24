@@ -271,6 +271,25 @@ export async function fetchCycleRecords(
   return result
 }
 
+export async function getNewestCycleFromConsensors(
+  activeNodes: NodeList.ConsensusNodeInfo[]
+): Promise<Cycle> {
+  function isSameCyceInfo(info1: any, info2: any) {
+    const cm1 = Utils.deepCopy(info1)
+    const cm2 = Utils.deepCopy(info2)
+    delete cm1.currentTime
+    delete cm2.currentTime
+    return isDeepStrictEqual(cm1, cm2)
+  }
+
+  const queryFn = async (node: any) => {
+    const response: any = await getJson(`http://${node.ip}:${node.port}/sync-newest-cycle`)
+    if (response.newestCycle) return response.newestCycle
+  }
+  let newestCycle: any = await Utils.robustQuery(activeNodes, queryFn, isSameCyceInfo)
+  return newestCycle[0]
+}
+
 export async function getNewestCycleFromArchivers(activeArchivers: State.ArchiverNodeInfo[]): Promise<any> {
   function isSameCyceInfo(info1: any, info2: any) {
     const cm1 = Utils.deepCopy(info1)

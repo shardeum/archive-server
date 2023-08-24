@@ -338,17 +338,16 @@ async function syncAndStartServer() {
   // If experimentalSnapshot is enabled, perform receipt synchronization
   if (config.experimentalSnapshot) {
     // If no receipts stored, synchronize all receipts, otherwise synchronize by cycle
-    if (lastStoredReceiptCount === 0) await Data.syncReceipts(State.activeArchivers, lastStoredReceiptCount)
+    if (lastStoredReceiptCount === 0) await Data.syncReceipts(lastStoredReceiptCount)
     else {
       Logger.mainLogger.debug('lastStoredReceiptCycle', lastStoredReceiptCycle)
-      await Data.syncReceiptsByCycle(State.activeArchivers, lastStoredReceiptCycle)
+      await Data.syncReceiptsByCycle(lastStoredReceiptCycle)
     }
 
-    if (lastStoredOriginalTxCount === 0)
-      await Data.syncOriginalTxs(State.activeArchivers, lastStoredOriginalTxCount)
+    if (lastStoredOriginalTxCount === 0) await Data.syncOriginalTxs(lastStoredOriginalTxCount)
     else {
       Logger.mainLogger.debug('lastStoredOriginalTxCycle', lastStoredOriginalTxCycle)
-      await Data.syncOriginalTxsByCycle(State.activeArchivers, lastStoredOriginalTxCycle)
+      await Data.syncOriginalTxsByCycle(lastStoredOriginalTxCycle)
     }
     // After receipt data syncing completes, check cycle and receipt again to be sure it's not missing any data
 
@@ -383,9 +382,20 @@ async function syncAndStartServer() {
 
   // Start the server
   io = await startServer()
-
-  // Subscribe to the node for data transfer
+  let beforeCycle = Cycles.currentCycleCounter
+  // Sending active message to the network
+  let isActive = false
+  while (!isActive) {
+    await Data.sendActiveRequest()
+    isActive = await Data.checkActiveStatus()
+    // Set as true for now, This needs to be removed after the active record for the archiver is added on the validator side
+    isActive = true
+  }
   await Data.subscribeNodeForDataTransfer()
+  // Sync the missing data during the cycle of sending active request
+  const randomArchivers = Utils.getRandomItemFromArr(State.activeArchivers, 0, 5)
+  const latestCycle = await Cycles.getNewestCycleFromArchivers(randomArchivers)
+  await Data.syncCyclesAndTxsDataBetweenCycles(beforeCycle, latestCycle.counter)
 }
 
 export function isDebugMode(): boolean {

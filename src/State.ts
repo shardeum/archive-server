@@ -27,7 +27,7 @@ const nodeState: ArchiverNodeState = {
   curvePk: '',
   curveSk: '',
 }
-export let existingArchivers: ArchiverNodeInfo[] = []
+export let joinedArchivers: ArchiverNodeInfo[] = [] // Add joined archivers to this list first and move to activeArchivers when they are active
 export let activeArchivers: ArchiverNodeInfo[] = []
 export let activeArchiversByPublicKeySorted: ArchiverNodeInfo[] = []
 export let isFirst = false
@@ -42,6 +42,7 @@ export async function initFromConfig(config: Config) {
   nodeState.curvePk = Crypto.core.convertPkToCurve(nodeState.publicKey)
   nodeState.curveSk = Crypto.core.convertSkToCurve(nodeState.secretKey)
 
+  let existingArchivers: ArchiverNodeInfo[] = []
   // Parse existing archivers list
   try {
     console.log('ARCHIVER_INFO', process.env.ARCHIVER_INFO)
