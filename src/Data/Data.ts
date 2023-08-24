@@ -633,10 +633,19 @@ export async function getNewestCycleFromConsensors(
     return isDeepStrictEqual(cm1, cm2)
   }
 
-  const queryFn = async (node: any) => {
-    const response = await P2P.getJson(`http://${node.ip}:${node.port}/newest-cycle-record`)
-    return response
+  let queryFn
+  if (config.useSyncV2 === true) {
+    queryFn = async (node: any) => {
+      const response = await P2P.getJson(`http://${node.ip}:${node.port}/newest-cycle-record`)
+      return response
+    }
+  } else {
+    queryFn = async (node: any) => {
+      const response: any = await P2P.getJson(`http://${node.ip}:${node.port}/sync-newest-cycle`)
+      if (response.newestCycle) return response.newestCycle
+    }
   }
+  
   let newestCycle = await Utils.robustQuery(activeNodes, queryFn, isSameCyceInfo)
   return newestCycle.value
 }
