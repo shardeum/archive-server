@@ -63,7 +63,7 @@ export async function queryOriginalTxDataCount(startCycle?: number, endCycle?: n
       sql += ` WHERE cycle BETWEEN ? AND ?`
       values.push(startCycle, endCycle)
     }
-    originalTxsData = await db.get(sql, [])
+    originalTxsData = await db.get(sql, values)
   } catch (e) {
     console.log(e)
   }
@@ -145,7 +145,9 @@ export async function queryOriginalTxDataCountByCycles(start: number, end: numbe
 
 export async function queryLatestOriginalTxs(count: number) {
   try {
-    const sql = `SELECT * FROM originalTxsData ORDER BY cycle DESC, timestamp DESC LIMIT ${count ? count : 100}`
+    const sql = `SELECT * FROM originalTxsData ORDER BY cycle DESC, timestamp DESC LIMIT ${
+      count ? count : 100
+    }`
     const originalTxs: any = await db.all(sql)
     if (originalTxs.length > 0) {
       originalTxs.forEach((tx: OriginalTxData) => {

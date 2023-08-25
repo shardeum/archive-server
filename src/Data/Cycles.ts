@@ -291,6 +291,7 @@ export async function getNewestCycleFromConsensors(
 }
 
 export async function getNewestCycleFromArchivers(activeArchivers: State.ArchiverNodeInfo[]): Promise<any> {
+  activeArchivers = activeArchivers.filter((archiver) => archiver.publicKey !== State.getNodeInfo().publicKey)
   function isSameCyceInfo(info1: any, info2: any) {
     const cm1 = Utils.deepCopy(info1)
     const cm2 = Utils.deepCopy(info2)

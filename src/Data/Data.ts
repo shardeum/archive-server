@@ -686,13 +686,13 @@ export async function sendActiveRequest() {
     untilQ1 += latestCycle.duration * 1000
   }
 
-  Logger.mainLogger.debug(`Waiting ${untilQ1 + 500} ms for Q1 before sending join...`)
+  Logger.mainLogger.debug(`Waiting ${untilQ1 + 500} ms for Q1 before sending active...`)
   await Utils.sleep(untilQ1 + 500) // Not too early
 
   const activeRequest = P2P.createArchiverActiveRequest()
   // Send the active request to a handful of the active node all at once:w
   const nodes = NodeList.getRandomActiveNodes(5)
-  Logger.mainLogger.debug(`Sending leave request to ${nodes.map((n) => `${n.ip}:${n.port}`)}`)
+  Logger.mainLogger.debug(`Sending active request to ${nodes.map((n) => `${n.ip}:${n.port}`)}`)
 
   const promises = nodes.map((node) =>
     fetch(`http://${node.ip}:${node.port}/activearchiver`, {
@@ -766,9 +766,8 @@ export function checkActiveStatus(): Promise<boolean> {
   Logger.mainLogger.debug('Checking active status')
   const ourNodeInfo = State.getNodeInfo()
   const randomArchivers = Utils.getRandomItemFromArr(State.activeArchivers, 0, 5)
-
   return new Promise(async (resolve) => {
-    const latestCycle = await getNewestCycleFromArchivers(randomArchivers)
+    const [latestCycle] = await getNewestCycleFromArchivers(randomArchivers)
     try {
       if (latestCycle && latestCycle.activeArchivers) {
         let activeArchivers = latestCycle.activeArchivers
