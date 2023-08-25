@@ -391,11 +391,11 @@ async function syncAndStartServer() {
     // Set as true for now, This needs to be removed after the active record for the archiver is added on the validator side
     isActive = true
   }
-  await Data.subscribeNodeForDataTransfer()
+  Data.subscribeNodeForDataTransfer()
   // Sync the missing data during the cycle of sending active request
   const randomArchivers = Utils.getRandomItemFromArr(State.activeArchivers, 0, 5)
   const latestCycle = await Cycles.getNewestCycleFromArchivers(randomArchivers)
-  await Data.syncCyclesAndTxsDataBetweenCycles(beforeCycle, latestCycle.counter)
+  await Data.syncCyclesAndTxsDataBetweenCycles(beforeCycle, latestCycle.counter + 1)
 }
 
 export function isDebugMode(): boolean {
@@ -906,7 +906,7 @@ async function startServer() {
       if (type === 'tally') {
         originalTxs = await OriginalTxDB.queryOriginalTxDataCountByCycles(from, to)
       } else if (type === 'count') {
-        originalTxs = await OriginalTxDB.queryOriginalTxsData(0, 10, from, to)
+        originalTxs = await OriginalTxDB.queryOriginalTxDataCount(from, to)
       } else {
         let skip = 0
         let limit = 100

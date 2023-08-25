@@ -50,6 +50,13 @@ let subsetNodesMapByConsensusRadius: Map<number, NodeList.ConsensusNodeInfo[]> =
 let receivedCycleTracker = {}
 const QUERY_TIMEOUT_MAX = 30 // 30seconds
 
+const ACCOUNTS_PER_REQUEST = 100
+const RECEIPTS_PER_REQUEST = 100
+const ORIGINAL_TXS_PER_REQUEST = 100
+const CYCLES_PER_REQUEST = 100
+
+const MAX_CYCLES_FOR_TXS_DATA = 10
+
 export enum DataRequestTypes {
   SUBSCRIBE = 'SUBSCRIBE',
   UNSUBSCRIBE = 'UNSUBSCRIBE',
@@ -668,7 +675,8 @@ export async function sendLeaveRequest(nodes: NodeList.ConsensusNodeInfo[]) {
 
 export async function sendActiveRequest() {
   Logger.mainLogger.debug('Sending Active Request to the network!')
-  let latestCycle = await CycleDB.queryLatestCycleRecords(1)[0]
+  const latestCycleInfo = await CycleDB.queryLatestCycleRecords(1)
+  const latestCycle = latestCycleInfo[0]
   // Figure out when Q1 is from the latestCycle
   const { startQ1 } = calcIncomingTimes(latestCycle)
 
@@ -687,7 +695,7 @@ export async function sendActiveRequest() {
   Logger.mainLogger.debug(`Sending leave request to ${nodes.map((n) => `${n.ip}:${n.port}`)}`)
 
   const promises = nodes.map((node) =>
-    fetch(`http://${node.ip}:${node.port}/leavingarchivers`, {
+    fetch(`http://${node.ip}:${node.port}/activearchiver`, {
       method: 'post',
       body: JSON.stringify(activeRequest),
       headers: { 'Content-Type': 'application/json' },
@@ -826,8 +834,7 @@ export async function syncGenesisAccountsFromArchiver(activeArchivers: State.Arc
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
   let complete = false
   let startAccount = 0
-  let endAccount = startAccount + 10000
-  let combineAccountsData = []
+  let endAccount = startAccount + ACCOUNTS_PER_REQUEST
   let totalGenesisAccounts = 0
   // const totalExistingGenesisAccounts =
   //   await AccountDB.queryAccountCountBetweenCycles(0, 5);
@@ -855,7 +862,7 @@ export async function syncGenesisAccountsFromArchiver(activeArchivers: State.Arc
       QUERY_TIMEOUT_MAX
     )
     if (response && response.accounts) {
-      if (response.accounts.length < 10000) {
+      if (response.accounts.length < ACCOUNTS_PER_REQUEST) {
         complete = true
         Logger.mainLogger.debug('Download completed for accounts')
       }
@@ -864,8 +871,8 @@ export async function syncGenesisAccountsFromArchiver(activeArchivers: State.Arc
     } else {
       Logger.mainLogger.debug('Genesis Accounts Query', 'Invalid download response')
     }
-    startAccount = endAccount
-    endAccount += 10000
+    startAccount = endAccount + 1
+    endAccount += ACCOUNTS_PER_REQUEST
     page++
     // await sleep(1000);
   }
@@ -876,7 +883,7 @@ export async function syncGenesisTransactionsFromArchiver(activeArchivers: State
   const [randomArchiver] = Utils.getRandomItemFromArr(activeArchivers)
   let complete = false
   let startTransaction = 0
-  let endTransaction = startTransaction + 10000
+  let endTransaction = startTransaction + ACCOUNTS_PER_REQUEST // Sames as number of accounts per request
   let totalGenesisTransactions = 0
 
   let res: any = await P2P.getJson(
@@ -899,7 +906,7 @@ export async function syncGenesisTransactionsFromArchiver(activeArchivers: State
       QUERY_TIMEOUT_MAX
     )
     if (response && response.transactions) {
-      if (response.transactions.length < 10000) {
+      if (response.transactions.length < ACCOUNTS_PER_REQUEST) {
         complete = true
         Logger.mainLogger.debug('Download completed for transactions')
       }
@@ -908,8 +915,8 @@ export async function syncGenesisTransactionsFromArchiver(activeArchivers: State
     } else {
       Logger.mainLogger.debug('Genesis Transactions Query', 'Invalid download response')
     }
-    startTransaction = endTransaction
-    endTransaction += 10000
+    startTransaction = endTransaction + 1
+    endTransaction += ACCOUNTS_PER_REQUEST
     page++
     // await sleep(1000);
   }
@@ -1107,7 +1114,7 @@ export async function syncCyclesAndNodeList(
   }
   let savedCycleRecord = CycleChain[0]
   while (endCycle > lastStoredCycleCount) {
-    let nextEnd: number = endCycle - 10000 // Downloading max 1000 cycles each time
+    let nextEnd: number = endCycle - CYCLES_PER_REQUEST // Downloading max 1000 cycles each time
     if (nextEnd < 0) nextEnd = 0
     Logger.mainLogger.debug(`Getting cycles ${nextEnd} - ${endCycle} ...`)
     const prevCycles = await fetchCycleRecords(activeArchivers, nextEnd, endCycle)
@@ -1162,9 +1169,8 @@ export async function syncCyclesAndNodeListV2(
 }
 
 export async function syncCyclesBetweenCycles(lastStoredCycle: number = 0, cycleToSyncTo: number = 0) {
-  const maxRequestCycles = 1000
   let startCycle = lastStoredCycle
-  let endCycle = startCycle + maxRequestCycles
+  let endCycle = startCycle + CYCLES_PER_REQUEST
   const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
   while (cycleToSyncTo > startCycle) {
     if (endCycle > cycleToSyncTo) endCycle = cycleToSyncTo
@@ -1178,16 +1184,16 @@ export async function syncCyclesBetweenCycles(lastStoredCycle: number = 0, cycle
       const cycles = res.cycleInfo
       processCycles(cycles)
       await storeCycleData(cycles)
-      if (res.cycleInfo.length < maxRequestCycles) {
+      if (res.cycleInfo.length < CYCLES_PER_REQUEST) {
         startCycle += res.cycleInfo.length
-        endCycle = startCycle + maxRequestCycles
+        endCycle = startCycle + CYCLES_PER_REQUEST
         break
       }
     } else {
       Logger.mainLogger.debug('Cycle', 'Invalid download response')
     }
     startCycle = endCycle + 1
-    endCycle += maxRequestCycles
+    endCycle += CYCLES_PER_REQUEST
   }
 }
 
@@ -1209,7 +1215,7 @@ export async function syncReceipts(
 export const downloadReceipts = async (to: number, from: number = 0, archiver: State.ArchiverNodeInfo) => {
   let complete = false
   let start = from
-  let end = start + 1000
+  let end = start + RECEIPTS_PER_REQUEST
   while (!complete) {
     if (end >= to) {
       let res: any = await P2P.getJson(`http://${archiver.ip}:${archiver.port}/totalData`, QUERY_TIMEOUT_MAX)
@@ -1227,13 +1233,13 @@ export const downloadReceipts = async (to: number, from: number = 0, archiver: S
       const downloadedReceipts = response.receipts
       Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
       await storeReceiptData(downloadedReceipts, archiver.ip + ':' + archiver.port, true)
-      if (response.receipts.length < 1000) {
+      if (response.receipts.length < RECEIPTS_PER_REQUEST) {
         let res: any = await P2P.getJson(
           `http://${archiver.ip}:${archiver.port}/totalData`,
           QUERY_TIMEOUT_MAX
         )
         start += response.receipts.length
-        end = start + 1000
+        end = start + RECEIPTS_PER_REQUEST
         if (res && res.totalReceipts > 0) {
           if (res.totalReceipts > to) to = res.totalReceipts
           if (start === to) {
@@ -1247,17 +1253,17 @@ export const downloadReceipts = async (to: number, from: number = 0, archiver: S
       Logger.mainLogger.debug('Invalid download response')
     }
     start = end
-    end += 1000
+    end += RECEIPTS_PER_REQUEST
   }
 }
 
 export const downloadOriginalTxs = async (to: number, from: number = 0, archiver: State.ArchiverNodeInfo) => {
   let complete = false
   let start = from
-  let end = start + 1000
+  let end = start + ORIGINAL_TXS_PER_REQUEST
   while (!complete) {
     if (end >= to) {
-      // If the number of new original txs to sync is within 1000 => Update to the latest totalOriginalTxs.
+      // If the number of new original txs to sync is within ORIGINAL_TXS_PER_REQUEST => Update to the latest totalOriginalTxs.
       let res: any = await P2P.getJson(`http://${archiver.ip}:${archiver.port}/totalData`, QUERY_TIMEOUT_MAX)
       if (res && res.totalOriginalTxs > 0) {
         if (res.totalOriginalTxs > to) to = res.totalOriginalTxs
@@ -1273,13 +1279,13 @@ export const downloadOriginalTxs = async (to: number, from: number = 0, archiver
       const downloadedOriginalTxs = response.originalTxs
       Logger.mainLogger.debug('Downloaded Original-Txs: ', downloadedOriginalTxs.length)
       await storeOriginalTxData(downloadedOriginalTxs, archiver.ip + ':' + archiver.port, true)
-      if (response.originalTxs.length < 1000) {
+      if (response.originalTxs.length < ORIGINAL_TXS_PER_REQUEST) {
         let totalData: any = await P2P.getJson(
           `http://${archiver.ip}:${archiver.port}/totalData`,
           QUERY_TIMEOUT_MAX
         )
         start += response.originalTxs.length
-        end = start + 1000
+        end = start + ORIGINAL_TXS_PER_REQUEST
         if (totalData && totalData.totalOriginalTxs > 0) {
           if (totalData.totalOriginalTxs > to) to = totalData.totalOriginalTxs
           if (start === to) {
@@ -1293,7 +1299,7 @@ export const downloadOriginalTxs = async (to: number, from: number = 0, archiver
       Logger.mainLogger.debug('Invalid Original-Txs download response')
     }
     start = end
-    end += 1000
+    end += ORIGINAL_TXS_PER_REQUEST
   }
 }
 
@@ -1314,7 +1320,7 @@ export async function syncReceiptsByCycle(lastStoredReceiptCycle: number = 0, cy
   }
   let complete = false
   let startCycle = lastStoredReceiptCycle
-  let endCycle = startCycle + 100
+  let endCycle = startCycle + MAX_CYCLES_FOR_TXS_DATA
   let receiptsCountToSyncBetweenCycles = 0
   let savedReceiptsCountBetweenCycles = 0
   let totalSavedReceiptsCount = 0
@@ -1406,12 +1412,12 @@ export async function syncReceiptsByCycle(lastStoredReceiptCycle: number = 0, cy
       }
       Logger.mainLogger.debug(`Download receipts completed for ${startCycle} - ${endCycle}`)
       startCycle = endCycle + 1
-      endCycle += 100
+      endCycle += MAX_CYCLES_FOR_TXS_DATA
     } else {
       receiptsCountToSyncBetweenCycles = response.receipts
       if (receiptsCountToSyncBetweenCycles === 0) {
         startCycle = endCycle + 1
-        endCycle += 100
+        endCycle += MAX_CYCLES_FOR_TXS_DATA
         continue
       }
       Logger.mainLogger.debug('Invalid download response')
@@ -1457,7 +1463,7 @@ export const syncOriginalTxsByCycle = async (
   }
   let complete = false
   let startCycle = lastStoredOriginalTxCycle
-  let endCycle = startCycle + 100
+  let endCycle = startCycle + MAX_CYCLES_FOR_TXS_DATA
   let originalTxCountToSyncBetweenCycles = 0
   let savedOriginalTxCountBetweenCycles = 0
   let totalSavedOriginalTxCount = 0
@@ -1468,7 +1474,7 @@ export const syncOriginalTxsByCycle = async (
     }
     if (cycleToSyncTo > 0) {
       if (startCycle > cycleToSyncTo) {
-        Logger.mainLogger.debug(`Sync receipts data completed!`)
+        Logger.mainLogger.debug(`Sync originalTXs data completed!`)
         break
       }
     } else {
@@ -1553,12 +1559,12 @@ export const syncOriginalTxsByCycle = async (
       }
       Logger.mainLogger.debug(`Download Original-Txs completed for ${startCycle} - ${endCycle}`)
       startCycle = endCycle + 1
-      endCycle += 100
+      endCycle += MAX_CYCLES_FOR_TXS_DATA
     } else {
       originalTxCountToSyncBetweenCycles = response.originalTxs
       if (originalTxCountToSyncBetweenCycles === 0) {
         startCycle = endCycle + 1
-        endCycle += 100
+        endCycle += MAX_CYCLES_FOR_TXS_DATA
         continue
       }
       Logger.mainLogger.debug('Invalid Original-Txs download response')
@@ -1607,9 +1613,9 @@ export const syncCyclesAndReceiptsData = async (
   let startReceipt = lastStoredReceiptCount
   let startOriginalTx = lastStoredOriginalTxCount
   let startCycle = lastStoredCycleCount
-  let endReceipt = startReceipt + 1000
-  let endOriginalTx = startOriginalTx + 1000
-  let endCycle = startCycle + 1000
+  let endReceipt = startReceipt + RECEIPTS_PER_REQUEST
+  let endOriginalTx = startOriginalTx + ORIGINAL_TXS_PER_REQUEST
+  let endCycle = startCycle + CYCLES_PER_REQUEST
 
   if (totalCycles === lastStoredCycleCount) completeForCycle = true
   if (totalReceipts === lastStoredReceiptCount) completeForReceipt = true
@@ -1667,16 +1673,16 @@ export const syncCyclesAndReceiptsData = async (
         const downloadedReceipts = res.receipts
         Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
         await storeReceiptData(downloadedReceipts, randomArchiver.ip + ':' + randomArchiver.port, true)
-        if (downloadedReceipts.length < 1000) {
+        if (downloadedReceipts.length < ORIGINAL_TXS_PER_REQUEST) {
           startReceipt += downloadedReceipts.length
-          endReceipt = startReceipt + 1000
+          endReceipt = startReceipt + ORIGINAL_TXS_PER_REQUEST
           continue
         }
       } else {
         Logger.mainLogger.debug('Invalid download response')
       }
-      startReceipt = endReceipt
-      endReceipt += 1000
+      startReceipt = endReceipt + 1
+      endReceipt += ORIGINAL_TXS_PER_REQUEST
     }
     if (!completeForOriginalTx) {
       Logger.mainLogger.debug(`Downloading Original-Txs from ${startOriginalTx} to ${endOriginalTx}`)
@@ -1688,16 +1694,16 @@ export const syncCyclesAndReceiptsData = async (
         const downloadedOriginalTxs = res.originalTxs
         Logger.mainLogger.debug(`Downloaded Original-Txs: `, downloadedOriginalTxs.length)
         await storeOriginalTxData(downloadedOriginalTxs, randomArchiver.ip + ':' + randomArchiver.port, true)
-        if (downloadedOriginalTxs.length < 1000) {
+        if (downloadedOriginalTxs.length < ORIGINAL_TXS_PER_REQUEST) {
           startOriginalTx += downloadedOriginalTxs.length
-          endOriginalTx = startOriginalTx + 1000
+          endOriginalTx = startOriginalTx + ORIGINAL_TXS_PER_REQUEST
           continue
         }
       } else {
         Logger.mainLogger.debug('Invalid Original-Tx download response')
       }
-      startOriginalTx = endOriginalTx
-      endOriginalTx += 1000
+      startOriginalTx = endOriginalTx + 1
+      endOriginalTx += ORIGINAL_TXS_PER_REQUEST
     }
     if (!completeForCycle) {
       Logger.mainLogger.debug(`Downloading cycles from ${startCycle} to ${endCycle}`)
@@ -1710,16 +1716,16 @@ export const syncCyclesAndReceiptsData = async (
         const cycles = res.cycleInfo
         processCycles(cycles)
         await storeCycleData(cycles)
-        if (res.cycleInfo.length < 1000) {
+        if (res.cycleInfo.length < CYCLES_PER_REQUEST) {
           startCycle += res.cycleInfo.length
-          endCycle = startCycle + 1000
+          endCycle = startCycle + CYCLES_PER_REQUEST
           continue
         }
       } else {
         Logger.mainLogger.debug('Cycle', 'Invalid download response')
       }
       startCycle = endCycle + 1
-      endCycle += 1000
+      endCycle += CYCLES_PER_REQUEST
     }
   }
   Logger.mainLogger.debug('Sync Cycle, Receipt & Original-Tx data completed!')
@@ -1730,6 +1736,9 @@ export const syncCyclesAndTxsDataBetweenCycles = async (
   lastStoredCycle: number = 0,
   cycleToSyncTo: number = 0
 ) => {
+  Logger.mainLogger.debug(
+    `Syncing cycles and txs data between cycles ${lastStoredCycle} and ${cycleToSyncTo}`
+  )
   await syncCyclesBetweenCycles(lastStoredCycle, cycleToSyncTo)
   await syncReceiptsByCycle(lastStoredCycle, cycleToSyncTo)
   await syncOriginalTxsByCycle(lastStoredCycle, cycleToSyncTo)
