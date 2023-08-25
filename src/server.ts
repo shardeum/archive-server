@@ -178,8 +178,7 @@ async function syncAndStartServer() {
   let lastStoredCycleInfo = await CycleDB.queryLatestCycleRecords(1)
 
   // Select a random active archiver node from the state
-  const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
-
+  const randomArchiver = Data.getRandomArchiver()
   // Initialize last stored receipt cycle as 0
   let lastStoredReceiptCycle = 0
   let lastStoredOriginalTxCycle = 0
@@ -285,10 +284,8 @@ async function syncAndStartServer() {
   // Attempt to join the network until successful
   do {
     try {
-      // Get a random active archiver node
-      const randomArchiver = Utils.getRandomItemFromArr(State.activeArchivers)[0]
-
-      // Get the active nodes list from the archiver
+      const randomArchiver = Data.getRandomArchiver()
+      // Get active nodes from Archiver
       const nodeList: any = await NodeList.getActiveNodeListFromArchiver(randomArchiver)
 
       // If no nodes are active, retry the loop
@@ -322,17 +319,15 @@ async function syncAndStartServer() {
 
   Logger.mainLogger.debug('We have successfully joined the network')
 
-  // TODO - update to sync geneis transaction receipts data also from the archiver
-
   // Synchronize Genesis accounts and transactions from the network archivers
-  await Data.syncGenesisAccountsFromArchiver(State.activeArchivers) // Sync Genesis Accounts that the network start with.
-  await Data.syncGenesisTransactionsFromArchiver(State.activeArchivers)
+  await Data.syncGenesisAccountsFromArchiver() // Sync Genesis Accounts that the network start with.
+  await Data.syncGenesisTransactionsFromArchiver()
 
   // Sync cycle and node list information
   if (config.useSyncV2 === true) {
     await Data.syncCyclesAndNodeListV2(State.activeArchivers, lastStoredCycleCount)
   } else {
-    await Data.syncCyclesAndNodeList(State.activeArchivers, lastStoredCycleCount)
+    await Data.syncCyclesAndNodeList(lastStoredCycleCount)
   }
 
   // If experimentalSnapshot is enabled, perform receipt synchronization
@@ -366,7 +361,6 @@ async function syncAndStartServer() {
       }
       // The following function also syncs Original-tx data
       await Data.syncCyclesAndReceiptsData(
-        State.activeArchivers,
         lastStoredCycleCount,
         lastStoredReceiptCount,
         lastStoredOriginalTxCount
