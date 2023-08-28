@@ -767,7 +767,7 @@ export function checkActiveStatus(): Promise<boolean> {
   const ourNodeInfo = State.getNodeInfo()
   const randomArchivers = Utils.getRandomItemFromArr(State.activeArchivers, 0, 5)
   return new Promise(async (resolve) => {
-    const [latestCycle] = await getNewestCycleFromArchivers(randomArchivers)
+    const latestCycle = await getNewestCycleFromArchivers(randomArchivers)
     try {
       if (latestCycle && latestCycle.activeArchivers) {
         let activeArchivers = latestCycle.activeArchivers

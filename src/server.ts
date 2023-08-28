@@ -389,7 +389,7 @@ async function syncAndStartServer() {
 
   // Sync the missing data during the cycle of sending active request
   const randomArchivers = Utils.getRandomItemFromArr(State.activeArchivers, 0, 5)
-  const [latestCycle] = await Cycles.getNewestCycleFromArchivers(randomArchivers)
+  const latestCycle = await Cycles.getNewestCycleFromArchivers(randomArchivers)
   await Data.syncCyclesAndTxsDataBetweenCycles(beforeCycle - 1, latestCycle.counter + 1)
 }
 

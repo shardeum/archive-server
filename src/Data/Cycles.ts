@@ -287,7 +287,7 @@ export async function getNewestCycleFromConsensors(
     if (response.newestCycle) return response.newestCycle
   }
   let newestCycle: any = await Utils.robustQuery(activeNodes, queryFn, isSameCyceInfo)
-  return newestCycle[0]
+  return newestCycle.value
 }
 
 export async function getNewestCycleFromArchivers(activeArchivers: State.ArchiverNodeInfo[]): Promise<any> {
