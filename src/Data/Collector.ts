@@ -41,7 +41,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
     const { accounts, cycle, result, sign, tx, receipt } = receipts[i]
     if (config.VERBOSE) console.log(tx.txId, senderInfo)
     if (receiptsMap.has(tx.txId)) {
-      console.log('RECEIPT', 'Skip', tx.txId, senderInfo)
+      // console.log('RECEIPT', 'Skip', tx.txId, senderInfo)
       continue
     }
     // await Receipt.insertReceipt({
@@ -60,7 +60,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
       txId: tx.txId,
       cycle: cycle,
     })
-    console.log('RECEIPT', 'Save', tx.txId, senderInfo)
+    // console.log('RECEIPT', 'Save', tx.txId, senderInfo)
     for (let j = 0; j < accounts.length; j++) {
       const account = accounts[j]
       const accObj: Account.AccountCopy = {
@@ -260,7 +260,7 @@ export const storeOriginalTxData = async (
   for (const originalTxData of originalTxsData) {
     const txId = originalTxData.txId
     if (originalTxsMap.has(txId)) {
-      console.log('ORIGINAL_TX_DATA', 'Skip', txId, senderInfo)
+      // console.log('ORIGINAL_TX_DATA', 'Skip', txId, senderInfo)
       continue
     }
     originalTxsMap.set(txId, originalTxData.cycle)
@@ -271,7 +271,7 @@ export const storeOriginalTxData = async (
       txId: txId,
       cycle: originalTxData.cycle,
     })
-    console.log('ORIGINAL_TX_DATA', 'Save', txId, senderInfo)
+    // console.log('ORIGINAL_TX_DATA', 'Save', txId, senderInfo)
     if (combineOriginalTxsData.length >= bucketSize) {
       if (socketServer) {
         let signedDataToSend = Crypto.sign({
@@ -338,20 +338,20 @@ export const processGossipTxData = (data: GossipTxData) => {
     for (const txData of txsData) {
       const { txId, cycle } = txData
       if (receiptsMap.has(txId) && receiptsMap.get(txId) === cycle) {
-        console.log('GOSSIP', 'RECEIPT', 'SKIP', txId, sender)
+        // console.log('GOSSIP', 'RECEIPT', 'SKIP', txId, sender)
         continue
       } else missingReceiptsMap.set(txId, cycle)
-      console.log('GOSSIP', 'RECEIPT', 'MISS', txId, sender)
+      // console.log('GOSSIP', 'RECEIPT', 'MISS', txId, sender)
     }
   }
   if (txDataType === TxDataType.ORIGINAL_TX_DATA) {
     for (const txData of txsData) {
       const { txId, cycle } = txData
       if (originalTxsMap.has(txId) && originalTxsMap.get(txId) === cycle) {
-        console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'SKIP', txId, sender)
+        // console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'SKIP', txId, sender)
         continue
       } else missingOriginalTxsMap.set(txId, cycle)
-      console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'MISS', txId, sender)
+      // console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'MISS', txId, sender)
     }
   }
 }

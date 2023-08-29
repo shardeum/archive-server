@@ -20,6 +20,7 @@ export interface GossipTxData {
   sign: Signature
 }
 
+// For debugging purpose, set this to true to stop gossiping tx data
 const stopGossipTxData = false
 
 export const getAdjacentLeftAndRightArchivers = () => {
