@@ -376,6 +376,11 @@ async function syncAndStartServer() {
 
   // Start the server
   io = await startServer()
+
+  if (!config.sendActiveMessage) {
+    await Data.subscribeNodeForDataTransfer()
+    return
+  }
   let beforeCycle = Cycles.currentCycleCounter
   // Sending active message to the network
   let isActive = false

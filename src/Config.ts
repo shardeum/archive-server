@@ -30,14 +30,17 @@ export interface Config {
   VERBOSE: boolean
   useSerialization: boolean
   useSyncV2: boolean
+  sendActiveMessage: boolean
 }
 
 let config: Config = {
   ARCHIVER_IP: 'localhost',
   ARCHIVER_PORT: 4000,
   ARCHIVER_HASH_KEY: '69fa4195670576c0160d660c3be36556ff8d504725be8a59b5a96509e0c994bc',
-  ARCHIVER_PUBLIC_KEY: process.env.ARCHIVER_PUBLIC_KEY || '758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3',
-  ARCHIVER_SECRET_KEY: process.env.ARCHIVER_SECRET_KEY ||
+  ARCHIVER_PUBLIC_KEY:
+    process.env.ARCHIVER_PUBLIC_KEY || '758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3',
+  ARCHIVER_SECRET_KEY:
+    process.env.ARCHIVER_SECRET_KEY ||
     '3be00019f23847529bd63e41124864983175063bb524bd54ea3c155f2fa12969758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3',
   ARCHIVER_LOGS: 'archiver-logs',
   ARCHIVER_DB: 'archiver-db',
@@ -59,6 +62,7 @@ let config: Config = {
   VERBOSE: false,
   useSerialization: false,
   useSyncV2: false,
+  sendActiveMessage: false,
 }
 
 export function overrideDefaultConfig(file: string, env: NodeJS.ProcessEnv, args: string[]) {
