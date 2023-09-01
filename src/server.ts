@@ -1541,6 +1541,7 @@ async function startServer() {
 
     const res = getGlobalAccount(useHash)
 
+    // We might want to sign this response
     reply.send(res)
   })
 
