@@ -50,12 +50,12 @@ let subsetNodesMapByConsensusRadius: Map<number, NodeList.ConsensusNodeInfo[]> =
 let receivedCycleTracker = {}
 const QUERY_TIMEOUT_MAX = 30 // 30seconds
 
-const ACCOUNTS_PER_REQUEST = 100
-const RECEIPTS_PER_REQUEST = 100
-const ORIGINAL_TXS_PER_REQUEST = 100
+const ACCOUNTS_PER_REQUEST = 1000
+const RECEIPTS_PER_REQUEST = 1000
+const ORIGINAL_TXS_PER_REQUEST = 1000
 const CYCLES_PER_REQUEST = 100
 
-const MAX_CYCLES_FOR_TXS_DATA = 10
+const MAX_CYCLES_FOR_TXS_DATA = 100
 
 export enum DataRequestTypes {
   SUBSCRIBE = 'SUBSCRIBE',
