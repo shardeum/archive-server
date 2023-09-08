@@ -55,7 +55,7 @@ export async function initFromConfig(config: Config) {
     }))
     console.log(`Got existing archivers list using archiver-discovery. [count: ${existingArchivers.length}]`)
   } catch (e) {
-    console.warn('No existing archivers were found:', JSON.stringify(e))
+    console.warn('No existing archivers were found:', e)
   }
 
   if (existingArchivers.length === 0) {
