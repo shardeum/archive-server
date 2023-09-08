@@ -1655,7 +1655,7 @@ export const syncCyclesAndReceiptsData = async (
         if (totalOriginalTxsToSync < startOriginalTx) {
           completeForOriginalTx = true
         }
-        if (totalCyclesToSync < startCycle) {
+        if (totalCyclesToSync <= startCycle) {
           completeForCycle = true
         }
         Logger.mainLogger.debug(

@@ -94,10 +94,10 @@ export function addNodes(
       } else if (status === Statuses.ACTIVE) {
         activeList.set(node.publicKey, node)
         Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
-        Logger.mainLogger.debug(
-          'activeListByIdSorted',
-          activeListByIdSorted.map((node) => node.id)
-        )
+        // Logger.mainLogger.debug(
+        //   'activeListByIdSorted',
+        //   activeListByIdSorted.map((node) => node.id)
+        // )
       }
 
       byPublicKey[node.publicKey] = node
@@ -145,10 +145,10 @@ export function refreshNodes(
       } else if (status === Statuses.ACTIVE) {
         activeList.set(node.publicKey, node)
         Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
-        Logger.mainLogger.debug(
-          'activeListByIdSorted',
-          activeListByIdSorted.map((node) => node.id)
-        )
+        // Logger.mainLogger.debug(
+        //   'activeListByIdSorted',
+        //   activeListByIdSorted.map((node) => node.id)
+        // )
       }
 
       byPublicKey[node.publicKey] = node
@@ -225,10 +225,10 @@ export function setStatus(status: Statuses, ...publicKeys: string[]) {
       if (activeList.has(key)) continue
       activeList.set(key, node)
       Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
-      Logger.mainLogger.debug(
-        'activeListByIdSorted',
-        activeListByIdSorted.map((node) => node.id)
-      )
+      // Logger.mainLogger.debug(
+      //   'activeListByIdSorted',
+      //   activeListByIdSorted.map((node) => node.id)
+      // )
     }
   }
 
