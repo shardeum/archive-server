@@ -1377,7 +1377,7 @@ async function startServer() {
 
   server.post('/gossip-tx-data', async (_request: GossipTxDataRequest, reply) => {
     let gossipPayload = _request.body
-    Logger.mainLogger.debug('Gossip Data received', JSON.stringify(gossipPayload))
+    if (config.VERBOSE) Logger.mainLogger.debug('Gossip Data received', JSON.stringify(gossipPayload))
     const result = Collector.validateGossipTxData(gossipPayload)
     if (!result.success) {
       reply.send(Crypto.sign({ success: false, error: result.error }))
