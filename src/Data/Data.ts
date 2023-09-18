@@ -1655,7 +1655,7 @@ export const syncCyclesAndReceiptsData = async (
         if (totalOriginalTxsToSync < startOriginalTx) {
           completeForOriginalTx = true
         }
-        if (totalCyclesToSync <= startCycle) {
+        if (totalCyclesToSync < startCycle) {
           completeForCycle = true
         }
         Logger.mainLogger.debug(
@@ -1679,8 +1679,8 @@ export const syncCyclesAndReceiptsData = async (
         Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
         await storeReceiptData(downloadedReceipts, randomArchiver.ip + ':' + randomArchiver.port, true)
         if (downloadedReceipts.length < ORIGINAL_TXS_PER_REQUEST) {
-          startReceipt += downloadedReceipts.length
-          endReceipt = startReceipt + ORIGINAL_TXS_PER_REQUEST
+          startReceipt += downloadedReceipts.length + 1
+          endReceipt = downloadedReceipts.length + ORIGINAL_TXS_PER_REQUEST
           continue
         }
       } else {
@@ -1700,8 +1700,8 @@ export const syncCyclesAndReceiptsData = async (
         Logger.mainLogger.debug(`Downloaded Original-Txs: `, downloadedOriginalTxs.length)
         await storeOriginalTxData(downloadedOriginalTxs, randomArchiver.ip + ':' + randomArchiver.port, true)
         if (downloadedOriginalTxs.length < ORIGINAL_TXS_PER_REQUEST) {
-          startOriginalTx += downloadedOriginalTxs.length
-          endOriginalTx = startOriginalTx + ORIGINAL_TXS_PER_REQUEST
+          startOriginalTx += downloadedOriginalTxs.length + 1
+          endOriginalTx = downloadedOriginalTxs.length + ORIGINAL_TXS_PER_REQUEST
           continue
         }
       } else {
@@ -1722,8 +1722,8 @@ export const syncCyclesAndReceiptsData = async (
         processCycles(cycles)
         await storeCycleData(cycles)
         if (res.cycleInfo.length < CYCLES_PER_REQUEST) {
-          startCycle += res.cycleInfo.length
-          endCycle = startCycle + CYCLES_PER_REQUEST
+          startCycle += res.cycleInfo.length + 1
+          endCycle = res.cycleInfo.length + CYCLES_PER_REQUEST
           continue
         }
       } else {

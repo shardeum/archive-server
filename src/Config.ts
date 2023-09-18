@@ -61,8 +61,8 @@ let config: Config = {
   },
   experimentalSnapshot: true,
   VERBOSE: false,
-  useSerialization: false,
-  useSyncV2: false,
+  useSerialization: true,
+  useSyncV2: true,
   sendActiveMessage: false,
   globalAccount: process.env.GLOBAL_ACCOUNT || '0'.repeat(64), //this address will change in the future
 }

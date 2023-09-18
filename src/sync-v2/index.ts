@@ -1,3 +1,5 @@
+import * as Logger from '../Logger'
+
 /**
  * SyncV2 a p2p module that contains all of the functionality for the new
  * Node List Sync v2.
@@ -50,6 +52,9 @@ export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, 
     (nodeList) =>
       syncValidatorList(nodeList).andThen((validatorList) =>
         syncLatestCycleRecordAndMarker(nodeList).map(([cycle, cycleMarker]) => {
+
+          Logger.mainLogger.debug('syncV2: validatorList', validatorList)
+
           // validatorList needs to be transformed into a ConsensusNodeInfo[]
           const consensusNodeList: NodeList.ConsensusNodeInfo[] = validatorList.map((node) => ({
             publicKey: node.publicKey,
