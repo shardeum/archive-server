@@ -1,7 +1,7 @@
 const objToString = Object.prototype.toString
 const objKeys =
   Object.keys ||
-  function(obj) {
+  function (obj) {
     let keys = []
     for (const name in obj) {
       keys.push(name)
@@ -21,6 +21,10 @@ export function stringify(val: any, options: stringifierOptions): string {
   return ''
 }
 
+function isUnit8Array(value: unknown): boolean {
+  return value instanceof Uint8Array
+}
+
 function stringifier(val: any, isArrayProp: boolean, options: stringifierOptions): string | null | undefined {
   let i, max, str, keys, key, propVal, toStr
   if (val === true) {
@@ -28,6 +32,9 @@ function stringifier(val: any, isArrayProp: boolean, options: stringifierOptions
   }
   if (val === false) {
     return 'false'
+  }
+  if (isUnit8Array(val)) {
+    val = Buffer.from(val)
   }
   switch (typeof val) {
     case 'object':
@@ -82,14 +89,19 @@ function stringifier(val: any, isArrayProp: boolean, options: stringifierOptions
           return JSON.stringify(val)
         }
       }
-    case 'function':
+    // eslint-disable-next-line no-fallthrough
     case 'undefined':
       return isArrayProp ? null : undefined
     case 'string':
       return JSON.stringify(val)
+    case 'bigint':
+      // Add some special identifier for bigint
+      // return JSON.stringify({__BigInt__: val.toString()})
+      return JSON.stringify(val.toString(16))
     default:
       return isFinite(val) ? val : null
   }
+  /* eslint-enable security/detect-object-injection */
 }
 
 function isBufferValue(toStr, val: Object) {
@@ -99,4 +111,73 @@ function isBufferValue(toStr, val: Object) {
     objKeys(val).includes('type') &&
     val['type'] == 'Buffer'
   )
+}
+
+/* cryptoStringifier is a close version of default fast-stringify-json that works with BigInts */
+function cryptoStringifier(val, isArrayProp): string {
+  var i, max, str, keys, key, propVal, toStr
+  if (val === true) {
+    return 'true'
+  }
+  if (val === false) {
+    return 'false'
+  }
+  switch (typeof val) {
+    case 'object':
+      if (val === null) {
+        return null
+      } else if (val.toJSON && typeof val.toJSON === 'function') {
+        return cryptoStringifier(val.toJSON(), isArrayProp)
+      } else {
+        toStr = objToString.call(val)
+        if (toStr === '[object Array]') {
+          str = '['
+          max = val.length - 1
+          for (i = 0; i < max; i++) {
+            str += cryptoStringifier(val[i], true) + ','
+          }
+          if (max > -1) {
+            str += cryptoStringifier(val[i], true)
+          }
+          return str + ']'
+        } else if (toStr === '[object Object]') {
+          // only object is left
+          keys = objKeys(val).sort()
+          max = keys.length
+          str = ''
+          i = 0
+          while (i < max) {
+            key = keys[i]
+            propVal = cryptoStringifier(val[key], false)
+            if (propVal !== undefined) {
+              if (str) {
+                str += ','
+              }
+              str += JSON.stringify(key) + ':' + propVal
+            }
+            i++
+          }
+          return '{' + str + '}'
+        } else {
+          return JSON.stringify(val)
+        }
+      }
+    case 'function':
+    case 'undefined':
+      return isArrayProp ? null : undefined
+    case 'string':
+      return JSON.stringify(val)
+    case 'bigint':
+      return JSON.stringify(val.toString(16))
+    default:
+      return isFinite(val) ? val : null
+  }
+}
+
+export function cryptoStringify(val: unknown, isArrayProp = false): string {
+  const returnVal = cryptoStringifier(val, isArrayProp)
+  if (returnVal !== undefined) {
+    return '' + returnVal
+  }
+  return ''
 }
