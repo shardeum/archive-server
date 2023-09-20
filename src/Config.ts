@@ -26,6 +26,13 @@ export interface Config {
     hashedDevAuth?: string
     devPublicKey?: string
   }
+  logWriter: {
+    dirName: string
+    maxLogFiles: number
+    maxReceiptEntries: number
+    maxCycleEntries: number
+    maxOriginalTxEntries: number
+  }
   experimentalSnapshot: boolean
   VERBOSE: boolean
   useSerialization: boolean
@@ -58,6 +65,13 @@ let config: Config = {
   DEBUG: {
     hashedDevAuth: '',
     devPublicKey: '',
+  },
+  logWriter: {
+    dirName: 'data-logs',
+    maxLogFiles: 10,
+    maxReceiptEntries: 1000,
+    maxCycleEntries: 1000,
+    maxOriginalTxEntries: 1000,
   },
   experimentalSnapshot: true,
   VERBOSE: false,

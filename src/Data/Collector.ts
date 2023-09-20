@@ -14,6 +14,7 @@ import * as Utils from '../Utils'
 import { TxDataType, GossipTxData, adjacentArchivers, sendDataToAdjacentArchivers } from './GossipTxData'
 import { getJson } from '../P2P'
 import { setGlobalAccount } from '../GlobalAccount'
+import { CycleLogWriter, ReceiptLogWriter, OriginalTxDataLogWriter } from '../Data/DataLogWriter'
 
 export let storingAccountData = false
 export let receiptsMap: Map<string, number> = new Map()
@@ -115,6 +116,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
       sign: sign,
     }
     // await Transaction.insertTransaction(txObj)
+    ReceiptLogWriter.writeLog([`${JSON.stringify(txObj)}\n`])
     combineTransactions.push(txObj)
     // Receipts size can be big, better to save per 100
     if (combineReceipts.length >= 100) {
@@ -169,6 +171,7 @@ export const storeCycleData = async (cycles: Cycle[] = []) => {
       let signedDataToSend = Crypto.sign({
         cycles: [cycleObj],
       })
+      CycleLogWriter.writeLog([`${JSON.stringify(signedDataToSend)}\n`])
       socketServer.emit('RECEIPT', signedDataToSend)
     }
     const cycleExist = await queryCycleByMarker(cycleObj.cycleMarker)
@@ -271,7 +274,8 @@ export const storeOriginalTxData = async (
     }
     originalTxsMap.set(txId, originalTxData.cycle)
     if (missingOriginalTxsMap.has(txId)) missingOriginalTxsMap.delete(txId)
-    // console.log('originalTxData', originalTxData)
+
+    OriginalTxDataLogWriter.writeLog([`${JSON.stringify(originalTxData)}\n`])
     combineOriginalTxsData.push(originalTxData)
     txsData.push({
       txId: txId,
