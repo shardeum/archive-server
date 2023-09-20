@@ -58,6 +58,13 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
       receiptId: tx.txId,
       timestamp: tx.timestamp,
     })
+    ReceiptLogWriter.writeLog(
+      `${JSON.stringify({
+        ...receipts[i],
+        receiptId: tx.txId,
+        timestamp: tx.timestamp,
+      })}\n`
+    )
     txsData.push({
       txId: tx.txId,
       cycle: cycle,
@@ -116,7 +123,6 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
       sign: sign,
     }
     // await Transaction.insertTransaction(txObj)
-    ReceiptLogWriter.writeLog([`${JSON.stringify(txObj)}\n`])
     combineTransactions.push(txObj)
     // Receipts size can be big, better to save per 100
     if (combineReceipts.length >= 100) {
@@ -167,11 +173,12 @@ export const storeCycleData = async (cycles: Cycle[] = []) => {
       cycleMarker: cycleRecord.marker,
       cycleRecord,
     }
+    CycleLogWriter.writeLog(`${JSON.stringify(cycleObj)}\n`)
     if (socketServer) {
       let signedDataToSend = Crypto.sign({
         cycles: [cycleObj],
       })
-      CycleLogWriter.writeLog([`${JSON.stringify(signedDataToSend)}\n`])
+
       socketServer.emit('RECEIPT', signedDataToSend)
     }
     const cycleExist = await queryCycleByMarker(cycleObj.cycleMarker)
@@ -275,7 +282,7 @@ export const storeOriginalTxData = async (
     originalTxsMap.set(txId, originalTxData.cycle)
     if (missingOriginalTxsMap.has(txId)) missingOriginalTxsMap.delete(txId)
 
-    OriginalTxDataLogWriter.writeLog([`${JSON.stringify(originalTxData)}\n`])
+    OriginalTxDataLogWriter.writeLog(`${JSON.stringify(originalTxData)}\n`)
     combineOriginalTxsData.push(originalTxData)
     txsData.push({
       txId: txId,

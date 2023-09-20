@@ -119,7 +119,7 @@ class DataLogWriter {
   }
 
   async writeLog(data: any): Promise<void> {
-    this.writeQueue = [...this.writeQueue, ...data]
+    this.writeQueue.push(data)
     if (!this.isWriting) {
       this.cloneWriteQueue = [...this.writeQueue]
       this.writeQueue = []
