@@ -32,8 +32,9 @@ function base64BufferReviver(key: string, value: any) {
     originalObject.dataType == 'bh'
   ) {
     return new Uint8Array(GetBufferFromField(originalObject, 'base64'))
-  } else if (value && isHexStringWithoutPrefix(value) && value.length !== 42 && value.length !== 64) {
-    return BigInt('0x' + value)
+    // } else if (value && isHexStringWithoutPrefix(value) && value.length !== 42 && value.length !== 64) {
+    //   console.log('hex string', value)
+    //   return BigInt('0x' + value)
   } else {
     return value
   }

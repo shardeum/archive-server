@@ -69,7 +69,13 @@ function stringifier(val: any, isArrayProp: boolean, options: stringifierOptions
           }
         } else if (toStr === '[object Object]') {
           // only object is left
-          keys = objKeys(val).sort()
+          keys = objKeys(val)
+          if (keys.length > 1 && keys[0] === '0' && keys[1] === '1') {
+            // convert to unit8array
+            const unit8Array = new Uint8Array(Object.values(val))
+            return stringifier(unit8Array, false, options)
+          }
+          keys = keys.sort()
           max = keys.length
           str = ''
           i = 0
