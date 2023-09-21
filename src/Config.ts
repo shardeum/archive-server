@@ -26,7 +26,8 @@ export interface Config {
     hashedDevAuth?: string
     devPublicKey?: string
   }
-  logWriter: {
+  dataLogWrite: boolean
+  dataLogWriter: {
     dirName: string
     maxLogFiles: number
     maxReceiptEntries: number
@@ -66,7 +67,8 @@ let config: Config = {
     hashedDevAuth: '',
     devPublicKey: '',
   },
-  logWriter: {
+  dataLogWrite: false,
+  dataLogWriter: {
     dirName: 'data-logs',
     maxLogFiles: 10,
     maxReceiptEntries: 1000,

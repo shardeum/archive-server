@@ -11,7 +11,7 @@ import * as P2P from './P2P'
 import * as Storage from './archivedCycle/Storage'
 import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
-import { initLogWriter } from './Data/DataLogWriter'
+import { initDataLogWriter } from './Data/DataLogWriter'
 import * as Utils from './Utils'
 import { addHashesGossip } from './archivedCycle/Gossip'
 import { syncStateMetaData } from './archivedCycle/StateMetaData'
@@ -91,7 +91,8 @@ async function start() {
 
   // Initialize state from config
   await State.initFromConfig(config)
-  initLogWriter()
+
+  if (config.dataLogWrite) initDataLogWriter()
 
   if (State.isFirst) {
     Logger.mainLogger.debug('We are first archiver. Starting archive-server')
