@@ -91,9 +91,6 @@ async function start() {
 
   // Initialize state from config
   await State.initFromConfig(config)
-
-  if (config.dataLogWrite) initDataLogWriter()
-
   if (State.isFirst) {
     Logger.mainLogger.debug('We are first archiver. Starting archive-server')
     let lastStoredCycle = await CycleDB.queryLatestCycleRecords(1)
@@ -487,6 +484,9 @@ async function startServer() {
   Data.initSocketServer(io)
 
   initProfiler(server)
+
+  // Initialize the data log writer
+  if (config.dataLogWrite) await initDataLogWriter()
 
   /**
    * Check the cache for the node list, if it's hot, return it. Otherwise,
