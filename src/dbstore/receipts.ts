@@ -59,7 +59,8 @@ export async function queryReceiptByReceiptId(receiptId: string) {
     let receipt: any = await db.get(sql, [receiptId])
     if (receipt) {
       if (receipt.tx) receipt.tx = DeSerializeFromJsonString(receipt.tx)
-      if (receipt.beforeStateAccounts) receipt.beforeStateAccounts = DeSerializeFromJsonString(receipt.beforeStateAccounts)
+      if (receipt.beforeStateAccounts)
+        receipt.beforeStateAccounts = DeSerializeFromJsonString(receipt.beforeStateAccounts)
       if (receipt.accounts) receipt.accounts = DeSerializeFromJsonString(receipt.accounts)
       if (receipt.receipt) receipt.receipt = DeSerializeFromJsonString(receipt.receipt)
       if (receipt.result) receipt.result = DeSerializeFromJsonString(receipt.result)
@@ -81,7 +82,8 @@ export async function queryLatestReceipts(count: number) {
     if (receipts.length > 0) {
       receipts.forEach((receipt: any) => {
         if (receipt.tx) receipt.tx = DeSerializeFromJsonString(receipt.tx)
-        if (receipt.beforeStateAccounts) receipt.beforeStateAccounts = DeSerializeFromJsonString(receipt.beforeStateAccounts)
+        if (receipt.beforeStateAccounts)
+          receipt.beforeStateAccounts = DeSerializeFromJsonString(receipt.beforeStateAccounts)
         if (receipt.accounts) receipt.accounts = DeSerializeFromJsonString(receipt.accounts)
         if (receipt.receipt) receipt.receipt = DeSerializeFromJsonString(receipt.receipt)
         if (receipt.result) receipt.result = DeSerializeFromJsonString(receipt.result)
@@ -105,7 +107,8 @@ export async function queryReceipts(skip: number = 0, limit: number = 10000) {
     if (receipts.length > 0) {
       receipts.forEach((receipt: any) => {
         if (receipt.tx) receipt.tx = DeSerializeFromJsonString(receipt.tx)
-        if (receipt.beforeStateAccounts) receipt.beforeStateAccounts = DeSerializeFromJsonString(receipt.beforeStateAccounts)
+        if (receipt.beforeStateAccounts)
+          receipt.beforeStateAccounts = DeSerializeFromJsonString(receipt.beforeStateAccounts)
         if (receipt.accounts) receipt.accounts = DeSerializeFromJsonString(receipt.accounts)
         if (receipt.receipt) receipt.receipt = DeSerializeFromJsonString(receipt.receipt)
         if (receipt.result) receipt.result = DeSerializeFromJsonString(receipt.result)
@@ -186,7 +189,8 @@ export async function queryReceiptsBetweenCycles(
     if (receipts.length > 0) {
       receipts.forEach((receipt: any) => {
         if (receipt.tx) receipt.tx = DeSerializeFromJsonString(receipt.tx)
-        if (receipt.beforeStateAccounts) receipt.beforeStateAccounts = DeSerializeFromJsonString(receipt.beforeStateAccounts)
+        if (receipt.beforeStateAccounts)
+          receipt.beforeStateAccounts = DeSerializeFromJsonString(receipt.beforeStateAccounts)
         if (receipt.accounts) receipt.accounts = DeSerializeFromJsonString(receipt.accounts)
         if (receipt.receipt) receipt.receipt = DeSerializeFromJsonString(receipt.receipt)
         if (receipt.result) receipt.result = DeSerializeFromJsonString(receipt.result)

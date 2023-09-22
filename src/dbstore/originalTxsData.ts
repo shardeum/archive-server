@@ -150,9 +150,9 @@ export async function queryLatestOriginalTxs(count: number) {
     }`
     const originalTxs: any = await db.all(sql)
     if (originalTxs.length > 0) {
-      originalTxs.forEach((tx: OriginalTxData) => {
+      originalTxs.forEach((tx: DbOriginalTxData) => {
         if (tx.originalTxData) tx.originalTxData = DeSerializeFromJsonString(tx.originalTxData)
-        if (tx.sign) tx.sign = DeSerializeFromJsonString(tx.sign as string)
+        if (tx.sign) tx.sign = DeSerializeFromJsonString(tx.sign)
       })
     }
     if (config.VERBOSE) {

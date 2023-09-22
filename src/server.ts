@@ -738,7 +738,7 @@ async function startServer() {
   server.get('/cycleinfo', async (_request: CycleInfoRequest, reply) => {
     let { start, end, download } = _request.query
     if (!start) start = 0
-    if (!end) end = Cycles.currentCycleCounter
+    if (!end) end = start + 100
     let from = parseInt(start)
     let to = parseInt(end)
     let isDownload: boolean = download === 'true'
@@ -746,6 +746,13 @@ async function startServer() {
     if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
       Logger.mainLogger.error(`Invalid start and end counters`)
       reply.send(Crypto.sign({ success: false, error: `Invalid start and end counters` }))
+      return
+    }
+    // Limit the number of cycles to 1000
+    const cycleCount = to - from
+    if (cycleCount > 1000) {
+      Logger.mainLogger.error(`Exceed maximum limit of 1000 cycles`)
+      reply.send(Crypto.sign({ success: false, error: `Exceed maximum limit of 1000 cycles` }))
       return
     }
     let cycleInfo = []
@@ -862,9 +869,9 @@ async function startServer() {
         const originalTx = await OriginalTxDB.queryOriginalTxDataByTxId(txId)
         if (originalTx) originalTxs.push(originalTx)
       }
-    } else if (start && end) {
-      let from = parseInt(start)
-      let to = parseInt(end)
+    } else if (start || end) {
+      const from = start ? parseInt(start) : 0
+      const to = end ? parseInt(end) : from + 100
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -885,9 +892,9 @@ async function startServer() {
         return
       }
       originalTxs = await OriginalTxDB.queryOriginalTxsData(from, count++)
-    } else if (startCycle && endCycle) {
-      let from = parseInt(startCycle)
-      let to = parseInt(endCycle)
+    } else if (startCycle || endCycle) {
+      const from = startCycle ? parseInt(startCycle) : 0
+      const to = endCycle ? parseInt(endCycle) : from + 100
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -898,11 +905,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > 1000) {
+      if (count > 100) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of 1000 cycles`,
+            error: `Exceed maximum limit of 100 cycles`,
           })
         )
         return
@@ -915,7 +922,12 @@ async function startServer() {
         let skip = 0
         let limit = 100
         if (page) {
-          skip = parseInt(page) - 1
+          const page_number = parseInt(page)
+          if (page_number < 1 || Number.isNaN(page_number)) {
+            reply.send(Crypto.sign({ success: false, error: `Invalid page number` }))
+            return
+          }
+          skip = page_number - 1
           if (skip > 0) skip = skip * limit
         }
         originalTxs = await OriginalTxDB.queryOriginalTxsData(skip, limit, from, to)
@@ -981,9 +993,9 @@ async function startServer() {
         const receipt = await ReceiptDB.queryReceiptByReceiptId(txId)
         if (receipt) receipts.push(receipt)
       }
-    } else if (start && end) {
-      let from = parseInt(start)
-      let to = parseInt(end)
+    } else if (start || end) {
+      const from = start ? parseInt(start) : 0
+      const to = end ? parseInt(end) : from + 100
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -1004,9 +1016,9 @@ async function startServer() {
         return
       }
       receipts = await ReceiptDB.queryReceipts(from, count++)
-    } else if (startCycle && endCycle) {
-      let from = parseInt(startCycle)
-      let to = parseInt(endCycle)
+    } else if (startCycle || endCycle) {
+      const from = startCycle ? parseInt(startCycle) : 0
+      const to = endCycle ? parseInt(endCycle) : from + 100
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -1017,11 +1029,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > 1000) {
+      if (count > 100) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of 1000 cycles`,
+            error: `Exceed maximum limit of 100 cycles`,
           })
         )
         return
@@ -1034,7 +1046,12 @@ async function startServer() {
         let skip = 0
         let limit = 100
         if (page) {
-          skip = parseInt(page) - 1
+          const page_number = parseInt(page)
+          if (page_number < 1 || Number.isNaN(page_number)) {
+            reply.send(Crypto.sign({ success: false, error: `Invalid page number` }))
+            return
+          }
+          skip = page_number - 1
           if (skip > 0) skip = skip * limit
         }
         receipts = await ReceiptDB.queryReceiptsBetweenCycles(skip, limit, from, to)
@@ -1105,9 +1122,9 @@ async function startServer() {
     let totalAccounts = 0
     let res
     let { start, end, startCycle, endCycle, page, accountId } = _request.query
-    if (start && end) {
-      let from = parseInt(start)
-      let to = parseInt(end)
+    if (start || end) {
+      const from = start ? parseInt(start) : 0
+      const to = end ? parseInt(end) : from + 100
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -1131,9 +1148,9 @@ async function startServer() {
       res = Crypto.sign({
         accounts,
       })
-    } else if (startCycle && endCycle) {
-      let from = parseInt(startCycle)
-      let to = parseInt(endCycle)
+    } else if (startCycle || endCycle) {
+      const from = startCycle ? parseInt(startCycle) : 0
+      const to = endCycle ? parseInt(endCycle) : from + 100
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -1155,16 +1172,14 @@ async function startServer() {
       }
       totalAccounts = await AccountDB.queryAccountCountBetweenCycles(from, to)
       if (page) {
-        let offset = parseInt(page)
-        if (offset < 0) {
+        const page_number = parseInt(page)
+        if (page_number < 1 || Number.isNaN(page_number)) {
           reply.send(Crypto.sign({ success: false, error: `Invalid page number` }))
           return
         }
-        let skip = 0
+        let skip = page_number - 1
         let limit = 10000 // query 10000 accounts
-        if (offset > 0) {
-          skip = offset * 10000
-        }
+        if (skip > 0) skip = skip * limit
         accounts = await AccountDB.queryAccountsBetweenCycles(skip, limit, from, to)
       }
       res = Crypto.sign({
@@ -1245,9 +1260,9 @@ async function startServer() {
     let transactions = []
     let totalTransactions = 0
     let res
-    if (start && end) {
-      let from = parseInt(start)
-      let to = parseInt(end)
+    if (start || end) {
+      const from = start ? parseInt(start) : 0
+      const to = end ? parseInt(end) : from + 100
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -1271,9 +1286,9 @@ async function startServer() {
       res = Crypto.sign({
         transactions,
       })
-    } else if (startCycle && endCycle) {
-      let from = parseInt(startCycle)
-      let to = parseInt(endCycle)
+    } else if (startCycle || endCycle) {
+      const from = startCycle ? parseInt(startCycle) : 0
+      const to = endCycle ? parseInt(endCycle) : from + 100
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -1295,16 +1310,14 @@ async function startServer() {
       }
       totalTransactions = await TransactionDB.queryTransactionCountBetweenCycles(from, to)
       if (page) {
-        let offset = parseInt(page)
-        if (offset < 0) {
+        const page_number = parseInt(page)
+        if (page_number < 1 || Number.isNaN(page_number)) {
           reply.send(Crypto.sign({ success: false, error: `Invalid page number` }))
           return
         }
-        let skip = 0
+        let skip = page_number - 1
         let limit = 10000 // query 10000 transactions
-        if (offset > 0) {
-          skip = offset * 10000
-        }
+        if (skip > 0) skip = skip * limit
         transactions = await TransactionDB.queryTransactionsBetweenCycles(skip, limit, from, to)
       }
       res = Crypto.sign({
@@ -1464,8 +1477,8 @@ async function startServer() {
         return
       }
       let { start, end } = _request.query
-      let from = parseInt(start)
-      let to = parseInt(end)
+      const from = start ? parseInt(start) : 0
+      const to = end ? parseInt(end) : from + 100
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(Crypto.sign({ success: false, error: `Invalid start and end counters` }))
         return

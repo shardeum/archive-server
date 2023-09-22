@@ -862,7 +862,7 @@ export async function syncGenesisAccountsFromArchiver() {
     return
   }
   if (totalGenesisAccounts <= 0) return
-  let page = 0
+  let page = 1
   while (!complete) {
     Logger.mainLogger.debug(`Downloading accounts from ${startAccount} to ${endAccount}`)
     let response: any = await P2P.getJson(
@@ -906,7 +906,7 @@ export async function syncGenesisTransactionsFromArchiver() {
     return
   }
   if (totalGenesisTransactions <= 0) return
-  let page = 0
+  let page = 1
   while (!complete) {
     Logger.mainLogger.debug(`Downloading transactions from ${startTransaction} to ${endTransaction}`)
     let response: any = await P2P.getJson(
