@@ -67,7 +67,7 @@ let config: Config = {
     hashedDevAuth: '',
     devPublicKey: '',
   },
-  dataLogWrite: false,
+  dataLogWrite: true,
   dataLogWriter: {
     dirName: 'data-logs',
     maxLogFiles: 10,
