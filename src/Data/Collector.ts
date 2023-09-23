@@ -58,7 +58,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
       receiptId: tx.txId,
       timestamp: tx.timestamp,
     })
-    if (config.dataLogWrite)
+    if (config.dataLogWrite && ReceiptLogWriter)
       ReceiptLogWriter.writeDataLog(
         `${JSON.stringify({
           ...receipts[i],
@@ -174,7 +174,7 @@ export const storeCycleData = async (cycles: Cycle[] = []) => {
       cycleMarker: cycleRecord.marker,
       cycleRecord,
     }
-    if (config.dataLogWrite) CycleLogWriter.writeDataLog(`${JSON.stringify(cycleObj)}\n`)
+    if (config.dataLogWrite && CycleLogWriter) CycleLogWriter.writeDataLog(`${JSON.stringify(cycleObj)}\n`)
     if (socketServer) {
       let signedDataToSend = Crypto.sign({
         cycles: [cycleObj],
@@ -283,7 +283,8 @@ export const storeOriginalTxData = async (
     originalTxsMap.set(txId, originalTxData.cycle)
     if (missingOriginalTxsMap.has(txId)) missingOriginalTxsMap.delete(txId)
 
-    if (config.dataLogWrite) OriginalTxDataLogWriter.writeDataLog(`${JSON.stringify(originalTxData)}\n`)
+    if (config.dataLogWrite && OriginalTxDataLogWriter)
+      OriginalTxDataLogWriter.writeDataLog(`${JSON.stringify(originalTxData)}\n`)
     combineOriginalTxsData.push(originalTxData)
     txsData.push({
       txId: txId,
