@@ -71,9 +71,9 @@ let config: Config = {
   dataLogWriter: {
     dirName: 'data-logs',
     maxLogFiles: 10,
-    maxReceiptEntries: 1000, // Should be >= max TPS experienced by the network.
-    maxCycleEntries: 1000,
-    maxOriginalTxEntries: 1000, // Should be >= max TPS experienced by the network.
+    maxReceiptEntries: 5000, // Should be >= max TPS experienced by the network.
+    maxCycleEntries: 500,
+    maxOriginalTxEntries: 5000, // Should be >= max TPS experienced by the network.
   },
   experimentalSnapshot: true,
   VERBOSE: false,
