@@ -75,7 +75,6 @@ class DataLogWriter {
     }
 
     if (this.logCounter === 1) await this.setActiveLog()
-    this.writeDataLog()
   }
 
   async deleteOldLogFiles(prefix: string): Promise<any> {
@@ -130,50 +129,39 @@ class DataLogWriter {
     console.log(`> DataLogWriter: Rotated log file: ${this.dataName}-log${this.logCounter}.txt`)
   }
 
-  async writeDataLog(): Promise<void> {
-    setInterval(async () => {
-      console.log('>> Starting Queue Reading Cycle...')
-      if (!this.isWriting) {
-        await this.insertDataLog()
-      } else console.log('❌❌❌ Already writing...')
-      if (config.verbose) {
-        console.log(this.dataName, `Write-Queue length: ${this.writeQueue.length}`)
-      }
-    }, LOG_WRITER_CONFIG.WRITING_INTERVAL)
+  async writeToLog(data: string): Promise<void> {
+    this.writeQueue.push(data)
+    if (!this.isWriting) await this.insertDataLog()
+    else console.log('❌❌❌ Already writing...')
   }
 
   async insertDataLog(): Promise<void> {
     this.isWriting = true
-    const allowedNumberoFEntries = this.maxNumberEntriesPerLog - this.totalNumberOfEntries
-    const dataToWrite = this.writeQueue.slice(0, allowedNumberoFEntries)
-    console.log('> Data to write: ', dataToWrite.length)
-    if (dataToWrite.length > 0) {
-      if (config.verbose) console.log(`Writing: ${dataToWrite.length} entries`)
-
-      for (const entry of dataToWrite) {
-        try {
-          await this.appendData(entry)
+    while (this.writeQueue.length) {
+      try {
+        for (let i = 0; i < this.writeQueue.length; i++) {
+          if (this.totalNumberOfEntries === this.maxNumberEntriesPerLog) {
+            await this.appendData(`End: Number of entries: ${this.totalNumberOfEntries}\n`)
+            await this.endStream()
+            this.totalNumberOfEntries = 0
+            await this.rotateLogFile()
+            await this.setActiveLog()
+          }
+          await this.appendData(this.writeQueue[i])
           this.dataWriteIndex += 1
-        } catch (e) {
-          console.error('Error while writing data to log file', e)
+          this.totalNumberOfEntries += 1
         }
-      }
-
-      this.writeQueue.splice(0, this.dataWriteIndex)
-      this.dataWriteIndex = 0
-      // clear the appendPromises array
-      if (config.verbose) console.log(`Written: ${dataToWrite.length} entries`)
-      this.totalNumberOfEntries += dataToWrite.length
-      if (this.totalNumberOfEntries >= this.maxNumberEntriesPerLog) {
-        await this.appendData(`End: Number of entries: ${this.totalNumberOfEntries}\n`)
-        await this.endStream()
-        this.totalNumberOfEntries = 0
-        await this.rotateLogFile()
-        await this.setActiveLog()
+        console.log('-->> Write queue length: ', this.writeQueue.length)
+        this.writeQueue.splice(0, this.dataWriteIndex)
+        console.log('-->> Data write Index: ', this.dataWriteIndex)
+        this.dataWriteIndex = 0
+      } catch (e) {
+        console.error('Error while writing data to log file', e)
       }
     }
     this.isWriting = false
   }
+
   async setActiveLog(): Promise<void> {
     // Write the active log file name to active-log.txt.
     this.activeLogFilePath = path.join(this.logDir, this.activeLogFileName)

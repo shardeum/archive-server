@@ -33,7 +33,6 @@ export interface Config {
     maxReceiptEntries: number
     maxCycleEntries: number
     maxOriginalTxEntries: number
-    WRITING_INTERVAL: number
   }
   experimentalSnapshot: boolean
   VERBOSE: boolean
@@ -72,10 +71,9 @@ let config: Config = {
   dataLogWriter: {
     dirName: 'data-logs',
     maxLogFiles: 10,
-    maxReceiptEntries: 1000,
+    maxReceiptEntries: 1000, // Should be >= max TPS experienced by the network.
     maxCycleEntries: 1000,
-    maxOriginalTxEntries: 1000,
-    WRITING_INTERVAL: 1000,
+    maxOriginalTxEntries: 1000, // Should be >= max TPS experienced by the network.
   },
   experimentalSnapshot: true,
   VERBOSE: false,
