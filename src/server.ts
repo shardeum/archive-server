@@ -891,7 +891,7 @@ async function startServer() {
         )
         return
       }
-      originalTxs = await OriginalTxDB.queryOriginalTxsData(from, count++)
+      originalTxs = await OriginalTxDB.queryOriginalTxsData(from, ++count)
     } else if (startCycle || endCycle) {
       const from = startCycle ? parseInt(startCycle) : 0
       const to = endCycle ? parseInt(endCycle) : from + 100
@@ -1015,7 +1015,7 @@ async function startServer() {
         )
         return
       }
-      receipts = await ReceiptDB.queryReceipts(from, count++)
+      receipts = await ReceiptDB.queryReceipts(from, ++count)
     } else if (startCycle || endCycle) {
       const from = startCycle ? parseInt(startCycle) : 0
       const to = endCycle ? parseInt(endCycle) : from + 100
@@ -1144,7 +1144,7 @@ async function startServer() {
         )
         return
       }
-      accounts = await AccountDB.queryAccounts(from, count++)
+      accounts = await AccountDB.queryAccounts(from, ++count)
       res = Crypto.sign({
         accounts,
       })
@@ -1282,7 +1282,7 @@ async function startServer() {
         )
         return
       }
-      transactions = await TransactionDB.queryTransactions(from, count++)
+      transactions = await TransactionDB.queryTransactions(from, ++count)
       res = Crypto.sign({
         transactions,
       })
