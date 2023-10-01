@@ -17,6 +17,7 @@ import { isDeepStrictEqual } from 'util'
 import { config } from '../Config'
 import fetch from 'node-fetch'
 import { getAdjacentLeftAndRightArchivers } from './GossipTxData'
+import { storeCycleData } from './Collector'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
@@ -47,6 +48,7 @@ export async function processCycles(cycles: Cycle[]) {
 
     // Update NodeList from cycle info
     updateNodeList(cycle)
+    await storeCycleData([cycle])
     getAdjacentLeftAndRightArchivers()
 
     // Update currentCycle state

@@ -47,6 +47,12 @@ const args = process.argv
 let logDir: string
 
 const TXID_LENGTH = 64
+export const MAX_ACCOUNTS_PER_REQUEST = 1000
+export const MAX_RECEIPTS_PER_REQUEST = 1000
+export const MAX_ORIGINAL_TXS_PER_REQUEST = 1000
+export const MAX_CYCLES_PER_REQUEST = 1000
+
+export const MAX_CYCLES_FOR_TXS_DATA = 100
 
 async function start() {
   overrideDefaultConfig(file, env, args)
@@ -738,7 +744,7 @@ async function startServer() {
   server.get('/cycleinfo', async (_request: CycleInfoRequest, reply) => {
     let { start, end, download } = _request.query
     if (!start) start = 0
-    if (!end) end = start + 100
+    if (!end) end = start
     let from = parseInt(start)
     let to = parseInt(end)
     let isDownload: boolean = download === 'true'
@@ -748,11 +754,15 @@ async function startServer() {
       reply.send(Crypto.sign({ success: false, error: `Invalid start and end counters` }))
       return
     }
-    // Limit the number of cycles to 1000
     const cycleCount = to - from
-    if (cycleCount > 1000) {
-      Logger.mainLogger.error(`Exceed maximum limit of 1000 cycles`)
-      reply.send(Crypto.sign({ success: false, error: `Exceed maximum limit of 1000 cycles` }))
+    if (cycleCount > MAX_CYCLES_PER_REQUEST) {
+      Logger.mainLogger.error(`Exceed maximum limit of ${MAX_CYCLES_PER_REQUEST} cycles`)
+      reply.send(
+        Crypto.sign({
+          success: false,
+          error: `Exceed maximum limit of ${MAX_CYCLES_PER_REQUEST} cycles`,
+        })
+      )
       return
     }
     let cycleInfo = []
@@ -792,7 +802,7 @@ async function startServer() {
       reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
       return
     }
-    if (count > 100) count = 100 // return max 100 cycles
+    if (count > MAX_CYCLES_PER_REQUEST) count = MAX_CYCLES_PER_REQUEST
     let cycleInfo: any[]
     if (config.experimentalSnapshot) cycleInfo = await CycleDB.queryLatestCycleRecords(count)
     else cycleInfo = await Storage.queryLatestCycleRecords(count)
@@ -871,7 +881,7 @@ async function startServer() {
       }
     } else if (start || end) {
       const from = start ? parseInt(start) : 0
-      const to = end ? parseInt(end) : from + 100
+      const to = end ? parseInt(end) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -882,11 +892,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > 10000) {
+      if (count > MAX_ORIGINAL_TXS_PER_REQUEST) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of 10000 original transactions`,
+            error: `Exceed maximum limit of ${MAX_ORIGINAL_TXS_PER_REQUEST} original transactions`,
           })
         )
         return
@@ -894,7 +904,7 @@ async function startServer() {
       originalTxs = await OriginalTxDB.queryOriginalTxsData(from, ++count)
     } else if (startCycle || endCycle) {
       const from = startCycle ? parseInt(startCycle) : 0
-      const to = endCycle ? parseInt(endCycle) : from + 100
+      const to = endCycle ? parseInt(endCycle) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -905,11 +915,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > 100) {
+      if (count > MAX_CYCLES_FOR_TXS_DATA) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of 100 cycles`,
+            error: `Exceed maximum limit of ${MAX_CYCLES_FOR_TXS_DATA} cycles`,
           })
         )
         return
@@ -920,7 +930,7 @@ async function startServer() {
         originalTxs = await OriginalTxDB.queryOriginalTxDataCount(from, to)
       } else {
         let skip = 0
-        let limit = 100
+        let limit = MAX_ORIGINAL_TXS_PER_REQUEST
         if (page) {
           const page_number = parseInt(page)
           if (page_number < 1 || Number.isNaN(page_number)) {
@@ -995,7 +1005,7 @@ async function startServer() {
       }
     } else if (start || end) {
       const from = start ? parseInt(start) : 0
-      const to = end ? parseInt(end) : from + 100
+      const to = end ? parseInt(end) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -1006,11 +1016,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > 10000) {
+      if (count > MAX_RECEIPTS_PER_REQUEST) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of 10000 receipts`,
+            error: `Exceed maximum limit of ${MAX_RECEIPTS_PER_REQUEST} receipts`,
           })
         )
         return
@@ -1018,7 +1028,7 @@ async function startServer() {
       receipts = await ReceiptDB.queryReceipts(from, ++count)
     } else if (startCycle || endCycle) {
       const from = startCycle ? parseInt(startCycle) : 0
-      const to = endCycle ? parseInt(endCycle) : from + 100
+      const to = endCycle ? parseInt(endCycle) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -1029,11 +1039,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > 100) {
+      if (count > MAX_CYCLES_FOR_TXS_DATA) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of 100 cycles`,
+            error: `Exceed maximum limit of ${MAX_CYCLES_FOR_TXS_DATA} cycles`,
           })
         )
         return
@@ -1044,7 +1054,7 @@ async function startServer() {
         receipts = await ReceiptDB.queryReceiptCountBetweenCycles(from, to)
       } else {
         let skip = 0
-        let limit = 100
+        let limit = MAX_RECEIPTS_PER_REQUEST
         if (page) {
           const page_number = parseInt(page)
           if (page_number < 1 || Number.isNaN(page_number)) {
@@ -1081,8 +1091,8 @@ async function startServer() {
       reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
       return
     }
-    if (count > 100) {
-      reply.send(Crypto.sign({ success: false, error: `Max count is 100` }))
+    if (count > MAX_RECEIPTS_PER_REQUEST) {
+      reply.send(Crypto.sign({ success: false, error: `Max count is ${MAX_RECEIPTS_PER_REQUEST}` }))
       return
     }
     const receipts = await ReceiptDB.queryLatestReceipts(count)
@@ -1124,7 +1134,7 @@ async function startServer() {
     let { start, end, startCycle, endCycle, page, accountId } = _request.query
     if (start || end) {
       const from = start ? parseInt(start) : 0
-      const to = end ? parseInt(end) : from + 100
+      const to = end ? parseInt(end) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -1135,11 +1145,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > 10000) {
+      if (count > MAX_ACCOUNTS_PER_REQUEST) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of 10000 accounts`,
+            error: `Exceed maximum limit of ${MAX_ACCOUNTS_PER_REQUEST} accounts`,
           })
         )
         return
@@ -1150,7 +1160,7 @@ async function startServer() {
       })
     } else if (startCycle || endCycle) {
       const from = startCycle ? parseInt(startCycle) : 0
-      const to = endCycle ? parseInt(endCycle) : from + 100
+      const to = endCycle ? parseInt(endCycle) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -1161,11 +1171,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > 100) {
+      if (count > MAX_CYCLES_FOR_TXS_DATA) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of 100 cycles to query accounts Count`,
+            error: `Exceed maximum limit of ${MAX_CYCLES_FOR_TXS_DATA} cycles to query accounts Count`,
           })
         )
         return
@@ -1178,7 +1188,7 @@ async function startServer() {
           return
         }
         let skip = page_number - 1
-        let limit = 10000 // query 10000 accounts
+        let limit = MAX_ACCOUNTS_PER_REQUEST
         if (skip > 0) skip = skip * limit
         accounts = await AccountDB.queryAccountsBetweenCycles(skip, limit, from, to)
       }
@@ -1219,8 +1229,8 @@ async function startServer() {
       reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
       return
     }
-    if (count > 100) {
-      reply.send(Crypto.sign({ success: false, error: `Max count is 100` }))
+    if (count > MAX_ACCOUNTS_PER_REQUEST) {
+      reply.send(Crypto.sign({ success: false, error: `Max count is ${MAX_ACCOUNTS_PER_REQUEST}` }))
       return
     }
     const accounts = await AccountDB.queryLatestAccounts(count)
@@ -1262,7 +1272,7 @@ async function startServer() {
     let res
     if (start || end) {
       const from = start ? parseInt(start) : 0
-      const to = end ? parseInt(end) : from + 100
+      const to = end ? parseInt(end) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -1273,11 +1283,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > 10000) {
+      if (count > MAX_ACCOUNTS_PER_REQUEST) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of 10000 transactions`,
+            error: `Exceed maximum limit of ${MAX_ACCOUNTS_PER_REQUEST} transactions`,
           })
         )
         return
@@ -1288,7 +1298,7 @@ async function startServer() {
       })
     } else if (startCycle || endCycle) {
       const from = startCycle ? parseInt(startCycle) : 0
-      const to = endCycle ? parseInt(endCycle) : from + 100
+      const to = endCycle ? parseInt(endCycle) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(
           Crypto.sign({
@@ -1299,11 +1309,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > 100) {
+      if (count > MAX_CYCLES_FOR_TXS_DATA) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of 100 cycles to query transactions Count`,
+            error: `Exceed maximum limit of ${MAX_CYCLES_FOR_TXS_DATA} cycles to query transactions Count`,
           })
         )
         return
@@ -1316,7 +1326,7 @@ async function startServer() {
           return
         }
         let skip = page_number - 1
-        let limit = 10000 // query 10000 transactions
+        let limit = MAX_ACCOUNTS_PER_REQUEST
         if (skip > 0) skip = skip * limit
         transactions = await TransactionDB.queryTransactionsBetweenCycles(skip, limit, from, to)
       }
@@ -1361,8 +1371,8 @@ async function startServer() {
       reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
       return
     }
-    if (count > 100) {
-      reply.send(Crypto.sign({ success: false, error: `Max count is 100` }))
+    if (count > MAX_ACCOUNTS_PER_REQUEST) {
+      reply.send(Crypto.sign({ success: false, error: `Max count is ${MAX_ACCOUNTS_PER_REQUEST}` }))
       return
     }
     const transactions = await TransactionDB.queryLatestTransactions(count)
@@ -1478,17 +1488,17 @@ async function startServer() {
       }
       let { start, end } = _request.query
       const from = start ? parseInt(start) : 0
-      const to = end ? parseInt(end) : from + 100
+      const to = end ? parseInt(end) : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
         reply.send(Crypto.sign({ success: false, error: `Invalid start and end counters` }))
         return
       }
       let count = to - from
-      if (count > 100) {
+      if (count > MAX_CYCLES_FOR_TXS_DATA) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of 100 cycles`,
+            error: `Exceed maximum limit of ${MAX_CYCLES_FOR_TXS_DATA} cycles`,
           })
         )
         return
@@ -1519,8 +1529,8 @@ async function startServer() {
         reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
         return
       }
-      if (count > 100) {
-        reply.send(Crypto.sign({ success: false, error: `Max count is 100` }))
+      if (count > MAX_CYCLES_FOR_TXS_DATA) {
+        reply.send(Crypto.sign({ success: false, error: `Max count is ${MAX_CYCLES_FOR_TXS_DATA}` }))
         return
       }
       const archivedCycles = await Storage.queryAllArchivedCycles(count)
