@@ -52,7 +52,7 @@ export const MAX_RECEIPTS_PER_REQUEST = 1000
 export const MAX_ORIGINAL_TXS_PER_REQUEST = 1000
 export const MAX_CYCLES_PER_REQUEST = 1000
 
-export const MAX_CYCLES_FOR_TXS_DATA = 100
+export const MAX_BETWEEN_CYCLES_PER_REQUEST = 100
 
 async function start() {
   overrideDefaultConfig(file, env, args)
@@ -915,11 +915,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > MAX_CYCLES_FOR_TXS_DATA) {
+      if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of ${MAX_CYCLES_FOR_TXS_DATA} cycles`,
+            error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles`,
           })
         )
         return
@@ -1039,11 +1039,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > MAX_CYCLES_FOR_TXS_DATA) {
+      if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of ${MAX_CYCLES_FOR_TXS_DATA} cycles`,
+            error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles`,
           })
         )
         return
@@ -1171,11 +1171,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > MAX_CYCLES_FOR_TXS_DATA) {
+      if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of ${MAX_CYCLES_FOR_TXS_DATA} cycles to query accounts Count`,
+            error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles to query accounts Count`,
           })
         )
         return
@@ -1309,11 +1309,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > MAX_CYCLES_FOR_TXS_DATA) {
+      if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of ${MAX_CYCLES_FOR_TXS_DATA} cycles to query transactions Count`,
+            error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles to query transactions Count`,
           })
         )
         return
@@ -1494,11 +1494,11 @@ async function startServer() {
         return
       }
       let count = to - from
-      if (count > MAX_CYCLES_FOR_TXS_DATA) {
+      if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
         reply.send(
           Crypto.sign({
             success: false,
-            error: `Exceed maximum limit of ${MAX_CYCLES_FOR_TXS_DATA} cycles`,
+            error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles`,
           })
         )
         return
@@ -1529,8 +1529,8 @@ async function startServer() {
         reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
         return
       }
-      if (count > MAX_CYCLES_FOR_TXS_DATA) {
-        reply.send(Crypto.sign({ success: false, error: `Max count is ${MAX_CYCLES_FOR_TXS_DATA}` }))
+      if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
+        reply.send(Crypto.sign({ success: false, error: `Max count is ${MAX_BETWEEN_CYCLES_PER_REQUEST}` }))
         return
       }
       const archivedCycles = await Storage.queryAllArchivedCycles(count)

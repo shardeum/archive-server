@@ -39,7 +39,7 @@ import {
   MAX_RECEIPTS_PER_REQUEST,
   MAX_ORIGINAL_TXS_PER_REQUEST,
   MAX_CYCLES_PER_REQUEST,
-  MAX_CYCLES_FOR_TXS_DATA,
+  MAX_BETWEEN_CYCLES_PER_REQUEST,
 } from '../server'
 
 // Socket modules
@@ -1323,7 +1323,7 @@ export async function syncReceiptsByCycle(lastStoredReceiptCycle: number = 0, cy
   }
   let complete = false
   let startCycle = lastStoredReceiptCycle
-  let endCycle = startCycle + MAX_CYCLES_FOR_TXS_DATA
+  let endCycle = startCycle + MAX_BETWEEN_CYCLES_PER_REQUEST
   let receiptsCountToSyncBetweenCycles = 0
   let savedReceiptsCountBetweenCycles = 0
   let totalSavedReceiptsCount = 0
@@ -1415,12 +1415,12 @@ export async function syncReceiptsByCycle(lastStoredReceiptCycle: number = 0, cy
       }
       Logger.mainLogger.debug(`Download receipts completed for ${startCycle} - ${endCycle}`)
       startCycle = endCycle + 1
-      endCycle += MAX_CYCLES_FOR_TXS_DATA
+      endCycle += MAX_BETWEEN_CYCLES_PER_REQUEST
     } else {
       receiptsCountToSyncBetweenCycles = response.receipts
       if (receiptsCountToSyncBetweenCycles === 0) {
         startCycle = endCycle + 1
-        endCycle += MAX_CYCLES_FOR_TXS_DATA
+        endCycle += MAX_BETWEEN_CYCLES_PER_REQUEST
         continue
       }
       Logger.mainLogger.debug('Invalid download response')
@@ -1466,7 +1466,7 @@ export const syncOriginalTxsByCycle = async (
   }
   let complete = false
   let startCycle = lastStoredOriginalTxCycle
-  let endCycle = startCycle + MAX_CYCLES_FOR_TXS_DATA
+  let endCycle = startCycle + MAX_BETWEEN_CYCLES_PER_REQUEST
   let originalTxCountToSyncBetweenCycles = 0
   let savedOriginalTxCountBetweenCycles = 0
   let totalSavedOriginalTxCount = 0
@@ -1562,12 +1562,12 @@ export const syncOriginalTxsByCycle = async (
       }
       Logger.mainLogger.debug(`Download Original-Txs completed for ${startCycle} - ${endCycle}`)
       startCycle = endCycle + 1
-      endCycle += MAX_CYCLES_FOR_TXS_DATA
+      endCycle += MAX_BETWEEN_CYCLES_PER_REQUEST
     } else {
       originalTxCountToSyncBetweenCycles = response.originalTxs
       if (originalTxCountToSyncBetweenCycles === 0) {
         startCycle = endCycle + 1
-        endCycle += MAX_CYCLES_FOR_TXS_DATA
+        endCycle += MAX_BETWEEN_CYCLES_PER_REQUEST
         continue
       }
       Logger.mainLogger.debug('Invalid Original-Txs download response')
