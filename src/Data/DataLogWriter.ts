@@ -25,7 +25,7 @@ class DataLogWriter {
     public logCounter: number,
     public maxNumberEntriesPerLog: number
   ) {
-    this.logDir = LOG_WRITER_CONFIG.dirName
+    this.logDir = `${LOG_WRITER_CONFIG.dirName}/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
     this.maxLogCounter = LOG_WRITER_CONFIG.maxLogFiles
     this.dataLogWriteStream = null
     this.dataWriteIndex = 0
