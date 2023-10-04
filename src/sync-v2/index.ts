@@ -74,7 +74,7 @@ export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, 
             id: node.id,
           }))
 
-          NodeList.addNodes(NodeList.Statuses.ACTIVE, cycleMarker, consensusNodeList)
+          NodeList.addNodes(NodeList.Statuses.SYNCING, cycleMarker, consensusNodeList)
 
           // return a cycle that we'll store in the database
           return okAsync({
