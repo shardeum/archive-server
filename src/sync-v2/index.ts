@@ -1,11 +1,9 @@
-import * as Logger from '../Logger'
-
 /**
  * SyncV2 a p2p module that contains all of the functionality for the new
  * Node List Sync v2.
  */
 
-import { ResultAsync } from 'neverthrow'
+import { okAsync, errAsync, ResultAsync } from 'neverthrow'
 import { hexstring, P2P } from '@shardus/types'
 import {
   getCurrentCycleDataFromNode,
@@ -16,8 +14,9 @@ import {
 import { ArchiverNodeInfo } from '../State'
 import { getActiveNodeListFromArchiver } from '../NodeList'
 import * as NodeList from '../NodeList'
-import { Cycle as DbCycle } from '../dbstore/cycles'
 import { Cycle } from '../Data/Cycles'
+import { verifyCycleRecord, verifyValidatorList } from './verify'
+import * as Logger from '../Logger'
 
 /**
  * Given a list of archivers, queries each one until one returns an active node list.
@@ -48,11 +47,24 @@ async function getActiveListFromSomeArchiver(
  * Synchronizes the NodeList and gets the latest CycleRecord from other validators.
  */
 export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, Error> {
-  return ResultAsync.fromPromise(getActiveListFromSomeArchiver(activeArchivers), (e: Error) => e).andThen(
+  return ResultAsync.fromPromise(
+    getActiveListFromSomeArchiver(activeArchivers),
+    (e: Error) => e
+  ).andThen(
     (nodeList) =>
-      syncValidatorList(nodeList).andThen((validatorList) =>
-        syncLatestCycleRecordAndMarker(nodeList).map(([cycle, cycleMarker]) => {
+      syncValidatorList(nodeList).andThen(([validatorList, validatorListHash]) =>
+        syncLatestCycleRecordAndMarker(nodeList).andThen(([cycle, cycleMarker]) => {
           Logger.mainLogger.debug('syncV2: validatorList', validatorList)
+
+          // one additional check to make sure the validator list hash in the cycle
+          // matches the hash for the validator list retrieved earlier
+          if (cycle.nodeListHash !== validatorListHash) {
+            return errAsync(
+              new Error(
+                `validator list hash from received cycle (${cycle.nodeListHash}) does not match the hash received from robust query (${validatorListHash})`
+              )
+            )
+          }
 
           // validatorList needs to be transformed into a ConsensusNodeInfo[]
           const consensusNodeList: NodeList.ConsensusNodeInfo[] = validatorList.map((node) => ({
@@ -65,13 +77,12 @@ export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, 
           NodeList.addNodes(NodeList.Statuses.ACTIVE, cycleMarker, consensusNodeList)
 
           // return a cycle that we'll store in the database
-          return {
+          return okAsync({
             ...cycle,
             marker: cycleMarker,
             certificate: '',
-          }
-        })
-      )
+          })
+        }))
   )
 }
 
@@ -88,12 +99,13 @@ export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, 
  */
 function syncValidatorList(
   activeNodes: P2P.SyncTypes.ActiveNode[]
-): ResultAsync<P2P.NodeListTypes.Node[], Error> {
+): ResultAsync<[P2P.NodeListTypes.Node[], hexstring], Error> {
   // run a robust query for the lastest node list hash
   return robustQueryForValidatorListHash(activeNodes).andThen(({ value, winningNodes }) =>
     // get full node list from one of the winning nodes
-    getValidatorListFromNode(winningNodes[0], value.nodeListHash)
-  )
+    getValidatorListFromNode(winningNodes[0], value.nodeListHash).andThen((validatorList) =>
+      verifyValidatorList(validatorList, value.nodeListHash).map(() =>
+        [validatorList, value.nodeListHash] as [P2P.NodeListTypes.Node[], hexstring])))
 }
 
 /**
@@ -113,8 +125,7 @@ function syncLatestCycleRecordAndMarker(
   // run a robust query for the latest cycle record hash
   return robustQueryForCycleRecordHash(activeNodes).andThen(({ value: cycleRecordHash, winningNodes }) =>
     // get current cycle record from node
-    getCurrentCycleDataFromNode(winningNodes[0], cycleRecordHash).map(
-      (cycle) => [cycle, cycleRecordHash] as [P2P.CycleCreatorTypes.CycleRecord, hexstring]
-    )
-  )
+    getCurrentCycleDataFromNode(winningNodes[0], cycleRecordHash).andThen((cycleRecord) =>
+      verifyCycleRecord(cycleRecord, cycleRecordHash).map(() =>
+        [cycleRecord, cycleRecordHash] as [P2P.CycleCreatorTypes.CycleRecord, hexstring])))
 }
