@@ -79,6 +79,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
         timestamp: account.timestamp,
         hash: account.stateId,
         cycleNumber: cycle,
+        isGlobal: account.isGlobal || false,
       }
       const accountExist = await Account.queryAccountByAccountId(account.accountId)
       if (accountExist) {
