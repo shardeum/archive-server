@@ -46,14 +46,14 @@ export async function processCycles(cycles: Cycle[]) {
     // Skip if already processed [TODO] make this check more secure
     if (cycle.counter <= currentCycleCounter) continue
 
+    // Update currentCycle state
+    currentCycleDuration = cycle.duration * 1000
+    currentCycleCounter = cycle.counter
+
     // Update NodeList from cycle info
     updateNodeList(cycle)
     await storeCycleData([cycle])
     getAdjacentLeftAndRightArchivers()
-
-    // Update currentCycle state
-    currentCycleDuration = cycle.duration * 1000
-    currentCycleCounter = cycle.counter
 
     Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
 
