@@ -1,5 +1,5 @@
 # Node.js LTS 10.x.x from Docker Hub
-FROM node:16.11.1
+FROM node:18.16.1
 
 # Create app directory
 WORKDIR /usr/src/app
@@ -13,7 +13,6 @@ COPY package*.json ./
 COPY . .
 
 # Install node_modules
-RUN npm set unsafe-perm true
 RUN npm install
 
 # Expose ports for app to bind to
