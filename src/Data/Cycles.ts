@@ -41,10 +41,10 @@ export async function processCycles(cycles: Cycle[]) {
   if (profilerInstance) profilerInstance.profileSectionStart('process_cycle', false)
   if (nestedCountersInstance) nestedCountersInstance.countEvent('cycle', 'process', 1)
   for (const cycle of cycles) {
-    Logger.mainLogger.debug(new Date(), 'New Cycle received', cycle.counter)
     // Logger.mainLogger.debug('Current cycle counter', currentCycleCounter)
     // Skip if already processed [TODO] make this check more secure
     if (cycle.counter <= currentCycleCounter) continue
+    Logger.mainLogger.debug(new Date(), 'New Cycle received', cycle.counter)
 
     // Update currentCycle state
     currentCycleDuration = cycle.duration * 1000

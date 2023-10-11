@@ -209,7 +209,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
         }
         if (newData.responses && newData.responses.CYCLE) {
           for (const cycle of newData.responses.CYCLE) {
-            Logger.mainLogger.debug('Cycle received', cycle.counter, sender.nodeInfo.ip, sender.nodeInfo.port)
+            // Logger.mainLogger.debug('Cycle received', cycle.counter, sender.nodeInfo.ip, sender.nodeInfo.port)
             let cycleToSave = [] as Cycle[]
             if (receivedCycleTracker[cycle.counter]) {
               if (receivedCycleTracker[cycle.counter][cycle.marker])
@@ -221,7 +221,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
                   saved: false,
                 }
               }
-              Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker)
+              // Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker)
               let maxEqual = 3 // Setting as 3 for now
               if (cycle.active < 10) maxEqual = 1
               for (let value of Object.values(receivedCycleTracker[cycle.counter])) {
@@ -239,7 +239,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
                 saved: false,
               }
               receivedCycleTracker[cycle.counter] = byCycleMarker
-              Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker)
+              // Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker)
               let maxEqual = 3 // Setting as 3 for now
               if (cycle.active < 10) maxEqual = 1
               for (let value of Object.values(receivedCycleTracker[cycle.counter])) {
@@ -252,6 +252,11 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
             }
             if (cycleToSave.length > 0) {
               Logger.mainLogger.debug('Cycle To Save', cycle.counter, receivedCycleTracker)
+              // Logger.mainLogger.debug(
+              //   'Cycle To Save',
+              //   `Counter ${cycle.counter}`,
+              //   Object.values(receivedCycleTracker[cycle.counter]).map((value) => value['receivedTimes'])
+              // )
               processCycles(cycleToSave as Cycle[])
             }
           }
@@ -260,6 +265,12 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
               if (parseInt(counter) < currentCycleCounter - 5) {
                 let totalTimes = 0
                 for (const key of Object.keys(receivedCycleTracker[counter])) {
+                  Logger.mainLogger.debug(
+                    'Cycle',
+                    counter,
+                    key,
+                    receivedCycleTracker[counter][key]['receivedTimes']
+                  )
                   totalTimes += receivedCycleTracker[counter][key]['receivedTimes']
                 }
                 Logger.mainLogger.debug(`Received ${totalTimes} times for cycle counter ${counter}`)
