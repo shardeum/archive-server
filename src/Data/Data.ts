@@ -251,7 +251,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
               }
             }
             if (cycleToSave.length > 0) {
-              Logger.mainLogger.debug('Cycle To Save', cycle.counter, receivedCycleTracker)
+              // Logger.mainLogger.debug('Cycle To Save', cycle.counter, receivedCycleTracker)
               // Logger.mainLogger.debug(
               //   'Cycle To Save',
               //   `Counter ${cycle.counter}`,
