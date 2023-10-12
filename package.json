@@ -20,7 +20,7 @@
     "lint": "eslint './src/**/*.ts'",
     "lint-windows": "eslint ./src/**/*.ts",
     "format-check": "prettier --check './src/**/*.ts'",
-    "clean:artifacts": "shx rm -rf archiver-logs/ archiver-db/",
+    "clean:artifacts": "shx rm -rf archiver-logs/ archiver-db/ data-logs/",
     "compile": "tsc -p .",
     "fix": "gts fix",
     "prepare": "npm run compile",
