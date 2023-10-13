@@ -1,7 +1,7 @@
 import * as NodeList from '../NodeList'
 import { JoinedConsensor } from '../NodeList'
 import { Cycle } from './Cycles'
-import { P2P } from '@shardus/types';
+import { P2P } from '@shardus/types'
 
 export enum NodeStatus {
   ACTIVE = 'active',

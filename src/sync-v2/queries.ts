@@ -28,11 +28,15 @@ export type RobustQueryResultAsync<T> = ResultAsync<UnwrappedRobustResult<Active
 const MAX_RETRIES = 3
 const REDUNDANCY = 3
 
-async function throwableQueryFunction<T>(node: ActiveNode, endpointName: string, params: Record<string, string>): Promise<T> {
-  let url = `http://${node.ip}:${node.port}/${endpointName}`;
+async function throwableQueryFunction<T>(
+  node: ActiveNode,
+  endpointName: string,
+  params: Record<string, string>
+): Promise<T> {
+  let url = `http://${node.ip}:${node.port}/${endpointName}`
   if (params) {
-    const encodedParams = new URLSearchParams(params).toString();
-    url += `?${encodedParams}`;
+    const encodedParams = new URLSearchParams(params).toString()
+    url += `?${encodedParams}`
   }
 
   const res = await get(url)
@@ -60,7 +64,11 @@ async function throwableQueryFunction<T>(node: ActiveNode, endpointName: string,
  */
 function makeRobustQueryCall<T>(nodes: ActiveNode[], endpointName: string): RobustQueryResultAsync<T> {
   // query function that makes the endpoint call as specified
-  const queryFn = (node: ActiveNode): ResultAsync<T, Error> => ResultAsync.fromPromise(throwableQueryFunction(node, endpointName, {}), (err) => new Error(`couldn't query ${endpointName}: ${err}`))
+  const queryFn = (node: ActiveNode): ResultAsync<T, Error> =>
+    ResultAsync.fromPromise(
+      throwableQueryFunction(node, endpointName, {}),
+      (err) => new Error(`couldn't query ${endpointName}: ${err}`)
+    )
 
   // run the robust query, wrapped in an async Result return the unwrapped result (with `map`) if successful
   const logPrefix = `syncv2-robust-query-${endpointName}`
@@ -117,7 +125,7 @@ export function robustQueryForCycleRecordHash(nodes: ActiveNode[]): RobustQueryR
 /** Executes a robust query to retrieve the validator list hash and next cycle timestamp from the network. */
 export function robustQueryForValidatorListHash(
   nodes: ActiveNode[]
-): RobustQueryResultAsync<{ nodeListHash: hexstring, nextCycleTimestamp: number }> {
+): RobustQueryResultAsync<{ nodeListHash: hexstring; nextCycleTimestamp: number }> {
   return makeRobustQueryCall(nodes, 'validator-list-hash')
 }
 
@@ -129,24 +137,33 @@ export function robustQueryForArchiverListHash(
 }
 
 /** Retrives the entire last cycle from the node. */
-export function getCurrentCycleDataFromNode(node: ActiveNode, expectedMarker: hexstring): ResultAsync<CycleRecord, Error> {
+export function getCurrentCycleDataFromNode(
+  node: ActiveNode,
+  expectedMarker: hexstring
+): ResultAsync<CycleRecord, Error> {
   return attemptSimpleFetch(node, 'cycle-by-marker', {
-    marker: expectedMarker
+    marker: expectedMarker,
   })
 }
 
 /** Gets the full validator list from the specified node. */
-export function getValidatorListFromNode(node: ActiveNode, expectedHash: hexstring): ResultAsync<Validator[], Error> {
+export function getValidatorListFromNode(
+  node: ActiveNode,
+  expectedHash: hexstring
+): ResultAsync<Validator[], Error> {
   console.log(`getting validator list from ${node.ip}:${node.port} with hash ${expectedHash}`)
   return attemptSimpleFetch(node, 'validator-list', {
-    hash: expectedHash
+    hash: expectedHash,
   })
 }
 
 /** Gets the full node list from the specified archiver. */
-export function getArchiverListFromNode(node: ActiveNode, expectedHash: hexstring): ResultAsync<Archiver[], Error> {
+export function getArchiverListFromNode(
+  node: ActiveNode,
+  expectedHash: hexstring
+): ResultAsync<Archiver[], Error> {
   console.log(`getting archiver list from ${node.ip}:${node.port} with hash ${expectedHash}`)
   return attemptSimpleFetch(node, 'archiver-list', {
-    hash: expectedHash
+    hash: expectedHash,
   })
 }

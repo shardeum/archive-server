@@ -45,14 +45,13 @@ async function getActiveListFromSomeArchiver(
 }
 
 /**
-  * Synchronizes the NodeList and gets the latest CycleRecord from other validators.
-  */
+ * Synchronizes the NodeList and gets the latest CycleRecord from other validators.
+ */
 export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, Error> {
   return ResultAsync.fromPromise(getActiveListFromSomeArchiver(activeArchivers), (e: Error) => e).andThen(
     (nodeList) =>
       syncValidatorList(nodeList).andThen((validatorList) =>
         syncLatestCycleRecordAndMarker(nodeList).map(([cycle, cycleMarker]) => {
-
           Logger.mainLogger.debug('syncV2: validatorList', validatorList)
 
           // validatorList needs to be transformed into a ConsensusNodeInfo[]
@@ -69,7 +68,7 @@ export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, 
           return {
             ...cycle,
             marker: cycleMarker,
-            certificate: "",
+            certificate: '',
           }
         })
       )
@@ -93,7 +92,8 @@ function syncValidatorList(
   // run a robust query for the lastest node list hash
   return robustQueryForValidatorListHash(activeNodes).andThen(({ value, winningNodes }) =>
     // get full node list from one of the winning nodes
-    getValidatorListFromNode(winningNodes[0], value.nodeListHash))
+    getValidatorListFromNode(winningNodes[0], value.nodeListHash)
+  )
 }
 
 /**
@@ -113,7 +113,8 @@ function syncLatestCycleRecordAndMarker(
   // run a robust query for the latest cycle record hash
   return robustQueryForCycleRecordHash(activeNodes).andThen(({ value: cycleRecordHash, winningNodes }) =>
     // get current cycle record from node
-    getCurrentCycleDataFromNode(winningNodes[0], cycleRecordHash).map((cycle) =>
-      [cycle, cycleRecordHash] as [P2P.CycleCreatorTypes.CycleRecord, hexstring])
+    getCurrentCycleDataFromNode(winningNodes[0], cycleRecordHash).map(
+      (cycle) => [cycle, cycleRecordHash] as [P2P.CycleCreatorTypes.CycleRecord, hexstring]
+    )
   )
 }

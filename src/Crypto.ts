@@ -1,7 +1,7 @@
 import * as core from '@shardus/crypto-utils'
 import * as cryptoTypes from './shardus-crypto-types'
 import * as State from './State'
-import {cryptoStringify} from './utils/stringify'
+import { cryptoStringify } from './utils/stringify'
 
 // Crypto initialization fns
 
