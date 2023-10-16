@@ -54,6 +54,8 @@ export const MAX_CYCLES_PER_REQUEST = 1000
 
 export const MAX_BETWEEN_CYCLES_PER_REQUEST = 100
 
+let cycleRecordWithShutDownMode = null as P2PTypes.CycleCreatorTypes.CycleRecord
+
 async function start() {
   overrideDefaultConfig(file, env, args)
 
@@ -101,11 +103,16 @@ async function start() {
     Logger.mainLogger.debug('We are first archiver. Starting archive-server')
     let lastStoredCycle = await CycleDB.queryLatestCycleRecords(1)
     if (lastStoredCycle && lastStoredCycle.length > 0) {
+      const lastStoredCycleMode = lastStoredCycle[0].mode as P2PTypes.ModesTypes.Record['mode']
+      if (lastStoredCycleMode === 'shutdown') {
+        // Send this cycle in the JoinRequest to the first node
+        cycleRecordWithShutDownMode = lastStoredCycle[0]
+        io = await startServer()
+        return
+      }
+      // Seems you got restarted, and there are no other archivers to check; build nodelists and send join request to the nodes first
       await Data.buildNodeListFromStoredCycle(lastStoredCycle[0])
-    }
 
-    if (lastStoredCycle && lastStoredCycle.length > 0) {
-      // Seems you got restarted, and there are no other archivers to check; sends join request to the nodes first
       let isJoined = false
       let firstTime = true
       let cycleDuration = Cycles.currentCycleDuration
@@ -605,7 +612,7 @@ async function startServer() {
       if (config.experimentalSnapshot) {
         res = Crypto.sign<P2P.FirstNodeResponse>({
           nodeList: NodeList.getList(),
-          joinRequest: P2P.createArchiverJoinRequest(),
+          joinRequest: P2P.createArchiverJoinRequest(cycleRecordWithShutDownMode),
           dataRequestCycle: Cycles.currentCycleCounter,
         })
       } else {

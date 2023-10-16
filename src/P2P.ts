@@ -19,6 +19,7 @@ export interface ArchiverJoinRequest {
   appData: unknown
   requestType: RequestTypes.JOIN
   requestTimestamp: number // in ms
+  cycleRecord?: P2PTypes.CycleCreatorTypes.CycleRecord
 }
 export interface ArchiverActiveRequest {
   nodeInfo: State.ArchiverNodeInfo
@@ -43,13 +44,14 @@ export interface FirstNodeResponse {
   dataRequestStateMetaData?: Data.DataRequest<P2PTypes.SnapshotTypes.StateMetaData> & Crypto.TaggedMessage
 }
 
-export function createArchiverJoinRequest() {
+export function createArchiverJoinRequest(cycleRecord = null) {
   const joinRequest: ArchiverJoinRequest = {
     nodeInfo: State.getNodeInfo(),
     appData: { version },
     requestType: RequestTypes.JOIN,
     requestTimestamp: Date.now(),
   }
+  if (cycleRecord) joinRequest.cycleRecord = cycleRecord
   return Crypto.sign(joinRequest)
 }
 
