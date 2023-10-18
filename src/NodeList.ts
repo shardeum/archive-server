@@ -9,6 +9,7 @@ import { config } from './Config'
 // TYPES
 
 export enum Statuses {
+  STANDBY = 'standby',
   ACTIVE = 'active',
   SYNCING = 'syncing',
 }
@@ -43,6 +44,7 @@ export const byAscendingPublicKey = (a: State.ArchiverNodeInfo, b: State.Archive
 
 const list: ConsensusNodeInfo[] = []
 const metadata: Map<string, ConsensusNodeMetadata> = new Map()
+const standbyList: Map<string, ConsensusNodeInfo> = new Map()
 const syncingList: Map<string, ConsensusNodeInfo> = new Map()
 export const activeList: Map<string, ConsensusNodeInfo> = new Map()
 export let activeListByIdSorted: ConsensusNodeInfo[] = []
@@ -101,6 +103,9 @@ export function addNodes(
           //   activeListByIdSorted.map((node) => node.id)
           // )
           break
+        case Statuses.STANDBY:
+          standbyList.set(node.publicKey, node)
+          break
       }
 
       byPublicKey[node.publicKey] = node
@@ -155,6 +160,9 @@ export function refreshNodes(
           //   activeListByIdSorted.map((node) => node.id)
           // )
           break
+        case Statuses.STANDBY:
+          standbyList.set(node.publicKey, node)
+          break
       }
 
       byPublicKey[node.publicKey] = node
@@ -205,6 +213,7 @@ export function removeNodes(publicKeys: string[]): string[] {
         list.splice(i, 1)
         if (syncingList.has(key)) syncingList.delete(key)
         else if (activeList.has(key)) activeList.delete(key)
+        else if (standbyList.has(key)) standbyList.delete(key)
       }
     }
 
