@@ -89,15 +89,18 @@ export function addNodes(
     if (byPublicKey[node.publicKey] === undefined && byIpPort[ipPort] === undefined) {
       Logger.mainLogger.debug('adding new node', node.publicKey)
       list.push(node)
-      if (status === Statuses.SYNCING) {
-        syncingList.set(node.publicKey, node)
-      } else if (status === Statuses.ACTIVE) {
-        activeList.set(node.publicKey, node)
-        Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
-        // Logger.mainLogger.debug(
-        //   'activeListByIdSorted',
-        //   activeListByIdSorted.map((node) => node.id)
-        // )
+      switch (status) {
+        case Statuses.SYNCING:
+          syncingList.set(node.publicKey, node)
+          break
+        case Statuses.ACTIVE:
+          activeList.set(node.publicKey, node)
+          Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
+          // Logger.mainLogger.debug(
+          //   'activeListByIdSorted',
+          //   activeListByIdSorted.map((node) => node.id)
+          // )
+          break
       }
 
       byPublicKey[node.publicKey] = node
@@ -140,15 +143,18 @@ export function refreshNodes(
     if (byPublicKey[node.publicKey] === undefined && byIpPort[ipPort] === undefined) {
       Logger.mainLogger.debug('adding new node during refresh', node.publicKey)
       list.push(node)
-      if (status === Statuses.SYNCING) {
-        syncingList.set(node.publicKey, node)
-      } else if (status === Statuses.ACTIVE) {
-        activeList.set(node.publicKey, node)
-        Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
-        // Logger.mainLogger.debug(
-        //   'activeListByIdSorted',
-        //   activeListByIdSorted.map((node) => node.id)
-        // )
+      switch (status) {
+        case Statuses.SYNCING:
+          syncingList.set(node.publicKey, node)
+          break
+        case Statuses.ACTIVE:
+          activeList.set(node.publicKey, node)
+          Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
+          // Logger.mainLogger.debug(
+          //   'activeListByIdSorted',
+          //   activeListByIdSorted.map((node) => node.id)
+          // )
+          break
       }
 
       byPublicKey[node.publicKey] = node
@@ -216,19 +222,22 @@ export function setStatus(status: Statuses, ...publicKeys: string[]) {
       console.warn(`setStatus: publicKey ${key} not in nodelist`)
       continue
     }
-    if (status === Statuses.SYNCING) {
-      if (activeList.has(key)) activeList.delete(key)
-      if (syncingList.has(key)) continue
-      syncingList.set(key, node)
-    } else if (status === Statuses.ACTIVE) {
-      if (syncingList.has(key)) syncingList.delete(key)
-      if (activeList.has(key)) continue
-      activeList.set(key, node)
-      Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
-      // Logger.mainLogger.debug(
-      //   'activeListByIdSorted',
-      //   activeListByIdSorted.map((node) => node.id)
-      // )
+    switch (status) {
+      case Statuses.SYNCING:
+        if (activeList.has(key)) activeList.delete(key)
+        if (syncingList.has(key)) continue
+        syncingList.set(key, node)
+        break
+      case Statuses.ACTIVE:
+        if (syncingList.has(key)) syncingList.delete(key)
+        if (activeList.has(key)) continue
+        activeList.set(key, node)
+        Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
+        // Logger.mainLogger.debug(
+        //   'activeListByIdSorted',
+        //   activeListByIdSorted.map((node) => node.id)
+        // )
+        break
     }
   }
 
