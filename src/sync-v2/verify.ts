@@ -42,6 +42,14 @@ export function verifyValidatorList(
   return verify(validatorList, expectedHash, 'validator list')
 }
 
+/** Verifies that the hash of the standby list matches the expected hash. */
+export function verifyStandbyList(
+  standbyList: P2P.JoinTypes.JoinRequest[],
+  expectedHash: hexstring
+): Result<boolean, Error> {
+  return verify(standbyList, expectedHash, 'standby list')
+}
+
 /** Verifies that the hash of the cycle record matches the expected hash. */
 export function verifyCycleRecord(
   cycleRecord: P2P.CycleCreatorTypes.CycleRecord,

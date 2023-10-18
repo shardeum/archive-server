@@ -21,6 +21,7 @@ type ActiveNode = P2P.SyncTypes.ActiveNode
 type Validator = P2P.NodeListTypes.Node
 type Archiver = P2P.ArchiversTypes.JoinedArchiver
 type CycleRecord = P2P.CycleCreatorTypes.CycleRecord
+type JoinRequest = P2P.JoinTypes.JoinRequest
 
 /** A `ResultAsync` that wraps an `UnwrappedRobustResult`. */
 export type RobustQueryResultAsync<T> = ResultAsync<UnwrappedRobustResult<ActiveNode, T>, Error>
@@ -136,6 +137,13 @@ export function robustQueryForArchiverListHash(
   return makeRobustQueryCall(nodes, 'archiver-list-hash')
 }
 
+/** Executes a robust query to retrieve the standby list hash from the network. */
+export function robustQueryForStandbyNodeListHash(
+  nodes: ActiveNode[]
+): RobustQueryResultAsync<{ standbyNodeListHash: hexstring }> {
+  return makeRobustQueryCall(nodes, 'standby-list-hash')
+}
+
 /** Retrives the entire last cycle from the node. */
 export function getCurrentCycleDataFromNode(
   node: ActiveNode,
@@ -164,6 +172,13 @@ export function getArchiverListFromNode(
 ): ResultAsync<Archiver[], Error> {
   console.log(`getting archiver list from ${node.ip}:${node.port} with hash ${expectedHash}`)
   return attemptSimpleFetch(node, 'archiver-list', {
+    hash: expectedHash,
+  })
+}
+
+/** Gets the full standby list from the specified node. */
+export function getStandbyNodeListFromNode(node: ActiveNode, expectedHash: hexstring): ResultAsync<JoinRequest[], Error> {
+  return attemptSimpleFetch(node, 'standby-list', {
     hash: expectedHash,
   })
 }
