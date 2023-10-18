@@ -450,7 +450,7 @@ export function getDevPublicKey(): string {
 
 let lastCounter = 0
 
-export const isDebugMiddleware = (_req, res) => {
+const isDebugMiddleware = (_req, res) => {
   const isDebug = isDebugMode()
   if (!isDebug) {
     try {
@@ -1565,6 +1565,30 @@ async function startServer() {
         )
       const res = Crypto.sign(data)
       reply.send(res)
+    }
+  )
+
+  const enableLoseYourself = false // set this to `true` during testing, but never commit as `true`
+
+  server.get(
+    '/lose-yourself',
+    // this debug endpoint is in support of development and testing of
+    // lost archiver detection
+    {
+      preHandler: async (_request, reply) => {
+        isDebugMiddleware(_request, reply)
+      },
+    },
+    (_request, reply) => {
+      if (enableLoseYourself) {
+        Logger.mainLogger.debug('/lose-yourself: exit(1)')
+
+        reply.send(Crypto.sign({'status': 'accepted', 'message': 'will exit'}))
+
+        // We don't call exitArchiver() here because that awaits Data.sendLeaveRequest(...),
+        // but we're simulating a lost node.
+        process.exit(1)
+      }
     }
   )
 
