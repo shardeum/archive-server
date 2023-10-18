@@ -35,7 +35,7 @@ import { setupArchiverDiscovery } from '@shardus/archiver-discovery'
 import * as Collector from './Data/Collector'
 import * as GossipTxData from './Data/GossipTxData'
 const { version } = require('../package.json')
-import { getGlobalAccount } from './GlobalAccount'
+import { getGlobalAccount, loadGlobalNetworkAccountFromDB } from './GlobalAccount'
 
 // Socket modules
 let io: SocketIO.Server
@@ -53,6 +53,7 @@ export const MAX_ORIGINAL_TXS_PER_REQUEST = 1000
 export const MAX_CYCLES_PER_REQUEST = 1000
 
 export const MAX_BETWEEN_CYCLES_PER_REQUEST = 100
+let foundFirstNode = false
 
 let cycleRecordWithShutDownMode = null as P2PTypes.CycleCreatorTypes.CycleRecord
 
@@ -103,9 +104,11 @@ async function start() {
     Logger.mainLogger.debug('We are first archiver. Starting archive-server')
     let lastStoredCycle = await CycleDB.queryLatestCycleRecords(1)
     if (lastStoredCycle && lastStoredCycle.length > 0) {
+      // Load global account from db
+      await loadGlobalNetworkAccountFromDB()
       const lastStoredCycleMode = lastStoredCycle[0].mode as P2PTypes.ModesTypes.Record['mode']
-      if (lastStoredCycleMode === 'shutdown') {
-        // Send this cycle in the JoinRequest to the first node
+      if (lastStoredCycleMode !== 'shutdown') { // Checking it as not 'shutdown' mode for now to work currently until the 'shutdown' mode is added to the cycle record
+        // Send this cycle to the first node to use it to start the restore network
         cycleRecordWithShutDownMode = lastStoredCycle[0]
         io = await startServer()
         return
@@ -572,7 +575,7 @@ async function startServer() {
     nestedCountersInstance.countEvent('consensor', 'POST_nodelist', 1)
     const signedFirstNodeInfo = request.body
 
-    if (State.isFirst && NodeList.isEmpty()) {
+    if (State.isFirst && NodeList.isEmpty() && !foundFirstNode) {
       try {
         const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
         if (!isSignatureValid) {
@@ -582,6 +585,7 @@ async function startServer() {
       } catch (e) {
         Logger.mainLogger.error(e)
       }
+      foundFirstNode = true
       const ip = signedFirstNodeInfo.nodeInfo.externalIp
       const port = signedFirstNodeInfo.nodeInfo.externalPort
       const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
@@ -610,11 +614,18 @@ async function startServer() {
       let res: P2P.FirstNodeResponse
 
       if (config.experimentalSnapshot) {
-        res = Crypto.sign<P2P.FirstNodeResponse>({
+        const data = {
           nodeList: NodeList.getList(),
-          joinRequest: P2P.createArchiverJoinRequest(cycleRecordWithShutDownMode),
-          dataRequestCycle: Cycles.currentCycleCounter,
-        })
+        }
+        if (cycleRecordWithShutDownMode) { // For restore network to start the network from the 'restart' mode
+          data['restartCycleRecord'] = cycleRecordWithShutDownMode
+          data['dataRequestCycle'] = cycleRecordWithShutDownMode.counter
+        } else { // For new network to start the network from the 'forming' mode
+          data['joinRequest'] = P2P.createArchiverJoinRequest()
+          data['dataRequestCycle'] = Cycles.currentCycleCounter
+        }
+
+        res = Crypto.sign<P2P.FirstNodeResponse>(data)
       } else {
         res = Crypto.sign<P2P.FirstNodeResponse>({
           nodeList: NodeList.getList(),
