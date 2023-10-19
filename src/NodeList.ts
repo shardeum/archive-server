@@ -234,10 +234,12 @@ export function setStatus(status: Statuses, ...publicKeys: string[]) {
     switch (status) {
       case Statuses.SYNCING:
         if (activeList.has(key)) activeList.delete(key)
+        if (standbyList.has(key)) standbyList.delete(key)
         if (syncingList.has(key)) continue
         syncingList.set(key, node)
         break
       case Statuses.ACTIVE:
+        if (standbyList.has(key)) standbyList.delete(key)
         if (syncingList.has(key)) syncingList.delete(key)
         if (activeList.has(key)) continue
         activeList.set(key, node)
@@ -247,6 +249,11 @@ export function setStatus(status: Statuses, ...publicKeys: string[]) {
         //   activeListByIdSorted.map((node) => node.id)
         // )
         break
+      case Statuses.STANDBY:
+        if (activeList.has(key)) activeList.delete(key)
+        if (syncingList.has(key)) syncingList.delete(key)
+        if (standbyList.has(key)) continue
+        standbyList.set(key, node)
     }
   }
 
