@@ -316,6 +316,10 @@ export function getSyncingList() {
   return [...syncingList.values()]
 }
 
+export function getStandbyList() {
+  return [...standbyList.values()]
+}
+
 export function getNodeInfo(node: Partial<ConsensusNodeInfo>) {
   // Prefer publicKey
   if (node.publicKey) {
