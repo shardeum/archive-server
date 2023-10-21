@@ -110,6 +110,7 @@ async function start() {
       if (lastStoredCycleMode !== 'shutdown') { // Checking it as not 'shutdown' mode for now to work currently until the 'shutdown' mode is added to the cycle record
         // Send this cycle to the first node to use it to start the restore network
         cycleRecordWithShutDownMode = lastStoredCycle[0]
+        cycleRecordWithShutDownMode.mode = 'shutdown'
         io = await startServer()
         return
       }
