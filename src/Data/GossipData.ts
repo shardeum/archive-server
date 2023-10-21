@@ -4,18 +4,20 @@ import * as Crypto from '../Crypto'
 import { postJson } from '../P2P'
 import { Signature } from 'shardus-crypto-types'
 import { TxsData } from './Collector'
+import { Cycle } from './Cycles'
 
 // adjacentArchivers are one archiver from left and one archiver from right of the current archiver
 export let adjacentArchivers: Map<string, State.ArchiverNodeInfo> = new Map()
 
-export enum TxDataType {
+export enum DataType {
   RECEIPT = 'RECEIPT',
   ORIGINAL_TX_DATA = 'ORIGINAL_TX_DATA',
+  CYCLE = 'CYCLE',
 }
 
-export interface GossipTxData {
-  txDataType: TxDataType
-  txsData: TxsData[]
+export interface GossipData {
+  dataType: DataType
+  data: TxsData[] | Cycle
   sender: string
   sign: Signature
 }
@@ -50,14 +52,14 @@ export const getAdjacentLeftAndRightArchivers = () => {
   if (rightArchiver) adjacentArchivers.set(rightArchiver.publicKey, rightArchiver)
 }
 
-export async function sendDataToAdjacentArchivers(txDataType: TxDataType, txsData: TxsData[]) {
+export async function sendDataToAdjacentArchivers(dataType: DataType, data: TxsData[] | Cycle) {
   if (stopGossipTxData) return
   if (adjacentArchivers.size === 0) return
   const gossipPayload = {
-    txDataType,
-    txsData,
+    dataType,
+    data,
     sender: State.getNodeInfo().publicKey,
-  } as GossipTxData
+  } as GossipData
   let signedTxDataToSend = Crypto.sign(gossipPayload)
   try {
     Logger.mainLogger.debug(
@@ -67,7 +69,7 @@ export async function sendDataToAdjacentArchivers(txDataType: TxDataType, txsDat
     )
     const promises = []
     for (const [, archiver] of adjacentArchivers) {
-      const url = `http://${archiver.ip}:${archiver.port}/gossip-tx-data`
+      const url = `http://${archiver.ip}:${archiver.port}/gossip-data`
       try {
         const GOSSIP_DATA_TIMEOUT_SECOND = 10 // 10 seconds
         const promise = postJson(url, signedTxDataToSend, GOSSIP_DATA_TIMEOUT_SECOND)

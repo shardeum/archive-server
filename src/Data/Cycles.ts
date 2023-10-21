@@ -16,7 +16,7 @@ import * as Utils from '../Utils'
 import { isDeepStrictEqual } from 'util'
 import { config } from '../Config'
 import fetch from 'node-fetch'
-import { getAdjacentLeftAndRightArchivers } from './GossipTxData'
+import { getAdjacentLeftAndRightArchivers } from './GossipData'
 import { storeCycleData } from './Collector'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {

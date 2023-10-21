@@ -11,7 +11,7 @@ import { Cycle, currentCycleCounter } from './Cycles'
 import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 import * as State from '../State'
 import * as Utils from '../Utils'
-import { TxDataType, GossipTxData, adjacentArchivers, sendDataToAdjacentArchivers } from './GossipTxData'
+import { DataType, GossipData, adjacentArchivers, sendDataToAdjacentArchivers } from './GossipData'
 import { getJson } from '../P2P'
 import { setGlobalAccount } from '../GlobalAccount'
 import { CycleLogWriter, ReceiptLogWriter, OriginalTxDataLogWriter } from '../Data/DataLogWriter'
@@ -135,7 +135,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
         socketServer.emit('RECEIPT', signedDataToSend)
       }
       await Receipt.bulkInsertReceipts(combineReceipts)
-      await sendDataToAdjacentArchivers(TxDataType.RECEIPT, txsData)
+      await sendDataToAdjacentArchivers(DataType.RECEIPT, txsData)
       combineReceipts = []
       txsData = []
     }
@@ -157,7 +157,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
       socketServer.emit('RECEIPT', signedDataToSend)
     }
     await Receipt.bulkInsertReceipts(combineReceipts)
-    await sendDataToAdjacentArchivers(TxDataType.RECEIPT, txsData)
+    await sendDataToAdjacentArchivers(DataType.RECEIPT, txsData)
   }
   if (combineAccounts.length > 0) await Account.bulkInsertAccounts(combineAccounts)
   if (combineTransactions.length > 0) await Transaction.bulkInsertTransactions(combineTransactions)
@@ -300,7 +300,7 @@ export const storeOriginalTxData = async (
         socketServer.emit('RECEIPT', signedDataToSend)
       }
       await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
-      await sendDataToAdjacentArchivers(TxDataType.ORIGINAL_TX_DATA, txsData)
+      await sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txsData)
       combineOriginalTxsData = []
       txsData = []
     }
@@ -313,11 +313,11 @@ export const storeOriginalTxData = async (
       socketServer.emit('RECEIPT', signedDataToSend)
     }
     await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
-    await sendDataToAdjacentArchivers(TxDataType.ORIGINAL_TX_DATA, txsData)
+    await sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txsData)
   }
 }
 
-export const validateGossipTxData = (data: GossipTxData) => {
+export const validateGossipData = (data: GossipData) => {
   let err = Utils.validateTypes(data, {
     txDataType: 's',
     txsData: 'a',
@@ -341,7 +341,11 @@ export const validateGossipTxData = (data: GossipTxData) => {
     Logger.mainLogger.error('Data sender is not the adjacent archiver')
     return { success: false, error: 'Data sender not the adjacent archiver' }
   }
-  if (data.txDataType !== TxDataType.RECEIPT && data.txDataType !== TxDataType.ORIGINAL_TX_DATA) {
+  if (
+    data.dataType !== DataType.RECEIPT &&
+    data.dataType !== DataType.ORIGINAL_TX_DATA &&
+    data.dataType !== DataType.CYCLE
+  ) {
     Logger.mainLogger.error('Invalid dataType', data)
     return { success: false, error: 'Invalid dataType' }
   }
@@ -352,10 +356,10 @@ export const validateGossipTxData = (data: GossipTxData) => {
   return { success: true }
 }
 
-export const processGossipTxData = (data: GossipTxData) => {
-  const { txDataType, txsData, sender } = data
-  if (txDataType === TxDataType.RECEIPT) {
-    for (const txData of txsData) {
+export const processGossipData = (gossipdata: GossipData) => {
+  const { dataType, data, sender } = gossipdata
+  if (dataType === DataType.RECEIPT) {
+    for (const txData of data as TxsData[]) {
       const { txId, cycle } = txData
       if (receiptsMap.has(txId) && receiptsMap.get(txId) === cycle) {
         // console.log('GOSSIP', 'RECEIPT', 'SKIP', txId, sender)
@@ -364,8 +368,8 @@ export const processGossipTxData = (data: GossipTxData) => {
       // console.log('GOSSIP', 'RECEIPT', 'MISS', txId, sender)
     }
   }
-  if (txDataType === TxDataType.ORIGINAL_TX_DATA) {
-    for (const txData of txsData) {
+  if (dataType === DataType.ORIGINAL_TX_DATA) {
+    for (const txData of data as TxsData[]) {
       const { txId, cycle } = txData
       if (originalTxsMap.has(txId) && originalTxsMap.get(txId) === cycle) {
         // console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'SKIP', txId, sender)
@@ -402,7 +406,7 @@ export const collectMissingReceipts = async () => {
       const end = start + bucketSize
       if (start > missingReceipts.length) txIdList = missingReceipts.slice(start, end)
       else txIdList = missingReceipts.slice(start)
-      const receipts: any = await queryTxDataFromArchivers(archiver, TxDataType.RECEIPT, txIdList)
+      const receipts: any = await queryTxDataFromArchivers(archiver, DataType.RECEIPT, txIdList)
       if (receipts && receipts.length > -1) {
         const receiptsToSave = []
         for (const receipt of receipts) {
@@ -453,25 +457,25 @@ export const getArchiversToUse = () => {
 
 export const queryTxDataFromArchivers = async (
   archiver: State.ArchiverNodeInfo,
-  txDataType: TxDataType,
+  txDataType: DataType,
   txIdList: string[]
 ) => {
   let api_route = ''
-  if (txDataType === TxDataType.RECEIPT) {
+  if (txDataType === DataType.RECEIPT) {
     // Query from other archivers using receipt endpoint
     // Using the existing GET /receipts endpoint for now; might have to change to POST /receipts endpoint
     api_route = `receipt?txIdList=${JSON.stringify(txIdList)}`
-  } else if (txDataType === TxDataType.ORIGINAL_TX_DATA) {
+  } else if (txDataType === DataType.ORIGINAL_TX_DATA) {
     api_route = `originalTx?txIdList=${JSON.stringify(txIdList)}`
   }
   const response: any = await getJson(`http://${archiver.ip}:${archiver.port}/${api_route}`)
   if (response) {
-    if (txDataType === TxDataType.RECEIPT) {
+    if (txDataType === DataType.RECEIPT) {
       const receipts = response.receipts || null
       if (receipts && receipts.length > -1) {
         return receipts
       }
-    } else if (txDataType === TxDataType.ORIGINAL_TX_DATA) {
+    } else if (txDataType === DataType.ORIGINAL_TX_DATA) {
       const originalTxs = response.originalTxs || null
       if (originalTxs && originalTxs.length > -1) {
         return originalTxs
@@ -507,7 +511,7 @@ export const collectMissingOriginalTxsData = async () => {
       const end = start + bucketSize
       if (start > missingOriginalTxs.length) txIdList = missingOriginalTxs.slice(start, end)
       else txIdList = missingOriginalTxs.slice(start)
-      const originalTxs: any = await queryTxDataFromArchivers(archiver, TxDataType.ORIGINAL_TX_DATA, txIdList)
+      const originalTxs: any = await queryTxDataFromArchivers(archiver, DataType.ORIGINAL_TX_DATA, txIdList)
       if (originalTxs && originalTxs.length > -1) {
         const originalTxsDataToSave = []
         for (const originalTx of originalTxs) {

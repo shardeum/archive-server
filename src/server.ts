@@ -33,7 +33,7 @@ import * as OriginalTxDB from './dbstore/originalTxsData'
 import { startSaving } from './saveConsoleOutput'
 import { setupArchiverDiscovery } from '@shardus/archiver-discovery'
 import * as Collector from './Data/Collector'
-import * as GossipTxData from './Data/GossipTxData'
+import * as GossipData from './Data/GossipData'
 const { version } = require('../package.json')
 import { getGlobalAccount, loadGlobalNetworkAccountFromDB } from './GlobalAccount'
 
@@ -107,7 +107,8 @@ async function start() {
       // Load global account from db
       await loadGlobalNetworkAccountFromDB()
       const lastStoredCycleMode = lastStoredCycle[0].mode as P2PTypes.ModesTypes.Record['mode']
-      if (lastStoredCycleMode !== 'shutdown') { // Checking it as not 'shutdown' mode for now to work currently until the 'shutdown' mode is added to the cycle record
+      if (lastStoredCycleMode !== 'shutdown') {
+        // Checking it as not 'shutdown' mode for now to work currently until the 'shutdown' mode is added to the cycle record
         // Send this cycle to the first node to use it to start the restore network
         cycleRecordWithShutDownMode = lastStoredCycle[0]
         cycleRecordWithShutDownMode.mode = 'shutdown'
@@ -618,10 +619,12 @@ async function startServer() {
         const data = {
           nodeList: NodeList.getList(),
         }
-        if (cycleRecordWithShutDownMode) { // For restore network to start the network from the 'restart' mode
+        if (cycleRecordWithShutDownMode) {
+          // For restore network to start the network from the 'restart' mode
           data['restartCycleRecord'] = cycleRecordWithShutDownMode
           data['dataRequestCycle'] = cycleRecordWithShutDownMode.counter
-        } else { // For new network to start the network from the 'forming' mode
+        } else {
+          // For new network to start the network from the 'forming' mode
           data['joinRequest'] = P2P.createArchiverJoinRequest()
           data['dataRequestCycle'] = Cycles.currentCycleCounter
         }
@@ -1423,14 +1426,14 @@ async function startServer() {
     })
   })
 
-  type GossipTxDataRequest = FastifyRequest<{
-    Body: GossipTxData.GossipTxData
+  type GossipDataRequest = FastifyRequest<{
+    Body: GossipData.GossipData
   }>
 
-  server.post('/gossip-tx-data', async (_request: GossipTxDataRequest, reply) => {
+  server.post('/gossip-data', async (_request: GossipDataRequest, reply) => {
     let gossipPayload = _request.body
     if (config.VERBOSE) Logger.mainLogger.debug('Gossip Data received', JSON.stringify(gossipPayload))
-    const result = Collector.validateGossipTxData(gossipPayload)
+    const result = Collector.validateGossipData(gossipPayload)
     if (!result.success) {
       reply.send(Crypto.sign({ success: false, error: result.error }))
       return
@@ -1439,7 +1442,7 @@ async function startServer() {
       success: true,
     })
     reply.send(res)
-    Collector.processGossipTxData(gossipPayload)
+    Collector.processGossipData(gossipPayload)
   })
 
   // [TODO] Remove this before production
