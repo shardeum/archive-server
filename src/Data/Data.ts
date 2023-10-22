@@ -211,7 +211,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
         if (newData.responses && newData.responses.RECEIPT) {
           if (config.VERBOSE)
             Logger.mainLogger.debug(
-              'RECEIPT RECEIPT',
+              'RECEIPT',
               sender.nodeInfo.publicKey,
               sender.nodeInfo.ip,
               sender.nodeInfo.port,
@@ -1224,7 +1224,6 @@ export async function syncCyclesBetweenCycles(lastStoredCycle: number = 0, cycle
       Logger.mainLogger.debug(`Downloaded cycles`, res.cycleInfo.length)
       const cycles = res.cycleInfo
       processCycles(cycles)
-      await storeCycleData(cycles)
       if (res.cycleInfo.length < MAX_CYCLES_PER_REQUEST) {
         startCycle += res.cycleInfo.length
         endCycle = startCycle + MAX_CYCLES_PER_REQUEST
@@ -1755,7 +1754,6 @@ export const syncCyclesAndReceiptsData = async (
         Logger.mainLogger.debug(`Downloaded cycles`, res.cycleInfo.length)
         const cycles = res.cycleInfo
         processCycles(cycles)
-        await storeCycleData(cycles)
         if (res.cycleInfo.length < MAX_CYCLES_PER_REQUEST) {
           startCycle += res.cycleInfo.length + 1
           endCycle = res.cycleInfo.length + MAX_CYCLES_PER_REQUEST

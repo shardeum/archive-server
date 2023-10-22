@@ -17,7 +17,7 @@ export enum DataType {
 
 export interface GossipData {
   dataType: DataType
-  data: TxsData[] | Cycle
+  data: TxsData[] | Cycle[]
   sender: string
   sign: Signature
 }
@@ -52,7 +52,7 @@ export const getAdjacentLeftAndRightArchivers = () => {
   if (rightArchiver) adjacentArchivers.set(rightArchiver.publicKey, rightArchiver)
 }
 
-export async function sendDataToAdjacentArchivers(dataType: DataType, data: TxsData[] | Cycle) {
+export async function sendDataToAdjacentArchivers(dataType: DataType, data: GossipData['data']) {
   if (stopGossipTxData) return
   if (adjacentArchivers.size === 0) return
   const gossipPayload = {
@@ -60,7 +60,7 @@ export async function sendDataToAdjacentArchivers(dataType: DataType, data: TxsD
     data,
     sender: State.getNodeInfo().publicKey,
   } as GossipData
-  let signedTxDataToSend = Crypto.sign(gossipPayload)
+  let signedDataToSend = Crypto.sign(gossipPayload)
   try {
     Logger.mainLogger.debug(
       `Sending tx data to the archivers: ${Array.from(adjacentArchivers.values()).map(
@@ -72,7 +72,7 @@ export async function sendDataToAdjacentArchivers(dataType: DataType, data: TxsD
       const url = `http://${archiver.ip}:${archiver.port}/gossip-data`
       try {
         const GOSSIP_DATA_TIMEOUT_SECOND = 10 // 10 seconds
-        const promise = postJson(url, signedTxDataToSend, GOSSIP_DATA_TIMEOUT_SECOND)
+        const promise = postJson(url, signedDataToSend, GOSSIP_DATA_TIMEOUT_SECOND)
         promise.catch((err) => {
           Logger.mainLogger.error(`Unable to send archiver ${archiver.ip}: ${archiver.port}`, err)
         })

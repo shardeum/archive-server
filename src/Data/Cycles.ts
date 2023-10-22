@@ -16,7 +16,7 @@ import * as Utils from '../Utils'
 import { isDeepStrictEqual } from 'util'
 import { config } from '../Config'
 import fetch from 'node-fetch'
-import { getAdjacentLeftAndRightArchivers } from './GossipData'
+import { getAdjacentLeftAndRightArchivers, sendDataToAdjacentArchivers, DataType } from './GossipData'
 import { storeCycleData } from './Collector'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
@@ -57,8 +57,9 @@ export async function processCycles(cycles: Cycle[]) {
 
     Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
 
+    sendDataToAdjacentArchivers(DataType.CYCLE, [cycle])
     // Check the archivers reputaion in every new cycle & record the status
-    await recordArchiversReputation()
+    recordArchiversReputation()
   }
   if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
 }

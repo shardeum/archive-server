@@ -7,7 +7,7 @@ import { clearCombinedAccountsData, combineAccountsData, socketServer } from './
 import { config } from '../Config'
 import * as Logger from '../Logger'
 import { profilerInstance } from '../profiler/profiler'
-import { Cycle, currentCycleCounter } from './Cycles'
+import { Cycle, currentCycleCounter, processCycles } from './Cycles'
 import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 import * as State from '../State'
 import * as Utils from '../Utils'
@@ -135,7 +135,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
         socketServer.emit('RECEIPT', signedDataToSend)
       }
       await Receipt.bulkInsertReceipts(combineReceipts)
-      await sendDataToAdjacentArchivers(DataType.RECEIPT, txsData)
+      sendDataToAdjacentArchivers(DataType.RECEIPT, txsData)
       combineReceipts = []
       txsData = []
     }
@@ -157,7 +157,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
       socketServer.emit('RECEIPT', signedDataToSend)
     }
     await Receipt.bulkInsertReceipts(combineReceipts)
-    await sendDataToAdjacentArchivers(DataType.RECEIPT, txsData)
+    sendDataToAdjacentArchivers(DataType.RECEIPT, txsData)
   }
   if (combineAccounts.length > 0) await Account.bulkInsertAccounts(combineAccounts)
   if (combineTransactions.length > 0) await Transaction.bulkInsertTransactions(combineTransactions)
@@ -300,7 +300,7 @@ export const storeOriginalTxData = async (
         socketServer.emit('RECEIPT', signedDataToSend)
       }
       await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
-      await sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txsData)
+      sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txsData)
       combineOriginalTxsData = []
       txsData = []
     }
@@ -313,14 +313,14 @@ export const storeOriginalTxData = async (
       socketServer.emit('RECEIPT', signedDataToSend)
     }
     await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
-    await sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txsData)
+    sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txsData)
   }
 }
 
 export const validateGossipData = (data: GossipData) => {
   let err = Utils.validateTypes(data, {
-    txDataType: 's',
-    txsData: 'a',
+    dataType: 's',
+    data: 'a',
     sender: 's',
     sign: 'o',
   })
@@ -377,6 +377,9 @@ export const processGossipData = (gossipdata: GossipData) => {
       } else missingOriginalTxsMap.set(txId, cycle)
       // console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'MISS', txId, sender)
     }
+  }
+  if (dataType === DataType.CYCLE) {
+    processCycles(data as Cycle[])
   }
 }
 
