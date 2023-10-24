@@ -1,6 +1,6 @@
-const _startingMessage = `shardus-archive server starting at
-locale:  {new Date().toLocaleString()}
-ISO/UTC: {new Date().toISOString()}`
+const _startingMessage = `@shardus/archiver starting at
+  locale:  ${new Date().toLocaleString()}
+  ISO/UTC: ${new Date().toISOString()}`
 console.log(_startingMessage)
 console.error(_startingMessage)
 
