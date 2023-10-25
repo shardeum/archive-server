@@ -1177,9 +1177,11 @@ export async function syncCyclesAndNodeListV2(
   // store cycleToSyncTo in the database
   await storeCycleData([cycleToSyncTo])
   // We might have to set the current cycle counter and cycle duration to the cycleToSyncTo counter
+  // But this has to be sure that syncArchiverLists is implemented in the syncV2
   // Cycles.setCurrentCycleCounter(cycleToSyncTo.counter)
   // Cycles.setCurrentCycleDuration(cycleToSyncTo.duration)
 
+  // This might have to removed once archiver sending active request is implemented!
   GossipTxData.getAdjacentLeftAndRightArchivers()
   Logger.mainLogger.debug('adjacentArchivers', GossipTxData.adjacentArchivers)
 
