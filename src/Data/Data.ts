@@ -41,6 +41,7 @@ import {
   MAX_CYCLES_PER_REQUEST,
   MAX_BETWEEN_CYCLES_PER_REQUEST,
 } from '../server'
+import * as GossipTxData from './GossipTxData'
 
 // Socket modules
 export let socketServer: SocketIO.Server
@@ -1175,6 +1176,12 @@ export async function syncCyclesAndNodeListV2(
 
   // store cycleToSyncTo in the database
   await storeCycleData([cycleToSyncTo])
+  // We might have to set the current cycle counter and cycle duration to the cycleToSyncTo counter
+  // Cycles.setCurrentCycleCounter(cycleToSyncTo.counter)
+  // Cycles.setCurrentCycleDuration(cycleToSyncTo.duration)
+
+  GossipTxData.getAdjacentLeftAndRightArchivers()
+  Logger.mainLogger.debug('adjacentArchivers', GossipTxData.adjacentArchivers)
 
   // Download old cycle Records
   await downloadOldCycles(cycleToSyncTo, lastStoredCycleCount, activeArchivers)

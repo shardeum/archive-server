@@ -43,7 +43,7 @@ export interface Config {
 }
 
 let config: Config = {
-  ARCHIVER_IP: 'localhost',
+  ARCHIVER_IP: '127.0.0.1',
   ARCHIVER_PORT: 4000,
   ARCHIVER_HASH_KEY: '69fa4195670576c0160d660c3be36556ff8d504725be8a59b5a96509e0c994bc',
   ARCHIVER_PUBLIC_KEY:
