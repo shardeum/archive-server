@@ -265,12 +265,16 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
             for (const counter of Object.keys(receivedCycleTracker)) {
               if (parseInt(counter) < currentCycleCounter - 5) {
                 let totalTimes = 0
+                let logCycle = false
+                // If there is more than one marker for this cycle, output the cycle log
+                if (Object.keys(receivedCycleTracker[counter]).length > 1) logCycle = true
                 for (const key of Object.keys(receivedCycleTracker[counter])) {
                   Logger.mainLogger.debug(
                     'Cycle',
                     counter,
-                    key,
-                    receivedCycleTracker[counter][key]['receivedTimes']
+                    key, // marker
+                    receivedCycleTracker[counter][key]['receivedTimes'],
+                    logCycle ? receivedCycleTracker[counter][key] : ''
                   )
                   totalTimes += receivedCycleTracker[counter][key]['receivedTimes']
                 }
