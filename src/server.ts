@@ -1596,6 +1596,19 @@ async function startServer() {
     }
   )
 
+  // ping the archiver to see if it's alive
+  server.get('/ping',
+    // this debug endpoint is in support of development and testing of
+    // lost archiver detection
+    {
+      preHandler: async (_request, reply) => {
+        isDebugMiddleware(_request, reply)
+      },
+    },
+    (_request, reply) => {
+      reply.status(200).send('pong!')
+    })
+
   // Old snapshot ArchivedCycle endpoint;
   if (!config.experimentalSnapshot) {
     type FullArchiveRequest = FastifyRequest<{
