@@ -55,6 +55,9 @@ let forwardGenesisAccounts = true
 let currentConsensusRadius = 0
 let subsetNodesMapByConsensusRadius: Map<number, NodeList.ConsensusNodeInfo[]> = new Map()
 let receivedCycleTracker = {}
+const maxCyclesInCycleTracker = 10
+const maxCyclesToPreserve = 5
+
 const QUERY_TIMEOUT_MAX = 30 // 30seconds
 
 export enum DataRequestTypes {
@@ -220,80 +223,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
           storeReceiptData(newData.responses.RECEIPT, sender.nodeInfo.ip + ':' + sender.nodeInfo.port)
         }
         if (newData.responses && newData.responses.CYCLE) {
-          for (const cycle of newData.responses.CYCLE) {
-            // Logger.mainLogger.debug('Cycle received', cycle.counter, sender.nodeInfo.ip, sender.nodeInfo.port)
-            let cycleToSave = [] as Cycle[]
-            if (receivedCycleTracker[cycle.counter]) {
-              if (receivedCycleTracker[cycle.counter][cycle.marker])
-                receivedCycleTracker[cycle.counter][cycle.marker]['receivedTimes']++
-              else {
-                receivedCycleTracker[cycle.counter][cycle.marker] = {
-                  cycleInfo: cycle,
-                  receivedTimes: 1,
-                  saved: false,
-                }
-              }
-              // Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker)
-              let maxEqual = 3 // Setting as 3 for now
-              if (cycle.active < 10) maxEqual = 1
-              for (let value of Object.values(receivedCycleTracker[cycle.counter])) {
-                if (value['saved']) break
-                if (value['receivedTimes'] >= maxEqual) {
-                  cycleToSave.push(cycle)
-                  value['saved'] = true
-                }
-              }
-            } else {
-              const byCycleMarker = {}
-              byCycleMarker[cycle.marker] = {
-                cycleInfo: cycle,
-                receivedTimes: 1,
-                saved: false,
-              }
-              receivedCycleTracker[cycle.counter] = byCycleMarker
-              // Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker)
-              let maxEqual = 3 // Setting as 3 for now
-              if (cycle.active < 10) maxEqual = 1
-              for (let value of Object.values(receivedCycleTracker[cycle.counter])) {
-                if (value['saved']) break
-                if (value['receivedTimes'] >= maxEqual) {
-                  cycleToSave.push(cycle)
-                  value['saved'] = true
-                }
-              }
-            }
-            if (cycleToSave.length > 0) {
-              // Logger.mainLogger.debug('Cycle To Save', cycle.counter, receivedCycleTracker)
-              // Logger.mainLogger.debug(
-              //   'Cycle To Save',
-              //   `Counter ${cycle.counter}`,
-              //   Object.values(receivedCycleTracker[cycle.counter]).map((value) => value['receivedTimes'])
-              // )
-              processCycles(cycleToSave as Cycle[])
-            }
-          }
-          if (Object.keys(receivedCycleTracker).length > 10) {
-            for (const counter of Object.keys(receivedCycleTracker)) {
-              if (parseInt(counter) < currentCycleCounter - 5) {
-                let totalTimes = 0
-                let logCycle = false
-                // If there is more than one marker for this cycle, output the cycle log
-                if (Object.keys(receivedCycleTracker[counter]).length > 1) logCycle = true
-                for (const key of Object.keys(receivedCycleTracker[counter])) {
-                  Logger.mainLogger.debug(
-                    'Cycle',
-                    counter,
-                    key, // marker
-                    receivedCycleTracker[counter][key]['receivedTimes'],
-                    logCycle ? receivedCycleTracker[counter][key] : ''
-                  )
-                  totalTimes += receivedCycleTracker[counter][key]['receivedTimes']
-                }
-                Logger.mainLogger.debug(`Received ${totalTimes} times for cycle counter ${counter}`)
-                delete receivedCycleTracker[counter]
-              }
-            }
-          }
+          collectCycleData(newData.responses.CYCLE, sender.nodeInfo.ip + ':' + sender.nodeInfo.port)
         }
         if (newData.responses && newData.responses.ACCOUNT) {
           console.log(
@@ -352,6 +282,65 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   )
 }
 
+export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
+  for (const cycle of cycleData) {
+    // Logger.mainLogger.debug('Cycle received', cycle.counter, senderInfo)
+    let cycleToSave = []
+    if (receivedCycleTracker[cycle.counter]) {
+      if (receivedCycleTracker[cycle.counter][cycle.marker])
+        receivedCycleTracker[cycle.counter][cycle.marker]['receivedTimes']++
+      else {
+        receivedCycleTracker[cycle.counter][cycle.marker] = {
+          cycleInfo: cycle,
+          receivedTimes: 1,
+          saved: false,
+        }
+      }
+    } else {
+      receivedCycleTracker[cycle.counter][cycle.marker] = {
+        cycleInfo: cycle,
+        receivedTimes: 1,
+        saved: false,
+      }
+    }
+    // Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker)
+    let maxEqual = 3 // Setting as 3 for now, TODO: set with a better value using consensusRadius
+    if (cycle.active < 10) maxEqual = 1
+    for (let value of Object.values(receivedCycleTracker[cycle.counter])) {
+      if (value['saved']) break
+      if (value['receivedTimes'] >= maxEqual) {
+        cycleToSave.push(cycle)
+        value['saved'] = true
+      }
+    }
+    if (cycleToSave.length > 0) {
+      processCycles(cycleToSave)
+    }
+  }
+  if (Object.keys(receivedCycleTracker).length > maxCyclesInCycleTracker) {
+    for (const counter of Object.keys(receivedCycleTracker)) {
+      if (parseInt(counter) < currentCycleCounter - maxCyclesToPreserve) { 
+        let totalTimes = 0
+        let logCycle = false
+        // If there is more than one marker for this cycle, output the cycle log
+        if (Object.keys(receivedCycleTracker[counter]).length > 1) logCycle = true
+        for (const key of Object.keys(receivedCycleTracker[counter])) {
+          Logger.mainLogger.debug(
+            'Cycle',
+            counter,
+            key, // marker
+            receivedCycleTracker[counter][key]['receivedTimes'],
+            logCycle ? receivedCycleTracker[counter][key] : ''
+          )
+          totalTimes += receivedCycleTracker[counter][key]['receivedTimes']
+        }
+        Logger.mainLogger.debug(`Received ${totalTimes} times for cycle counter ${counter}`)
+        delete receivedCycleTracker[counter]
+      }
+    }
+  }
+}
+
 export function clearCombinedAccountsData() {
   combineAccountsData = {
     accounts: [],
@@ -367,8 +356,6 @@ export interface DataSender {
 }
 
 export const dataSenders: Map<NodeList.ConsensusNodeInfo['publicKey'], DataSender> = new Map()
-
-export const emitter = new EventEmitter()
 
 export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   nestedCountersInstance.countEvent('archiver', 'replace_data_sender')

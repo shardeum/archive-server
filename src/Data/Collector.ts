@@ -3,11 +3,11 @@ import * as Transaction from '../dbstore/transactions'
 import * as Receipt from '../dbstore/receipts'
 import * as OriginalTxsData from '../dbstore/originalTxsData'
 import * as Crypto from '../Crypto'
-import { clearCombinedAccountsData, combineAccountsData, socketServer } from './Data'
+import { clearCombinedAccountsData, combineAccountsData, socketServer, collectCycleData } from './Data'
 import { config } from '../Config'
 import * as Logger from '../Logger'
 import { profilerInstance } from '../profiler/profiler'
-import { Cycle, currentCycleCounter, processCycles } from './Cycles'
+import { Cycle, currentCycleCounter } from './Cycles'
 import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 import * as State from '../State'
 import * as Utils from '../Utils'
@@ -379,7 +379,7 @@ export const processGossipData = (gossipdata: GossipData) => {
     }
   }
   if (dataType === DataType.CYCLE) {
-    processCycles(data as Cycle[])
+    collectCycleData(data as Cycle[])
   }
 }
 
