@@ -41,7 +41,7 @@ import {
   MAX_CYCLES_PER_REQUEST,
   MAX_BETWEEN_CYCLES_PER_REQUEST,
 } from '../server'
-import * as GossipTxData from './GossipTxData'
+import * as GossipData from './GossipData'
 
 // Socket modules
 export let socketServer: SocketIO.Server
@@ -1200,8 +1200,8 @@ export async function syncCyclesAndNodeListV2(
   Cycles.setCurrentCycleDuration(cycleToSyncTo.duration)
 
   // This might have to removed once archiver sending active request is implemented!
-  GossipTxData.getAdjacentLeftAndRightArchivers()
-  Logger.mainLogger.debug('adjacentArchivers', GossipTxData.adjacentArchivers)
+  GossipData.getAdjacentLeftAndRightArchivers()
+  Logger.mainLogger.debug('adjacentArchivers', GossipData.adjacentArchivers)
 
   // Download old cycle Records
   await downloadOldCycles(cycleToSyncTo, lastStoredCycleCount, activeArchivers)
