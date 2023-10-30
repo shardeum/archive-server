@@ -297,10 +297,12 @@ export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
         }
       }
     } else {
-      receivedCycleTracker[cycle.counter][cycle.marker] = {
-        cycleInfo: cycle,
-        receivedTimes: 1,
-        saved: false,
+      receivedCycleTracker[cycle.counter] = {
+        [cycle.marker]: {
+          cycleInfo: cycle,
+          receivedTimes: 1,
+          saved: false,
+        },
       }
     }
     // Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker)
@@ -319,7 +321,7 @@ export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
   }
   if (Object.keys(receivedCycleTracker).length > maxCyclesInCycleTracker) {
     for (const counter of Object.keys(receivedCycleTracker)) {
-      if (parseInt(counter) < currentCycleCounter - maxCyclesToPreserve) { 
+      if (parseInt(counter) < currentCycleCounter - maxCyclesToPreserve) {
         let totalTimes = 0
         let logCycle = false
         // If there is more than one marker for this cycle, output the cycle log

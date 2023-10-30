@@ -15,6 +15,7 @@ import { DataType, GossipData, adjacentArchivers, sendDataToAdjacentArchivers } 
 import { getJson } from '../P2P'
 import { setGlobalAccount } from '../GlobalAccount'
 import { CycleLogWriter, ReceiptLogWriter, OriginalTxDataLogWriter } from '../Data/DataLogWriter'
+import { publicKey } from '../shardus-crypto-types'
 
 export let storingAccountData = false
 export let receiptsMap: Map<string, number> = new Map()
@@ -379,7 +380,10 @@ export const processGossipData = (gossipdata: GossipData) => {
     }
   }
   if (dataType === DataType.CYCLE) {
-    collectCycleData(data as Cycle[])
+    collectCycleData(
+      data as Cycle[],
+      adjacentArchivers.get(sender).ip + ':' + adjacentArchivers.get(sender).port
+    )
   }
 }
 
