@@ -9,6 +9,10 @@ import { postJson } from './P2P';
 
 let shouldSendRefutes = false
 
+/**
+  * Checks for the existence of our own public key in either the 'refutedArchivers', 'lostArchivers', or 'removedArchivers' fields of the supplied record.
+  * If found in 'refutedArchivers', we'll stop sending refutes. If found in 'lostArchivers', we'll schedule a refute in the next cycle's Q1. If found in 'removedArchivers', we'll shut down.
+  */
 export function handleLostArchivers<R extends Record>(record: R): void {
   if (record.refutedArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
     // if self is in 'refutedArchivers' field, stop sending refutes
@@ -23,7 +27,9 @@ export function handleLostArchivers<R extends Record>(record: R): void {
   }
 }
 
-/// Schedules to send a refute during the next cycle's Q1
+/**
+  * Schedules to send a refute during the next cycle's Q1.
+  */
 async function scheduleRefute(): Promise<void> {
   if (!shouldSendRefutes) return
 
@@ -36,6 +42,9 @@ async function scheduleRefute(): Promise<void> {
   setTimeout(sendRefute, delay)
 }
 
+/**
+  * Sends a refute to 5 random active nodes.
+  */
 async function sendRefute(): Promise<void> {
   if (!shouldSendRefutes) return
 
@@ -54,6 +63,9 @@ async function sendRefute(): Promise<void> {
   scheduleRefute()
 }
 
+/**
+  * Shuts down the archiver with exit code 2.
+  */
 function die(): void {
   Logger.mainLogger.debug('Archiver was found in `removedArchivers` and will exit now without sending a leave request')
   process.exit(2)
