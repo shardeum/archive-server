@@ -37,6 +37,7 @@ import * as GossipData from './Data/GossipData'
 import * as AccountDataProvider from './Data/AccountDataProvider'
 const { version } = require('../package.json')
 import { getGlobalNetworkAccount, loadGlobalNetworkAccountFromDB } from './GlobalAccount'
+import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycles'
 
 // Socket modules
 let io: SocketIO.Server
@@ -55,8 +56,6 @@ export const MAX_CYCLES_PER_REQUEST = 1000
 
 export const MAX_BETWEEN_CYCLES_PER_REQUEST = 100
 let foundFirstNode = false
-
-let cycleRecordWithShutDownMode = null as P2PTypes.CycleCreatorTypes.CycleRecord
 
 async function start() {
   overrideDefaultConfig(file, env, args)
@@ -108,11 +107,10 @@ async function start() {
       // Load global account from db
       await loadGlobalNetworkAccountFromDB()
       const lastStoredCycleMode = lastStoredCycle[0].mode as P2PTypes.ModesTypes.Record['mode']
-      if (lastStoredCycleMode !== 'shutdown') {
+      if (lastStoredCycleMode === 'shutdown') {
         // Checking it as not 'shutdown' mode for now to work currently until the 'shutdown' mode is added to the cycle record
         // Send this cycle to the first node to use it to start the restore network
-        cycleRecordWithShutDownMode = lastStoredCycle[0]
-        cycleRecordWithShutDownMode.mode = 'shutdown'
+        setShutdownCycleRecord(lastStoredCycle[0])
         io = await startServer()
         return
       }
@@ -577,6 +575,7 @@ async function startServer() {
     profilerInstance.profileSectionStart('POST_nodelist')
     nestedCountersInstance.countEvent('consensor', 'POST_nodelist', 1)
     const signedFirstNodeInfo = request.body
+    if (cycleRecordWithShutDownMode) foundFirstNode = false
 
     if (State.isFirst && NodeList.isEmpty() && !foundFirstNode) {
       try {

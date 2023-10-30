@@ -36,6 +36,7 @@ export let lastProcessedMetaData = -1
 export let CycleChain: Map<Cycle['counter'], any> = new Map()
 export let lostNodes: LostNode[] = []
 export const removedNodes = []
+export let cycleRecordWithShutDownMode = null as P2P.CycleCreatorTypes.CycleRecord | null
 
 export async function processCycles(cycles: Cycle[]) {
   if (profilerInstance) profilerInstance.profileSectionStart('process_cycle', false)
@@ -60,6 +61,12 @@ export async function processCycles(cycles: Cycle[]) {
     sendDataToAdjacentArchivers(DataType.CYCLE, [cycle])
     // Check the archivers reputaion in every new cycle & record the status
     recordArchiversReputation()
+    if (cycle.mode === 'shutdown' && cycle.removed[0] === 'all') {
+      Logger.mainLogger.debug(Date.now(), `❌ Shutdown Cycle Record received at Cycle #: ${cycle.counter}`)
+      cycleRecordWithShutDownMode = cycle
+      NodeList.clearNodeListCache()
+    }
+    if (cycle.mode === 'restart') cycleRecordWithShutDownMode = null
   }
   if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
 }
@@ -97,6 +104,10 @@ export function validateCycle(prev: Cycle, next: P2P.CycleCreatorTypes.CycleReco
   delete previousRecordWithoutMarker.marker
   const prevMarker = computeCycleMarker(previousRecordWithoutMarker)
   return next.previous === prevMarker
+}
+
+export function setShutdownCycleRecord(cycleRecord: P2P.CycleCreatorTypes.CycleRecord) {
+  cycleRecordWithShutDownMode = cycleRecord
 }
 
 interface P2PNode {

@@ -48,10 +48,10 @@ const standbyList: Map<string, ConsensusNodeInfo> = new Map()
 const syncingList: Map<string, ConsensusNodeInfo> = new Map()
 const activeList: Map<string, ConsensusNodeInfo> = new Map()
 export let activeListByIdSorted: ConsensusNodeInfo[] = []
-export const byPublicKey: { [publicKey: string]: ConsensusNodeInfo } = {}
-const byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
-export const byId: { [id: string]: ConsensusNodeInfo } = {}
-const publicKeyToId: { [publicKey: string]: string } = {}
+export let byPublicKey: { [publicKey: string]: ConsensusNodeInfo } = {}
+let byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
+export let byId: { [id: string]: ConsensusNodeInfo } = {}
+let publicKeyToId: { [publicKey: string]: string } = {}
 
 export type SignedNodeList = {
   nodeList: ConsensusNodeInfo[]
@@ -345,4 +345,25 @@ export function getId(publicKey: string) {
 
 export function getNodeInfoById(id: string) {
   return byId[id]
+}
+
+/** Resets/Cleans all the NodeList associated Maps and Array variables/caches */
+export function clearNodeListCache() {
+  try {
+    cache.clear()
+    metadata.clear()
+    activeList.clear()
+    syncingList.clear()
+    realUpdatedTimes.clear()
+    cacheUpdatedTimes.clear()
+
+    list.length = 0
+    byId = {}
+    byIpPort = {}
+    byPublicKey = {}
+    publicKeyToId = {}
+    activeListByIdSorted = []
+  } catch (e) {
+    Logger.mainLogger.error('Error thrown in clearNodeListCache', e)
+  }
 }
