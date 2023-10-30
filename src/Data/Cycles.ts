@@ -20,6 +20,7 @@ import fetch from 'node-fetch'
 import { getAdjacentLeftAndRightArchivers, sendDataToAdjacentArchivers, DataType } from './GossipData'
 import { storeCycleData } from './Collector'
 import { clearServingValidatorsInterval, initServingValidatorsInterval } from './AccountDataProvider'
+import { hexstring } from 'shardus-crypto-types'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
@@ -34,6 +35,7 @@ export interface LostNode {
 
 export let currentCycleDuration = 0
 let currentCycleCounter = -1
+let currentCycleMarker = '0'.repeat(32)
 export let lastProcessedMetaData = -1
 export let CycleChain: Map<Cycle['counter'], any> = new Map()
 export let lostNodes: LostNode[] = []
@@ -81,6 +83,10 @@ export function getCurrentCycleCounter(): number {
   return currentCycleCounter
 }
 
+export function getCurrentCycleMarker(): hexstring {
+  return currentCycleMarker
+}
+
 export function getLostNodes(from: number, to: number) {
   return lostNodes.filter((node: LostNode) => {
     return node.counter >= from && node.counter <= to
@@ -93,6 +99,10 @@ export function setCurrentCycleDuration(duration: number) {
 
 export function setCurrentCycleCounter(value: number) {
   currentCycleCounter = value
+}
+
+export function setCurrentCycleMarker(value: hexstring) {
+  currentCycleMarker = value
 }
 
 export function setLastProcessedMetaDataCounter(value: number) {
