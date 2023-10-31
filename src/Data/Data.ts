@@ -787,11 +787,11 @@ export function checkJoinStatus(): Promise<boolean> {
         Logger.mainLogger.debug('cycle counter', response.cycleInfo[0].counter)
         Logger.mainLogger.debug('Joined archivers', joinedArchivers)
 
-        let isJoind = [...joinedArchivers, ...refreshedArchivers].find(
+        let isJoined = [...joinedArchivers, ...refreshedArchivers].find(
           (a: any) => a.publicKey === ourNodeInfo.publicKey
         )
-        Logger.mainLogger.debug('isJoind', isJoind)
-        resolve(isJoind)
+        Logger.mainLogger.debug('isJoined', isJoined)
+        resolve(isJoined)
       } else {
         resolve(false)
       }
@@ -840,11 +840,11 @@ export function checkJoinStatusFromConsensor(nodeList: NodeList.ConsensusNodeInf
         Logger.mainLogger.debug('cycle counter', latestCycle.counter)
         Logger.mainLogger.debug('Joined archivers', joinedArchivers)
 
-        let isJoind: boolean = [...joinedArchivers, ...refreshedArchivers].some(
+        let isJoined: boolean = [...joinedArchivers, ...refreshedArchivers].some(
           (a: any) => a.publicKey === ourNodeInfo.publicKey
         )
-        Logger.mainLogger.debug('isJoind', isJoind)
-        resolve(isJoind)
+        Logger.mainLogger.debug('isJoined', isJoined)
+        resolve(isJoined)
       } else {
         resolve(false)
       }
