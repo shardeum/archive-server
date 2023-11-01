@@ -15,7 +15,6 @@ import { DataType, GossipData, adjacentArchivers, sendDataToAdjacentArchivers } 
 import { getJson } from '../P2P'
 import { setGlobalAccount } from '../GlobalAccount'
 import { CycleLogWriter, ReceiptLogWriter, OriginalTxDataLogWriter } from '../Data/DataLogWriter'
-import { publicKey } from '../shardus-crypto-types'
 
 export let storingAccountData = false
 export let receiptsMap: Map<string, number> = new Map()

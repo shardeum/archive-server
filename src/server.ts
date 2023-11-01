@@ -1447,11 +1447,11 @@ async function startServer() {
   })
 
   type AccountDataRequest = FastifyRequest<{
-    Body: AccountDataProvider.AccountDataRequestSchema
+    Body: AccountDataProvider.AccountDataRequestSchema | AccountDataProvider.AccountDataByListRequestSchema
   }>
 
   server.post('get_account_data_archiver', async (_request: AccountDataRequest, reply) => {
-    let payload = _request.body
+    let payload = _request.body as AccountDataProvider.AccountDataRequestSchema
     Logger.mainLogger.debug('Account Data received', JSON.stringify(payload))
     const result = AccountDataProvider.validateAccountDataRequest(payload)
     if (!result.success) {
@@ -1462,6 +1462,22 @@ async function startServer() {
     const res = Crypto.sign({
       success: true,
       data,
+    })
+    reply.send(res)
+  })
+
+  server.post('get_account_data_by_list_archiver', async (_request: AccountDataRequest, reply) => {
+    let payload = _request.body as AccountDataProvider.AccountDataByListRequestSchema
+    Logger.mainLogger.debug('Account Data received', JSON.stringify(payload))
+    const result = AccountDataProvider.validateAccountDataByListRequest(payload)
+    if (!result.success) {
+      reply.send(Crypto.sign({ success: false, error: result.error }))
+      return
+    }
+    const accountData = await AccountDataProvider.provideAccountDataByListRequest(payload)
+    const res = Crypto.sign({
+      success: true,
+      accountData,
     })
     reply.send(res)
   })
