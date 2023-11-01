@@ -34,6 +34,7 @@ import { startSaving } from './saveConsoleOutput'
 import { setupArchiverDiscovery } from '@shardus/archiver-discovery'
 import * as Collector from './Data/Collector'
 import * as GossipData from './Data/GossipData'
+import * as AccountDataProvider from './Data/AccountDataProvider'
 const { version } = require('../package.json')
 import { getGlobalAccount, loadGlobalNetworkAccountFromDB } from './GlobalAccount'
 
@@ -1443,6 +1444,26 @@ async function startServer() {
     })
     reply.send(res)
     Collector.processGossipData(gossipPayload)
+  })
+
+  type AccountDataRequest = FastifyRequest<{
+    Body: AccountDataProvider.AccountDataRequestSchema
+  }>
+
+  server.post('get_account_data_archiver', async (_request: AccountDataRequest, reply) => {
+    let payload = _request.body
+    Logger.mainLogger.debug('Account Data received', JSON.stringify(payload))
+    const result = AccountDataProvider.validateAccountDataRequest(payload)
+    if (!result.success) {
+      reply.send(Crypto.sign({ success: false, error: result.error }))
+      return
+    }
+    const data = await AccountDataProvider.provideAccountDataRequest(payload)
+    const res = Crypto.sign({
+      success: true,
+      data,
+    })
+    reply.send(res)
   })
 
   // [TODO] Remove this before production
