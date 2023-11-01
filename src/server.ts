@@ -1621,7 +1621,11 @@ async function startServer() {
 
   server.post(
     '/set-reachability',
-    {},
+    {
+      preHandler: async (request, reply) => {
+        isDebugMiddleware(request, reply)
+      },
+    },
     async (request, reply) => {
       const { value } = request.body as { value: unknown }
       if (typeof value !== 'boolean') {
