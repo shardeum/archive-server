@@ -31,6 +31,12 @@ type GetAccountDataByRangeSmart = {
 type WrappedAccounts = {
   wrappedAccounts: WrappedStateArray
 }
+
+type GlobalAccountReportResp = {
+  ready: boolean
+  combinedHash: string
+  accounts: { id: string; hash: string; timestamp: number }[]
+}
 export interface AccountDataRequestSchema {
   accountStart: string
   accountEnd: string
@@ -43,6 +49,10 @@ export interface AccountDataRequestSchema {
 
 export interface AccountDataByListRequestSchema {
   accountIds: string[]
+  sign: Signature
+}
+
+export interface GlobalAccountReportRequestSchema {
   sign: Signature
 }
 
@@ -80,7 +90,7 @@ export const validateAccountDataRequest = (
   if (accountOffset && accountOffset.length !== 64) {
     return { success: false, error: 'Invalid account offset' }
   }
-  // TODO: We could need to add the data request sender is a validator present in the network
+  // TODO: We could add a check that the data request sender is a validator present in the network
   if (!Crypto.verify(payload)) {
     return { success: false, error: 'Invalid signature' }
   }
@@ -102,7 +112,23 @@ export const validateAccountDataByListRequest = (
   if (accountIds.length !== 0 || accountIds.some((accountId) => accountId.length !== 64)) {
     return { success: false, error: 'Invalid account ids' }
   }
-  // TODO: We could need to add the data request sender is a validator present in the network
+  // TODO: We could add a check that the data request sender is a validator present in the network
+  if (!Crypto.verify(payload)) {
+    return { success: false, error: 'Invalid signature' }
+  }
+  return { success: true }
+}
+
+export const validateGlobalAccountReportRequest = (
+  payload: GlobalAccountReportRequestSchema
+): { success: boolean; error?: string } => {
+  let err = Utils.validateTypes(payload, {
+    sign: 'o',
+  })
+  if (err) {
+    return { success: false, error: err }
+  }
+  // TODO: We could add a check that the data request sender is a validator present in the network
   if (!Crypto.verify(payload)) {
     return { success: false, error: 'Invalid signature' }
   }
@@ -112,7 +138,7 @@ export const validateAccountDataByListRequest = (
  *
  * This function is contructed to provide data in similar way as the `getAccountDataByRangeSmart` function in the validator
  * @param payload
- * @returns
+ * @returns GetAccountDataByRangeSmart
  */
 export const provideAccountDataRequest = async (
   payload: AccountDataRequestSchema
@@ -207,4 +233,8 @@ export const provideAccountDataByListRequest = async (
     })
   }
   return { wrappedAccounts }
+}
+
+export const provideGlobalAccountReportRequest = async (): Promise<GlobalAccountReportResp> => {
+  return { ready: true, combinedHash: '', accounts: [] }
 }

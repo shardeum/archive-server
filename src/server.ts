@@ -1482,6 +1482,19 @@ async function startServer() {
     reply.send(res)
   })
 
+  server.post('get_globalaccountreport_archiver', async (_request: AccountDataRequest, reply) => {
+    let payload = _request.body as AccountDataProvider.GlobalAccountReportRequestSchema
+    Logger.mainLogger.debug('Account Data received', JSON.stringify(payload))
+    const result = AccountDataProvider.validateGlobalAccountReportRequest(payload)
+    if (!result.success) {
+      reply.send(Crypto.sign({ success: false, error: result.error }))
+      return
+    }
+    const report = await AccountDataProvider.provideGlobalAccountReportRequest()
+    const res = Crypto.sign(report)
+    reply.send(res)
+  })
+
   // [TODO] Remove this before production
   // server.get('/exit', (_request, reply) => {
   //   reply.send('Shutting down...')
