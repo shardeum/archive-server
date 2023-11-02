@@ -36,7 +36,7 @@ import * as Collector from './Data/Collector'
 import * as GossipData from './Data/GossipData'
 import * as AccountDataProvider from './Data/AccountDataProvider'
 const { version } = require('../package.json')
-import { getGlobalAccount, loadGlobalNetworkAccountFromDB } from './GlobalAccount'
+import { getGlobalNetworkAccount, loadGlobalNetworkAccountFromDB } from './GlobalAccount'
 
 // Socket modules
 let io: SocketIO.Server
@@ -1644,7 +1644,7 @@ async function startServer() {
   server.get('/get-network-account', (_request: GetNetworkAccountRequest, reply) => {
     const useHash = _request.query?.hash !== 'false'
 
-    const res = getGlobalAccount(useHash)
+    const res = getGlobalNetworkAccount(useHash)
 
     // We might want to sign this response
     reply.send(res)

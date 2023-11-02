@@ -13,7 +13,7 @@ import * as State from '../State'
 import * as Utils from '../Utils'
 import { DataType, GossipData, adjacentArchivers, sendDataToAdjacentArchivers } from './GossipData'
 import { getJson } from '../P2P'
-import { setGlobalAccount } from '../GlobalAccount'
+import { globalAccountsMap, setGlobalNetworkAccount } from '../GlobalAccount'
 import { CycleLogWriter, ReceiptLogWriter, OriginalTxDataLogWriter } from '../Data/DataLogWriter'
 
 export let storingAccountData = false
@@ -89,9 +89,15 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
         combineAccounts.push(accObj)
       }
 
-      //check global account updates
-      if (accObj.accountId === config.globalAccount) {
-        setGlobalAccount(accObj)
+      //check global network account updates
+      if (accObj.accountId === config.globalNetworkAccount) {
+        setGlobalNetworkAccount(accObj)
+      }
+      if (accObj.isGlobal) {
+        globalAccountsMap.set(accObj.accountId, {
+          hash: accObj.hash,
+          timestamp: accObj.timestamp,
+        })
       }
     }
     // if (receipt) {

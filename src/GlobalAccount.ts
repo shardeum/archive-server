@@ -3,25 +3,26 @@ import * as rfdc from 'rfdc'
 import { config } from './Config'
 import * as AccountDB from './dbstore/accounts'
 
-let cachedGlobalAccount: object
-let cachedGlobalAccountHash: string
+let cachedGlobalNetworkAccount: object
+let cachedGlobalNetworkAccountHash: string
+export const globalAccountsMap = new Map<string, object>()
 
-export function getGlobalAccount(hash: boolean): object | string {
+export function getGlobalNetworkAccount(hash: boolean): object | string {
   if (hash) {
-    return cachedGlobalAccountHash
+    return cachedGlobalNetworkAccountHash
   }
 
-  return cachedGlobalAccount
+  return cachedGlobalNetworkAccount
 }
 
-export function setGlobalAccount(account: object): void {
-  cachedGlobalAccount = rfdc()(account)
-  cachedGlobalAccountHash = Crypto.hashObj(account)
+export function setGlobalNetworkAccount(account: object): void {
+  cachedGlobalNetworkAccount = rfdc()(account)
+  cachedGlobalNetworkAccountHash = Crypto.hashObj(account)
 }
 
 export const loadGlobalNetworkAccountFromDB = async () => {
-  const account = await AccountDB.queryAccountByAccountId(config.globalAccount)
+  const account = await AccountDB.queryAccountByAccountId(config.globalNetworkAccount)
   if (account) {
-    setGlobalAccount(account)
+    setGlobalNetworkAccount(account)
   }
 }
