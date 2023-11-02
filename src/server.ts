@@ -1609,7 +1609,8 @@ async function startServer() {
   )
 
   // ping the archiver to see if it's alive
-  server.get('/ping',
+  server.get(
+    '/ping',
     // this debug endpoint is in support of development and testing of
     // lost archiver detection
     {
@@ -1623,7 +1624,8 @@ async function startServer() {
       } else {
         request.raw.socket.destroy()
       }
-    })
+    }
+  )
 
   server.get(
     '/set-reachability',
@@ -1634,19 +1636,25 @@ async function startServer() {
             value: {
               type: 'boolean',
             },
-          }
-        }
+          },
+        },
       },
       preHandler: async (request, reply) => {
         isDebugMiddleware(request, reply)
       },
     },
     async (request, reply) => {
+      const msg = `/set-reachability`
+      console.log(msg)
+      Logger.mainLogger.info(msg)
       const value = (request.query as { value: boolean }).value
-
       if (typeof value !== 'boolean') {
+        Logger.mainLogger.info('/set-reachability: value must be a boolean')
         reply.status(400).send('value must be a boolean')
       } else {
+        const msg = `/set-reachability: ${value}`
+        console.log(msg)
+        Logger.mainLogger.info(msg)
         reachabilityAllowed = value
       }
     }
