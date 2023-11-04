@@ -591,6 +591,16 @@ export async function sendDataRequest(
   return reply
 }
 
+export const clearDataSenders = async () => {
+  for (const [publicKey] of dataSenders) {
+    unsubscribeDataSender(publicKey)
+  }
+  await Utils.sleep(2000) // Wait for 2s to make sure all dataSenders are unsubscribed
+  dataSenders.clear()
+  socketClients.clear()
+  subsetNodesMapByConsensusRadius.clear()
+}
+
 function calcIncomingTimes(record: Cycle) {
   const SECOND = 1000
   const cycleDuration = record.duration * SECOND

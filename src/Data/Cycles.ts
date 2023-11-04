@@ -7,6 +7,7 @@ import { getJson } from '../P2P'
 import { profilerInstance } from '../profiler/profiler'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import {
+  clearDataSenders,
   dataSenders,
   socketClients,
   subscribeConsensorsByConsensusRadius,
@@ -63,8 +64,10 @@ export async function processCycles(cycles: Cycle[]) {
     recordArchiversReputation()
     if (cycle.mode === 'shutdown' && cycle.removed[0] === 'all') {
       Logger.mainLogger.debug(Date.now(), `❌ Shutdown Cycle Record received at Cycle #: ${cycle.counter}`)
-      cycleRecordWithShutDownMode = cycle
+      await Utils.sleep(currentCycleDuration)
       NodeList.clearNodeListCache()
+      await clearDataSenders()
+      cycleRecordWithShutDownMode = cycle
     }
     if (cycle.mode === 'restart') cycleRecordWithShutDownMode = null
   }
