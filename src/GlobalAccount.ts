@@ -5,7 +5,11 @@ import * as AccountDB from './dbstore/accounts'
 
 let cachedGlobalNetworkAccount: object
 let cachedGlobalNetworkAccountHash: string
-export const globalAccountsMap = new Map<string, object>()
+export interface GlobalAccountsHashAndTimestamp {
+  hash: string
+  timestamp: number
+}
+export const globalAccountsMap = new Map<string, GlobalAccountsHashAndTimestamp>()
 
 export function getGlobalNetworkAccount(hash: boolean): object | string {
   if (hash) {

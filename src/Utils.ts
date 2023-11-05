@@ -540,3 +540,5 @@ export interface AttemptOptions {
   /** A log prefix to prepend to error logs on each failure. */
   logPrefix?: string
 }
+
+export const byIdAsc = (a: any, b: any) => (a.id === b.id ? 0 : a.id < b.id ? -1 : 1)

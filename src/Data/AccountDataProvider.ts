@@ -4,6 +4,7 @@ import * as Account from '../dbstore/accounts'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import * as Utils from '../Utils'
+import { globalAccountsMap } from '../GlobalAccount'
 
 interface WrappedData {
   /** Account ID */
@@ -236,5 +237,11 @@ export const provideAccountDataByListRequest = async (
 }
 
 export const provideGlobalAccountReportRequest = async (): Promise<GlobalAccountReportResp> => {
-  return { ready: true, combinedHash: '', accounts: [] }
+  const result = { ready: true, combinedHash: '', accounts: [] }
+  for (const [key, value] of globalAccountsMap.entries()) {
+    result.accounts.push({ id: key, hash: value.hash, timestamp: value.timestamp })
+  }
+  result.accounts.sort(Utils.byIdAsc)
+  result.combinedHash = Crypto.hashObj(result)
+  return result
 }
