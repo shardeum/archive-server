@@ -110,7 +110,7 @@ export const validateAccountDataByListRequest = (
   }
   const { accountIds } = payload
   // TODO: Add max limit check for accountIds list query
-  if (accountIds.length !== 0 || accountIds.some((accountId) => accountId.length !== 64)) {
+  if (accountIds.length === 0 || accountIds.some((accountId) => accountId.length !== 64)) {
     return { success: false, error: 'Invalid account ids' }
   }
   // TODO: We could add a check that the data request sender is a validator present in the network
