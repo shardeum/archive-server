@@ -31,7 +31,7 @@ export const loadGlobalAccounts = async () => {
   for (const account of accounts) {
     globalAccountsMap.set(account.accountId, { hash: account.hash, timestamp: account.timestamp })
     if (account.accountId === config.globalNetworkAccount) {
-      setGlobalNetworkAccount(account.data)
+      setGlobalNetworkAccount(account)
     }
   }
 }
