@@ -182,7 +182,7 @@ export async function queryAccountsBetweenCycles(
   return accounts
 }
 
-export async function queryAccountsByRanges(sql: string, value: string[]) {
+export async function fetchAccountsBySqlQuery(sql: string, value: string[]) {
   let accounts: any = []
   try {
     accounts = await db.all(sql, value)
@@ -194,8 +194,6 @@ export async function queryAccountsByRanges(sql: string, value: string[]) {
   } catch (e) {
     Logger.mainLogger.error(e)
   }
-  if (config.VERBOSE) {
-    Logger.mainLogger.debug('Account accounts by ranges', accounts ? accounts.length : accounts)
-  }
+  Logger.mainLogger.debug('Account accounts by ranges', accounts ? accounts.length : accounts)
   return accounts
 }

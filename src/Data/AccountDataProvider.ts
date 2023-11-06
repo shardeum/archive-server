@@ -171,7 +171,7 @@ export const provideAccountDataRequest = async (
   values.push(accountStart, accountEnd, tsStart, tsEnd)
   if (!accountOffset) sql += offsetCondition
 
-  let accounts = await Account.queryAccountsByRanges(sql, values)
+  let accounts = await Account.fetchAccountsBySqlQuery(sql, values)
   for (const account of accounts) {
     wrappedAccounts.push({
       accountId: account.accountId,
@@ -203,7 +203,7 @@ export const provideAccountDataRequest = async (
       const tsEnd2 = Date.now()
       sql = sqlPrefix + queryString + offsetCondition
       values = [accountStart, accountEnd, tsStart2, tsEnd2]
-      accounts = await Account.queryAccountsByRanges(sql, values)
+      accounts = await Account.fetchAccountsBySqlQuery(sql, values)
       for (const account of accounts) {
         wrappedAccounts2.push({
           accountId: account.accountId,
@@ -224,7 +224,7 @@ export const provideAccountDataByListRequest = async (
   const { accountIds } = payload
   let wrappedAccounts: WrappedStateArray = []
   const sql = `SELECT * FROM accounts WHERE accountId IN (?)`
-  const accounts = await Account.queryAccountsByRanges(sql, accountIds)
+  const accounts = await Account.fetchAccountsBySqlQuery(sql, accountIds)
   for (const account of accounts) {
     wrappedAccounts.push({
       accountId: account.accountId,

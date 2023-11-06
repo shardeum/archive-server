@@ -36,7 +36,7 @@ import * as Collector from './Data/Collector'
 import * as GossipData from './Data/GossipData'
 import * as AccountDataProvider from './Data/AccountDataProvider'
 const { version } = require('../package.json')
-import { getGlobalNetworkAccount, loadGlobalNetworkAccountFromDB } from './GlobalAccount'
+import { getGlobalNetworkAccount, loadGlobalAccounts } from './GlobalAccount'
 import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycles'
 
 // Socket modules
@@ -105,7 +105,7 @@ async function start() {
     let lastStoredCycle = await CycleDB.queryLatestCycleRecords(1)
     if (lastStoredCycle && lastStoredCycle.length > 0) {
       // Load global account from db
-      await loadGlobalNetworkAccountFromDB()
+      await loadGlobalAccounts()
       const lastStoredCycleMode = lastStoredCycle[0].mode as P2PTypes.ModesTypes.Record['mode']
       if (lastStoredCycleMode === 'shutdown') {
         // Checking it as not 'shutdown' mode for now to work currently until the 'shutdown' mode is added to the cycle record

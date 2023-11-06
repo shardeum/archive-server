@@ -24,9 +24,14 @@ export function setGlobalNetworkAccount(account: object): void {
   cachedGlobalNetworkAccountHash = Crypto.hashObj(account)
 }
 
-export const loadGlobalNetworkAccountFromDB = async () => {
-  const account = await AccountDB.queryAccountByAccountId(config.globalNetworkAccount)
-  if (account) {
-    setGlobalNetworkAccount(account)
+export const loadGlobalAccounts = async () => {
+  const sql = `SELECT * FROM accounts WHERE isGlobal=1`
+  const values = []
+  const accounts = await AccountDB.fetchAccountsBySqlQuery(sql, values)
+  for (const account of accounts) {
+    globalAccountsMap.set(account.accountId, { hash: account.hash, timestamp: account.timestamp })
+    if (account.accountId === config.globalNetworkAccount) {
+      setGlobalNetworkAccount(account.data)
+    }
   }
 }
