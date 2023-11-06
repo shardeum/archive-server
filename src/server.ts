@@ -1467,7 +1467,7 @@ async function startServer() {
 
   server.post('/get_account_data_by_list_archiver', async (_request: AccountDataRequest, reply) => {
     let payload = _request.body as AccountDataProvider.AccountDataByListRequestSchema
-    Logger.mainLogger.debug('Account Data received', JSON.stringify(payload))
+    Logger.mainLogger.debug('Account Data By List received', JSON.stringify(payload))
     const result = AccountDataProvider.validateAccountDataByListRequest(payload)
     if (!result.success) {
       reply.send(Crypto.sign({ success: false, error: result.error }))
@@ -1483,7 +1483,7 @@ async function startServer() {
 
   server.post('/get_globalaccountreport_archiver', async (_request: AccountDataRequest, reply) => {
     let payload = _request.body as AccountDataProvider.GlobalAccountReportRequestSchema
-    Logger.mainLogger.debug('Account Data received', JSON.stringify(payload))
+    Logger.mainLogger.debug('Global Account Report received', JSON.stringify(payload))
     const result = AccountDataProvider.validateGlobalAccountReportRequest(payload)
     if (!result.success) {
       reply.send(Crypto.sign({ success: false, error: result.error }))
