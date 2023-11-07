@@ -38,6 +38,7 @@ export let CycleChain: Map<Cycle['counter'], any> = new Map()
 export let lostNodes: LostNode[] = []
 export const removedNodes = []
 export let cycleRecordWithShutDownMode = null as P2P.CycleCreatorTypes.CycleRecord | null
+export let currentNetworkMode: P2P.ModesTypes.Record['mode'] = 'forming'
 
 export async function processCycles(cycles: Cycle[]) {
   if (profilerInstance) profilerInstance.profileSectionStart('process_cycle', false)
@@ -54,6 +55,7 @@ export async function processCycles(cycles: Cycle[]) {
 
     // Update NodeList from cycle info
     updateNodeList(cycle)
+    currentNetworkMode = cycle.mode // Updating the network mode after updating the node list because there is a check in the updateNodeList function
     await storeCycleData([cycle])
     getAdjacentLeftAndRightArchivers()
 
@@ -145,6 +147,7 @@ function updateNodeList(cycle: Cycle) {
     refreshedArchivers,
     standbyAdd,
     standbyRemove,
+    mode,
   } = cycle
 
   const consensorInfos = joinedConsensors.map((jc) => ({
@@ -277,6 +280,9 @@ function updateNodeList(cycle: Cycle) {
   }
   // To pick nodes only when the archiver is active
   if (socketClients.size > 0) {
+    subscribeConsensorsByConsensusRadius()
+  } else if (activatedPublicKeys.length > 0 && mode === 'restore') {
+    // So that the extra archivers (not the first archiver) start subscribing to the active consensors for data transfer
     subscribeConsensorsByConsensusRadius()
   }
 }
