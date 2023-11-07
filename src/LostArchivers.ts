@@ -55,10 +55,11 @@ async function scheduleRefute(): Promise<void> {
 
   const latestCycleInfo = await CycleDB.queryLatestCycleRecords(1)
   const latestCycle = latestCycleInfo[0]
-  const { startQ1 } = calcIncomingTimes(latestCycle)
+  const { quarterDuration, startQ1 } = calcIncomingTimes(latestCycle)
 
   // ms until q1. add 500ms to make sure we're in q1
-  const delay = startQ1 - Date.now() + 500
+  const delay = (startQ1 + 4 * quarterDuration) - Date.now() + 500
+  console.log(delay)
   setTimeout(sendRefute, delay)
 }
 
@@ -85,10 +86,9 @@ async function sendRefute(): Promise<void> {
       await postJson(`http://${node.ip}:${node.port}/lost-archiver-refute`, refuteMsg)
     } catch (e) {
       Logger.mainLogger.warn(`Failed to send refute to ${node.ip}:${node.port}:`, e)
+      scheduleRefute()
     }
   }
-
-  scheduleRefute()
 }
 
 /**
