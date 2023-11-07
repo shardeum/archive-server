@@ -1453,11 +1453,13 @@ async function startServer() {
     let payload = _request.body as AccountDataProvider.AccountDataRequestSchema
     Logger.mainLogger.debug('Account Data received', JSON.stringify(payload))
     const result = AccountDataProvider.validateAccountDataRequest(payload)
+    Logger.mainLogger.debug('Account Data validation result', result)
     if (!result.success) {
       reply.send(Crypto.sign({ success: false, error: result.error }))
       return
     }
     const data = await AccountDataProvider.provideAccountDataRequest(payload)
+    Logger.mainLogger.debug('Account Data result', data)
     const res = Crypto.sign({
       success: true,
       data,
@@ -1469,11 +1471,13 @@ async function startServer() {
     let payload = _request.body as AccountDataProvider.AccountDataByListRequestSchema
     Logger.mainLogger.debug('Account Data By List received', JSON.stringify(payload))
     const result = AccountDataProvider.validateAccountDataByListRequest(payload)
+    Logger.mainLogger.debug('Account Data By List validation result', result)
     if (!result.success) {
       reply.send(Crypto.sign({ success: false, error: result.error }))
       return
     }
     const accountData = await AccountDataProvider.provideAccountDataByListRequest(payload)
+    Logger.mainLogger.debug('Account Data By List result', accountData)
     const res = Crypto.sign({
       success: true,
       accountData,
@@ -1485,11 +1489,13 @@ async function startServer() {
     let payload = _request.body as AccountDataProvider.GlobalAccountReportRequestSchema
     Logger.mainLogger.debug('Global Account Report received', JSON.stringify(payload))
     const result = AccountDataProvider.validateGlobalAccountReportRequest(payload)
+    Logger.mainLogger.debug('Global Account Report validation result', result)
     if (!result.success) {
       reply.send(Crypto.sign({ success: false, error: result.error }))
       return
     }
     const report = await AccountDataProvider.provideGlobalAccountReportRequest()
+    Logger.mainLogger.debug('Global Account Report result', report)
     const res = Crypto.sign(report)
     reply.send(res)
   })

@@ -164,7 +164,7 @@ export const provideAccountDataRequest = async (
   let sql = sqlPrefix
   let values = []
   if (accountOffset) {
-    sql += `${sqlPrefix}accountId >= ? AND `
+    sql += `accountId >= ? AND `
     values.push(accountOffset)
   }
   sql += queryString
@@ -220,7 +220,7 @@ export const provideAccountDataRequest = async (
 
 export const provideAccountDataByListRequest = async (
   payload: AccountDataByListRequestSchema
-): Promise<WrappedAccounts> => {
+): Promise<WrappedStateArray> => {
   const { accountIds } = payload
   let wrappedAccounts: WrappedStateArray = []
   const sql = `SELECT * FROM accounts WHERE accountId IN (?)`
@@ -233,7 +233,7 @@ export const provideAccountDataByListRequest = async (
       timestamp: account.timestamp,
     })
   }
-  return { wrappedAccounts }
+  return wrappedAccounts
 }
 
 export const provideGlobalAccountReportRequest = async (): Promise<GlobalAccountReportResp> => {

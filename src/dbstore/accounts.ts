@@ -194,6 +194,6 @@ export async function fetchAccountsBySqlQuery(sql: string, value: string[]) {
   } catch (e) {
     Logger.mainLogger.error(e)
   }
-  Logger.mainLogger.debug('Account accounts by ranges', accounts ? accounts.length : accounts)
+  Logger.mainLogger.debug('fetchAccountsBySqlQuery', accounts ? accounts.length : accounts)
   return accounts
 }
