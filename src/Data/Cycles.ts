@@ -67,9 +67,12 @@ export async function processCycles(cycles: Cycle[]) {
       await Utils.sleep(currentCycleDuration)
       NodeList.clearNodeListCache()
       await clearDataSenders()
-      cycleRecordWithShutDownMode = cycle
+      setShutdownCycleRecord(cycle)
+      NodeList.toggleFirstNode()
     }
-    if (cycle.mode === 'restart') cycleRecordWithShutDownMode = null
+    if (cycle.mode !== 'shutdown') {
+      cycleRecordWithShutDownMode = null
+    }
   }
   if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
 }

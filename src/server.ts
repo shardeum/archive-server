@@ -55,7 +55,6 @@ export const MAX_ORIGINAL_TXS_PER_REQUEST = 1000
 export const MAX_CYCLES_PER_REQUEST = 1000
 
 export const MAX_BETWEEN_CYCLES_PER_REQUEST = 100
-let foundFirstNode = false
 
 async function start() {
   overrideDefaultConfig(file, env, args)
@@ -98,22 +97,35 @@ async function start() {
     await Storage.initStorage(config)
   }
 
-  // Initialize state from config
-  await State.initFromConfig(config)
-  if (State.isFirst) {
-    Logger.mainLogger.debug('We are first archiver. Starting archive-server')
-    let lastStoredCycle = await CycleDB.queryLatestCycleRecords(1)
-    if (lastStoredCycle && lastStoredCycle.length > 0) {
-      // Load global account from db
-      await loadGlobalAccounts()
-      const lastStoredCycleMode = lastStoredCycle[0].mode as P2PTypes.ModesTypes.Record['mode']
-      if (lastStoredCycleMode === 'shutdown') {
-        // Checking it as not 'shutdown' mode for now to work currently until the 'shutdown' mode is added to the cycle record
-        // Send this cycle to the first node to use it to start the restore network
-        setShutdownCycleRecord(lastStoredCycle[0])
+  let lastStoredCycle = await CycleDB.queryLatestCycleRecords(1)
+  if (lastStoredCycle && lastStoredCycle.length > 0) {
+    const lastStoredCycleMode = lastStoredCycle[0].mode as P2PTypes.ModesTypes.Record['mode']
+    if (lastStoredCycleMode === 'shutdown') {
+      setShutdownCycleRecord(lastStoredCycle[0])
+      Logger.mainLogger.debug('Found shutdown cycleRecord', cycleRecordWithShutDownMode)
+      // Initialize state from config
+      await State.initFromConfig(config, true)
+      const result = await State.compareCycleRecordWithOtherArchivers(
+        cycleRecordWithShutDownMode.archiversAtShutdown,
+        cycleRecordWithShutDownMode
+      )
+      if (result) {
+        State.resetActiveArchivers(cycleRecordWithShutDownMode.archiversAtShutdown)
+        // Load global account from db
+        await loadGlobalAccounts()
         io = await startServer()
         return
       }
+    }
+  }
+  // Initialize state from config
+  await State.initFromConfig(config)
+
+  if (State.isFirst) {
+    Logger.mainLogger.debug('We are first archiver. Starting archive-server')
+    if (lastStoredCycle && lastStoredCycle.length > 0) {
+      // Load global account from db
+      await loadGlobalAccounts()
       // Seems you got restarted, and there are no other archivers to check; build nodelists and send join request to the nodes first
       await Data.buildNodeListFromStoredCycle(lastStoredCycle[0])
 
@@ -575,9 +587,8 @@ async function startServer() {
     profilerInstance.profileSectionStart('POST_nodelist')
     nestedCountersInstance.countEvent('consensor', 'POST_nodelist', 1)
     const signedFirstNodeInfo = request.body
-    if (cycleRecordWithShutDownMode) foundFirstNode = false
 
-    if (State.isFirst && NodeList.isEmpty() && !foundFirstNode) {
+    if (State.isFirst && NodeList.isEmpty() && !NodeList.foundFirstNode) {
       try {
         const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
         if (!isSignatureValid) {
@@ -587,7 +598,7 @@ async function startServer() {
       } catch (e) {
         Logger.mainLogger.error(e)
       }
-      foundFirstNode = true
+      NodeList.toggleFirstNode()
       const ip = signedFirstNodeInfo.nodeInfo.externalIp
       const port = signedFirstNodeInfo.nodeInfo.externalPort
       const publicKey = signedFirstNodeInfo.nodeInfo.publicKey

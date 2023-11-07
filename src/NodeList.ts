@@ -52,6 +52,7 @@ export let byPublicKey: { [publicKey: string]: ConsensusNodeInfo } = {}
 let byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
 export let byId: { [id: string]: ConsensusNodeInfo } = {}
 let publicKeyToId: { [publicKey: string]: string } = {}
+export let foundFirstNode = false
 
 export type SignedNodeList = {
   nodeList: ConsensusNodeInfo[]
@@ -366,4 +367,8 @@ export function clearNodeListCache() {
   } catch (e) {
     Logger.mainLogger.error('Error thrown in clearNodeListCache', e)
   }
+}
+
+export function toggleFirstNode() {
+  foundFirstNode = !foundFirstNode
 }

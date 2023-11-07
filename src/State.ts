@@ -7,6 +7,9 @@ import * as Utils from './Utils'
 import * as Logger from './Logger'
 import { getFinalArchiverList } from '@shardus/archiver-discovery'
 import * as ShardusCrypto from '@shardus/crypto-utils'
+import { P2P as P2PTypes } from '@shardus/types'
+import fetch from 'node-fetch'
+import { getAdjacentLeftAndRightArchivers } from './Data/GossipData'
 
 export interface ArchiverNodeState {
   ip: string
@@ -33,7 +36,7 @@ export let activeArchiversByPublicKeySorted: ArchiverNodeInfo[] = []
 export let isFirst = false
 export let archiversReputation: Map<string, string> = new Map()
 
-export async function initFromConfig(config: Config) {
+export async function initFromConfig(config: Config, shutDownMode: boolean = false) {
   // Get own nodeInfo from config
   nodeState.ip = config.ARCHIVER_IP
   nodeState.port = config.ARCHIVER_PORT
@@ -63,6 +66,8 @@ export async function initFromConfig(config: Config) {
     isFirst = true
     return
   }
+
+  if (shutDownMode) return
 
   let retryCount = 1
   let waitTime = 1000 * 60
@@ -156,6 +161,58 @@ export function removeActiveArchiver(publicKey: string) {
   activeArchiversByPublicKeySorted = activeArchiversByPublicKeySorted.filter(
     (a: any) => a.publicKey !== publicKey
   )
+}
+
+export function resetActiveArchivers(archivers: ArchiverNodeInfo[]) {
+  Logger.mainLogger.debug('Resetting active archivers.', archivers)
+  activeArchivers = archivers
+  activeArchiversByPublicKeySorted = [...archivers.sort(NodeList.byAscendingPublicKey)]
+  archiversReputation.clear()
+  for (const archiver of activeArchivers) {
+    archiversReputation.set(archiver.publicKey, 'up')
+  }
+  getAdjacentLeftAndRightArchivers()
+}
+
+export async function compareCycleRecordWithOtherArchivers(
+  archivers: ArchiverNodeInfo[],
+  ourCycleRecord: P2PTypes.CycleCreatorTypes.CycleRecord
+): Promise<boolean> {
+  const promises = archivers.map((archiver) =>
+    fetch(`http://${archiver.ip}:${archiver.port}/cycleinfo/1`, {
+      method: 'get',
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 2000,
+    }).then((res) => res.json())
+  )
+  let foundMatch = true
+  await Promise.allSettled(promises)
+    .then((responses) => {
+      let i = 0
+      for (const response of responses) {
+        const archiver = activeArchivers[i]
+        if (response.status === 'fulfilled') {
+          const res = response.value
+          if (res && res.cycleInfo && res.cycleInfo.length > 0) {
+            const cycleInfo = res.cycleInfo[0] as P2PTypes.CycleCreatorTypes.CycleRecord
+            if (cycleInfo.counter > ourCycleRecord.counter || cycleInfo.mode !== ourCycleRecord.mode) {
+              Logger.mainLogger.debug(
+                `Our cycle record does not match with archiver ${archiver.ip}:${archiver.port}`
+              )
+              // If our cycle record does not match with any of the archivers, maybe we are behind the network
+              foundMatch = false
+              break
+            }
+          }
+        }
+        i++
+      }
+    })
+    .catch((error) => {
+      // Handle any errors that occurred
+      console.error(error)
+    })
+  return foundMatch
 }
 
 export function getNodeInfo(): ArchiverNodeInfo {
