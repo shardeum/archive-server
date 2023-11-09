@@ -25,19 +25,21 @@ export function handleLostArchivers<R extends Record>(record: R): void {
   debug('  config.ARCHIVER_PUBLIC_KEY: ' + config.ARCHIVER_PUBLIC_KEY)
   // debug('  record: ' + JSON.stringify(record, null, 2))
 
-  if (record.refutedArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
-    // if self is in 'refutedArchivers' field, stop sending refutes
-    debug('archiver was found in `refutedArchivers` and will stop sending refutes')
-    shouldSendRefutes = false
-  } else if (record.lostArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
-    // if self is in 'lostArchivers' field, schedule a refute in the next cycle's Q1
-    debug("archiver was found in `lostArchivers` and will send a refute in the next cycle's Q1")
-    shouldSendRefutes = true
-    scheduleRefute()
-  } else if (record.removedArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
-    // if self is in 'removedArchivers' field, shut down
-    debug('archiver was found in `removedArchivers`, shutting down')
-    die()
+  if (record && record.refutedArchivers && record.lostArchivers && record.removedArchivers) {
+    if (record.refutedArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
+      // if self is in 'refutedArchivers' field, stop sending refutes
+      debug('archiver was found in `refutedArchivers` and will stop sending refutes')
+      shouldSendRefutes = false
+    } else if (record.lostArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
+      // if self is in 'lostArchivers' field, schedule a refute in the next cycle's Q1
+      debug("archiver was found in `lostArchivers` and will send a refute in the next cycle's Q1")
+      shouldSendRefutes = true
+      scheduleRefute()
+    } else if (record.removedArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
+      // if self is in 'removedArchivers' field, shut down
+      debug('archiver was found in `removedArchivers`, shutting down')
+      die()
+    }
   }
   debug('<< handleLostArchivers()')
 }
@@ -58,7 +60,7 @@ async function scheduleRefute(): Promise<void> {
   const { quarterDuration, startQ1 } = calcIncomingTimes(latestCycle)
 
   // ms until q1. add 500ms to make sure we're in q1
-  const delay = (startQ1 + 4 * quarterDuration) - Date.now() + 500
+  const delay = startQ1 + 4 * quarterDuration - Date.now() + 500
   console.log(delay)
   setTimeout(sendRefute, delay)
 }
