@@ -28,7 +28,7 @@ export function setGlobalNetworkAccount(account: object): void {
   cachedGlobalNetworkAccountHash = Crypto.hashObj(account)
 }
 
-export const loadGlobalAccounts = async () => {
+export const loadGlobalAccounts = async (): Promise<void> => {
   const sql = `SELECT * FROM accounts WHERE isGlobal=1`
   const values = []
   const accounts = await AccountDB.fetchAccountsBySqlQuery(sql, values)
@@ -48,13 +48,18 @@ export const syncGlobalAccount = async (): Promise<any> => {
         Crypto.sign({})
       )
     }
+    const robustResponse = await robustQuery(State.activeArchivers, queryFn)
+    if (!robustResponse) {
+      Logger.mainLogger.warn('syncGlobalAccount() - robustResponse is null')
+      return
+    }
     const {
       value: { accounts },
-    } = await robustQuery(State.activeArchivers, queryFn)
+    } = robustResponse
     for (let i = 0; i < accounts.length; i++) {
-      globalAccountsMap.set(accounts[i][0].id, {
-        hash: accounts[i][0].hash,
-        timestamp: accounts[i][0].timestamp,
+      globalAccountsMap.set(accounts[i].id, {
+        hash: accounts[i].hash,
+        timestamp: accounts[i].timestamp,
       })
     }
   } catch (e) {
