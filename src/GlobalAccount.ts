@@ -51,14 +51,11 @@ export const syncGlobalAccount = async (): Promise<any> => {
     const {
       value: { accounts },
     } = await robustQuery(State.activeArchivers, queryFn)
-    if (accounts.length === 0) {
-      Logger.mainLogger.error(
-        'No Global account data received from any archiver, trying again in 30 seconds...'
-      )
-      await sleep(30_000)
-      await syncGlobalAccount()
-    } else {
-      globalAccountsMap.set(accounts[0].id, { hash: accounts[0].hash, timestamp: accounts[0].timestamp })
+    for (let i = 0; i < accounts.length; i++) {
+      globalAccountsMap.set(accounts[i][0].id, {
+        hash: accounts[i][0].hash,
+        timestamp: accounts[i][0].timestamp,
+      })
     }
   } catch (e) {
     Logger.mainLogger.error('Error in syncGlobalAccount()', e)
