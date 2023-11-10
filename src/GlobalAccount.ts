@@ -1,7 +1,11 @@
 import * as Crypto from './Crypto'
 import * as rfdc from 'rfdc'
-import { config } from './Config'
+import * as State from './State'
+import * as Logger from './Logger'
 import * as AccountDB from './dbstore/accounts'
+import { config } from './Config'
+import { postJson } from './P2P'
+import { sleep, robustQuery } from './Utils'
 
 let cachedGlobalNetworkAccount: object
 let cachedGlobalNetworkAccountHash: string
@@ -33,5 +37,30 @@ export const loadGlobalAccounts = async () => {
     if (account.accountId === config.globalNetworkAccount) {
       setGlobalNetworkAccount(account)
     }
+  }
+}
+
+export const syncGlobalAccount = async (): Promise<any> => {
+  try {
+    const queryFn = async (node: any): Promise<any> => {
+      return await postJson(
+        `http://${node.ip}:${node.port}/get_globalaccountreport_archiver`,
+        Crypto.sign({})
+      )
+    }
+    const {
+      value: { accounts },
+    } = await robustQuery(State.activeArchivers, queryFn)
+    if (accounts.length === 0) {
+      Logger.mainLogger.error(
+        'No Global account data received from any archiver, trying again in 30 seconds...'
+      )
+      await sleep(30_000)
+      await syncGlobalAccount()
+    } else {
+      globalAccountsMap.set(accounts[0].id, { hash: accounts[0].hash, timestamp: accounts[0].timestamp })
+    }
+  } catch (e) {
+    Logger.mainLogger.error('Error in syncGlobalAccount()', e)
   }
 }

@@ -36,7 +36,7 @@ import * as Collector from './Data/Collector'
 import * as GossipData from './Data/GossipData'
 import * as AccountDataProvider from './Data/AccountDataProvider'
 const { version } = require('../package.json')
-import { getGlobalNetworkAccount, loadGlobalAccounts } from './GlobalAccount'
+import { getGlobalNetworkAccount, loadGlobalAccounts, syncGlobalAccount } from './GlobalAccount'
 import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycles'
 
 // Socket modules
@@ -197,6 +197,8 @@ function initProfiler(server: FastifyInstance) {
 
 /** Asynchronous function to synchronize and start the server. */
 async function syncAndStartServer() {
+  // Caching the Global Account
+  await syncGlobalAccount()
   // Validate data if there is any in db
   // Retrieve the count of receipts currently stored in the database
   let lastStoredReceiptCount = await ReceiptDB.queryReceiptCount()
