@@ -51,7 +51,7 @@ export const syncGlobalAccount = async (): Promise<any> => {
     const robustResponse = await robustQuery(State.activeArchivers, queryFn)
     if (!robustResponse) {
       Logger.mainLogger.warn('syncGlobalAccount() - robustResponse is null')
-      return
+      throw new Error('syncGlobalAccount() - robustResponse is null')
     }
     const {
       value: { accounts },
