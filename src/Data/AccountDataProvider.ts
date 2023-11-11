@@ -95,7 +95,10 @@ export const validateAccountDataRequest = (
     return { success: false, error: 'This node is not found in the nodelist!' }
   }
   if (!servingValidators.has(nodePublicKey) && servingValidators.size >= config.maxValidatorsToServe) {
-    return { success: false, error: 'Too many validators are requesting data' }
+    return {
+      success: false,
+      error: 'Archiver is busy serving other validators at the moment!',
+    }
   }
   if (accountStart.length !== 64 || accountEnd.length !== 64 || accountStart > accountEnd) {
     return { success: false, error: 'Invalid account range' }
