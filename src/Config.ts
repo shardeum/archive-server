@@ -40,6 +40,7 @@ export interface Config {
   useSyncV2: boolean
   sendActiveMessage: boolean
   globalNetworkAccount: string
+  maxValidatorsToServe: number
 }
 
 let config: Config = {
@@ -81,6 +82,7 @@ let config: Config = {
   useSyncV2: true,
   sendActiveMessage: false,
   globalNetworkAccount: process.env.GLOBAL_ACCOUNT || '0'.repeat(64), //this address will change in the future
+  maxValidatorsToServe: 10, // max number of validators to serve accounts data during restore mode
 }
 
 export function overrideDefaultConfig(file: string, env: NodeJS.ProcessEnv, args: string[]) {

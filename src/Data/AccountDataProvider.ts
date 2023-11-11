@@ -5,6 +5,8 @@ import * as Logger from '../Logger'
 import { config } from '../Config'
 import * as Utils from '../Utils'
 import { globalAccountsMap } from '../GlobalAccount'
+import * as NodeList from '../NodeList'
+import { currentNetworkMode } from './Cycles'
 
 interface WrappedData {
   /** Account ID */
@@ -60,9 +62,17 @@ export interface GlobalAccountReportRequestSchema {
 // This has to align with the queue sit time in the validator
 const QUEUE_SIT_TIME = 6 * 1000 // 6 seconds
 
+// maxValidatorsToServe
+export const servingValidators: Map<string, number> = new Map() // key: validatorKey, value: lastServedTimestamp
+const SERVING_VALIDATOR_TIMEOUT = 10 * 1000 // 10 seconds
+let servingValidatorsRemovalInterval: NodeJS.Timeout
+
 export const validateAccountDataRequest = (
   payload: AccountDataRequestSchema
 ): { success: boolean; error?: string } => {
+  if (currentNetworkMode !== 'recovery') {
+    return { success: false, error: 'Account data can only be requested in recovery mode!' }
+  }
   let err = Utils.validateTypes(payload, {
     accountStart: 's',
     accountEnd: 's',
@@ -75,7 +85,18 @@ export const validateAccountDataRequest = (
   if (err) {
     return { success: false, error: err }
   }
-  const { accountStart, accountEnd, tsStart, maxRecords, offset, accountOffset } = payload
+  const { accountStart, accountEnd, tsStart, maxRecords, offset, accountOffset, sign } = payload
+  err = Utils.validateTypes(sign, { owner: 's', sig: 's' })
+  if (err) {
+    return { success: false, error: 'Invalid sign object attached' }
+  }
+  const nodePublicKey = sign.owner
+  if (!NodeList.byPublicKey[nodePublicKey]) {
+    return { success: false, error: 'This node is not found in the nodelist!' }
+  }
+  if (!servingValidators.has(nodePublicKey) && servingValidators.size >= config.maxValidatorsToServe) {
+    return { success: false, error: 'Too many validators are requesting data' }
+  }
   if (accountStart.length !== 64 || accountEnd.length !== 64 || accountStart > accountEnd) {
     return { success: false, error: 'Invalid account range' }
   }
@@ -91,16 +112,19 @@ export const validateAccountDataRequest = (
   if (accountOffset && accountOffset.length !== 64) {
     return { success: false, error: 'Invalid account offset' }
   }
-  // TODO: We could add a check that the data request sender is a validator present in the network
   if (!Crypto.verify(payload)) {
     return { success: false, error: 'Invalid signature' }
   }
+  servingValidators.set(nodePublicKey, Date.now())
   return { success: true }
 }
 
 export const validateAccountDataByListRequest = (
   payload: AccountDataByListRequestSchema
 ): { success: boolean; error?: string } => {
+  if (currentNetworkMode !== 'recovery') {
+    return { success: false, error: 'Account data by list can only be requested in recovery mode!' }
+  }
   let err = Utils.validateTypes(payload, {
     accountIds: 'a',
     sign: 'o',
@@ -108,12 +132,19 @@ export const validateAccountDataByListRequest = (
   if (err) {
     return { success: false, error: err }
   }
-  const { accountIds } = payload
+  const { accountIds, sign } = payload
+  err = Utils.validateTypes(sign, { owner: 's', sig: 's' })
+  if (err) {
+    return { success: false, error: 'Invalid sign object attached' }
+  }
+  const nodePublicKey = sign.owner
+  if (!NodeList.byPublicKey[nodePublicKey]) {
+    return { success: false, error: 'This node is not found in the nodelist!' }
+  }
   // TODO: Add max limit check for accountIds list query
   if (accountIds.length === 0 || accountIds.some((accountId) => accountId.length !== 64)) {
     return { success: false, error: 'Invalid account ids' }
   }
-  // TODO: We could add a check that the data request sender is a validator present in the network
   if (!Crypto.verify(payload)) {
     return { success: false, error: 'Invalid signature' }
   }
@@ -129,7 +160,11 @@ export const validateGlobalAccountReportRequest = (
   if (err) {
     return { success: false, error: err }
   }
-  // TODO: We could add a check that the data request sender is a validator present in the network
+  const { sign } = payload
+  err = Utils.validateTypes(sign, { owner: 's', sig: 's' })
+  if (err) {
+    return { success: false, error: 'Invalid sign object attached' }
+  }
   if (!Crypto.verify(payload)) {
     return { success: false, error: 'Invalid signature' }
   }
@@ -244,4 +279,23 @@ export const provideGlobalAccountReportRequest = async (): Promise<GlobalAccount
   result.accounts.sort(Utils.byIdAsc)
   result.combinedHash = Crypto.hashObj(result)
   return result
+}
+
+// Remove validators from the list that have not requested data over 10 seconds, that way we can serve new validators
+const clearTimeoutServingValidators = () => {
+  const now = Date.now()
+  for (const [validatorKey, lastServedTimestamp] of servingValidators.entries()) {
+    if (now - lastServedTimestamp > SERVING_VALIDATOR_TIMEOUT) {
+      servingValidators.delete(validatorKey)
+    }
+  }
+}
+
+export const clearServingValidatorsInterval = () => {
+  clearInterval(servingValidatorsRemovalInterval)
+}
+
+export const initServingValidatorsInterval = () => {
+  if (!servingValidatorsRemovalInterval)
+    servingValidatorsRemovalInterval = setInterval(clearTimeoutServingValidators, SERVING_VALIDATOR_TIMEOUT)
 }

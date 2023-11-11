@@ -19,6 +19,7 @@ import { config } from '../Config'
 import fetch from 'node-fetch'
 import { getAdjacentLeftAndRightArchivers, sendDataToAdjacentArchivers, DataType } from './GossipData'
 import { storeCycleData } from './Collector'
+import { initServingValidatorsInterval } from './AccountDataProvider'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
@@ -52,10 +53,10 @@ export async function processCycles(cycles: Cycle[]) {
     // Update currentCycle state
     currentCycleDuration = cycle.duration * 1000
     currentCycleCounter = cycle.counter
+    currentNetworkMode = cycle.mode
 
     // Update NodeList from cycle info
     updateNodeList(cycle)
-    currentNetworkMode = cycle.mode // Updating the network mode after updating the node list because there is a check in the updateNodeList function
     await storeCycleData([cycle])
     getAdjacentLeftAndRightArchivers()
 
@@ -64,7 +65,7 @@ export async function processCycles(cycles: Cycle[]) {
     sendDataToAdjacentArchivers(DataType.CYCLE, [cycle])
     // Check the archivers reputaion in every new cycle & record the status
     recordArchiversReputation()
-    if (cycle.mode === 'shutdown' && cycle.removed[0] === 'all') {
+    if (currentNetworkMode === 'shutdown' && cycle.removed[0] === 'all') {
       Logger.mainLogger.debug(Date.now(), `❌ Shutdown Cycle Record received at Cycle #: ${cycle.counter}`)
       await Utils.sleep(currentCycleDuration)
       NodeList.clearNodeListCache()
@@ -72,9 +73,10 @@ export async function processCycles(cycles: Cycle[]) {
       setShutdownCycleRecord(cycle)
       NodeList.toggleFirstNode()
     }
-    if (cycle.mode !== 'shutdown') {
+    if (currentNetworkMode !== 'shutdown') {
       cycleRecordWithShutDownMode = null
     }
+    if (currentNetworkMode === 'recovery') initServingValidatorsInterval()
   }
   if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
 }
@@ -147,7 +149,6 @@ function updateNodeList(cycle: Cycle) {
     refreshedArchivers,
     standbyAdd,
     standbyRemove,
-    mode,
   } = cycle
 
   const consensorInfos = joinedConsensors.map((jc) => ({
@@ -281,7 +282,7 @@ function updateNodeList(cycle: Cycle) {
   // To pick nodes only when the archiver is active
   if (socketClients.size > 0) {
     subscribeConsensorsByConsensusRadius()
-  } else if (activatedPublicKeys.length > 0 && mode === 'restore') {
+  } else if (activatedPublicKeys.length > 0 && currentNetworkMode === 'restore') {
     // So that the extra archivers (not the first archiver) start subscribing to the active consensors for data transfer
     subscribeConsensorsByConsensusRadius()
   }
