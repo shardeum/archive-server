@@ -1661,11 +1661,13 @@ async function startServer() {
 
   server.get('/get-network-account', (_request: GetNetworkAccountRequest, reply) => {
     const useHash = _request.query?.hash !== 'false'
-
-    const networkAccount = getGlobalNetworkAccount(useHash)
+    
+    const response = useHash
+      ? { networkAccountHash: getGlobalNetworkAccount(useHash) }
+      : { networkAccount: getGlobalNetworkAccount(useHash) }
 
     // We might want to sign this response
-    reply.send(Crypto.sign({ networkAccount }))
+    reply.send(Crypto.sign(response))
   })
 
   // Start server and bind to port on all interfaces

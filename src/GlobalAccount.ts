@@ -23,9 +23,9 @@ export function getGlobalNetworkAccount(hash: boolean): object | string {
   return cachedGlobalNetworkAccount
 }
 
-export function setGlobalNetworkAccount(account: object): void {
+export function setGlobalNetworkAccount(account: any): void {
   cachedGlobalNetworkAccount = rfdc()(account)
-  cachedGlobalNetworkAccountHash = Crypto.hashObj(account)
+  cachedGlobalNetworkAccountHash = account.data.hash
 }
 
 export const loadGlobalAccounts = async (): Promise<void> => {
