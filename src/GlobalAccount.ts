@@ -4,7 +4,7 @@ import * as State from './State'
 import * as Logger from './Logger'
 import * as AccountDB from './dbstore/accounts'
 import { config } from './Config'
-import { postJson } from './P2P'
+import { postJson, getJson } from './P2P'
 import { sleep, robustQuery } from './Utils'
 
 let cachedGlobalNetworkAccount: object
@@ -48,19 +48,37 @@ export const syncGlobalAccount = async (): Promise<any> => {
         Crypto.sign({})
       )
     }
-    const robustResponse = await robustQuery(State.activeArchivers, queryFn)
-    if (!robustResponse) {
-      Logger.mainLogger.warn('syncGlobalAccount() - robustResponse is null')
-      throw new Error('syncGlobalAccount() - robustResponse is null')
+    const globalAccsResponse = await robustQuery(State.activeArchivers, queryFn)
+    if (!globalAccsResponse) {
+      Logger.mainLogger.warn('get_globalaccountreport_archiver() - robustResponse is null')
+      throw new Error('get_globalaccountreport_archiver() - robustResponse is null')
     }
     const {
       value: { accounts },
-    } = robustResponse
+    } = globalAccsResponse
     for (let i = 0; i < accounts.length; i++) {
       globalAccountsMap.set(accounts[i].id, {
         hash: accounts[i].hash,
         timestamp: accounts[i].timestamp,
       })
+    }
+
+    if (globalAccountsMap.has(config.globalNetworkAccount) && !cachedGlobalNetworkAccountHash) {
+      const queryFn = async (node: any): Promise<any> => {
+        return await getJson(`http://${node.ip}:${node.port}/get-network-account?hash=false`)
+      }
+      const networkAccResponse = await robustQuery(State.activeArchivers, queryFn)
+      if (!networkAccResponse) {
+        Logger.mainLogger.warn('get-network-account() - robustResponse is null')
+        throw new Error('get-network-account() - robustResponse is null')
+      }
+      const {
+        value: { networkAccount },
+      } = networkAccResponse
+      if (networkAccount) {
+        await AccountDB.insertAccount(networkAccount)
+        setGlobalNetworkAccount(networkAccount)
+      }
     }
   } catch (e) {
     Logger.mainLogger.error('Error in syncGlobalAccount()', e)
