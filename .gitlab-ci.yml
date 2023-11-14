@@ -25,6 +25,7 @@ cache:
 stages:
   - prepare
   - build
+  - appsec
   - test
 
 # Prepare Job: Install Node.js dependencies
@@ -59,6 +60,25 @@ lint-checker-job:
     - echo "Running ESlint..."
     - npm run lint
     - echo "Running ESlint complete."
+
+secret-scanner-working-directory:
+  stage: appsec
+  image: python:3.9
+  before_script:
+    - if [ -z "${APPSEC_SECRETS_EXCLUDE_DIR}" ]; then EXCLUDE_DIR=""; else EXCLUDE_DIR=" --exclude-files '$APPSEC_SECRETS_EXCLUDE_DIR' "; fi
+    - if [ -f .appsec/secrets.baseline ]; then OPTS="--baseline .appsec/secrets.baseline --exclude-files .appsec/secrets.baseline"; else OPTS=""; fi
+    - export CMD="git ls-files -z | xargs -0 detect-secrets-hook $OPTS $EXCLUDE_DIR"
+  script:
+    - pip install detect-secrets
+    - bash -c "$CMD"
+
+secret-scanner-git-repo:
+  stage: appsec
+  image:
+    name: "trufflesecurity/trufflehog:latest"
+    entrypoint: [""]
+  script:
+    - trufflehog filesystem --only-verified --fail .
 
 # SAST Job: Performs static application security testing
 sast:
