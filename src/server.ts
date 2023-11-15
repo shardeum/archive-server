@@ -44,6 +44,9 @@ import * as AccountDataProvider from './Data/AccountDataProvider'
 const { version } = require('../package.json')
 import { getGlobalNetworkAccount, loadGlobalAccounts, syncGlobalAccount } from './GlobalAccount'
 import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycles'
+import { getGlobalAccount } from './GlobalAccount'
+import path from 'path'
+import fs from 'fs'
 
 // Socket modules
 let io: SocketIO.Server
@@ -64,6 +67,32 @@ export const MAX_BETWEEN_CYCLES_PER_REQUEST = 100
 
 async function start() {
   overrideDefaultConfig(file, env, args)
+  
+  // Pull in secrets
+  const secretsPath = path.join(__dirname, '../.secrets');
+  const secrets = {}
+  
+  if (fs.existsSync(secretsPath)) {
+    const lines = fs.readFileSync(secretsPath, 'utf-8').split('\n').filter(Boolean);
+    
+    lines.forEach(line => {
+      const [key, value] = line.split('=');
+      secrets[key.trim()] = value.trim();
+    });
+  }
+
+  if (secrets["ARCHIVER_PUBLIC_KEY"] === undefined) config.ARCHIVER_PUBLIC_KEY = ''
+  else config.ARCHIVER_PUBLIC_KEY = secrets["ARCHIVER_PUBLIC_KEY"]
+  
+  if (secrets["ARCHIVER_SECRET_KEY"] === undefined) config.ARCHIVER_SECRET_KEY = ''
+  else config.ARCHIVER_SECRET_KEY = secrets["ARCHIVER_SECRET_KEY"]
+
+  if (secrets["ARCHIVER_HASH_KEY"] === undefined) config.ARCHIVER_HASH_KEY = ''
+  else config.ARCHIVER_HASH_KEY = secrets["ARCHIVER_HASH_KEY"]
+
+  // Now, secrets contain your secrets, for example:
+  // const apiKey = secrets.API_KEY;
+  
 
   // Set crypto hash keys from config
   const hashKey = config.ARCHIVER_HASH_KEY

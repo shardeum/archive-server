@@ -9,3 +9,4 @@ archiver-db.idx.db
 archiver-logs
 data-logs
 .direnv/
+.secrets
