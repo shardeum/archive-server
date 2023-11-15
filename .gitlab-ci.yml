@@ -26,6 +26,7 @@ cache:
 stages:
   - prepare
   - build
+  - appsec
   - test
 
 # Prepare Job: Install Node.js dependencies
