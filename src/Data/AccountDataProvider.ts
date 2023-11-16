@@ -295,7 +295,7 @@ const clearTimeoutServingValidators = () => {
 }
 
 export const clearServingValidatorsInterval = () => {
-  clearInterval(servingValidatorsRemovalInterval)
+  if (servingValidatorsRemovalInterval) clearInterval(servingValidatorsRemovalInterval)
 }
 
 export const initServingValidatorsInterval = () => {

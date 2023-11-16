@@ -19,7 +19,7 @@ import { config } from '../Config'
 import fetch from 'node-fetch'
 import { getAdjacentLeftAndRightArchivers, sendDataToAdjacentArchivers, DataType } from './GossipData'
 import { storeCycleData } from './Collector'
-import { initServingValidatorsInterval } from './AccountDataProvider'
+import { clearServingValidatorsInterval, initServingValidatorsInterval } from './AccountDataProvider'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
@@ -53,7 +53,7 @@ export async function processCycles(cycles: Cycle[]) {
     // Update currentCycle state
     currentCycleDuration = cycle.duration * 1000
     currentCycleCounter = cycle.counter
-    currentNetworkMode = cycle.mode
+    changeNetworkMode(cycle.mode)
 
     // Update NodeList from cycle info
     updateNodeList(cycle)
@@ -76,7 +76,6 @@ export async function processCycles(cycles: Cycle[]) {
     if (currentNetworkMode !== 'shutdown') {
       cycleRecordWithShutDownMode = null
     }
-    if (currentNetworkMode === 'restore') initServingValidatorsInterval()
   }
   if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
 }
@@ -101,6 +100,14 @@ export function setCurrentCycleCounter(value: number) {
 
 export function setLastProcessedMetaDataCounter(value: number) {
   lastProcessedMetaData = value
+}
+
+export function changeNetworkMode(mode: P2P.ModesTypes.Record['mode']) {
+  if (mode === currentNetworkMode) return
+  // If the network mode is changed from restore to processing, clear the serving validators interval
+  if (currentNetworkMode === 'restore' && mode === 'processing') clearServingValidatorsInterval()
+  currentNetworkMode = mode
+  if (currentNetworkMode === 'restore') initServingValidatorsInterval()
 }
 
 export function computeCycleMarker(fields: Cycle) {
