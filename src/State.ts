@@ -127,7 +127,7 @@ export async function initFromConfig(config: Config, shutDownMode: boolean = fal
 export async function exitArchiver() {
   try {
     const randomConsensors: NodeList.ConsensusNodeInfo[] = NodeList.getRandomActiveNodes(5)
-    if (randomConsensors.length > 0) {
+    if (randomConsensors && randomConsensors.length > 0) {
       // Send a leave request to some random consensus nodes from the nodelist
       await Data.sendLeaveRequest(randomConsensors)
     }
