@@ -63,7 +63,12 @@ export const syncGlobalAccount = async (): Promise<any> => {
       })
     }
 
-    if (globalAccountsMap.has(config.globalNetworkAccount) && !cachedGlobalNetworkAccountHash) {
+    if (globalAccountsMap.has(config.globalNetworkAccount)) {
+      const savedNetworkAccount = await AccountDB.queryAccountByAccountId(config.globalNetworkAccount)
+      if (savedNetworkAccount && savedNetworkAccount.hash === cachedGlobalNetworkAccountHash) {
+        setGlobalNetworkAccount(savedNetworkAccount)
+        return
+      }
       const queryFn = async (node: any): Promise<any> => {
         return await getJson(`http://${node.ip}:${node.port}/get-network-account?hash=false`)
       }
@@ -76,7 +81,6 @@ export const syncGlobalAccount = async (): Promise<any> => {
         value: { networkAccount },
       } = networkAccResponse
       if (networkAccount) {
-        await AccountDB.insertAccount(networkAccount)
         setGlobalNetworkAccount(networkAccount)
       }
     }

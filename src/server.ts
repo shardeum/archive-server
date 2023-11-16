@@ -197,8 +197,6 @@ function initProfiler(server: FastifyInstance) {
 
 /** Asynchronous function to synchronize and start the server. */
 async function syncAndStartServer() {
-  // Caching the Global Account
-  await syncGlobalAccount()
   // Validate data if there is any in db
   // Retrieve the count of receipts currently stored in the database
   let lastStoredReceiptCount = await ReceiptDB.queryReceiptCount()
@@ -364,6 +362,8 @@ async function syncAndStartServer() {
 
   // If experimentalSnapshot is enabled, perform receipt synchronization
   if (config.experimentalSnapshot) {
+    // Sync GlobalAccountsList and cache the Global Network Account
+    await syncGlobalAccount()
     // If no receipts stored, synchronize all receipts, otherwise synchronize by cycle
     if (lastStoredReceiptCount === 0) await Data.syncReceipts(lastStoredReceiptCount)
     else {
@@ -1661,7 +1661,7 @@ async function startServer() {
 
   server.get('/get-network-account', (_request: GetNetworkAccountRequest, reply) => {
     const useHash = _request.query?.hash !== 'false'
-    
+
     const response = useHash
       ? { networkAccountHash: getGlobalNetworkAccount(useHash) }
       : { networkAccount: getGlobalNetworkAccount(useHash) }
