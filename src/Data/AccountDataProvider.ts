@@ -70,8 +70,8 @@ let servingValidatorsRemovalInterval: NodeJS.Timeout
 export const validateAccountDataRequest = (
   payload: AccountDataRequestSchema
 ): { success: boolean; error?: string } => {
-  if (currentNetworkMode !== 'recovery') {
-    return { success: false, error: 'Account data can only be requested in recovery mode!' }
+  if (currentNetworkMode !== 'restore') {
+    return { success: false, error: 'Account data can only be requested in restore mode!' }
   }
   let err = Utils.validateTypes(payload, {
     accountStart: 's',
@@ -125,8 +125,8 @@ export const validateAccountDataRequest = (
 export const validateAccountDataByListRequest = (
   payload: AccountDataByListRequestSchema
 ): { success: boolean; error?: string } => {
-  if (currentNetworkMode !== 'recovery') {
-    return { success: false, error: 'Account data by list can only be requested in recovery mode!' }
+  if (currentNetworkMode !== 'restore') {
+    return { success: false, error: 'Account data by list can only be requested in restore mode!' }
   }
   let err = Utils.validateTypes(payload, {
     accountIds: 'a',

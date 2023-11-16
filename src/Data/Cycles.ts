@@ -76,7 +76,7 @@ export async function processCycles(cycles: Cycle[]) {
     if (currentNetworkMode !== 'shutdown') {
       cycleRecordWithShutDownMode = null
     }
-    if (currentNetworkMode === 'recovery') initServingValidatorsInterval()
+    if (currentNetworkMode === 'restore') initServingValidatorsInterval()
   }
   if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
 }
