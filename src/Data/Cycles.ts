@@ -53,10 +53,10 @@ export async function processCycles(cycles: Cycle[]) {
     // Update currentCycle state
     currentCycleDuration = cycle.duration * 1000
     currentCycleCounter = cycle.counter
-    changeNetworkMode(cycle.mode)
 
     // Update NodeList from cycle info
     updateNodeList(cycle)
+    changeNetworkMode(cycle.mode)
     await storeCycleData([cycle])
     getAdjacentLeftAndRightArchivers()
 
@@ -65,16 +65,13 @@ export async function processCycles(cycles: Cycle[]) {
     sendDataToAdjacentArchivers(DataType.CYCLE, [cycle])
     // Check the archivers reputaion in every new cycle & record the status
     recordArchiversReputation()
-    if (currentNetworkMode === 'shutdown' && cycle.removed[0] === 'all') {
+    if (currentNetworkMode === 'shutdown') {
       Logger.mainLogger.debug(Date.now(), `❌ Shutdown Cycle Record received at Cycle #: ${cycle.counter}`)
       await Utils.sleep(currentCycleDuration)
       NodeList.clearNodeListCache()
       await clearDataSenders()
       setShutdownCycleRecord(cycle)
       NodeList.toggleFirstNode()
-    }
-    if (currentNetworkMode !== 'shutdown') {
-      cycleRecordWithShutDownMode = null
     }
   }
   if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
@@ -107,7 +104,13 @@ export function changeNetworkMode(mode: P2P.ModesTypes.Record['mode']) {
   // If the network mode is changed from restore to processing, clear the serving validators interval
   if (currentNetworkMode === 'restore' && mode === 'processing') clearServingValidatorsInterval()
   currentNetworkMode = mode
-  if (currentNetworkMode === 'restore') initServingValidatorsInterval()
+  if (currentNetworkMode === 'restore') {
+    NodeList.changeNodeListInRestore()
+    initServingValidatorsInterval()
+  }
+  if (cycleRecordWithShutDownMode && currentNetworkMode !== 'shutdown') {
+    cycleRecordWithShutDownMode = null
+  }
 }
 
 export function computeCycleMarker(fields: Cycle) {
@@ -172,11 +175,11 @@ function updateNodeList(cycle: Cycle) {
     id: jc.id,
   }))
 
-  NodeList.addNodes(NodeList.Statuses.SYNCING, cycle.marker, consensorInfos)
+  NodeList.addNodes(NodeList.NodeStatus.SYNCING, cycle.marker, consensorInfos)
 
-  NodeList.setStatus(NodeList.Statuses.ACTIVE, ...activatedPublicKeys)
+  NodeList.setStatus(NodeList.NodeStatus.ACTIVE, activatedPublicKeys)
 
-  NodeList.refreshNodes(NodeList.Statuses.ACTIVE, cycle.marker, refreshedConsensorInfos)
+  NodeList.refreshNodes(NodeList.NodeStatus.ACTIVE, cycle.marker, refreshedConsensorInfos)
 
   if (standbyAdd.length > 0) {
     const standbyNodeList: NodeList.ConsensusNodeInfo[] = standbyAdd.map((joinRequest) => ({

@@ -168,7 +168,7 @@ export function applyNodeListChange(change: Change) {
       } else nodesBycycleJoined[joinedConsensor.cycleJoined].push(consensorInfo)
     }
     for (let cycleJoined in nodesBycycleJoined) {
-      NodeList.addNodes(NodeList.Statuses.SYNCING, cycleJoined, nodesBycycleJoined[cycleJoined])
+      NodeList.addNodes(NodeList.NodeStatus.SYNCING, cycleJoined, nodesBycycleJoined[cycleJoined])
     }
   }
   // This is not needed though since no removed nodes are ever added to this list
@@ -185,7 +185,7 @@ export function applyNodeListChange(change: Change) {
       }
       return keys
     }, [])
-    NodeList.setStatus(NodeList.Statuses.ACTIVE, ...activatedPublicKeys)
+    NodeList.setStatus(NodeList.NodeStatus.ACTIVE, activatedPublicKeys)
   }
 }
 export function activeNodeCount(cycle: P2P.CycleCreatorTypes.CycleRecord) {

@@ -63,7 +63,7 @@ export async function sendDataToAdjacentArchivers(dataType: DataType, data: Goss
   let signedDataToSend = Crypto.sign(gossipPayload)
   try {
     Logger.mainLogger.debug(
-      `Sending tx data to the archivers: ${Array.from(adjacentArchivers.values()).map(
+      `Sending ${dataType} data to the archivers: ${Array.from(adjacentArchivers.values()).map(
         (n) => `${n.ip}:${n.port}`
       )}`
     )

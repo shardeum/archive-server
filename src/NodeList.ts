@@ -8,7 +8,7 @@ import { config } from './Config'
 
 // TYPES
 
-export enum Statuses {
+export enum NodeStatus {
   STANDBY = 'standby',
   ACTIVE = 'active',
   SYNCING = 'syncing',
@@ -78,7 +78,7 @@ export function isEmpty(): boolean {
 }
 
 export function addNodes(
-  status: Statuses,
+  status: NodeStatus,
   cycleMarkerJoined: string,
   nodes: ConsensusNodeInfo[] | JoinedConsensor[]
 ) {
@@ -93,10 +93,10 @@ export function addNodes(
       Logger.mainLogger.debug('adding new node', node.publicKey)
       list.push(node)
       switch (status) {
-        case Statuses.SYNCING:
+        case NodeStatus.SYNCING:
           syncingList.set(node.publicKey, node)
           break
-        case Statuses.ACTIVE:
+        case NodeStatus.ACTIVE:
           activeList.set(node.publicKey, node)
           Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
           // Logger.mainLogger.debug(
@@ -104,7 +104,7 @@ export function addNodes(
           //   activeListByIdSorted.map((node) => node.id)
           // )
           break
-        case Statuses.STANDBY:
+        case NodeStatus.STANDBY:
           standbyList.set(node.publicKey, node)
           break
       }
@@ -135,7 +135,7 @@ export function addNodes(
   }
 }
 export function refreshNodes(
-  status: Statuses,
+  status: NodeStatus,
   cycleMarkerJoined: string,
   nodes: ConsensusNodeInfo[] | JoinedConsensor[]
 ) {
@@ -150,10 +150,10 @@ export function refreshNodes(
       Logger.mainLogger.debug('adding new node during refresh', node.publicKey)
       list.push(node)
       switch (status) {
-        case Statuses.SYNCING:
+        case NodeStatus.SYNCING:
           syncingList.set(node.publicKey, node)
           break
-        case Statuses.ACTIVE:
+        case NodeStatus.ACTIVE:
           activeList.set(node.publicKey, node)
           Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
           // Logger.mainLogger.debug(
@@ -161,7 +161,7 @@ export function refreshNodes(
           //   activeListByIdSorted.map((node) => node.id)
           // )
           break
-        case Statuses.STANDBY:
+        case NodeStatus.STANDBY:
           standbyList.set(node.publicKey, node)
           break
       }
@@ -231,7 +231,7 @@ export const removeStandbyNodes = (publicKeys: string[]) => {
   }
 }
 
-export function setStatus(status: Statuses, ...publicKeys: string[]) {
+export function setStatus(status: NodeStatus, publicKeys: string[]) {
   for (const key of publicKeys) {
     const node = byPublicKey[key]
     if (node === undefined) {
@@ -239,13 +239,16 @@ export function setStatus(status: Statuses, ...publicKeys: string[]) {
       continue
     }
     switch (status) {
-      case Statuses.SYNCING:
-        if (activeList.has(key)) activeList.delete(key)
+      case NodeStatus.SYNCING:
         if (standbyList.has(key)) standbyList.delete(key)
+        if (activeList.has(key)) {
+          activeList.delete(key)
+          activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey === key)
+        }
         if (syncingList.has(key)) continue
         syncingList.set(key, node)
         break
-      case Statuses.ACTIVE:
+      case NodeStatus.ACTIVE:
         if (standbyList.has(key)) standbyList.delete(key)
         if (syncingList.has(key)) syncingList.delete(key)
         if (activeList.has(key)) continue
@@ -256,8 +259,11 @@ export function setStatus(status: Statuses, ...publicKeys: string[]) {
         //   activeListByIdSorted.map((node) => node.id)
         // )
         break
-      case Statuses.STANDBY:
-        if (activeList.has(key)) activeList.delete(key)
+      case NodeStatus.STANDBY:
+        if (activeList.has(key)) {
+          activeList.delete(key)
+          activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey === key)
+        }
         if (syncingList.has(key)) syncingList.delete(key)
         if (standbyList.has(key)) continue
         standbyList.set(key, node)
@@ -346,6 +352,13 @@ export function getId(publicKey: string) {
 
 export function getNodeInfoById(id: string) {
   return byId[id]
+}
+
+export function changeNodeListInRestore() {
+  if (activeList.size === 0) return
+  // change the active status nodes to syncing status in all the nodelist
+  const activatedPublicKeys = activeListByIdSorted.map((node) => node.publicKey)
+  setStatus(NodeStatus.SYNCING, activatedPublicKeys)
 }
 
 /** Resets/Cleans all the NodeList associated Maps and Array variables/caches */

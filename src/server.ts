@@ -614,7 +614,7 @@ async function startServer() {
       Data.initSocketClient(firstNode)
 
       // Add first node to NodeList
-      NodeList.addNodes(NodeList.Statuses.SYNCING, 'bogus', [firstNode])
+      NodeList.addNodes(NodeList.NodeStatus.SYNCING, 'bogus', [firstNode])
 
       // Set first node as dataSender
       const firstDataSender: Data.DataSender = {
