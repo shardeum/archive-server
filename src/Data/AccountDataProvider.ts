@@ -293,12 +293,15 @@ const clearTimeoutServingValidators = () => {
       servingValidators.delete(validatorKey)
     }
   }
-  Logger.mainLogger.debug('Serving validators', servingValidators.size, servingValidators)
+  if (config.VERBOSE) Logger.mainLogger.debug('Serving validators', servingValidators.size, servingValidators)
 }
 
 export const clearServingValidatorsInterval = () => {
   Logger.mainLogger.debug('clearServingValidatorsInterval')
-  if (servingValidatorsRemovalInterval) clearInterval(servingValidatorsRemovalInterval)
+  if (servingValidatorsRemovalInterval) {
+    clearInterval(servingValidatorsRemovalInterval)
+    servingValidatorsRemovalInterval = null
+  }
 }
 
 export const initServingValidatorsInterval = () => {
