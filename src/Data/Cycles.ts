@@ -99,18 +99,18 @@ export function setLastProcessedMetaDataCounter(value: number) {
   lastProcessedMetaData = value
 }
 
-export function changeNetworkMode(mode: P2P.ModesTypes.Record['mode']) {
-  if (mode === currentNetworkMode) return
+export function changeNetworkMode(newMode: P2P.ModesTypes.Record['mode']) {
+  if (newMode === currentNetworkMode) return
   // If the network mode is changed from restore to processing, clear the serving validators interval
-  if (currentNetworkMode === 'restore' && mode === 'processing') clearServingValidatorsInterval()
-  currentNetworkMode = mode
-  if (currentNetworkMode === 'restore') {
+  if (currentNetworkMode === 'restore' && newMode === 'processing') clearServingValidatorsInterval()
+  if ((currentNetworkMode === 'restart' || currentNetworkMode === 'recovery') && newMode === 'restore') {
     NodeList.changeNodeListInRestore()
     initServingValidatorsInterval()
   }
-  if (cycleRecordWithShutDownMode && currentNetworkMode !== 'shutdown') {
+  if (cycleRecordWithShutDownMode && newMode !== 'shutdown') {
     cycleRecordWithShutDownMode = null
   }
+  currentNetworkMode = newMode
 }
 
 export function computeCycleMarker(fields: Cycle) {

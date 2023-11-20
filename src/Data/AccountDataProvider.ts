@@ -289,16 +289,20 @@ const clearTimeoutServingValidators = () => {
   const now = Date.now()
   for (const [validatorKey, lastServedTimestamp] of servingValidators.entries()) {
     if (now - lastServedTimestamp > SERVING_VALIDATOR_TIMEOUT) {
+      Logger.mainLogger.debug('Removing validator from serving list', validatorKey)
       servingValidators.delete(validatorKey)
     }
   }
+  Logger.mainLogger.debug('Serving validators', servingValidators.size, servingValidators)
 }
 
 export const clearServingValidatorsInterval = () => {
+  Logger.mainLogger.debug('clearServingValidatorsInterval')
   if (servingValidatorsRemovalInterval) clearInterval(servingValidatorsRemovalInterval)
 }
 
 export const initServingValidatorsInterval = () => {
+  Logger.mainLogger.debug('initServingValidatorsInterval')
   if (!servingValidatorsRemovalInterval)
     servingValidatorsRemovalInterval = setInterval(clearTimeoutServingValidators, SERVING_VALIDATOR_TIMEOUT)
 }
