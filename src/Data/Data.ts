@@ -287,14 +287,21 @@ export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
     // Logger.mainLogger.debug('Cycle received', cycle.counter, senderInfo)
     let cycleToSave = []
     if (receivedCycleTracker[cycle.counter]) {
-      if (receivedCycleTracker[cycle.counter][cycle.marker])
+      if (receivedCycleTracker[cycle.counter][cycle.marker]) {
         receivedCycleTracker[cycle.counter][cycle.marker]['receivedTimes']++
-      else {
+        receivedCycleTracker[cycle.counter][cycle.marker]['senderNodes'].push(senderInfo)
+      } else {
         receivedCycleTracker[cycle.counter][cycle.marker] = {
           cycleInfo: cycle,
           receivedTimes: 1,
           saved: false,
+          senderNodes: [senderInfo],
         }
+        // Logger.mainLogger.debug(
+        //   'Different Cycle Record received',
+        //   cycle.counter,
+        //   receivedCycleTracker[cycle.counter]
+        // )
       }
     } else {
       receivedCycleTracker[cycle.counter] = {
@@ -302,6 +309,7 @@ export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
           cycleInfo: cycle,
           receivedTimes: 1,
           saved: false,
+          senderNodes: [senderInfo],
         },
       }
     }
@@ -332,10 +340,12 @@ export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
             counter,
             key, // marker
             receivedCycleTracker[counter][key]['receivedTimes'],
+            logCycle ? JSON.stringify(receivedCycleTracker[counter][key]['senderNodes']) : '',
             logCycle ? receivedCycleTracker[counter][key] : ''
           )
           totalTimes += receivedCycleTracker[counter][key]['receivedTimes']
         }
+        if (logCycle) Logger.mainLogger.debug(`Cycle ${counter} has different markers!`)
         Logger.mainLogger.debug(`Received ${totalTimes} times for cycle counter ${counter}`)
         delete receivedCycleTracker[counter]
       }
