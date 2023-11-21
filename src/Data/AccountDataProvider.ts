@@ -229,13 +229,13 @@ export const provideAccountDataRequest = async (
       }
     }
     delta = tsEnd - highestTs
-    Logger.mainLogger.debug('Account Data received', JSON.stringify(payload))
-    Logger.mainLogger.debug(
-      'delta ' + delta,
-      'tsEnd ' + tsEnd,
-      'highestTs ' + highestTs,
-      delta < QUEUE_SIT_TIME * 2
-    )
+    // Logger.mainLogger.debug('Account Data received', JSON.stringify(payload))
+    // Logger.mainLogger.debug(
+    //   'delta ' + delta,
+    //   'tsEnd ' + tsEnd,
+    //   'highestTs ' + highestTs,
+    //   delta < QUEUE_SIT_TIME * 2
+    // )
     if (delta < QUEUE_SIT_TIME * 2) {
       const tsStart2 = highestTs
       const tsEnd2 = Date.now()

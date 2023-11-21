@@ -84,9 +84,8 @@ export async function queryAccountByAccountId(accountId: string) {
 
 export async function queryLatestAccounts(count: number) {
   try {
-    const sql = `SELECT * FROM accounts ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${
-      count ? count : 100
-    }`
+    const sql = `SELECT * FROM accounts ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${count ? count : 100
+      }`
     const accounts: any = await db.all(sql)
     if (accounts.length > 0) {
       accounts.forEach((account: any) => {
@@ -194,6 +193,8 @@ export async function fetchAccountsBySqlQuery(sql: string, value: string[]) {
   } catch (e) {
     Logger.mainLogger.error(e)
   }
-  Logger.mainLogger.debug('fetchAccountsBySqlQuery', accounts ? accounts.length : accounts)
+  if (config.VERBOSE) {
+    Logger.mainLogger.debug('fetchAccountsBySqlQuery', accounts ? accounts.length : accounts)
+  }
   return accounts
 }
