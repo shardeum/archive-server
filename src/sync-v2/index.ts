@@ -77,22 +77,25 @@ export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, 
             }
 
             // validatorList and standbyList need to be transformed into a ConsensusNodeInfo[]
-            const syncingNodeList: NodeList.ConsensusNodeInfo[] = validatorList
-              .filter((node) => node.status === 'syncing')
-              .map((node) => ({
-                publicKey: node.publicKey,
-                ip: node.externalIp,
-                port: node.externalPort,
-                id: node.id,
-              }))
-            const activeNodeList: NodeList.ConsensusNodeInfo[] = validatorList
-              .filter((node) => node.status === 'syncing')
-              .map((node) => ({
-                publicKey: node.publicKey,
-                ip: node.externalIp,
-                port: node.externalPort,
-                id: node.id,
-              }))
+            const syncingNodeList: NodeList.ConsensusNodeInfo[] = []
+            const activeNodeList: NodeList.ConsensusNodeInfo[] = []
+            for (const node of validatorList) {
+              if (node.status === 'syncing') {
+                syncingNodeList.push({
+                  publicKey: node.publicKey,
+                  ip: node.externalIp,
+                  port: node.externalPort,
+                  id: node.id,
+                })
+              } else if (node.status === 'active') {
+                activeNodeList.push({
+                  publicKey: node.publicKey,
+                  ip: node.externalIp,
+                  port: node.externalPort,
+                  id: node.id,
+                })
+              }
+            }
             const standbyNodeList: NodeList.ConsensusNodeInfo[] = standbyList.map((joinRequest) => ({
               publicKey: joinRequest.nodeInfo.publicKey,
               ip: joinRequest.nodeInfo.externalIp,
