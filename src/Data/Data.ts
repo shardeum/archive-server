@@ -47,7 +47,6 @@ import * as GossipTxData from './GossipTxData'
 export let socketServer: SocketIO.Server
 let ioclient: SocketIOClientStatic = require('socket.io-client')
 export let socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
-// let socketConnectionsTracker: Map<string, string> = new Map()
 export let combineAccountsData = {
   accounts: [],
   receipts: [],
@@ -115,36 +114,34 @@ export async function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInf
   const socketClient = socketClients.get(publicKey)
   if (socketClient) {
     socketClient.emit('UNSUBSCRIBE', config.ARCHIVER_PUBLIC_KEY)
-    socketClient.disconnect()
+    socketClient.close()
     socketClients.delete(publicKey)
   }
   nestedCountersInstance.countEvent('archiver', 'remove_data_sender')
-  Logger.mainLogger.debug('Subscribed dataSenders', socketClients.size, dataSenders.size)
+  Logger.mainLogger.debug('Subscribed dataSenders', dataSenders.size, 'Connected socketClients', socketClients.size)
   if (config.VERBOSE)
-    Logger.mainLogger.debug('Subscribed dataSenders', socketClients.keys(), dataSenders.keys())
+    Logger.mainLogger.debug('Subscribed dataSenders', dataSenders.keys(), 'Connected socketClients', socketClients.keys())
 }
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   if (config.VERBOSE) Logger.mainLogger.debug('Node Info to socket connect', node)
   const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
+  socketClients.set(node.publicKey, socketClient)
 
   let archiverKeyisEmitted = false
 
   socketClient.on('connect', () => {
-    Logger.mainLogger.debug(`Connection to consensus node ${node.ip}:${node.port} is made`)
+    Logger.mainLogger.debug(`${!archiverKeyisEmitted ? 'New connection' : 'Reconnection'} to consensus node ${node.ip}:${node.port} is made`)
     if (archiverKeyisEmitted) return
     // Send ehlo event right after connect:
     socketClient.emit('ARCHIVER_PUBLIC_KEY', config.ARCHIVER_PUBLIC_KEY)
     archiverKeyisEmitted = true
-    socketClients.set(node.publicKey, socketClient)
-    // socketConnectionsTracker.set(node.publicKey, 'connected')
     if (config.VERBOSE) Logger.mainLogger.debug('Connected node', node)
     if (config.VERBOSE) Logger.mainLogger.debug('Init socketClients', socketClients.size, dataSenders.size)
   })
 
   socketClient.once('disconnect', async () => {
     Logger.mainLogger.debug(`Connection request is refused by the consensor node ${node.ip}:${node.port}`)
-    // socketConnectionsTracker.set(node.publicKey, 'disconnected')
   })
 
   socketClient.on(
@@ -450,7 +447,9 @@ async function getConsensusRadius() {
   const activeList = NodeList.getActiveList()
   let randomNode = activeList[Math.floor(Math.random() * activeList.length)]
   Logger.mainLogger.debug(`Checking network configs from random node ${randomNode.ip}:${randomNode.port}`)
-  let response: any = await P2P.getJson(`http://${randomNode.ip}:${randomNode.port}/netconfig`)
+  // TODO: Should try to get the network config from multiple nodes and use the consensusRadius that has the majority
+  const REQUEST_NETCONFIG_TIMEOUT_SECOND = 2 // 2s timeout
+  let response: any = await P2P.getJson(`http://${randomNode.ip}:${randomNode.port}/netconfig`, REQUEST_NETCONFIG_TIMEOUT_SECOND)
   if (response && response.config) {
     let nodesPerConsensusGroup = response.config.sharding.nodesPerConsensusGroup
     // Upgrading consensus size to odd number
@@ -470,6 +469,7 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
   // Subscribe this node for dataRequest
   const response = await sendDataRequest(newSenderInfo, DataRequestTypes.SUBSCRIBE)
   if (response) {
+    initSocketClient(newSenderInfo)
     // Add new dataSender to dataSenders
     const newSender: DataSender = {
       nodeInfo: newSenderInfo,
@@ -481,7 +481,6 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
     }
     addDataSender(newSender)
     Logger.mainLogger.debug(`added new sender ${newSenderInfo.publicKey} to dataSenders`)
-    initSocketClient(newSenderInfo)
   }
   return response
 }
@@ -575,11 +574,11 @@ export async function sendDataRequest(
     nodeInfo.ip + ':' + nodeInfo.port
   )
   let reply = false
-  const REQUEST_DATA_TIMEOUT_MS = 2 * 1000
+  const REQUEST_DATA_TIMEOUT_SECOND = 2 // 2s timeout
   let response = await P2P.postJson(
     `http://${nodeInfo.ip}:${nodeInfo.port}/requestdata`,
     taggedDataRequest,
-    REQUEST_DATA_TIMEOUT_MS // 2s timeout
+    REQUEST_DATA_TIMEOUT_SECOND
   )
   Logger.mainLogger.debug('/requestdata response', response, nodeInfo.ip + ':' + nodeInfo.port)
   if (response && response.success) reply = response.success
@@ -1401,7 +1400,7 @@ export async function syncReceiptsByCycle(lastStoredReceiptCycle: number = 0, cy
       while (savedReceiptsCountBetweenCycles < receiptsCountToSyncBetweenCycles) {
         response = await P2P.getJson(
           `http://${randomArchiver.ip}:${randomArchiver.port}/receipt?startCycle=${startCycle}&endCycle=${endCycle}&page=${page}`,
-          10
+          QUERY_TIMEOUT_MAX
         )
         if (response && response.receipts) {
           const downloadedReceipts = response.receipts
@@ -1544,7 +1543,7 @@ export const syncOriginalTxsByCycle = async (
       while (savedOriginalTxCountBetweenCycles < originalTxCountToSyncBetweenCycles) {
         response = await P2P.getJson(
           `http://${randomArchiver.ip}:${randomArchiver.port}/originalTx?startCycle=${startCycle}&endCycle=${endCycle}&page=${page}`,
-          10
+          QUERY_TIMEOUT_MAX
         )
         if (response && response.originalTxs) {
           const downloadedOriginalTxs = response.originalTxs
@@ -1901,8 +1900,7 @@ export async function compareWithOldReceiptsData(
 export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo, lastCycleCounter = 0) {
   let downloadedCycles
   const response: any = await P2P.getJson(
-    `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${lastCycleCounter - 10}&end=${
-      lastCycleCounter - 1
+    `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${lastCycleCounter - 10}&end=${lastCycleCounter - 1
     }`,
     QUERY_TIMEOUT_MAX
   )
@@ -1910,8 +1908,7 @@ export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo,
     downloadedCycles = response.cycleInfo
   } else {
     throw Error(
-      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${
-        lastCycleCounter - 1
+      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${lastCycleCounter - 1
       }  from archiver ${archiver}`
     )
   }
