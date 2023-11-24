@@ -224,6 +224,12 @@ export function removeNodes(publicKeys: string[]): string[] {
   return [...keysToDelete.keys()]
 }
 
+export const removeStandbyNodes = (publicKeys: string[]) => {
+  for (const key of publicKeys) {
+    if (standbyList.has(key)) standbyList.delete(key)
+  }
+}
+
 export function setStatus(status: Statuses, ...publicKeys: string[]) {
   for (const key of publicKeys) {
     const node = byPublicKey[key]

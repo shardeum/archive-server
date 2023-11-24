@@ -77,18 +77,29 @@ export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, 
             }
 
             // validatorList and standbyList need to be transformed into a ConsensusNodeInfo[]
-            const consensusNodeList: NodeList.ConsensusNodeInfo[] = validatorList.map((node) => ({
-              publicKey: node.publicKey,
-              ip: node.externalIp,
-              port: node.externalPort,
-              id: node.id,
-            }))
+            const syncingNodeList: NodeList.ConsensusNodeInfo[] = validatorList
+              .filter((node) => node.status === 'syncing')
+              .map((node) => ({
+                publicKey: node.publicKey,
+                ip: node.externalIp,
+                port: node.externalPort,
+                id: node.id,
+              }))
+            const activeNodeList: NodeList.ConsensusNodeInfo[] = validatorList
+              .filter((node) => node.status === 'syncing')
+              .map((node) => ({
+                publicKey: node.publicKey,
+                ip: node.externalIp,
+                port: node.externalPort,
+                id: node.id,
+              }))
             const standbyNodeList: NodeList.ConsensusNodeInfo[] = standbyList.map((joinRequest) => ({
               publicKey: joinRequest.nodeInfo.publicKey,
               ip: joinRequest.nodeInfo.externalIp,
               port: joinRequest.nodeInfo.externalPort,
             }))
-            NodeList.addNodes(NodeList.Statuses.SYNCING, cycleMarker, consensusNodeList)
+            NodeList.addNodes(NodeList.Statuses.SYNCING, cycleMarker, syncingNodeList)
+            NodeList.addNodes(NodeList.Statuses.ACTIVE, cycleMarker, activeNodeList)
             NodeList.addNodes(NodeList.Statuses.STANDBY, cycleMarker, standbyNodeList)
 
             // return a cycle that we'll store in the database

@@ -125,6 +125,8 @@ function updateNodeList(cycle: Cycle) {
     leavingArchivers,
     refreshedConsensors,
     refreshedArchivers,
+    standbyAdd,
+    standbyRemove,
   } = cycle
 
   const consensorInfos = joinedConsensors.map((jc) => ({
@@ -146,6 +148,19 @@ function updateNodeList(cycle: Cycle) {
   NodeList.setStatus(NodeList.Statuses.ACTIVE, ...activatedPublicKeys)
 
   NodeList.refreshNodes(NodeList.Statuses.ACTIVE, cycle.marker, refreshedConsensorInfos)
+
+  if (standbyAdd.length > 0) {
+    const standbyNodeList: NodeList.ConsensusNodeInfo[] = standbyAdd.map((joinRequest) => ({
+      publicKey: joinRequest.nodeInfo.publicKey,
+      ip: joinRequest.nodeInfo.externalIp,
+      port: joinRequest.nodeInfo.externalPort,
+    }))
+    NodeList.addNodes(NodeList.Statuses.STANDBY, cycle.marker, standbyNodeList)
+  }
+
+  if (standbyRemove.length > 0) {
+    NodeList.removeStandbyNodes(standbyRemove)
+  }
 
   let removedAndApopedNodes: NodeList.ConsensusNodeInfo[] = []
 

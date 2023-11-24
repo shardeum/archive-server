@@ -646,7 +646,11 @@ async function startServer() {
   })
 
   type FullNodeListRequest = FastifyRequest<{
-    Querystring: { activeOnly: 'true' | 'false'; syncingOnly: 'true' | 'false'; standbyOnly: 'true' | 'false' }
+    Querystring: {
+      activeOnly: 'true' | 'false'
+      syncingOnly: 'true' | 'false'
+      standbyOnly: 'true' | 'false'
+    }
   }>
 
   server.get(
@@ -662,12 +666,13 @@ async function startServer() {
       const { activeOnly, syncingOnly, standbyOnly } = _request.query
       const activeNodeList = NodeList.getActiveList()
       const syncingNodeList = NodeList.getSyncingList()
-      const standbyNodeList = NodeList.getStandbyList()
       if (activeOnly === 'true') reply.send(Crypto.sign({ nodeList: activeNodeList }))
       else if (syncingOnly === 'true') reply.send(Crypto.sign({ nodeList: syncingNodeList }))
-      else if (standbyOnly === 'true') reply.send(Crypto.sign({ nodeList: standbyNodeList }))
-      else {
-        const fullNodeList = activeNodeList.concat(syncingNodeList).concat(standbyNodeList)
+      else if (standbyOnly === 'true') {
+        const standbyNodeList = NodeList.getStandbyList()
+        reply.send(Crypto.sign({ nodeList: standbyNodeList }))
+      } else {
+        const fullNodeList = activeNodeList.concat(syncingNodeList)
         reply.send(Crypto.sign({ nodeList: fullNodeList }))
       }
       profilerInstance.profileSectionEnd('FULL_nodelist')
