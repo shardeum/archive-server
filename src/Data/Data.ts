@@ -118,9 +118,19 @@ export async function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInf
     socketClients.delete(publicKey)
   }
   nestedCountersInstance.countEvent('archiver', 'remove_data_sender')
-  Logger.mainLogger.debug('Subscribed dataSenders', dataSenders.size, 'Connected socketClients', socketClients.size)
+  Logger.mainLogger.debug(
+    'Subscribed dataSenders',
+    dataSenders.size,
+    'Connected socketClients',
+    socketClients.size
+  )
   if (config.VERBOSE)
-    Logger.mainLogger.debug('Subscribed dataSenders', dataSenders.keys(), 'Connected socketClients', socketClients.keys())
+    Logger.mainLogger.debug(
+      'Subscribed dataSenders',
+      dataSenders.keys(),
+      'Connected socketClients',
+      socketClients.keys()
+    )
 }
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
@@ -131,7 +141,11 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
   let archiverKeyisEmitted = false
 
   socketClient.on('connect', () => {
-    Logger.mainLogger.debug(`${!archiverKeyisEmitted ? 'New connection' : 'Reconnection'} to consensus node ${node.ip}:${node.port} is made`)
+    Logger.mainLogger.debug(
+      `${!archiverKeyisEmitted ? 'New connection' : 'Reconnection'} to consensus node ${node.ip}:${
+        node.port
+      } is made`
+    )
     if (archiverKeyisEmitted) return
     // Send ehlo event right after connect:
     socketClient.emit('ARCHIVER_PUBLIC_KEY', config.ARCHIVER_PUBLIC_KEY)
@@ -449,7 +463,10 @@ async function getConsensusRadius() {
   Logger.mainLogger.debug(`Checking network configs from random node ${randomNode.ip}:${randomNode.port}`)
   // TODO: Should try to get the network config from multiple nodes and use the consensusRadius that has the majority
   const REQUEST_NETCONFIG_TIMEOUT_SECOND = 2 // 2s timeout
-  let response: any = await P2P.getJson(`http://${randomNode.ip}:${randomNode.port}/netconfig`, REQUEST_NETCONFIG_TIMEOUT_SECOND)
+  let response: any = await P2P.getJson(
+    `http://${randomNode.ip}:${randomNode.port}/netconfig`,
+    REQUEST_NETCONFIG_TIMEOUT_SECOND
+  )
   if (response && response.config) {
     let nodesPerConsensusGroup = response.config.sharding.nodesPerConsensusGroup
     // Upgrading consensus size to odd number
@@ -1179,10 +1196,8 @@ export async function syncCyclesAndNodeListV2(
 
   // store cycleToSyncTo in the database
   await storeCycleData([cycleToSyncTo])
-  // We might have to set the current cycle counter and cycle duration of the cycleToSyncTo
-  // But this has to be sure that syncArchiverLists is implemented in the syncV2
-  // Cycles.setCurrentCycleCounter(cycleToSyncTo.counter)
-  // Cycles.setCurrentCycleDuration(cycleToSyncTo.duration)
+  Cycles.setCurrentCycleCounter(cycleToSyncTo.counter)
+  Cycles.setCurrentCycleDuration(cycleToSyncTo.duration)
 
   // This might have to removed once archiver sending active request is implemented!
   GossipTxData.getAdjacentLeftAndRightArchivers()
@@ -1900,7 +1915,8 @@ export async function compareWithOldReceiptsData(
 export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo, lastCycleCounter = 0) {
   let downloadedCycles
   const response: any = await P2P.getJson(
-    `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${lastCycleCounter - 10}&end=${lastCycleCounter - 1
+    `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${lastCycleCounter - 10}&end=${
+      lastCycleCounter - 1
     }`,
     QUERY_TIMEOUT_MAX
   )
@@ -1908,7 +1924,8 @@ export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo,
     downloadedCycles = response.cycleInfo
   } else {
     throw Error(
-      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${lastCycleCounter - 1
+      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${
+        lastCycleCounter - 1
       }  from archiver ${archiver}`
     )
   }
