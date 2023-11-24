@@ -69,7 +69,8 @@ export async function sendDataToAdjacentArchivers(txDataType: TxDataType, txsDat
     for (const [, archiver] of adjacentArchivers) {
       const url = `http://${archiver.ip}:${archiver.port}/gossip-tx-data`
       try {
-        const promise = postJson(url, signedTxDataToSend)
+        const GOSSIP_DATA_TIMEOUT_SECOND = 10 // 10 seconds
+        const promise = postJson(url, signedTxDataToSend, GOSSIP_DATA_TIMEOUT_SECOND)
         promise.catch((err) => {
           Logger.mainLogger.error(`Unable to send archiver ${archiver.ip}: ${archiver.port}`, err)
         })
