@@ -187,7 +187,7 @@ function updateNodeList(cycle: Cycle) {
       ip: joinRequest.nodeInfo.externalIp,
       port: joinRequest.nodeInfo.externalPort,
     }))
-    NodeList.addNodes(NodeList.Statuses.STANDBY, cycle.marker, standbyNodeList)
+    NodeList.addNodes(NodeList.NodeStatus.STANDBY, cycle.marker, standbyNodeList)
   }
 
   if (standbyRemove.length > 0) {
