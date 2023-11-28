@@ -54,7 +54,7 @@ export async function initFromConfig(config: Config, shutDownMode: boolean = fal
       ip,
       port,
       publicKey,
-      curvePk: ShardusCrypto.convertPkToCurve(publicKey),
+      curvePk: Crypto.getOrCreateSharedKey(publicKey),
     }))
     console.log(`Got existing archivers list using archiver-discovery. [count: ${existingArchivers.length}]`)
   } catch (e) {

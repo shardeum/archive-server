@@ -43,7 +43,7 @@ function getOrCreateCurvePk(pk: cryptoTypes.publicKey): cryptoTypes.curvePublicK
   return curvePk
 }
 
-function getOrCreateSharedKey(pk: cryptoTypes.publicKey): cryptoTypes.sharedKey {
+export function getOrCreateSharedKey(pk: cryptoTypes.publicKey): cryptoTypes.sharedKey {
   let sharedK = sharedKeys.get(pk)
   if (!sharedK) {
     const ourCurveSk = State.getCurveSk()
