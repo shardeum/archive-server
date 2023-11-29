@@ -245,13 +245,13 @@ export function setStatus(status: NodeStatus, publicKeys: string[]) {
           activeList.delete(key)
           activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey === key)
         }
-        if (syncingList.has(key)) continue
+        if (syncingList.has(key)) break
         syncingList.set(key, node)
         break
       case NodeStatus.ACTIVE:
         if (standbyList.has(key)) standbyList.delete(key)
         if (syncingList.has(key)) syncingList.delete(key)
-        if (activeList.has(key)) continue
+        if (activeList.has(key)) break
         activeList.set(key, node)
         Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
         // Logger.mainLogger.debug(
@@ -265,7 +265,7 @@ export function setStatus(status: NodeStatus, publicKeys: string[]) {
           activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey === key)
         }
         if (syncingList.has(key)) syncingList.delete(key)
-        if (standbyList.has(key)) continue
+        if (standbyList.has(key)) break
         standbyList.set(key, node)
     }
   }
