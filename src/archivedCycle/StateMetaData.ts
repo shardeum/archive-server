@@ -927,6 +927,7 @@ export async function buildNodeListFromStoredCycle(lastStoredCycle: Cycles.Cycle
   applyNodeListChange(squasher.final)
   Logger.mainLogger.debug('NodeList after sync', NodeList.getActiveList())
   Cycles.setCurrentCycleCounter(lastStoredCycle.counter)
+  Cycles.setCurrentCycleMarker(lastStoredCycle.marker)
   Cycles.setCurrentCycleDuration(lastStoredCycle.duration)
   Logger.mainLogger.debug('Latest cycle after sync', lastStoredCycle.counter)
 }
@@ -1010,6 +1011,7 @@ export async function syncCyclesAndNodeList(
     const archivedCycle = createArchivedCycle(record)
     await Storage.insertArchivedCycle(archivedCycle)
     Cycles.setCurrentCycleCounter(record.counter)
+    Cycles.setCurrentCycleMarker(record.marker)
   }
   Logger.mainLogger.debug('Cycle chain is synced. Size of CycleChain', Cycles.CycleChain.size)
 
