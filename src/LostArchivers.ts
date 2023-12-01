@@ -6,6 +6,8 @@ import { ArchiverRefutesLostMsg, Record } from "@shardus/types/build/src/p2p/Los
 import { config } from "./Config";
 import { calcIncomingTimes } from './Data/Data';
 import { postJson } from './P2P';
+import { sign } from './Crypto';
+import { SignedObject } from '@shardus/types/build/src/p2p/P2PTypes';
 
 let shouldSendRefutes = false
 
@@ -48,13 +50,16 @@ async function scheduleRefute(): Promise<void> {
 async function sendRefute(): Promise<void> {
   if (!shouldSendRefutes) return
 
+  const refuteMsg: SignedObject<ArchiverRefutesLostMsg> = sign({
+    archiver: config.ARCHIVER_PUBLIC_KEY,
+    cycle: Cycles.getCurrentCycleMarker(),
+  })
+
   const nodes = NodeList.getRandomActiveNodes(5)
+
   for (const node of nodes) {
     try {
-      await postJson(`http://${node.ip}:${node.port}/lost-archiver-refute`, <ArchiverRefutesLostMsg>{
-        archiver: config.ARCHIVER_PUBLIC_KEY,
-        cycle: Cycles.getCurrentCycleMarker(),
-      })
+      await postJson(`http://${node.ip}:${node.port}/lost-archiver-refute`, refuteMsg)
     } catch (e) {
       Logger.mainLogger.warn(`Failed to send refute to ${node.ip}:${node.port}:`, e)
     }
