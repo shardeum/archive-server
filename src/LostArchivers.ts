@@ -18,13 +18,16 @@ let shouldSendRefutes = false
 export function handleLostArchivers<R extends Record>(record: R): void {
   if (record.refutedArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
     // if self is in 'refutedArchivers' field, stop sending refutes
+    console.log('archiver was found in `refutedArchivers` and will stop sending refutes')
     shouldSendRefutes = false
   } else if (record.lostArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
     // if self is in 'lostArchivers' field, schedule a refute in the next cycle's Q1
+    console.log('archiver was found in `lostArchivers` and will send a refute in the next cycle\'s Q1')
     shouldSendRefutes = true
     scheduleRefute()
   } else if (record.removedArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
     // if self is in 'removedArchivers' field, shut down
+    console.log('archiver was found in `removedArchivers`, shutting down')
     die()
   }
 }
@@ -33,7 +36,12 @@ export function handleLostArchivers<R extends Record>(record: R): void {
   * Schedules to send a refute during the next cycle's Q1.
   */
 async function scheduleRefute(): Promise<void> {
-  if (!shouldSendRefutes) return
+  if (!shouldSendRefutes) {
+    console.log('skipping refute scheduling')
+    return
+  }
+
+  console.log('scheduling refute')
 
   const latestCycleInfo = await CycleDB.queryLatestCycleRecords(1)
   const latestCycle = latestCycleInfo[0]
@@ -48,7 +56,12 @@ async function scheduleRefute(): Promise<void> {
   * Sends a refute to 5 random active nodes.
   */
 async function sendRefute(): Promise<void> {
-  if (!shouldSendRefutes) return
+  if (!shouldSendRefutes) {
+    console.log('skipping refute sending')
+    return
+  }
+
+  console.log('sending refute')
 
   const refuteMsg: SignedObject<ArchiverRefutesLostMsg> = sign({
     archiver: config.ARCHIVER_PUBLIC_KEY,
