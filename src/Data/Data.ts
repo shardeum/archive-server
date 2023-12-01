@@ -611,7 +611,7 @@ export const clearDataSenders = async () => {
   subsetNodesMapByConsensusRadius.clear()
 }
 
-function calcIncomingTimes(record: Cycle) {
+export function calcIncomingTimes(record: Cycle) {
   const SECOND = 1000
   const cycleDuration = record.duration * SECOND
   const quarterDuration = cycleDuration / 4
