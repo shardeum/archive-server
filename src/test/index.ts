@@ -3,7 +3,7 @@ import { queryArchivedCycles } from './api/archivedCycles'
 import { queryCycles } from './api/cycles'
 import * as MulitpleArchivers from './dataSync/mulitpleArchivers'
 
-const ARCHIVER_HOST = 'localhost'
+const ARCHIVER_HOST = '127.0.0.1'
 const ARCHIVER_PORT = '4000'
 
 const numberOfConsensors = 10
