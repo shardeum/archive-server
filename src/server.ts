@@ -1619,15 +1619,25 @@ async function startServer() {
       }
     })
 
-  server.post(
+  server.get(
     '/set-reachability',
     {
+      schema: {
+        querystring: {
+          properties: {
+            value: {
+              type: 'boolean',
+            },
+          }
+        }
+      },
       preHandler: async (request, reply) => {
         isDebugMiddleware(request, reply)
       },
     },
     async (request, reply) => {
-      const { value } = request.body as { value: unknown }
+      const value = (request.query as { value: boolean }).value
+
       if (typeof value !== 'boolean') {
         reply.status(400).send('value must be a boolean')
       } else {
