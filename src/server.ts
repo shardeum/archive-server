@@ -771,14 +771,18 @@ async function startServer() {
     reply.send(res)
   })
 
-  server.get('/nodeInfo', (_request, reply) => {
-    reply.send({
-      publicKey: config.ARCHIVER_PUBLIC_KEY,
-      ip: config.ARCHIVER_IP,
-      port: config.ARCHIVER_PORT,
-      version,
-      time: Date.now(),
-    })
+  server.get('/nodeInfo', (request, reply) => {
+    if (reachabilityAllowed) {
+      reply.send({
+        publicKey: config.ARCHIVER_PUBLIC_KEY,
+        ip: config.ARCHIVER_IP,
+        port: config.ARCHIVER_PORT,
+        version,
+        time: Date.now(),
+      })
+    } else {
+      request.raw.socket.destroy()
+    }
   })
 
   type CycleInfoRequest = FastifyRequest<{
@@ -1607,8 +1611,12 @@ async function startServer() {
         isDebugMiddleware(_request, reply)
       },
     },
-    (_request, reply) => {
-      reply.status(200).send('pong!')
+    (request, reply) => {
+      if (reachabilityAllowed) {
+        reply.status(200).send('pong!')
+      } else {
+        request.raw.socket.destroy()
+      }
     })
 
   server.post(
