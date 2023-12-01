@@ -787,7 +787,7 @@ export function checkJoinStatus(): Promise<boolean> {
         Logger.mainLogger.debug('cycle counter', response.cycleInfo[0].counter)
         Logger.mainLogger.debug('Joined archivers', joinedArchivers)
 
-        let isJoined = [...joinedArchivers, ...refreshedArchivers].find(
+        let isJoined = [...joinedArchivers, ...refreshedArchivers].some(
           (a: any) => a.publicKey === ourNodeInfo.publicKey
         )
         Logger.mainLogger.debug('isJoined', isJoined)
