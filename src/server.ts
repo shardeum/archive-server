@@ -1583,11 +1583,15 @@ async function startServer() {
       if (enableLoseYourself) {
         Logger.mainLogger.debug('/lose-yourself: exit(1)')
 
-        reply.send(Crypto.sign({'status': 'accepted', 'message': 'will exit'}))
+        reply.send(Crypto.sign({'status': 'success', 'message': 'will exit'}))
 
         // We don't call exitArchiver() here because that awaits Data.sendLeaveRequest(...),
         // but we're simulating a lost node.
         process.exit(1)
+      } else {
+        Logger.mainLogger.debug('/lose-yourself: not enabled. no action taken.')
+        reply.send(Crypto.sign({'status': 'failure', 'message': 'not enabled'}))
+        // set enableLoseYourself to true--but never commit!
       }
     }
   )
