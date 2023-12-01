@@ -1,7 +1,7 @@
 import * as NodeList from '../NodeList'
 import { JoinedConsensor } from '../NodeList'
+import { Cycle } from './Cycles'
 import { P2P } from '@shardus/types'
-import { CycleRecord } from '@shardus/types/build/src/p2p/CycleCreatorTypes'
 
 export enum NodeStatus {
   ACTIVE = 'active',
@@ -97,7 +97,7 @@ export class ChangeSquasher {
   }
 }
 
-export function parseRecord(record: CycleRecord): Change {
+export function parseRecord(record: any): Change {
   // For all nodes described by activated, make an update to change their status to active
   const activated = record.activated.map((id: string) => ({
     id,
@@ -109,7 +109,7 @@ export function parseRecord(record: CycleRecord): Change {
   const refreshUpdated: Change['updated'] = []
   for (const refreshed of record.refreshedConsensors) {
     // const node = NodeList.nodes.get(refreshed.id)
-    const node = NodeList.getNodeInfoById(refreshed.id)
+    const node = NodeList.getNodeInfoById(refreshed.id) as JoinedConsensor
     if (node) {
       // If it's in our node list, we update its counterRefreshed
       // (IMPORTANT: update counterRefreshed only if its greater than ours)
@@ -121,11 +121,7 @@ export function parseRecord(record: CycleRecord): Change {
       }
     } else {
       // If it's not in our node list, we add it...
-      refreshAdded.push({
-        ip: refreshed.externalIp,
-        port: refreshed.externalPort,
-        ...refreshed,
-      })
+      refreshAdded.push(refreshed)
       // and immediately update its status to ACTIVE
       // (IMPORTANT: update counterRefreshed to the records counter)
       refreshUpdated.push({
@@ -135,21 +131,20 @@ export function parseRecord(record: CycleRecord): Change {
       })
     }
   }
+  // Logger.mainLogger.debug('parseRecord', record.counter, {
+  //   added: [...record.joinedConsensors],
+  //   removed: [...record.apoptosized],
+  //   updated: [...activated, ...refreshUpdated],
+  // })
 
   return {
-    // have to convert from one JoinedConsensor type to another
-    // TODO consolidate these types plz
-    added: record.joinedConsensors.map((joinedConsensor) => ({
-      ip: joinedConsensor.externalIp,
-      port: joinedConsensor.externalPort,
-      ...joinedConsensor,
-    })),
+    added: [...record.joinedConsensors],
     removed: [...record.apoptosized, ...record.removed],
     updated: [...activated, ...refreshUpdated],
   }
 }
 
-export function parse(record: CycleRecord): Change {
+export function parse(record: any): Change {
   const changes = parseRecord(record)
   // const mergedChange = deepmerge.all<Change>(changes)
   // return mergedChange
