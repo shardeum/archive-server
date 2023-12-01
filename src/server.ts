@@ -496,6 +496,8 @@ const isDebugMiddleware = (_req, res) => {
   }
 }
 
+let reachabilityAllowed = true
+
 // Define all endpoints, all requests, and start REST server
 async function startServer() {
   const server: FastifyInstance<Server, IncomingMessage, ServerResponse> = fastify({
@@ -1608,6 +1610,19 @@ async function startServer() {
     (_request, reply) => {
       reply.status(200).send('pong!')
     })
+
+  server.post(
+    '/set-reachability',
+    {},
+    async (request, reply) => {
+      const { value } = request.body as { value: unknown }
+      if (typeof value !== 'boolean') {
+        reply.status(400).send('value must be a boolean')
+      } else {
+        reachabilityAllowed = value
+      }
+    }
+  )
 
   // Old snapshot ArchivedCycle endpoint;
   if (!config.experimentalSnapshot) {
