@@ -1,6 +1,9 @@
 {
   "name": "@shardus/archiver",
   "version": "3.3.10",
+  "engines": {
+    "node": "18.16.1"
+  },
   "description": "",
   "main": "./build/server.js",
   "types": "./build/server.d.ts",
