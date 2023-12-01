@@ -20,25 +20,26 @@ let shouldSendRefutes = false
  * If found in 'removedArchivers', we'll shut down.
  */
 export function handleLostArchivers<R extends Record>(record: R): void {
-  console.log('>> handleLostArchivers()')
-  console.log('  config.ARCHIVER_PUBLIC_KEY: ' + config.ARCHIVER_PUBLIC_KEY)
-  console.log('  record: ' + JSON.stringify(record, null, 2))
+  const debug = (...args: unknown[]): void => Logger.mainLogger.debug(...args)
+  debug('>> handleLostArchivers()')
+  debug('  config.ARCHIVER_PUBLIC_KEY: ' + config.ARCHIVER_PUBLIC_KEY)
+  // debug('  record: ' + JSON.stringify(record, null, 2))
 
   if (record.refutedArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
     // if self is in 'refutedArchivers' field, stop sending refutes
-    console.log('archiver was found in `refutedArchivers` and will stop sending refutes')
+    debug('archiver was found in `refutedArchivers` and will stop sending refutes')
     shouldSendRefutes = false
   } else if (record.lostArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
     // if self is in 'lostArchivers' field, schedule a refute in the next cycle's Q1
-    console.log("archiver was found in `lostArchivers` and will send a refute in the next cycle's Q1")
+    debug("archiver was found in `lostArchivers` and will send a refute in the next cycle's Q1")
     shouldSendRefutes = true
     scheduleRefute()
   } else if (record.removedArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
     // if self is in 'removedArchivers' field, shut down
-    console.log('archiver was found in `removedArchivers`, shutting down')
+    debug('archiver was found in `removedArchivers`, shutting down')
     die()
   }
-  console.log('<< handleLostArchivers()')
+  debug('<< handleLostArchivers()')
 }
 
 /**

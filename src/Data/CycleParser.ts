@@ -2,7 +2,6 @@ import * as NodeList from '../NodeList'
 import { JoinedConsensor } from '../NodeList'
 import { Cycle } from './Cycles'
 import { P2P } from '@shardus/types'
-import { handleLostArchivers } from '../LostArchivers'
 
 export enum NodeStatus {
   ACTIVE = 'active',
@@ -137,8 +136,6 @@ export function parseRecord(record: any): Change {
   //   removed: [...record.apoptosized],
   //   updated: [...activated, ...refreshUpdated],
   // })
-
-  handleLostArchivers(record)
 
   return {
     added: [...record.joinedConsensors],
