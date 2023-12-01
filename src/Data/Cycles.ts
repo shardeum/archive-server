@@ -33,7 +33,7 @@ export interface LostNode {
 }
 
 export let currentCycleDuration = 0
-export let currentCycleCounter = -1
+let currentCycleCounter = -1
 export let lastProcessedMetaData = -1
 export let CycleChain: Map<Cycle['counter'], any> = new Map()
 export let lostNodes: LostNode[] = []
@@ -77,7 +77,7 @@ export async function processCycles(cycles: Cycle[]) {
   if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
 }
 
-export function getCurrentCycleCounter() {
+export function getCurrentCycleCounter(): number {
   return currentCycleCounter
 }
 

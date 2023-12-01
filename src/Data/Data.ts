@@ -3,7 +3,7 @@ import * as Crypto from '../Crypto'
 import * as NodeList from '../NodeList'
 import * as Cycles from './Cycles'
 import {
-  currentCycleCounter,
+  getCurrentCycleCounter,
   currentCycleDuration,
   Cycle,
   processCycles,
@@ -579,7 +579,7 @@ export async function sendDataRequest(
   dataRequestType: DataRequestTypes
 ) {
   const dataRequest = {
-    dataRequestCycle: currentCycleCounter,
+    dataRequestCycle: getCurrentCycleCounter(),
     dataRequestType,
     publicKey: State.getNodeInfo().publicKey,
     nodeInfo: State.getNodeInfo(),

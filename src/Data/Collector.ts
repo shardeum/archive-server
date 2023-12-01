@@ -7,7 +7,7 @@ import { clearCombinedAccountsData, combineAccountsData, socketServer, collectCy
 import { config } from '../Config'
 import * as Logger from '../Logger'
 import { profilerInstance } from '../profiler/profiler'
-import { Cycle, currentCycleCounter } from './Cycles'
+import { Cycle, getCurrentCycleCounter } from './Cycles'
 import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 import * as State from '../State'
 import * as Utils from '../Utils'
@@ -550,21 +550,21 @@ export const collectMissingOriginalTxsData = async () => {
 export function cleanOldReceiptsMap() {
   for (let [key, value] of receiptsMap) {
     // Clean receipts that are older than current cycle
-    if (value < currentCycleCounter) {
+    if (value < getCurrentCycleCounter()) {
       receiptsMap.delete(key)
     }
   }
-  if (config.VERBOSE) console.log('Clean old receipts map!', currentCycleCounter)
+  if (config.VERBOSE) console.log('Clean old receipts map!', getCurrentCycleCounter())
 }
 
 export function cleanOldOriginalTxsMap() {
   for (let [key, value] of originalTxsMap) {
     // Clean originalTxs that are older than current cycle
-    if (value < currentCycleCounter) {
+    if (value < getCurrentCycleCounter()) {
       originalTxsMap.delete(key)
     }
   }
-  if (config.VERBOSE) console.log('Clean old originalTxs map!', currentCycleCounter)
+  if (config.VERBOSE) console.log('Clean old originalTxs map!', getCurrentCycleCounter())
 }
 
 export const scheduleCacheCleanup = () => {
