@@ -413,7 +413,7 @@ async function syncAndStartServer() {
     await Data.subscribeNodeForDataTransfer()
     return
   }
-  let beforeCycle = Cycles.currentCycleCounter
+  let beforeCycle = Cycles.getCurrentCycleCounter()
   // Sending active message to the network
   let isActive = false
   while (!isActive) {
@@ -639,7 +639,7 @@ async function startServer() {
         } else {
           // For new network to start the network from the 'forming' mode
           data['joinRequest'] = P2P.createArchiverJoinRequest()
-          data['dataRequestCycle'] = Cycles.currentCycleCounter
+          data['dataRequestCycle'] = Cycles.getCurrentCycleCounter()
         }
 
         res = Crypto.sign<P2P.FirstNodeResponse>(data)
@@ -649,7 +649,7 @@ async function startServer() {
           joinRequest: P2P.createArchiverJoinRequest(),
           dataRequestCycle: Data.createDataRequest<Cycles.Cycle>(
             P2PTypes.SnapshotTypes.TypeNames.CYCLE,
-            Cycles.currentCycleCounter,
+            Cycles.getCurrentCycleCounter(),
             publicKey
           ),
           dataRequestStateMetaData: Data.createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
@@ -736,7 +736,7 @@ async function startServer() {
   server.get('/lost', async (_request: LostRequest, reply) => {
     let { start, end } = _request.query
     if (!start) start = 0
-    if (!end) end = Cycles.currentCycleCounter
+    if (!end) end = Cycles.getCurrentCycleCounter()
 
     let from = parseInt(start)
     let to = parseInt(end)

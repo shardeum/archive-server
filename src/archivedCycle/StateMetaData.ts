@@ -4,7 +4,6 @@ import * as NodeList from '../NodeList'
 import * as Storage from './Storage'
 import * as Cycles from '../Data/Cycles'
 import {
-  currentCycleCounter,
   currentCycleDuration,
   Cycle,
   lastProcessedMetaData,
@@ -264,7 +263,7 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
   const dataRequest = {
     dataRequestCycle: createDataRequest<Cycle>(
       P2PTypes.SnapshotTypes.TypeNames.CYCLE,
-      currentCycleCounter,
+      Cycles.getCurrentCycleCounter(),
       publicKey
     ),
     dataRequestStateMetaData: createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
@@ -414,7 +413,7 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
   const dataRequest = {
     dataRequestCycle: createDataRequest<Cycle>(
       P2PTypes.SnapshotTypes.TypeNames.CYCLE,
-      currentCycleCounter,
+      Cycles.getCurrentCycleCounter(),
       State.getNodeInfo().publicKey
     ),
     dataRequestStateMetaData: createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
@@ -469,7 +468,7 @@ export async function subscribeMoreConsensors(numbersToSubscribe: number) {
     const dataRequest = {
       dataRequestCycle: createDataRequest<Cycle>(
         P2PTypes.SnapshotTypes.TypeNames.CYCLE,
-        currentCycleCounter,
+        Cycles.getCurrentCycleCounter(),
         State.getNodeInfo().publicKey
       ),
       dataRequestStateMetaData: createDataRequest<P2PTypes.SnapshotTypes.StateMetaData>(
