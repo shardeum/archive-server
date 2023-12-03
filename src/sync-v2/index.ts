@@ -49,10 +49,7 @@ async function getActiveListFromSomeArchiver(
  * Synchronizes the NodeList and gets the latest CycleRecord from other validators.
  */
 export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, Error> {
-  return ResultAsync.fromPromise(
-    getActiveListFromSomeArchiver(activeArchivers),
-    (e: Error) => e
-  ).andThen(
+  return ResultAsync.fromPromise(getActiveListFromSomeArchiver(activeArchivers), (e: Error) => e).andThen(
     (nodeList) =>
       syncValidatorList(nodeList).andThen(([validatorList, validatorListHash]) =>
         syncStandbyNodeList(nodeList).andThen(([standbyList, standbyListHash]) =>
@@ -109,9 +106,11 @@ export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, 
             return okAsync({
               ...cycle,
               marker: cycleMarker,
-              certificate: ''
+              certificate: '',
             })
-          })))
+          })
+        )
+      )
   )
 }
 
@@ -133,8 +132,11 @@ function syncValidatorList(
   return robustQueryForValidatorListHash(activeNodes).andThen(({ value, winningNodes }) =>
     // get full node list from one of the winning nodes
     getValidatorListFromNode(winningNodes[0], value.nodeListHash).andThen((validatorList) =>
-      verifyValidatorList(validatorList, value.nodeListHash).map(() =>
-        [validatorList, value.nodeListHash] as [P2P.NodeListTypes.Node[], hexstring])))
+      verifyValidatorList(validatorList, value.nodeListHash).map(
+        () => [validatorList, value.nodeListHash] as [P2P.NodeListTypes.Node[], hexstring]
+      )
+    )
+  )
 }
 
 /**
@@ -155,8 +157,11 @@ function syncStandbyNodeList(
   return robustQueryForStandbyNodeListHash(activeNodes).andThen(({ value, winningNodes }) =>
     // get full standby list from one of the winning nodes
     getStandbyNodeListFromNode(winningNodes[0], value.standbyNodeListHash).andThen((standbyList) =>
-      verifyStandbyList(standbyList, value.standbyNodeListHash).map(() =>
-        [standbyList, value.standbyNodeListHash] as [P2P.JoinTypes.JoinRequest[], hexstring])))
+      verifyStandbyList(standbyList, value.standbyNodeListHash).map(
+        () => [standbyList, value.standbyNodeListHash] as [P2P.JoinTypes.JoinRequest[], hexstring]
+      )
+    )
+  )
 }
 
 /**
@@ -177,6 +182,9 @@ function syncLatestCycleRecordAndMarker(
   return robustQueryForCycleRecordHash(activeNodes).andThen(({ value: cycleRecordHash, winningNodes }) =>
     // get current cycle record from node
     getCurrentCycleDataFromNode(winningNodes[0], cycleRecordHash).andThen((cycleRecord) =>
-      verifyCycleRecord(cycleRecord, cycleRecordHash).map(() =>
-        [cycleRecord, cycleRecordHash] as [P2P.CycleCreatorTypes.CycleRecord, hexstring])))
+      verifyCycleRecord(cycleRecord, cycleRecordHash).map(
+        () => [cycleRecord, cycleRecordHash] as [P2P.CycleCreatorTypes.CycleRecord, hexstring]
+      )
+    )
+  )
 }

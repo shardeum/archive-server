@@ -5,7 +5,7 @@
  * This module is functionally identical to the one in shardus-global-server/p2p/SyncV2/verify.ts.
  */
 
-import { hashObj } from '@shardus/crypto-utils';
+import { hashObj } from '@shardus/crypto-utils'
 import { P2P, hexstring } from '@shardus/types'
 import { err, ok, Result } from 'neverthrow'
 import { Signature } from '../shardus-crypto-types'
@@ -64,11 +64,10 @@ export function verifyCycleRecord(
   return ok(true)
 }
 
-/** 
-  * Compute the cycle marker for a given cycle record. This function is (or should be)
-  * identical to the one in shardus-global-server/p2p/CycleCreator.
-  */
+/**
+ * Compute the cycle marker for a given cycle record. This function is (or should be)
+ * identical to the one in shardus-global-server/p2p/CycleCreator.
+ */
 function makeCycleMarker(record: P2P.CycleCreatorTypes.CycleRecord): string {
   return hashObj(record)
 }
-
