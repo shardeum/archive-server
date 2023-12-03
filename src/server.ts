@@ -44,9 +44,8 @@ import * as AccountDataProvider from './Data/AccountDataProvider'
 const { version } = require('../package.json')
 import { getGlobalNetworkAccount, loadGlobalAccounts, syncGlobalAccount } from './GlobalAccount'
 import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycles'
-import { getGlobalAccount } from './GlobalAccount'
-import path from 'path'
-import fs from 'fs'
+import * as path from 'path'
+import * as fs from 'fs'
 
 // Socket modules
 let io: SocketIO.Server
