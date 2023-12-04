@@ -55,8 +55,7 @@ let forwardGenesisAccounts = true
 let currentConsensusRadius = 0
 let subsetNodesMapByConsensusRadius: Map<number, NodeList.ConsensusNodeInfo[]> = new Map()
 let receivedCycleTracker = {}
-const maxCyclesInCycleTracker = 10
-const maxCyclesToPreserve = 5
+const maxCyclesInCycleTracker = 5
 
 const QUERY_TIMEOUT_MAX = 30 // 30seconds
 
@@ -329,7 +328,8 @@ export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
   }
   if (Object.keys(receivedCycleTracker).length > maxCyclesInCycleTracker) {
     for (const counter of Object.keys(receivedCycleTracker)) {
-      if (parseInt(counter) < currentCycleCounter - maxCyclesToPreserve) {
+      // Clear cycles that are older than last maxCyclesInCycleTracker cycles
+      if (parseInt(counter) < getCurrentCycleCounter() - maxCyclesInCycleTracker) {
         let totalTimes = 0
         let logCycle = false
         // If there is more than one marker for this cycle, output the cycle log
