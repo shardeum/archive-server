@@ -313,7 +313,7 @@ export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
       }
     }
     // Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker)
-    let maxEqual = 3 // Setting as 3 for now, TODO: set with a better value using consensusRadius
+    let maxEqual = Math.min(Math.ceil(NodeList.getActiveList().length / currentConsensusRadius), 5)
     if (cycle.active < 10) maxEqual = 1
     for (let value of Object.values(receivedCycleTracker[cycle.counter])) {
       if (value['saved']) break
@@ -457,6 +457,7 @@ export function addDataSender(sender: DataSender) {
 }
 
 async function getConsensusRadius() {
+  if (currentConsensusRadius > 0) return currentConsensusRadius
   const activeList = NodeList.getActiveList()
   let randomNode = activeList[Math.floor(Math.random() * activeList.length)]
   Logger.mainLogger.debug(`Checking network configs from random node ${randomNode.ip}:${randomNode.port}`)
