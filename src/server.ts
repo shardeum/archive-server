@@ -67,28 +67,38 @@ export const MAX_BETWEEN_CYCLES_PER_REQUEST = 100
 async function start() {
   overrideDefaultConfig(file, env, args)
 
-  // Pull in secrets
-  const secretsPath = path.join(__dirname, '../.secrets')
-  const secrets = {}
+  if (isDebugMode()) {
+    //use a default key for debug mode
+    //  pragma: allowlist nextline secret
+    config.ARCHIVER_PUBLIC_KEY = '758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3'
+    //  pragma: allowlist nextline secret
+    config.ARCHIVER_HASH_KEY = '69fa4195670576c0160d660c3be36556ff8d504725be8a59b5a96509e0c994bc'
+    config.ARCHIVER_SECRET_KEY =
+      //  pragma: allowlist nextline secret
+      '3be00019f23847529bd63e41124864983175063bb524bd54ea3c155f2fa12969758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3'
+  } else {
+    // Pull in secrets
+    const secretsPath = path.join(__dirname, '../.secrets')
+    const secrets = {}
 
-  if (fs.existsSync(secretsPath)) {
-    const lines = fs.readFileSync(secretsPath, 'utf-8').split('\n').filter(Boolean)
+    if (fs.existsSync(secretsPath)) {
+      const lines = fs.readFileSync(secretsPath, 'utf-8').split('\n').filter(Boolean)
 
-    lines.forEach((line) => {
-      const [key, value] = line.split('=')
-      secrets[key.trim()] = value.trim()
-    })
+      lines.forEach((line) => {
+        const [key, value] = line.split('=')
+        secrets[key.trim()] = value.trim()
+      })
+    }
+
+    if (secrets['ARCHIVER_PUBLIC_KEY'] === undefined) config.ARCHIVER_PUBLIC_KEY = ''
+    else config.ARCHIVER_PUBLIC_KEY = secrets['ARCHIVER_PUBLIC_KEY']
+
+    if (secrets['ARCHIVER_SECRET_KEY'] === undefined) config.ARCHIVER_SECRET_KEY = ''
+    else config.ARCHIVER_SECRET_KEY = secrets['ARCHIVER_SECRET_KEY']
+
+    if (secrets['ARCHIVER_HASH_KEY'] === undefined) config.ARCHIVER_HASH_KEY = ''
+    else config.ARCHIVER_HASH_KEY = secrets['ARCHIVER_HASH_KEY']
   }
-
-  if (secrets['ARCHIVER_PUBLIC_KEY'] === undefined) config.ARCHIVER_PUBLIC_KEY = ''
-  else config.ARCHIVER_PUBLIC_KEY = secrets['ARCHIVER_PUBLIC_KEY']
-
-  if (secrets['ARCHIVER_SECRET_KEY'] === undefined) config.ARCHIVER_SECRET_KEY = ''
-  else config.ARCHIVER_SECRET_KEY = secrets['ARCHIVER_SECRET_KEY']
-
-  if (secrets['ARCHIVER_HASH_KEY'] === undefined) config.ARCHIVER_HASH_KEY = ''
-  else config.ARCHIVER_HASH_KEY = secrets['ARCHIVER_HASH_KEY']
-
   // Now, secrets contain your secrets, for example:
   // const apiKey = secrets.API_KEY;
 
