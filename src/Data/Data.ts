@@ -316,7 +316,14 @@ export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
     let maxEqual = Math.min(Math.ceil(NodeList.getActiveList().length / currentConsensusRadius), 5)
     if (cycle.active < 10) maxEqual = 1
     for (let value of Object.values(receivedCycleTracker[cycle.counter])) {
-      if (value['saved']) break
+      if (value['saved']) {
+        // If there is a saved cycle, clear the cycleToSave of this counter; This is to prevent saving the another cycle of the same counter
+        for (let i = 0; i < cycleToSave.length; i++) {
+          receivedCycleTracker[cycle.counter][cycleToSave[i].marker]['saved'] = false
+        }
+        cycleToSave = []
+        break
+      }
       if (value['receivedTimes'] >= maxEqual) {
         cycleToSave.push(cycle)
         value['saved'] = true
