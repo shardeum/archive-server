@@ -34,6 +34,7 @@ export let joinedArchivers: ArchiverNodeInfo[] = [] // Add joined archivers to t
 export let activeArchivers: ArchiverNodeInfo[] = []
 export let activeArchiversByPublicKeySorted: ArchiverNodeInfo[] = []
 export let isFirst = false
+export let isActive = false
 export let archiversReputation: Map<string, string> = new Map()
 
 export async function initFromConfig(config: Config, shutDownMode: boolean = false) {
@@ -232,4 +233,8 @@ export function getCurveSk() {
 
 export function getCurvePk() {
   return nodeState.curvePk
+}
+
+export function setActive() {
+  isActive = true
 }

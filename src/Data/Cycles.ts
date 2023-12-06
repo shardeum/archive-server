@@ -68,17 +68,17 @@ export async function processCycles(cycles: Cycle[]) {
 
       Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
 
-    sendDataToAdjacentArchivers(DataType.CYCLE, [cycle])
+      sendDataToAdjacentArchivers(DataType.CYCLE, [cycle])
       // Check the archivers reputaion in every new cycle & record the status
       recordArchiversReputation()
-    if (currentNetworkMode === 'shutdown') {
-      Logger.mainLogger.debug(Date.now(), `❌ Shutdown Cycle Record received at Cycle #: ${cycle.counter}`)
-      await Utils.sleep(currentCycleDuration)
-      NodeList.clearNodeListCache()
-      await clearDataSenders()
-      setShutdownCycleRecord(cycle)
-      NodeList.toggleFirstNode()
-    }
+      if (currentNetworkMode === 'shutdown') {
+        Logger.mainLogger.debug(Date.now(), `❌ Shutdown Cycle Record received at Cycle #: ${cycle.counter}`)
+        await Utils.sleep(currentCycleDuration)
+        NodeList.clearNodeListCache()
+        await clearDataSenders()
+        setShutdownCycleRecord(cycle)
+        NodeList.toggleFirstNode()
+      }
     }
   } finally {
     if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
@@ -306,10 +306,7 @@ function updateNodeList(cycle: Cycle) {
     }
   }
   // To pick nodes only when the archiver is active
-  if (socketClients.size > 0) {
-    subscribeConsensorsByConsensusRadius()
-  } else if (activatedPublicKeys.length > 0 && currentNetworkMode === 'restore') {
-    // So that the extra archivers (not the first archiver) start subscribing to the active consensors for data transfer
+  if (State.isActive) {
     subscribeConsensorsByConsensusRadius()
   }
 }

@@ -1775,6 +1775,7 @@ async function startServer() {
         process.exit(1)
       }
       Logger.mainLogger.debug('Archive-server has started.')
+      State.setActive()
       State.addSigListeners()
       Collector.scheduleCacheCleanup()
       Collector.scheduleMissingTxsDataQuery()
