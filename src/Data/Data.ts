@@ -512,8 +512,8 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
 }
 
 export async function createNodesGroupByConsensusRadius() {
-  // There is only one active node in the network. no need to create groups
-  if (NodeList.getActiveList().length < 2) return
+  // There is no active node in the network. no need to create groups
+  if (NodeList.getActiveList().length < 1) return
   const consensusRadius = await getConsensusRadius()
   currentConsensusRadius = consensusRadius
   const activeList = [...NodeList.activeListByIdSorted]
