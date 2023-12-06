@@ -287,8 +287,10 @@ export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
     let cycleToSave = []
     if (receivedCycleTracker[cycle.counter]) {
       if (receivedCycleTracker[cycle.counter][cycle.marker]) {
-        receivedCycleTracker[cycle.counter][cycle.marker]['receivedTimes']++
-        receivedCycleTracker[cycle.counter][cycle.marker]['senderNodes'].push(senderInfo)
+        if (!receivedCycleTracker[cycle.counter][cycle.marker]['senderNodes'].includes(senderInfo)) {
+          receivedCycleTracker[cycle.counter][cycle.marker]['receivedTimes']++
+          receivedCycleTracker[cycle.counter][cycle.marker]['senderNodes'].push(senderInfo)
+        }
       } else {
         receivedCycleTracker[cycle.counter][cycle.marker] = {
           cycleInfo: cycle,
@@ -313,8 +315,9 @@ export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
       }
     }
     // Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker)
-    let maxEqual = Math.min(Math.ceil(NodeList.getActiveList().length / currentConsensusRadius), 5)
-    if (cycle.active < 10) maxEqual = 1
+    const minCycleConfirmations =
+      Math.min(Math.ceil(NodeList.getActiveList().length / currentConsensusRadius), 5) || 1
+
     for (let value of Object.values(receivedCycleTracker[cycle.counter])) {
       if (value['saved']) {
         // If there is a saved cycle, clear the cycleToSave of this counter; This is to prevent saving the another cycle of the same counter
@@ -324,7 +327,7 @@ export function collectCycleData(cycleData: Cycle[], senderInfo: string = '') {
         cycleToSave = []
         break
       }
-      if (value['receivedTimes'] >= maxEqual) {
+      if (value['receivedTimes'] >= minCycleConfirmations) {
         cycleToSave.push(cycle)
         value['saved'] = true
       }
@@ -464,7 +467,6 @@ export function addDataSender(sender: DataSender) {
 }
 
 async function getConsensusRadius() {
-  if (currentConsensusRadius > 0) return currentConsensusRadius
   const activeList = NodeList.getActiveList()
   let randomNode = activeList[Math.floor(Math.random() * activeList.length)]
   Logger.mainLogger.debug(`Checking network configs from random node ${randomNode.ip}:${randomNode.port}`)
