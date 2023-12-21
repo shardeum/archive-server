@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from 'util'
 import * as Logger from './Logger'
 import * as Crypto from './Crypto'
 import { config } from './Config'
-import { P2P as P2PTypes } from '@shardus/types'
+import { publicKey } from '@shardus/crypto-utils'
 
 // TYPES
 
@@ -88,6 +88,9 @@ let byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
 export let byId: { [id: string]: ConsensusNodeInfo } = {}
 let publicKeyToId: { [publicKey: string]: string } = {}
 export let foundFirstNode = false
+export let activePublicKeyListByCycle = new Map<number, publicKey[]>() // cycle -> active public key list in id sorted order
+
+const MAX_ACTIVE_LIST_BY_CYCLE = 3
 
 export type SignedNodeList = {
   nodeList: ConsensusNodeInfo[]
@@ -318,12 +321,27 @@ export function setStatus(status: NodeStatus, publicKeys: string[]): void {
   }
 }
 
+
+export function updateActivePublicKeyListByCycle(cycle: number) {
+  const activePublicKeyList = activeListByIdSorted.map((node) => node.publicKey)
+  activePublicKeyListByCycle.set(cycle, activePublicKeyList)
+  if (activePublicKeyListByCycle.size > MAX_ACTIVE_LIST_BY_CYCLE) {
+    const oldestItem = activePublicKeyListByCycle.keys().next().value
+    activePublicKeyListByCycle.delete(oldestItem)
+  }
+}
+
 export function getList(): ConsensusNodeInfo[] {
   return list
 }
 
 export function getActiveList(): ConsensusNodeInfo[] {
-  return [...activeList.values()]
+  // return [...activeList.values()]
+  return activeListByIdSorted
+}
+
+export function getActiveNodeCount() {
+  return activeList.size
 }
 
 export async function getActiveNodeListFromArchiver(

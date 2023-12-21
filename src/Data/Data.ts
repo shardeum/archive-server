@@ -26,6 +26,7 @@ import {
   storeAccountData,
   storingAccountData,
   storeOriginalTxData,
+  validateReceiptData,
 } from './Collector'
 import * as CycleDB from '../dbstore/cycles'
 import * as ReceiptDB from '../dbstore/receipts'
@@ -54,7 +55,9 @@ export let combineAccountsData = {
   receipts: [],
 }
 const forwardGenesisAccounts = true
-let currentConsensusRadius = 0
+export let currentConsensusRadius = 0
+export let nodesPerConsensusGroup = 0
+export let nodesPerEdge = 0
 let subsetNodesMapByConsensusRadius: Map<number, NodeList.ConsensusNodeInfo[]> = new Map()
 const maxCyclesInCycleTracker = 5
 const receivedCycleTracker = {}
@@ -271,7 +274,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
               sender.nodeInfo.port,
               newData.responses.RECEIPT.length
             )
-          storeReceiptData(newData.responses.RECEIPT, sender.nodeInfo.ip + ':' + sender.nodeInfo.port)
+          validateReceiptData(newData.responses.RECEIPT, sender.nodeInfo.ip + ':' + sender.nodeInfo.port)
         }
         if (newData.responses && newData.responses.CYCLE) {
           collectCycleData(newData.responses.CYCLE, sender.nodeInfo.ip + ':' + sender.nodeInfo.port)
@@ -369,7 +372,7 @@ export function collectCycleData(cycleData: Cycle[], senderInfo = ''): void {
     }
     // Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker)
     const minCycleConfirmations =
-      Math.min(Math.ceil(NodeList.getActiveList().length / currentConsensusRadius), 5) || 1
+      Math.min(Math.ceil(NodeList.getActiveNodeCount() / currentConsensusRadius), 5) || 1
 
     for (const value of Object.values(receivedCycleTracker[cycle.counter])) {
       if (value['saved']) {
@@ -443,7 +446,7 @@ export const emitter = new EventEmitter()
 
 export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']): Promise<void> {
   nestedCountersInstance.countEvent('archiver', 'replace_data_sender')
-  if (NodeList.getActiveList().length < 2) {
+  if (NodeList.getActiveNodeCount() < 2) {
     Logger.mainLogger.debug('There is only one active node in the network. Unable to replace data sender')
     return
   }
@@ -536,9 +539,14 @@ interface configConsensusResponse {
     }
   }
 }
+
 async function getConsensusRadius(): Promise<number> {
-  const activeList = NodeList.getActiveList()
-  const randomNode = activeList[Math.floor(Math.random() * activeList.length)]
+  // If there is no node, return existing currentConsensusRadius
+  if (NodeList.getList().length === 0) return currentConsensusRadius
+  const randomNode =
+    NodeList.getActiveNodeCount() > 0
+      ? NodeList.getRandomActiveNodes(1)[0]
+      : NodeList.getList().slice(0, 1)[0]
   Logger.mainLogger.debug(`Checking network configs from random node ${randomNode.ip}:${randomNode.port}`)
   // TODO: Should try to get the network config from multiple nodes and use the consensusRadius that has the majority
   const REQUEST_NETCONFIG_TIMEOUT_SECOND = 2 // 2s timeout
@@ -548,11 +556,19 @@ async function getConsensusRadius(): Promise<number> {
   )) as configConsensusResponse
 
   if (response && response.config) {
-    let nodesPerConsensusGroup = response.config.sharding.nodesPerConsensusGroup
+    nodesPerConsensusGroup = response.config.sharding.nodesPerConsensusGroup
+    nodesPerEdge = response.config.sharding.nodesPerEdge
     // Upgrading consensus size to odd number
     if (nodesPerConsensusGroup % 2 === 0) nodesPerConsensusGroup++
     const consensusRadius = Math.floor((nodesPerConsensusGroup - 1) / 2)
-    Logger.mainLogger.debug('consensusRadius', consensusRadius)
+    Logger.mainLogger.debug(
+      'consensusRadius',
+      consensusRadius,
+      'nodesPerConsensusGroup',
+      nodesPerConsensusGroup,
+      'nodesPerEdge',
+      nodesPerEdge
+    )
     if (config.VERBOSE) console.log('consensusRadius', consensusRadius)
     return consensusRadius
   }
@@ -585,8 +601,6 @@ export async function createDataTransferConnection(
 }
 
 export async function createNodesGroupByConsensusRadius(): Promise<void> {
-  // There is no active node in the network. no need to create groups
-  if (NodeList.getActiveList().length < 1) return
   const consensusRadius = await getConsensusRadius()
   currentConsensusRadius = consensusRadius
   const activeList = [...NodeList.activeListByIdSorted]

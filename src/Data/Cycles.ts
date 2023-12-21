@@ -2,13 +2,15 @@ import * as NodeList from '../NodeList'
 import * as Crypto from '../Crypto'
 import * as State from '../State'
 import * as Logger from '../Logger'
-import { P2P } from '@shardus/types'
+import { P2P, StateManager } from '@shardus/types'
 import { getJson } from '../P2P'
 import { profilerInstance } from '../profiler/profiler'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import {
   clearDataSenders,
   dataSenders,
+  nodesPerConsensusGroup,
+  nodesPerEdge,
   subscribeConsensorsByConsensusRadius,
   unsubscribeDataSender,
 } from './Data'
@@ -21,6 +23,7 @@ import { storeCycleData } from './Collector'
 import { clearServingValidatorsInterval, initServingValidatorsInterval } from './AccountDataProvider'
 import { hexstring } from 'shardus-crypto-types'
 import { handleLostArchivers } from '../LostArchivers'
+import ShardFunctions from '../ShardFunctions'
 
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
@@ -51,6 +54,7 @@ export const lostNodes: LostNode[] = []
 export const removedNodes = []
 export let cycleRecordWithShutDownMode = null as P2P.CycleCreatorTypes.CycleRecord | null
 export let currentNetworkMode: P2P.ModesTypes.Record['mode'] = 'forming'
+export let shardValuesByCycle = new Map<number, StateManager.shardFunctionTypes.CycleShardData>()
 
 export async function processCycles(cycles: Cycle[]): Promise<void> {
   if (profilerInstance) profilerInstance.profileSectionStart('process_cycle', false)
@@ -68,6 +72,7 @@ export async function processCycles(cycles: Cycle[]): Promise<void> {
 
       // Update NodeList from cycle info
       updateNodeList(cycle)
+      updateShardValues(cycle, cycle.mode)
       changeNetworkMode(cycle.mode)
       handleLostArchivers(cycle)
 
@@ -184,6 +189,7 @@ function updateNodeList(cycle: Cycle): void {
     refreshedArchivers,
     standbyAdd,
     standbyRemove,
+    counter,
   } = cycle
 
   const consensorInfos = joinedConsensors.map((jc) => ({
@@ -314,6 +320,9 @@ function updateNodeList(cycle: Cycle): void {
       removedNodes.shift()
     }
   }
+
+  NodeList.updateActivePublicKeyListByCycle(counter)
+
   // To pick nodes only when the archiver is active
   if (State.isActive) {
     subscribeConsensorsByConsensusRadius()
@@ -422,4 +431,74 @@ export async function recordArchiversReputation(): Promise<void> {
       console.error(error)
     })
   if (config.VERBOSE) Logger.mainLogger.debug('Active archivers status', State.archiversReputation)
+}
+
+// This is called once per cycle to update to calculate the necessary shard values.
+function updateShardValues(cycle: Cycle, mode: P2P.ModesTypes.Record['mode']) {
+  const cycleShardData = {} as StateManager.shardFunctionTypes.CycleShardData
+
+  // todo get current cycle..  store this by cycle?
+  cycleShardData.nodeShardDataMap = new Map()
+  cycleShardData.parititionShardDataMap = new Map()
+  cycleShardData.nodes = NodeList.activeListByIdSorted as unknown as P2P.NodeListTypes.Node[]
+  cycleShardData.cycleNumber = cycle.counter
+  cycleShardData.partitionsToSkip = new Map()
+  cycleShardData.hasCompleteData = false
+
+  if (cycleShardData.nodes.length === 0) {
+    return // no active nodes so stop calculating values
+  }
+  cycleShardData.timestamp = cycle.start * 1000
+  cycleShardData.timestampEndCycle = (cycle.start + cycle.duration) * 1000
+
+  // save this per cycle?
+  cycleShardData.shardGlobals = ShardFunctions.calculateShardGlobals(
+    cycleShardData.nodes.length,
+    nodesPerConsensusGroup,
+    nodesPerEdge
+  )
+
+  if (profilerInstance)
+    profilerInstance.profileSectionStart('updateShardValues_computePartitionShardDataMap1') //13ms, #:60
+  // partition shard data
+  ShardFunctions.computePartitionShardDataMap(
+    cycleShardData.shardGlobals,
+    cycleShardData.parititionShardDataMap,
+    0,
+    cycleShardData.shardGlobals.numPartitions
+  )
+  if (profilerInstance) profilerInstance.profileSectionEnd('updateShardValues_computePartitionShardDataMap1')
+
+  if (profilerInstance)
+    profilerInstance.profileSectionStart('updateShardValues_computePartitionShardDataMap2') //37ms, #:60
+  // generate limited data for all nodes data for all nodes.
+  ShardFunctions.computeNodePartitionDataMap(
+    cycleShardData.shardGlobals,
+    cycleShardData.nodeShardDataMap,
+    cycleShardData.nodes,
+    cycleShardData.parititionShardDataMap,
+    cycleShardData.nodes,
+    false
+  )
+  if (profilerInstance) profilerInstance.profileSectionEnd('updateShardValues_computePartitionShardDataMap2')
+
+  if (profilerInstance) profilerInstance.profileSectionStart('updateShardValues_computeNodePartitionData') //22ms, #:60
+  if (profilerInstance) profilerInstance.profileSectionEnd('updateShardValues_computeNodePartitionData')
+
+  if (profilerInstance) profilerInstance.profileSectionStart('updateShardValues_computeNodePartitionDataMap2') //232ms, #:60
+  // generate lightweight data for all active nodes  (note that last parameter is false to specify the lightweight data)
+  const fullDataForDebug = true // Set this to false for performance reasons!!! setting it to true saves us from having to recalculate stuff when we dump logs.
+  ShardFunctions.computeNodePartitionDataMap(
+    cycleShardData.shardGlobals,
+    cycleShardData.nodeShardDataMap,
+    cycleShardData.nodes,
+    cycleShardData.parititionShardDataMap,
+    cycleShardData.nodes,
+    fullDataForDebug
+  )
+  if (profilerInstance) profilerInstance.profileSectionEnd('updateShardValues_computeNodePartitionDataMap2')
+
+  console.log('cycleShardData', cycleShardData.cycleNumber)
+  console.dir(cycleShardData, { depth: null })
+  shardValuesByCycle.set(cycleShardData.cycleNumber, cycleShardData)
 }

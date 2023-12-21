@@ -4,17 +4,11 @@ import { extractValues, extractValuesFromArray } from './sqlite3storage'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString } from '../utils/serialization'
+import { ArchiverReceipt } from '../Data/Collector'
 
-export interface Receipt {
+export interface Receipt extends ArchiverReceipt {
   receiptId: string
-  tx: unknown
-  cycle: number
   timestamp: number
-  result: unknown
-  beforeStateAccounts: unknown[]
-  accounts: unknown[]
-  receipt: unknown
-  sign: Signature
 }
 
 type DbReceipt = Receipt & {

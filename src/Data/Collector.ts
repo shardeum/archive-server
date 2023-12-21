@@ -1,3 +1,4 @@
+import { Signature } from '@shardus/crypto-utils'
 import * as Account from '../dbstore/accounts'
 import * as Transaction from '../dbstore/transactions'
 import * as Receipt from '../dbstore/receipts'
@@ -7,7 +8,7 @@ import { clearCombinedAccountsData, combineAccountsData, socketServer, collectCy
 import { config } from '../Config'
 import * as Logger from '../Logger'
 import { profilerInstance } from '../profiler/profiler'
-import { Cycle, getCurrentCycleCounter } from './Cycles'
+import { Cycle, getCurrentCycleCounter, shardValuesByCycle } from './Cycles'
 import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 import * as State from '../State'
 import * as Utils from '../Utils'
@@ -16,6 +17,7 @@ import { getJson } from '../P2P'
 import { globalAccountsMap, setGlobalNetworkAccount } from '../GlobalAccount'
 import { CycleLogWriter, ReceiptLogWriter, OriginalTxDataLogWriter } from '../Data/DataLogWriter'
 import * as OriginalTxDB from '../dbstore/originalTxsData'
+import ShardFunction from '../ShardFunctions'
 
 export let storingAccountData = false
 export const receiptsMap: Map<string, number> = new Map()
@@ -28,9 +30,257 @@ export interface TxsData {
   txId: string
   cycle: number
 }
+// We might have to move type definitions to a separate place
+
+/**
+ * ArchiverReceipt is the full data (shardusReceipt + appReceiptData + accounts ) of a tx that is sent to the archiver
+ */
+export interface ArchiverReceipt {
+  tx: {
+    originalTxData: OpaqueTransaction
+    txId: string
+    timestamp: number
+  }
+  cycle: number
+  beforeStateAccounts: Account.AccountCopy[]
+  accounts: Account.AccountCopy[]
+  appReceiptData: unknown
+  appliedReceipt: AppliedReceipt2
+  executionShardKey: string
+}
+
+type ObjectAlias = object
+/**
+ * OpaqueTransaction is the way shardus should see transactions internally. it should not be able to mess with parameters individually
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface OpaqueTransaction extends ObjectAlias {}
+
+export type AppliedVote = {
+  txid: string
+  transaction_result: boolean
+  account_id: string[]
+  //if we add hash state before then we could prove a dishonest apply vote
+  //have to consider software version
+  account_state_hash_after: string[]
+  account_state_hash_before: string[]
+  cant_apply: boolean // indicates that the preapply could not give a pass or fail
+  node_id: string // record the node that is making this vote.. todo could look this up from the sig later
+  sign: Signature
+  // hash of app data
+  app_data_hash: string
+}
+
+/**
+ * a space efficent version of the receipt
+ *
+ * use TellSignedVoteHash to send just signatures of the vote hash (votes must have a deterministic sort now)
+ * never have to send or request votes individually, should be able to rely on existing receipt send/request
+ * for nodes that match what is required.
+ */
+export type AppliedReceipt2 = {
+  txid: string
+  result: boolean
+  //single copy of vote
+  appliedVote: AppliedVote
+  confirmOrChallenge: ConfirmOrChallengeMessage
+  //all signatures for this vote
+  signatures: [Signature] //Could have all signatures or best N.  (lowest signature value?)
+  // hash of app data
+  app_data_hash: string
+}
+
+export type ConfirmOrChallengeMessage = {
+  message: string
+  nodeId: string
+  appliedVote: AppliedVote
+  sign: Signature
+}
 
 // For debugging purpose, set this to true to stop saving tx data
 const stopSavingTxData = false
+
+export const validateReceiptData = (receipts: ArchiverReceipt[], senderInfo = '') => {
+  for (const receipt of receipts) {
+    // Add type and value existence check
+    let err = Utils.validateTypes(receipt, {
+      tx: 'o',
+      cycle: 'n',
+      beforeStateAccounts: 'a',
+      accounts: 'a',
+      appReceiptData: 'o',
+      appliedReceipt: 'o',
+      executionShardKey: 's',
+    })
+    if (err) {
+      Logger.mainLogger.error('Invalid receipt data')
+      continue
+    }
+    err = Utils.validateTypes(receipt.tx, {
+      originalTxData: 'o',
+      txId: 's',
+      timestamp: 'n',
+    })
+    if (err) {
+      Logger.mainLogger.error('Invalid receipt tx data')
+      continue
+    }
+    for (const account of receipt.beforeStateAccounts) {
+      err = Utils.validateTypes(account, {
+        accountId: 's',
+        data: 'o',
+        timestamp: 'n',
+        hash: 's',
+        // cycleNumber: 'n', it is not present in the beforeStateAccounts data
+        isGlobal: 'b',
+      })
+      if (err) {
+        Logger.mainLogger.error('Invalid receipt beforeStateAccounts data')
+        continue
+      }
+    }
+    for (const account of receipt.accounts) {
+      err = Utils.validateTypes(account, {
+        accountId: 's',
+        data: 'o',
+        timestamp: 'n',
+        hash: 's',
+        // cycleNumber: 'n', it is not present in the beforeStateAccounts data
+        isGlobal: 'b',
+      })
+      if (err) {
+        Logger.mainLogger.error('Invalid receipt accounts data')
+        continue
+      }
+    }
+    err = Utils.validateTypes(receipt.appliedReceipt, {
+      txid: 's',
+      result: 'b',
+      appliedVote: 'o',
+      confirmOrChallenge: 'o',
+      signatures: 'a',
+      app_data_hash: 's',
+    })
+    if (err) {
+      Logger.mainLogger.error('Invalid receipt appliedReceipt data')
+      continue
+    }
+    err = Utils.validateTypes(receipt.appliedReceipt.appliedVote, {
+      txid: 's',
+      transaction_result: 'b',
+      account_id: 'a',
+      account_state_hash_after: 'a',
+      account_state_hash_before: 'a',
+      cant_apply: 'b',
+      node_id: 's',
+      sign: 'o',
+      app_data_hash: 's',
+    })
+    if (err) {
+      Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote data')
+      continue
+    }
+    err = Utils.validateTypes(receipt.appliedReceipt.appliedVote.sign, {
+      owner: 's',
+      sig: 's',
+    })
+    if (err) {
+      Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote signature data')
+      continue
+    }
+    err = Utils.validateTypes(receipt.appliedReceipt.confirmOrChallenge, {
+      message: 's',
+      nodeId: 's',
+      appliedVote: 'o',
+      sign: 'o',
+    })
+    if (err) {
+      Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge data')
+      continue
+    }
+    err = Utils.validateTypes(receipt.appliedReceipt.confirmOrChallenge.sign, {
+      owner: 's',
+      sig: 's',
+    })
+    if (err) {
+      Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge signature data')
+      continue
+    }
+    err = Utils.validateTypes(receipt.appliedReceipt.signatures[0], {
+      owner: 's',
+      sig: 's',
+    })
+    if (err) {
+      Logger.mainLogger.error('Invalid receipt appliedReceipt signatures data')
+      continue
+    }
+
+    // Check the signed nodes are part of the execution group nodes of the tx
+    const { executionShardKey, cycle, appliedReceipt } = receipt
+    const { appliedVote, confirmOrChallenge } = appliedReceipt
+    const cycleShardData = shardValuesByCycle.get(cycle)
+    if (!cycleShardData) {
+      Logger.mainLogger.error('Cycle shard data not found')
+      continue
+    }
+    // Determine the home partition index of the primary account (executionShardKey)
+    const { homePartition } = ShardFunction.addressToPartition(cycleShardData.shardGlobals, executionShardKey)
+    // Check if the appliedVote node is in the execution group
+    if (!cycleShardData.nodeShardDataMap.has(appliedVote.node_id)) {
+      Logger.mainLogger.error(
+        'Invalid receipt appliedReceipt appliedVote node is not in the active nodesList'
+      )
+      continue
+    }
+    if (appliedVote.sign.owner !== cycleShardData.nodeShardDataMap.get(appliedVote.node_id).node.publicKey) {
+      Logger.mainLogger.error(
+        'Invalid receipt appliedReceipt appliedVote node signature owner and node public key does not match'
+      )
+      continue
+    }
+    if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[appliedVote.node_id]) {
+      Logger.mainLogger.error(
+        'Invalid receipt appliedReceipt appliedVote node is not in the execution group of the tx'
+      )
+      continue
+    }
+    // TODO: Verify the signature of the appliedVote
+
+    // Check if the confirmOrChallenge node is in the execution group
+    if (!cycleShardData.nodeShardDataMap.has(confirmOrChallenge.nodeId)) {
+      Logger.mainLogger.error(
+        'Invalid receipt appliedReceipt confirmOrChallenge node is not in the active nodesList'
+      )
+      continue
+    }
+    if (
+      confirmOrChallenge.sign.owner !==
+      cycleShardData.nodeShardDataMap.get(confirmOrChallenge.nodeId).node.publicKey
+    ) {
+      Logger.mainLogger.error(
+        'Invalid receipt appliedReceipt confirmOrChallenge node signature owner and node public key does not match'
+      )
+      continue
+    }
+    if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[confirmOrChallenge.nodeId]) {
+      Logger.mainLogger.error(
+        'Invalid receipt appliedReceipt confirmOrChallenge node is not in the execution group of the tx'
+      )
+      continue
+    }
+    // TODO: Verify the signature of the confirmOrChallenge
+
+    // List the other execution group nodes of the tx apart from the two signed nodes, Use this list to robustQuery to verify the receipt
+    const executionGroupNodes = Object.values(
+      cycleShardData.parititionShardDataMap.get(homePartition).coveredBy
+    )
+    Logger.mainLogger.debug('executionGroupNodes', executionGroupNodes)
+    // Use the execution group nodes to robustQuery the receipt
+
+    // Save the verified receipt
+    storeReceiptData([receipt], senderInfo)
+  }
+}
 
 export const storeReceiptData = async (receipts = [], senderInfo = '', forceSaved = false): Promise<void> => {
   if (receipts && receipts.length <= 0) return
@@ -41,8 +291,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
   let txsData: TxsData[] = []
   if (!forceSaved) if (stopSavingTxData) return
   for (let i = 0; i < receipts.length; i++) {
-    // eslint-disable-next-line security/detect-object-injection
-    const { accounts, cycle, result, sign, tx, receipt } = receipts[i]
+    const { accounts, cycle, tx, appReceiptData } = receipts[i]
     if (config.VERBOSE) console.log(tx.txId, senderInfo)
     if (receiptsMap.has(tx.txId)) {
       // console.log('RECEIPT', 'Skip', tx.txId, senderInfo)
@@ -82,7 +331,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
         accountId: account.accountId,
         data: account.data,
         timestamp: account.timestamp,
-        hash: account.stateId,
+        hash: account.hash,
         cycleNumber: cycle,
         isGlobal: account.isGlobal || false,
       }
@@ -126,14 +375,11 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
     // }
     const txObj: Transaction.Transaction = {
       txId: tx.txId,
-      accountId: receipt ? receipt.accountId : tx.txId, // Let set txId for now if app receipt is not forwarded
+      accountId: appReceiptData ? appReceiptData.accountId : tx.txId, // Let set txId for now if app receipt is not forwarded
       timestamp: tx.timestamp,
       cycleNumber: cycle,
-      data: receipt ? receipt.data : {},
-      // keys: tx.keys,
-      result: result,
+      data: appReceiptData ? appReceiptData.data : {},
       originalTxData: tx.originalTxData,
-      sign: sign,
     }
     // await Transaction.insertTransaction(txObj)
     combineTransactions.push(txObj)
@@ -587,9 +833,10 @@ export const collectMissingOriginalTxsData = async (): Promise<void> => {
 }
 
 export function cleanOldReceiptsMap(): void {
-  for (const [key, value] of receiptsMap) {
-    // Clean receipts that are older than current cycle
-    if (value < getCurrentCycleCounter()) {
+  // Clean receipts that are older than last 2 cycles
+  const cycleNumber = getCurrentCycleCounter() - 1
+  for (let [key, value] of receiptsMap) {
+    if (value < cycleNumber) {
       receiptsMap.delete(key)
     }
   }
@@ -597,9 +844,10 @@ export function cleanOldReceiptsMap(): void {
 }
 
 export function cleanOldOriginalTxsMap(): void {
-  for (const [key, value] of originalTxsMap) {
-    // Clean originalTxs that are older than current cycle
-    if (value < getCurrentCycleCounter()) {
+  // Clean originalTxs that are older than last 2 cycles
+  const cycleNumber = getCurrentCycleCounter() - 1
+  for (let [key, value] of originalTxsMap) {
+    if (value < cycleNumber) {
       originalTxsMap.delete(key)
     }
   }

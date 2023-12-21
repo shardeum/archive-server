@@ -662,7 +662,7 @@ async function startServer(): Promise<SocketIO.Server> {
     }
 
     // cache is cold, remake cache
-    const nodeCount = Math.min(config.N_NODELIST, NodeList.getActiveList().length)
+    const nodeCount = Math.min(config.N_NODELIST, NodeList.getActiveNodeCount())
 
     for (let index = 0; index < config.N_RANDOM_NODELIST_BUCKETS; index++) {
       // If we dont have any active nodes, send back the first node in our list

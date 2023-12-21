@@ -247,7 +247,7 @@ export const emitter = new EventEmitter()
 
 export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']): Promise<void> {
   nestedCountersInstance.countEvent('archiver', 'replace_data_sender')
-  if (NodeList.getActiveList().length < 2) {
+  if (NodeList.getActiveNodeCount() < 2) {
     Logger.mainLogger.debug('There is only one active node in the network. Unable to replace data sender')
     const sender = dataSenders.get(publicKey)
     if (sender && sender.replaceTimeout) {
@@ -738,7 +738,7 @@ export async function processStateMetaData(response: ResponseType): Promise<void
             break
           }
           retry += 1
-          if (!isDownloadSuccess && retry >= NodeList.getActiveList().length) {
+          if (!isDownloadSuccess && retry >= NodeList.getActiveNodeCount()) {
             Logger.mainLogger.debug(
               'Sleeping for 5 sec before retrying download again for cycle',
               parentCycle.counter
@@ -835,7 +835,7 @@ export async function processStateMetaData(response: ResponseType): Promise<void
       //     }
 
       //     retry += 1
-      //     if (!isDownloadSuccess && retry >= NodeList.getActiveList().length) {
+      //     if (!isDownloadSuccess && retry >= NodeList.getActiveNodeCount()) {
       //       Logger.mainLogger.debug(
       //         'Sleeping for 5 sec before retrying download again for cycle',
       //         parentCycle.counter

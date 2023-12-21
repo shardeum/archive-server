@@ -4,6 +4,7 @@ import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString, SerializeToJsonString } from '../utils/serialization'
 
+/** Same as type AccountsCopy in the shardus core */
 export type AccountCopy = {
   accountId: string
   data: any // eslint-disable-line @typescript-eslint/no-explicit-any

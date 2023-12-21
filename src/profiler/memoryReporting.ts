@@ -3,7 +3,7 @@ import { statisticsInstance } from '../statistics'
 import * as os from 'os'
 import * as fastify from 'fastify'
 import { resourceUsage } from 'process'
-import { getActiveList } from '../NodeList'
+import { getActiveNodeCount } from '../NodeList'
 import { spawn } from 'child_process'
 import * as process from 'process'
 
@@ -188,7 +188,7 @@ class MemoryReporting {
   }
 
   stateReport(): void {
-    const numActiveNodes = getActiveList().length
+    const numActiveNodes = getActiveNodeCount()
     this.addToReport('P2P', 'Nodelist', 'numActiveNodes', numActiveNodes)
   }
 

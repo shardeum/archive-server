@@ -12,10 +12,7 @@ export interface Transaction {
   timestamp: number
   cycleNumber: number
   data: unknown
-  // keys: any // TODO: Remove this field in the places it is used
-  result: TxResult
   originalTxData: OriginalTxData
-  sign: Signature
 }
 
 type DbTransaction = Transaction & {
