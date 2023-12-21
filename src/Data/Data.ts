@@ -25,8 +25,9 @@ import {
   storeCycleData,
   storeAccountData,
   storingAccountData,
-  storeOriginalTxData,
+  validateCycleData,
   validateReceiptData,
+  validateAndStoreOriginalTxData,
 } from './Collector'
 import * as CycleDB from '../dbstore/cycles'
 import * as ReceiptDB from '../dbstore/receipts'
@@ -263,7 +264,10 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
               sender.nodeInfo.port,
               newData.responses.ORIGINAL_TX_DATA.length
             )
-          storeOriginalTxData(newData.responses.ORIGINAL_TX_DATA)
+          validateAndStoreOriginalTxData(
+            newData.responses.ORIGINAL_TX_DATA,
+            sender.nodeInfo.ip + ':' + sender.nodeInfo.port
+          )
         }
         if (newData.responses && newData.responses.RECEIPT) {
           if (config.VERBOSE)
@@ -348,6 +352,7 @@ export function collectCycleData(cycleData: Cycle[], senderInfo = ''): void {
           receivedCycleTracker[cycle.counter][cycle.marker]['senderNodes'].push(senderInfo)
         }
       } else {
+        if (!validateCycleData(cycle)) continue
         receivedCycleTracker[cycle.counter][cycle.marker] = {
           cycleInfo: cycle,
           receivedTimes: 1,
@@ -361,6 +366,7 @@ export function collectCycleData(cycleData: Cycle[], senderInfo = ''): void {
         // )
       }
     } else {
+      if (!validateCycleData(cycle)) continue
       receivedCycleTracker[cycle.counter] = {
         [cycle.marker]: {
           cycleInfo: cycle,
@@ -1338,6 +1344,12 @@ export async function syncCyclesBetweenCycles(lastStoredCycle = 0, cycleToSyncTo
     if (res && res.cycleInfo) {
       const cycles = res.cycleInfo as Cycle[]
       Logger.mainLogger.debug(`Downloaded cycles`, res.cycleInfo.length)
+      for (let i = 0; i < cycles.length; i++) {
+        if (!validateCycleData(cycles[i])) {
+          cycles.splice(i, 1)
+          continue
+        }
+      }
       processCycles(cycles)
       if (res.cycleInfo.length < MAX_CYCLES_PER_REQUEST) {
         startCycle += res.cycleInfo.length
@@ -1447,7 +1459,7 @@ export const downloadOriginalTxs = async (
     if (response && response.originalTxs) {
       const downloadedOriginalTxs = response.originalTxs
       Logger.mainLogger.debug('Downloaded Original-Txs: ', downloadedOriginalTxs.length)
-      await storeOriginalTxData(downloadedOriginalTxs, true)
+      await validateAndStoreOriginalTxData(downloadedOriginalTxs, archiver.ip + ':' + archiver.port, true)
       if (response.originalTxs.length < MAX_ORIGINAL_TXS_PER_REQUEST) {
         const totalData = (await P2P.getJson(
           `http://${archiver.ip}:${archiver.port}/totalData`,
@@ -1691,7 +1703,11 @@ export const syncOriginalTxsByCycle = async (
         if (response && response.originalTxs) {
           const downloadedOriginalTxs = response.originalTxs
           Logger.mainLogger.debug('Downloaded Original-Txs: ', downloadedOriginalTxs.length)
-          await storeOriginalTxData(downloadedOriginalTxs, true)
+          await validateAndStoreOriginalTxData(
+            downloadedOriginalTxs,
+            randomArchiver.ip + ':' + randomArchiver.port,
+            true
+          )
           savedOriginalTxCountBetweenCycles += downloadedOriginalTxs.length
           if (savedOriginalTxCountBetweenCycles > originalTxCountToSyncBetweenCycles) {
             const response = (await P2P.getJson(
@@ -1857,7 +1873,11 @@ export const syncCyclesAndReceiptsData = async (
       if (res && res.originalTxs) {
         const downloadedOriginalTxs = res.originalTxs
         Logger.mainLogger.debug(`Downloaded Original-Txs: `, downloadedOriginalTxs.length)
-        await storeOriginalTxData(downloadedOriginalTxs, true)
+        await validateAndStoreOriginalTxData(
+          downloadedOriginalTxs,
+          randomArchiver.ip + ':' + randomArchiver.port,
+          true
+        )
         if (downloadedOriginalTxs.length < MAX_ORIGINAL_TXS_PER_REQUEST) {
           startOriginalTx += downloadedOriginalTxs.length + 1
           endOriginalTx = downloadedOriginalTxs.length + MAX_ORIGINAL_TXS_PER_REQUEST
@@ -1876,8 +1896,14 @@ export const syncCyclesAndReceiptsData = async (
         QUERY_TIMEOUT_MAX
       )) as ArchiverCycleResponse
       if (res && res.cycleInfo) {
-        Logger.mainLogger.debug(`Downloaded cycles`, res.cycleInfo.length)
         const cycles = res.cycleInfo as Cycle[]
+        Logger.mainLogger.debug(`Downloaded cycles`, res.cycleInfo.length)
+        for (let i = 0; i < cycles.length; i++) {
+          if (!validateCycleData(cycles[i])) {
+            cycles.splice(i, 1)
+            continue
+          }
+        }
         processCycles(cycles)
         if (res.cycleInfo.length < MAX_CYCLES_PER_REQUEST) {
           startCycle += res.cycleInfo.length + 1

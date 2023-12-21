@@ -8,7 +8,7 @@ import { clearCombinedAccountsData, combineAccountsData, socketServer, collectCy
 import { config } from '../Config'
 import * as Logger from '../Logger'
 import { profilerInstance } from '../profiler/profiler'
-import { Cycle, getCurrentCycleCounter, shardValuesByCycle } from './Cycles'
+import { Cycle, getCurrentCycleCounter, computeCycleMarker, shardValuesByCycle } from './Cycles'
 import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 import * as State from '../State'
 import * as Utils from '../Utils'
@@ -420,6 +420,53 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
   if (combineTransactions.length > 0) await Transaction.bulkInsertTransactions(combineTransactions)
 }
 
+export const validateCycleData = (cycleRecord: Cycle) => {
+  let err = Utils.validateTypes(cycleRecord, {
+    activated: 'a',
+    activatedPublicKeys: 'a',
+    active: 'n',
+    apoptosized: 'a',
+    archiverListHash: 's',
+    counter: 'n',
+    desired: 'n',
+    duration: 'n',
+    expired: 'n',
+    joined: 'a',
+    joinedArchivers: 'a',
+    joinedConsensors: 'a',
+    leavingArchivers: 'a',
+    lost: 'a',
+    lostSyncing: 'a',
+    marker: 's',
+    maxSyncTime: 'n',
+    mode: 's',
+    networkConfigHash: 's',
+    networkId: 's',
+    nodeListHash: 's',
+    previous: 's',
+    refreshedArchivers: 'a',
+    refreshedConsensors: 'a',
+    refuted: 'a',
+    removed: 'a',
+    returned: 'a',
+    standbyAdd: 'a',
+    standbyNodeListHash: 's',
+    standbyRemove: 'a',
+    start: 'n',
+    syncing: 'n',
+    target: 'n',
+  })
+  if (err) {
+    Logger.mainLogger.error(`❌ Invalid Cycle Record: ${cycleRecord}`)
+    return false
+  }
+  if (computeCycleMarker(cycleRecord) !== cycleRecord.marker) {
+    Logger.mainLogger.error(`❌ Invalid Cycle Marker found: ${cycleRecord}`)
+    return false
+  }
+  return true
+}
+
 export const storeCycleData = async (cycles: Cycle[] = []): Promise<void> => {
   if (cycles && cycles.length <= 0) return
   const bucketSize = 1000
@@ -583,6 +630,34 @@ interface validateResponse {
   success: boolean
   reason?: string
   error?: string
+}
+
+export const validateAndStoreOriginalTxData = async (
+  originalTxData: OriginalTxsData.OriginalTxData,
+  senderInfo = '',
+  forceSaved = false
+) => {
+  let err = Utils.validateTypes(originalTxData, {
+    txId: 's',
+    timestamp: 'n',
+    cycle: 'n',
+    sign: 'o',
+    originalTxData: 'o',
+  })
+  if (err) {
+    Logger.mainLogger.error('❌ Invalid originalTxData', { originalTxData, senderInfo })
+    return false
+  }
+  err = Utils.validateTypes(originalTxData.sign, {
+    owner: 's',
+    sig: 's',
+  })
+  if (err) {
+    Logger.mainLogger.error('❌ Invalid originalTxData signature', { originalTxData, senderInfo })
+    return false
+  }
+  await storeOriginalTxData([originalTxData], senderInfo, forceSaved)
+  return true
 }
 
 export const validateGossipData = (data: GossipData): validateResponse => {
@@ -818,7 +893,17 @@ export const collectMissingOriginalTxsData = async (): Promise<void> => {
             originalTxsDataToSave.push(originalTx)
           }
         }
-        await storeOriginalTxData(originalTxsDataToSave, true)
+        for (let i = 0; i < originalTxsDataToSave.length; i++) {
+          if (
+            await validateAndStoreOriginalTxData(
+              originalTxsDataToSave[i],
+              archiver.ip + ':' + archiver.port,
+              true
+            )
+          )
+            continue
+          else console.error(`Failed to save originalTxData: ${originalTxsDataToSave[i].txId}`)
+        }
       }
       start = end
     }
