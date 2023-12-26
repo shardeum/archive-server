@@ -5,7 +5,8 @@ import * as Logger from './Logger'
 import * as AccountDB from './dbstore/accounts'
 import { config } from './Config'
 import { postJson, getJson } from './P2P'
-import { robustQuery } from './Utils'
+import { robustQuery, deepCopy } from './Utils'
+import { isDeepStrictEqual } from 'util'
 
 let cachedGlobalNetworkAccount: object
 let cachedGlobalNetworkAccountHash: string
@@ -47,6 +48,9 @@ export const loadGlobalAccounts = async (): Promise<void> => {
 }
 
 export const syncGlobalAccount = async (): Promise<void> => {
+  const filteredArchivers = State.activeArchivers.filter(
+    (archiver) => archiver.publicKey !== config.ARCHIVER_PUBLIC_KEY
+  )
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const queryFn = async (node: Node): Promise<any> => {
@@ -55,7 +59,17 @@ export const syncGlobalAccount = async (): Promise<void> => {
         Crypto.sign({})
       )
     }
-    const globalAccsResponse = await robustQuery(State.activeArchivers, queryFn)
+
+    const equalFn = (info1: any, info2: any): boolean => {
+      const cm1 = deepCopy(info1)
+      const cm2 = deepCopy(info2)
+      delete cm1.sign
+      delete cm2.sign
+      const equivalent = isDeepStrictEqual(cm1, cm2)
+      return equivalent
+    }
+
+    const globalAccsResponse = await robustQuery(filteredArchivers, queryFn, equalFn)
     if (!globalAccsResponse) {
       Logger.mainLogger.warn('get_globalaccountreport_archiver() - robustResponse is null')
       throw new Error('get_globalaccountreport_archiver() - robustResponse is null')

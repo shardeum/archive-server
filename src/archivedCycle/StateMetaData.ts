@@ -5,7 +5,6 @@ import * as Storage from './Storage'
 import * as Cycles from '../Data/Cycles'
 import {
   currentCycleDuration,
-  Cycle,
   lastProcessedMetaData,
   processCycles,
   validateCycle,
@@ -77,7 +76,7 @@ export interface DataQueryResponse {
 }
 
 export class ArchivedCycle extends BaseModel {
-  cycleRecord!: Cycle
+  cycleRecord!: P2PTypes.CycleCreatorTypes.CycleData
   cycleMarker!: StateManager.StateMetaDataTypes.CycleMarker
   data!: StateManager.StateMetaDataTypes.StateData
   receipt!: StateManager.StateMetaDataTypes.Receipt
@@ -292,7 +291,7 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
 
   // Send dataRequest to new dataSender
   const dataRequest = {
-    dataRequestCycle: createDataRequest<Cycle>(
+    dataRequestCycle: createDataRequest<P2PTypes.CycleCreatorTypes.CycleRecord>(
       P2PTypes.SnapshotTypes.TypeNames.CYCLE,
       Cycles.getCurrentCycleCounter(),
       publicKey
@@ -444,7 +443,7 @@ export async function createDataTransferConnection(
 
   // Send dataRequest to new dataSender
   const dataRequest = {
-    dataRequestCycle: createDataRequest<Cycle>(
+    dataRequestCycle: createDataRequest<P2PTypes.CycleCreatorTypes.CycleRecord>(
       P2PTypes.SnapshotTypes.TypeNames.CYCLE,
       Cycles.getCurrentCycleCounter(),
       State.getNodeInfo().publicKey
@@ -499,7 +498,7 @@ export async function subscribeMoreConsensors(numbersToSubscribe: number): Promi
 
     // Send dataRequest to new dataSender
     const dataRequest = {
-      dataRequestCycle: createDataRequest<Cycle>(
+      dataRequestCycle: createDataRequest<P2PTypes.CycleCreatorTypes.CycleRecord>(
         P2PTypes.SnapshotTypes.TypeNames.CYCLE,
         Cycles.getCurrentCycleCounter(),
         State.getNodeInfo().publicKey
@@ -556,7 +555,7 @@ async function processData(
     switch (type) {
       case P2PTypes.SnapshotTypes.TypeNames.CYCLE: {
         Logger.mainLogger.debug('Processing CYCLE data')
-        processCycles(newData.responses.CYCLE as Cycle[])
+        processCycles(newData.responses.CYCLE as P2PTypes.CycleCreatorTypes.CycleData[])
         // socketServer.emit('ARCHIVED_CYCLE', 'CYCLE')
         if (newData.responses.CYCLE.length > 0) {
           for (const cycle of newData.responses.CYCLE) {
@@ -927,7 +926,9 @@ export async function fetchStateHashes(archivers: Node[]): Promise<unknown> {
   return stateHashes.value[0]
 }
 
-export async function buildNodeListFromStoredCycle(lastStoredCycle: Cycles.Cycle): Promise<void> {
+export async function buildNodeListFromStoredCycle(
+  lastStoredCycle: P2PTypes.CycleCreatorTypes.CycleData
+): Promise<void> {
   Logger.mainLogger.debug('lastStoredCycle', lastStoredCycle)
   Logger.mainLogger.debug(`Syncing till cycle ${lastStoredCycle.counter}...`)
   const cyclesToGet = 2 * Math.floor(Math.sqrt(lastStoredCycle.active)) + 2
@@ -993,13 +994,10 @@ export async function buildNodeListFromStoredCycle(lastStoredCycle: Cycles.Cycle
   Logger.mainLogger.debug('Latest cycle after sync', lastStoredCycle.counter)
 }
 
-export async function syncCyclesAndNodeList(
-  activeArchivers: State.ArchiverNodeInfo[],
-  lastStoredCycleCount = 0
-): Promise<boolean> {
+export async function syncCyclesAndNodeList(lastStoredCycleCount = 0): Promise<void> {
   // Get the networks newest cycle as the anchor point for sync
   Logger.mainLogger.debug('Getting newest cycle...')
-  const cycleToSyncTo = await getNewestCycleFromArchivers(activeArchivers)
+  const cycleToSyncTo = await getNewestCycleFromArchivers()
   Logger.mainLogger.debug('cycleToSyncTo', cycleToSyncTo)
   Logger.mainLogger.debug(`Syncing till cycle ${cycleToSyncTo.counter}...`)
   const cyclesToGet = 2 * Math.floor(Math.sqrt(cycleToSyncTo.active)) + 2
@@ -1018,7 +1016,7 @@ export async function syncCyclesAndNodeList(
     if (start < 0) start = 0
     if (end < start) end = start
     Logger.mainLogger.debug(`Getting cycles ${start} - ${end}...`)
-    const prevCycles = await fetchCycleRecords(activeArchivers, start, end)
+    const prevCycles = await fetchCycleRecords(start, end)
 
     // If prevCycles is empty, start over
     if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
@@ -1090,7 +1088,7 @@ export async function syncCyclesAndNodeList(
     let nextEnd: number = endCycle - 10000 // Downloading max 1000 cycles each time
     if (nextEnd < 0) nextEnd = 0
     Logger.mainLogger.debug(`Getting cycles ${nextEnd} - ${endCycle} ...`)
-    const prevCycles = await fetchCycleRecords(activeArchivers, nextEnd, endCycle)
+    const prevCycles = await fetchCycleRecords(nextEnd, endCycle)
 
     // If prevCycles is empty, start over
     if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
@@ -1117,7 +1115,7 @@ export async function syncCyclesAndNodeList(
   return true
 }
 
-function createArchivedCycle(cycleRecord: Cycle): ArchivedCycle {
+function createArchivedCycle(cycleRecord: P2PTypes.CycleCreatorTypes.CycleData) {
   const archivedCycle: ArchivedCycle = {
     _id: '',
     cycleRecord: cycleRecord,

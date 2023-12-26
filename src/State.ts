@@ -1,4 +1,4 @@
-import { Config } from './Config'
+import { Config, config } from './Config'
 import * as Crypto from './Crypto'
 import * as P2P from './P2P'
 import * as NodeList from './NodeList'
@@ -239,4 +239,12 @@ export function getCurvePk(): Crypto.types.curvePublicKey {
 
 export function setActive(): void {
   isActive = true
+}
+
+export function getRandomArchiver(): ArchiverNodeInfo {
+  const filteredArchivers = activeArchivers.filter(
+    (archiver) => archiver.publicKey !== config.ARCHIVER_PUBLIC_KEY
+  )
+  const randomArchiver = Utils.getRandomItemFromArr(filteredArchivers)[0]
+  return randomArchiver
 }

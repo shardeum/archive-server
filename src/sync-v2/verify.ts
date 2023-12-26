@@ -9,6 +9,7 @@ import { hashObj } from '@shardus/crypto-utils'
 import { P2P, hexstring } from '@shardus/types'
 import { err, ok, Result } from 'neverthrow'
 import { Signature } from '../shardus-crypto-types'
+import { computeCycleMarker } from '../Data/Cycles'
 
 type HashableObject = (object | string) & { sign?: Signature }
 
@@ -55,19 +56,11 @@ export function verifyCycleRecord(
   cycleRecord: P2P.CycleCreatorTypes.CycleRecord,
   expectedHash: hexstring
 ): Result<boolean, Error> {
-  const actualHash = makeCycleMarker(cycleRecord)
+  const actualHash = computeCycleMarker(cycleRecord)
 
   // verify that the hash of the CycleRecord matches the expected hash
   if (actualHash !== expectedHash)
     return err(new Error(`hash mismatch for cycle: expected ${expectedHash}, got ${actualHash}`))
 
   return ok(true)
-}
-
-/**
- * Compute the cycle marker for a given cycle record. This function is (or should be)
- * identical to the one in shardus-global-server/p2p/CycleCreator.
- */
-function makeCycleMarker(record: P2P.CycleCreatorTypes.CycleRecord): string {
-  return hashObj(record)
 }

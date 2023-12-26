@@ -1,4 +1,5 @@
 import { Signature } from '@shardus/crypto-utils'
+import { P2P as P2PTypes } from '@shardus/types'
 import * as Account from '../dbstore/accounts'
 import * as Transaction from '../dbstore/transactions'
 import * as Receipt from '../dbstore/receipts'
@@ -8,7 +9,7 @@ import { clearCombinedAccountsData, combineAccountsData, socketServer, collectCy
 import { config } from '../Config'
 import * as Logger from '../Logger'
 import { profilerInstance } from '../profiler/profiler'
-import { Cycle, getCurrentCycleCounter, computeCycleMarker, shardValuesByCycle } from './Cycles'
+import { getCurrentCycleCounter, shardValuesByCycle } from './Cycles'
 import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 import * as State from '../State'
 import * as Utils from '../Utils'
@@ -44,7 +45,7 @@ export interface ArchiverReceipt {
   cycle: number
   beforeStateAccounts: Account.AccountCopy[]
   accounts: Account.AccountCopy[]
-  appReceiptData: unknown
+  appReceiptData: any
   appliedReceipt: AppliedReceipt2
   executionShardKey: string
 }
@@ -100,221 +101,220 @@ export type ConfirmOrChallengeMessage = {
 // For debugging purpose, set this to true to stop saving tx data
 const stopSavingTxData = false
 
-export const validateReceiptData = (receipts: ArchiverReceipt[], senderInfo = '') => {
-  for (const receipt of receipts) {
-    // Add type and value existence check
-    let err = Utils.validateTypes(receipt, {
-      tx: 'o',
-      cycle: 'n',
-      beforeStateAccounts: 'a',
-      accounts: 'a',
-      appReceiptData: 'o',
-      appliedReceipt: 'o',
-      executionShardKey: 's',
-    })
-    if (err) {
-      Logger.mainLogger.error('Invalid receipt data')
-      continue
-    }
-    err = Utils.validateTypes(receipt.tx, {
-      originalTxData: 'o',
-      txId: 's',
-      timestamp: 'n',
-    })
-    if (err) {
-      Logger.mainLogger.error('Invalid receipt tx data')
-      continue
-    }
-    for (const account of receipt.beforeStateAccounts) {
-      err = Utils.validateTypes(account, {
-        accountId: 's',
-        data: 'o',
-        timestamp: 'n',
-        hash: 's',
-        // cycleNumber: 'n', it is not present in the beforeStateAccounts data
-        isGlobal: 'b',
-      })
-      if (err) {
-        Logger.mainLogger.error('Invalid receipt beforeStateAccounts data')
-        continue
-      }
-    }
-    for (const account of receipt.accounts) {
-      err = Utils.validateTypes(account, {
-        accountId: 's',
-        data: 'o',
-        timestamp: 'n',
-        hash: 's',
-        // cycleNumber: 'n', it is not present in the beforeStateAccounts data
-        isGlobal: 'b',
-      })
-      if (err) {
-        Logger.mainLogger.error('Invalid receipt accounts data')
-        continue
-      }
-    }
-    err = Utils.validateTypes(receipt.appliedReceipt, {
-      txid: 's',
-      result: 'b',
-      appliedVote: 'o',
-      confirmOrChallenge: 'o',
-      signatures: 'a',
-      app_data_hash: 's',
-    })
-    if (err) {
-      Logger.mainLogger.error('Invalid receipt appliedReceipt data')
-      continue
-    }
-    err = Utils.validateTypes(receipt.appliedReceipt.appliedVote, {
-      txid: 's',
-      transaction_result: 'b',
-      account_id: 'a',
-      account_state_hash_after: 'a',
-      account_state_hash_before: 'a',
-      cant_apply: 'b',
-      node_id: 's',
-      sign: 'o',
-      app_data_hash: 's',
-    })
-    if (err) {
-      Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote data')
-      continue
-    }
-    err = Utils.validateTypes(receipt.appliedReceipt.appliedVote.sign, {
-      owner: 's',
-      sig: 's',
-    })
-    if (err) {
-      Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote signature data')
-      continue
-    }
-    err = Utils.validateTypes(receipt.appliedReceipt.confirmOrChallenge, {
-      message: 's',
-      nodeId: 's',
-      appliedVote: 'o',
-      sign: 'o',
-    })
-    if (err) {
-      Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge data')
-      continue
-    }
-    err = Utils.validateTypes(receipt.appliedReceipt.confirmOrChallenge.sign, {
-      owner: 's',
-      sig: 's',
-    })
-    if (err) {
-      Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge signature data')
-      continue
-    }
-    err = Utils.validateTypes(receipt.appliedReceipt.signatures[0], {
-      owner: 's',
-      sig: 's',
-    })
-    if (err) {
-      Logger.mainLogger.error('Invalid receipt appliedReceipt signatures data')
-      continue
-    }
-
-    // Check the signed nodes are part of the execution group nodes of the tx
-    const { executionShardKey, cycle, appliedReceipt } = receipt
-    const { appliedVote, confirmOrChallenge } = appliedReceipt
-    const cycleShardData = shardValuesByCycle.get(cycle)
-    if (!cycleShardData) {
-      Logger.mainLogger.error('Cycle shard data not found')
-      continue
-    }
-    // Determine the home partition index of the primary account (executionShardKey)
-    const { homePartition } = ShardFunction.addressToPartition(cycleShardData.shardGlobals, executionShardKey)
-    // Check if the appliedVote node is in the execution group
-    if (!cycleShardData.nodeShardDataMap.has(appliedVote.node_id)) {
-      Logger.mainLogger.error(
-        'Invalid receipt appliedReceipt appliedVote node is not in the active nodesList'
-      )
-      continue
-    }
-    if (appliedVote.sign.owner !== cycleShardData.nodeShardDataMap.get(appliedVote.node_id).node.publicKey) {
-      Logger.mainLogger.error(
-        'Invalid receipt appliedReceipt appliedVote node signature owner and node public key does not match'
-      )
-      continue
-    }
-    if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[appliedVote.node_id]) {
-      Logger.mainLogger.error(
-        'Invalid receipt appliedReceipt appliedVote node is not in the execution group of the tx'
-      )
-      continue
-    }
-    // TODO: Verify the signature of the appliedVote
-
-    // Check if the confirmOrChallenge node is in the execution group
-    if (!cycleShardData.nodeShardDataMap.has(confirmOrChallenge.nodeId)) {
-      Logger.mainLogger.error(
-        'Invalid receipt appliedReceipt confirmOrChallenge node is not in the active nodesList'
-      )
-      continue
-    }
-    if (
-      confirmOrChallenge.sign.owner !==
-      cycleShardData.nodeShardDataMap.get(confirmOrChallenge.nodeId).node.publicKey
-    ) {
-      Logger.mainLogger.error(
-        'Invalid receipt appliedReceipt confirmOrChallenge node signature owner and node public key does not match'
-      )
-      continue
-    }
-    if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[confirmOrChallenge.nodeId]) {
-      Logger.mainLogger.error(
-        'Invalid receipt appliedReceipt confirmOrChallenge node is not in the execution group of the tx'
-      )
-      continue
-    }
-    // TODO: Verify the signature of the confirmOrChallenge
-
-    // List the other execution group nodes of the tx apart from the two signed nodes, Use this list to robustQuery to verify the receipt
-    const executionGroupNodes = Object.values(
-      cycleShardData.parititionShardDataMap.get(homePartition).coveredBy
-    )
-    Logger.mainLogger.debug('executionGroupNodes', executionGroupNodes)
-    // Use the execution group nodes to robustQuery the receipt
-
-    // Save the verified receipt
-    storeReceiptData([receipt], senderInfo)
+export const validateReceiptData = (receipt: ArchiverReceipt) => {
+  // Add type and value existence check
+  let err = Utils.validateTypes(receipt, {
+    tx: 'o',
+    cycle: 'n',
+    beforeStateAccounts: 'a',
+    accounts: 'a',
+    appReceiptData: 'o',
+    appliedReceipt: 'o',
+    executionShardKey: 's',
+  })
+  if (err) {
+    Logger.mainLogger.error('Invalid receipt data', err)
+    return false
   }
+  err = Utils.validateTypes(receipt.tx, {
+    originalTxData: 'o',
+    txId: 's',
+    timestamp: 'n',
+  })
+  if (err) {
+    Logger.mainLogger.error('Invalid receipt tx data', err)
+    return false
+  }
+  for (const account of receipt.beforeStateAccounts) {
+    err = Utils.validateTypes(account, {
+      accountId: 's',
+      data: 'o',
+      timestamp: 'n',
+      hash: 's',
+      // cycleNumber: 'n', it is not present in the beforeStateAccounts data
+      isGlobal: 'b',
+    })
+    if (err) {
+      Logger.mainLogger.error('Invalid receipt beforeStateAccounts data', err)
+      return false
+    }
+  }
+  for (const account of receipt.accounts) {
+    err = Utils.validateTypes(account, {
+      accountId: 's',
+      data: 'o',
+      timestamp: 'n',
+      hash: 's',
+      // cycleNumber: 'n', it is not present in the beforeStateAccounts data
+      isGlobal: 'b',
+    })
+    if (err) {
+      Logger.mainLogger.error('Invalid receipt accounts data', err)
+      return false
+    }
+  }
+  err = Utils.validateTypes(receipt.appliedReceipt, {
+    txid: 's',
+    result: 'b',
+    appliedVote: 'o',
+    confirmOrChallenge: 'o',
+    signatures: 'a',
+    app_data_hash: 's',
+  })
+  if (err) {
+    Logger.mainLogger.error('Invalid receipt appliedReceipt data', err)
+    return false
+  }
+  err = Utils.validateTypes(receipt.appliedReceipt.appliedVote, {
+    txid: 's',
+    transaction_result: 'b',
+    account_id: 'a',
+    account_state_hash_after: 'a',
+    account_state_hash_before: 'a',
+    cant_apply: 'b',
+    node_id: 's',
+    sign: 'o',
+    app_data_hash: 's',
+  })
+  if (err) {
+    Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote data', err)
+    return false
+  }
+  err = Utils.validateTypes(receipt.appliedReceipt.appliedVote.sign, {
+    owner: 's',
+    sig: 's',
+  })
+  if (err) {
+    Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote signature data', err)
+    return false
+  }
+  err = Utils.validateTypes(receipt.appliedReceipt.confirmOrChallenge, {
+    message: 's',
+    nodeId: 's',
+    appliedVote: 'o',
+    sign: 'o',
+  })
+  if (err) {
+    Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge data', err)
+    return false
+  }
+  err = Utils.validateTypes(receipt.appliedReceipt.confirmOrChallenge.sign, {
+    owner: 's',
+    sig: 's',
+  })
+  if (err) {
+    Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge signature data', err)
+    return false
+  }
+  err = Utils.validateTypes(receipt.appliedReceipt.signatures[0], {
+    owner: 's',
+    sig: 's',
+  })
+  if (err) {
+    Logger.mainLogger.error('Invalid receipt appliedReceipt signatures data', err)
+    return false
+  }
+  return true
 }
 
-export const storeReceiptData = async (receipts = [], senderInfo = '', forceSaved = false): Promise<void> => {
-  if (receipts && receipts.length <= 0) return
+export const verifyReceiptData = async (receipt: ArchiverReceipt) => {
+  // Check the signed nodes are part of the execution group nodes of the tx
+  const { executionShardKey, cycle, appliedReceipt } = receipt
+  const { appliedVote, confirmOrChallenge } = appliedReceipt
+  const cycleShardData = shardValuesByCycle.get(cycle)
+  if (!cycleShardData) {
+    Logger.mainLogger.error('Cycle shard data not found')
+    return false
+  }
+  // Determine the home partition index of the primary account (executionShardKey)
+  const { homePartition } = ShardFunction.addressToPartition(cycleShardData.shardGlobals, executionShardKey)
+  // Check if the appliedVote node is in the execution group
+  if (!cycleShardData.nodeShardDataMap.has(appliedVote.node_id)) {
+    Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote node is not in the active nodesList')
+    return false
+  }
+  if (appliedVote.sign.owner !== cycleShardData.nodeShardDataMap.get(appliedVote.node_id).node.publicKey) {
+    Logger.mainLogger.error(
+      'Invalid receipt appliedReceipt appliedVote node signature owner and node public key does not match'
+    )
+    return false
+  }
+  if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[appliedVote.node_id]) {
+    Logger.mainLogger.error(
+      'Invalid receipt appliedReceipt appliedVote node is not in the execution group of the tx'
+    )
+    return false
+  }
+  // TODO: Verify the signature of the appliedVote
+
+  // Check if the confirmOrChallenge node is in the execution group
+  if (!cycleShardData.nodeShardDataMap.has(confirmOrChallenge.nodeId)) {
+    Logger.mainLogger.error(
+      'Invalid receipt appliedReceipt confirmOrChallenge node is not in the active nodesList'
+    )
+    return false
+  }
+  if (
+    confirmOrChallenge.sign.owner !==
+    cycleShardData.nodeShardDataMap.get(confirmOrChallenge.nodeId).node.publicKey
+  ) {
+    Logger.mainLogger.error(
+      'Invalid receipt appliedReceipt confirmOrChallenge node signature owner and node public key does not match'
+    )
+    return false
+  }
+  if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[confirmOrChallenge.nodeId]) {
+    Logger.mainLogger.error(
+      'Invalid receipt appliedReceipt confirmOrChallenge node is not in the execution group of the tx'
+    )
+    return false
+  }
+  // TODO: Verify the signature of the confirmOrChallenge
+
+  // List the other execution group nodes of the tx apart from the two signed nodes, Use this list to robustQuery to verify the receipt
+  const executionGroupNodes = Object.values(
+    cycleShardData.parititionShardDataMap.get(homePartition).coveredBy
+  )
+  Logger.mainLogger.debug('executionGroupNodes', executionGroupNodes)
+  // Use the execution group nodes to robustQuery the receipt
+
+  return true
+}
+
+export const storeReceiptData = async (receipts: ArchiverReceipt[], senderInfo = '', forceSaved = false): Promise<void> => {
+  if (!receipts || !Array.isArray(receipts) || receipts.length <= 0) return
   const bucketSize = 1000
   let combineReceipts = []
   let combineAccounts = []
   let combineTransactions = []
   let txsData: TxsData[] = []
   if (!forceSaved) if (stopSavingTxData) return
-  for (let i = 0; i < receipts.length; i++) {
-    const { accounts, cycle, tx, appReceiptData } = receipts[i]
-    if (config.VERBOSE) console.log(tx.txId, senderInfo)
-    if (receiptsMap.has(tx.txId)) {
+  for (const receipt of receipts) {
+    const txId = receipt?.tx?.txId
+    if (receiptsMap.has(txId)) {
       // console.log('RECEIPT', 'Skip', tx.txId, senderInfo)
       continue
     }
+    if (!validateReceiptData(receipt)) continue
+    if (State.isActive && !(await verifyReceiptData(receipt))) continue
     // await Receipt.insertReceipt({
     //   ...receipts[i],
     //   receiptId: tx.txId,
     //   timestamp: tx.timestamp,
     // })
+    const { accounts, cycle, tx, appReceiptData } = receipt
+    if (config.VERBOSE) console.log(tx.txId, senderInfo)
     receiptsMap.set(tx.txId, cycle)
     if (missingReceiptsMap.has(tx.txId)) missingReceiptsMap.delete(tx.txId)
     combineReceipts.push({
-      // eslint-disable-next-line security/detect-object-injection
-      ...receipts[i],
+      ...receipt,
       receiptId: tx.txId,
       timestamp: tx.timestamp,
     })
     if (config.dataLogWrite && ReceiptLogWriter)
       ReceiptLogWriter.writeToLog(
         `${JSON.stringify({
-          // eslint-disable-next-line security/detect-object-injection
-          ...receipts[i],
+          ...receipt,
           receiptId: tx.txId,
           timestamp: tx.timestamp,
         })}\n`
@@ -375,7 +375,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
     // }
     const txObj: Transaction.Transaction = {
       txId: tx.txId,
-      accountId: appReceiptData ? appReceiptData.accountId : tx.txId, // Let set txId for now if app receipt is not forwarded
+      appReceiptId: appReceiptData ? appReceiptData.accountId : tx.txId, // Set txId if appReceiptData lacks appReceiptId
       timestamp: tx.timestamp,
       cycleNumber: cycle,
       data: appReceiptData ? appReceiptData.data : {},
@@ -420,7 +420,7 @@ export const storeReceiptData = async (receipts = [], senderInfo = '', forceSave
   if (combineTransactions.length > 0) await Transaction.bulkInsertTransactions(combineTransactions)
 }
 
-export const validateCycleData = (cycleRecord: Cycle) => {
+export const validateCycleData = (cycleRecord: P2PTypes.CycleCreatorTypes.CycleData) => {
   let err = Utils.validateTypes(cycleRecord, {
     activated: 'a',
     activatedPublicKeys: 'a',
@@ -455,19 +455,23 @@ export const validateCycleData = (cycleRecord: Cycle) => {
     start: 'n',
     syncing: 'n',
     target: 'n',
+    archiversAtShutdown: 'a?',
   })
   if (err) {
-    Logger.mainLogger.error(`❌ Invalid Cycle Record: ${cycleRecord}`)
+    Logger.mainLogger.error('Invalid Cycle Record', err)
     return false
   }
-  if (computeCycleMarker(cycleRecord) !== cycleRecord.marker) {
-    Logger.mainLogger.error(`❌ Invalid Cycle Marker found: ${cycleRecord}`)
+  const cycleRecordWithoutMarker = { ...cycleRecord }
+  delete cycleRecordWithoutMarker.marker
+  if (computeCycleMarker(cycleRecordWithoutMarker) !== cycleRecord.marker) {
+    Logger.mainLogger.error('Invalid Cycle Record: cycle marker does not match with the computed marker')
     return false
   }
   return true
 }
 
-export const storeCycleData = async (cycles: Cycle[] = []): Promise<void> => {
+
+export const storeCycleData = async (cycles: P2PTypes.CycleCreatorTypes.CycleData[] = []): Promise<void> => {
   if (cycles && cycles.length <= 0) return
   const bucketSize = 1000
   let combineCycles = []
@@ -549,15 +553,12 @@ export const storeAccountData = async (restoreData: StoreAccountParam = {}): Pro
       // eslint-disable-next-line security/detect-object-injection
       const receipt = receipts[i]
       const txObj = {
-        txId: receipt.data['txId'] || receipt.txId,
-        accountId: receipt.accountId,
+        txId: receipt.data.txId || receipt.txId,
+        appReceiptId: receipt.accountId,
         timestamp: receipt.timestamp,
         cycleNumber: receipt.cycleNumber,
         data: receipt.data,
-        // keys: {},
-        result: {},
         originalTxData: {},
-        sign: {},
       } as Transaction.Transaction
       combineTransactions.push(txObj)
     }
@@ -580,7 +581,7 @@ export const storeOriginalTxData = async (
   originalTxsData: OriginalTxsData.OriginalTxData[] = [],
   forceSaved = false
 ): Promise<void> => {
-  if (originalTxsData && originalTxsData.length <= 0) return
+  if (!originalTxsData || !Array.isArray(originalTxsData) || originalTxsData.length <= 0) return
   const bucketSize = 1000
   let combineOriginalTxsData = []
   let txsData: TxsData[] = []
@@ -591,6 +592,7 @@ export const storeOriginalTxData = async (
       // console.log('ORIGINAL_TX_DATA', 'Skip', txId, senderInfo)
       continue
     }
+    if (validateOriginalTxData(originalTxData) === false) continue
     originalTxsMap.set(txId, originalTxData.cycle)
     if (missingOriginalTxsMap.has(txId)) missingOriginalTxsMap.delete(txId)
 
@@ -632,11 +634,7 @@ interface validateResponse {
   error?: string
 }
 
-export const validateAndStoreOriginalTxData = async (
-  originalTxData: OriginalTxsData.OriginalTxData,
-  senderInfo = '',
-  forceSaved = false
-) => {
+export const validateOriginalTxData = (originalTxData: OriginalTxsData.OriginalTxData) => {
   let err = Utils.validateTypes(originalTxData, {
     txId: 's',
     timestamp: 'n',
@@ -645,7 +643,7 @@ export const validateAndStoreOriginalTxData = async (
     originalTxData: 'o',
   })
   if (err) {
-    Logger.mainLogger.error('❌ Invalid originalTxData', { originalTxData, senderInfo })
+    Logger.mainLogger.error('Invalid originalTxsData', err)
     return false
   }
   err = Utils.validateTypes(originalTxData.sign, {
@@ -653,10 +651,9 @@ export const validateAndStoreOriginalTxData = async (
     sig: 's',
   })
   if (err) {
-    Logger.mainLogger.error('❌ Invalid originalTxData signature', { originalTxData, senderInfo })
+    Logger.mainLogger.error('Invalid originalTxsData signature', err)
     return false
   }
-  await storeOriginalTxData([originalTxData], senderInfo, forceSaved)
   return true
 }
 
@@ -723,7 +720,7 @@ export const processGossipData = (gossipdata: GossipData): void => {
   }
   if (dataType === DataType.CYCLE) {
     collectCycleData(
-      data as Cycle[],
+      data as P2PTypes.CycleCreatorTypes.CycleData[],
       adjacentArchivers.get(sender).ip + ':' + adjacentArchivers.get(sender).port
     )
   }
@@ -893,17 +890,7 @@ export const collectMissingOriginalTxsData = async (): Promise<void> => {
             originalTxsDataToSave.push(originalTx)
           }
         }
-        for (let i = 0; i < originalTxsDataToSave.length; i++) {
-          if (
-            await validateAndStoreOriginalTxData(
-              originalTxsDataToSave[i],
-              archiver.ip + ':' + archiver.port,
-              true
-            )
-          )
-            continue
-          else console.error(`Failed to save originalTxData: ${originalTxsDataToSave[i].txId}`)
-        }
+        await storeOriginalTxData(originalTxsDataToSave, archiver.ip + ':' + archiver.port, true)
       }
       start = end
     }

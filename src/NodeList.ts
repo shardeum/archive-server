@@ -88,9 +88,6 @@ let byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
 export let byId: { [id: string]: ConsensusNodeInfo } = {}
 let publicKeyToId: { [publicKey: string]: string } = {}
 export let foundFirstNode = false
-export let activePublicKeyListByCycle = new Map<number, publicKey[]>() // cycle -> active public key list in id sorted order
-
-const MAX_ACTIVE_LIST_BY_CYCLE = 3
 
 export type SignedNodeList = {
   nodeList: ConsensusNodeInfo[]
@@ -320,7 +317,6 @@ export function setStatus(status: NodeStatus, publicKeys: string[]): void {
     realUpdatedTimes.set('/nodelist', Date.now())
   }
 }
-
 
 export function updateActivePublicKeyListByCycle(cycle: number) {
   const activePublicKeyList = activeListByIdSorted.map((node) => node.publicKey)

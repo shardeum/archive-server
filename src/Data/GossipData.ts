@@ -4,7 +4,7 @@ import * as Crypto from '../Crypto'
 import { postJson } from '../P2P'
 import { Signature } from 'shardus-crypto-types'
 import { TxsData } from './Collector'
-import { Cycle } from './Cycles'
+import { P2P as P2PTypes } from '@shardus/types'
 
 // adjacentArchivers are one archiver from left and one archiver from right of the current archiver
 export let adjacentArchivers: Map<string, State.ArchiverNodeInfo> = new Map()
@@ -17,7 +17,7 @@ export enum DataType {
 
 export interface GossipData {
   dataType: DataType
-  data: TxsData[] | Cycle[]
+  data: TxsData[] | P2PTypes.CycleCreatorTypes.CycleData[]
   sender: string
   sign: Signature
 }

@@ -6,9 +6,13 @@ import { config } from '../Config'
 import { DeSerializeFromJsonString } from '../utils/serialization'
 import { OriginalTxData } from './originalTxsData'
 
+/**
+ * Transaction is for storing dapp receipt (eg. evm receipt in shardeum)
+ * If there is no dapp receipt, we can skip storing in transactions table and use receipts table
+ */
 export interface Transaction {
   txId: string
-  accountId: string
+  appReceiptId?: string // Dapp receipt id (eg. txhash of evm receipt in shardeum)
   timestamp: number
   cycleNumber: number
   data: unknown
@@ -21,18 +25,6 @@ type DbTransaction = Transaction & {
   result: string
   originalTxData: string
   sign: string
-}
-
-export interface TxResult {
-  txIdShort: string
-  txResult: string
-}
-
-export interface TxRaw {
-  tx: {
-    raw: string
-    timestamp: number
-  }
 }
 
 export async function insertTransaction(transaction: Transaction): Promise<void> {
@@ -77,10 +69,8 @@ export async function queryTransactionByTxId(txId: string): Promise<Transaction>
     const transaction = (await db.get(sql, [txId])) as DbTransaction // TODO: confirm structure of object from db
     if (transaction) {
       if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
-      if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
       if (transaction.originalTxData)
         transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
-      if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Transaction txId', transaction)
@@ -98,10 +88,8 @@ export async function queryTransactionByAccountId(accountId: string): Promise<Tr
     const transaction = (await db.get(sql, [accountId])) as DbTransaction // TODO: confirm structure of object from db
     if (transaction) {
       if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
-      if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
       if (transaction.originalTxData)
         transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
-      if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Transaction accountId', transaction)
@@ -122,10 +110,8 @@ export async function queryLatestTransactions(count: number): Promise<Transactio
     if (transactions.length > 0) {
       transactions.forEach((transaction: DbTransaction) => {
         if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
-        if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
         if (transaction.originalTxData)
           transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
-        if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
       })
     }
     if (config.VERBOSE) {
@@ -146,10 +132,8 @@ export async function queryTransactions(skip = 0, limit = 10000): Promise<Transa
     if (transactions.length > 0) {
       transactions.forEach((transaction: DbTransaction) => {
         if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
-        if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
         if (transaction.originalTxData)
           transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
-        if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
       })
     }
   } catch (e) {
@@ -214,10 +198,8 @@ export async function queryTransactionsBetweenCycles(
     if (transactions.length > 0) {
       transactions.forEach((transaction: DbTransaction) => {
         if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
-        if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
         if (transaction.originalTxData)
           transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
-        if (transaction.sign) transaction.sign = DeSerializeFromJsonString(transaction.sign)
       })
     }
   } catch (e) {

@@ -4,7 +4,6 @@ import * as Data from './Data/Data'
 import * as NodeList from './NodeList'
 import 'node-fetch'
 import fetch from 'node-fetch'
-import { Cycle } from './Data/Cycles'
 import { P2P as P2PTypes } from '@shardus/types'
 import { RequestInit, Response } from 'node-fetch'
 import * as cryptoTypes from './shardus-crypto-types'
@@ -42,7 +41,9 @@ export interface FirstNodeInfo {
 export interface FirstNodeResponse {
   nodeList: NodeList.ConsensusNodeInfo[]
   joinRequest?: ArchiverJoinRequest & Crypto.SignedMessage
-  dataRequestCycle?: (Data.DataRequest<Cycle> & Crypto.TaggedMessage) | number
+  dataRequestCycle?:
+    | (Data.DataRequest<P2PTypes.CycleCreatorTypes.CycleRecord> & Crypto.TaggedMessage)
+    | number
   dataRequestStateMetaData?: Data.DataRequest<P2PTypes.SnapshotTypes.StateMetaData> & Crypto.TaggedMessage
 }
 

@@ -10,7 +10,7 @@ export interface OriginalTxData {
   timestamp: number
   cycle: number
   originalTxData: any // eslint-disable-line @typescript-eslint/no-explicit-any
-  sign: Signature | string
+  sign: Signature
 }
 
 type DbOriginalTxData = OriginalTxData & {

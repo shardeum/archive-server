@@ -68,19 +68,14 @@ export async function bulkInsertReceipts(receipts: Receipt[]): Promise<void> {
 export async function queryReceiptByReceiptId(receiptId: string): Promise<Receipt> {
   try {
     const sql = `SELECT * FROM receipts WHERE receiptId=?`
-    const dbReceipt: DbReceipt = (await db.get(sql, [receiptId])) as DbReceipt
-    const receipt: Receipt = null
-    if (dbReceipt) {
-      if (dbReceipt.receiptId) receipt.receiptId = dbReceipt.receiptId
-      if (dbReceipt.tx) receipt.tx = DeSerializeFromJsonString(dbReceipt.tx)
-      if (dbReceipt.cycle) receipt.cycle = dbReceipt.cycle
-      if (dbReceipt.timestamp) receipt.timestamp = dbReceipt.timestamp
-      if (dbReceipt.beforeStateAccounts)
-        receipt.beforeStateAccounts = DeSerializeFromJsonString(dbReceipt.beforeStateAccounts)
-      if (dbReceipt.accounts) receipt.accounts = DeSerializeFromJsonString(dbReceipt.accounts)
-      if (dbReceipt.receipt) receipt.receipt = DeSerializeFromJsonString(dbReceipt.receipt)
-      if (dbReceipt.result) receipt.result = DeSerializeFromJsonString(dbReceipt.result)
-      if (dbReceipt.sign) receipt.sign = DeSerializeFromJsonString(dbReceipt.sign)
+    let receipt = (await db.get(sql, [receiptId])) as DbReceipt
+    if (receipt) {
+      if (receipt.tx) receipt.tx = DeSerializeFromJsonString(receipt.tx)
+      if (receipt.beforeStateAccounts)
+        receipt.beforeStateAccounts = DeSerializeFromJsonString(receipt.beforeStateAccounts)
+      if (receipt.accounts) receipt.accounts = DeSerializeFromJsonString(receipt.accounts)
+      if (receipt.appReceiptData) receipt.appReceiptData = DeSerializeFromJsonString(receipt.appReceiptData)
+      if (receipt.appliedReceipt) receipt.appliedReceipt = DeSerializeFromJsonString(receipt.appliedReceipt)
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Receipt receiptId', receipt)
@@ -95,26 +90,16 @@ export async function queryReceiptByReceiptId(receiptId: string): Promise<Receip
 export async function queryLatestReceipts(count: number): Promise<Receipt[]> {
   try {
     const sql = `SELECT * FROM receipts ORDER BY cycle DESC, timestamp DESC LIMIT ${count ? count : 100}`
-    const dbReceipts: DbReceipt[] = (await db.all(sql)) as DbReceipt[]
-    const receipts: Receipt[] = []
-    if (dbReceipts.length > 0) {
-      for (let i = 0; i < dbReceipts.length; i++) {
-        /* eslint-disable security/detect-object-injection */
-        receipts.push({
-          receiptId: dbReceipts[i].receiptId,
-          tx: dbReceipts[i].tx ? DeSerializeFromJsonString(dbReceipts[i].tx) : null,
-          cycle: dbReceipts[i].cycle,
-          timestamp: dbReceipts[i].timestamp,
-          beforeStateAccounts: dbReceipts[i].beforeStateAccounts
-            ? DeSerializeFromJsonString(dbReceipts[i].beforeStateAccounts)
-            : null,
-          accounts: dbReceipts[i].accounts ? DeSerializeFromJsonString(dbReceipts[i].accounts) : null,
-          receipt: dbReceipts[i].receipt ? DeSerializeFromJsonString(dbReceipts[i].receipt) : null,
-          result: dbReceipts[i].result ? DeSerializeFromJsonString(dbReceipts[i].result) : null,
-          sign: dbReceipts[i].sign ? DeSerializeFromJsonString(dbReceipts[i].sign) : null,
-        })
-        /* eslint-enable security/detect-object-injection */
-      }
+    const receipts = (await db.all(sql)) as DbReceipt[]
+    if (receipts.length > 0) {
+      receipts.forEach((receipt: any) => {
+        if (receipt.tx) receipt.tx = DeSerializeFromJsonString(receipt.tx)
+        if (receipt.beforeStateAccounts)
+          receipt.beforeStateAccounts = DeSerializeFromJsonString(receipt.beforeStateAccounts)
+        if (receipt.accounts) receipt.accounts = DeSerializeFromJsonString(receipt.accounts)
+        if (receipt.appReceiptData) receipt.appReceiptData = DeSerializeFromJsonString(receipt.appReceiptData)
+        if (receipt.appliedReceipt) receipt.appliedReceipt = DeSerializeFromJsonString(receipt.appliedReceipt)
+      })
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Receipt latest', receipts)
@@ -127,29 +112,19 @@ export async function queryLatestReceipts(count: number): Promise<Receipt[]> {
 }
 
 export async function queryReceipts(skip = 0, limit = 10000): Promise<Receipt[]> {
-  let dbReceipts: DbReceipt[]
-  const receipts: Receipt[] = []
+  let receipts: Receipt[] = []
   try {
     const sql = `SELECT * FROM receipts ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    dbReceipts = (await db.all(sql)) as DbReceipt[]
-    if (dbReceipts.length > 0) {
-      for (let i = 0; i < dbReceipts.length; i++) {
-        /* eslint-disable security/detect-object-injection */
-        receipts.push({
-          receiptId: dbReceipts[i].receiptId,
-          tx: dbReceipts[i].tx ? DeSerializeFromJsonString(dbReceipts[i].tx) : null,
-          cycle: dbReceipts[i].cycle,
-          timestamp: dbReceipts[i].timestamp,
-          beforeStateAccounts: dbReceipts[i].beforeStateAccounts
-            ? DeSerializeFromJsonString(dbReceipts[i].beforeStateAccounts)
-            : null,
-          accounts: dbReceipts[i].accounts ? DeSerializeFromJsonString(dbReceipts[i].accounts) : null,
-          receipt: dbReceipts[i].receipt ? DeSerializeFromJsonString(dbReceipts[i].receipt) : null,
-          result: dbReceipts[i].result ? DeSerializeFromJsonString(dbReceipts[i].result) : null,
-          sign: dbReceipts[i].sign ? DeSerializeFromJsonString(dbReceipts[i].sign) : null,
-        })
-        /* eslint-enable security/detect-object-injection */
-      }
+    receipts = (await db.all(sql)) as DbReceipt[]
+    if (receipts.length > 0) {
+      receipts.forEach((receipt: any) => {
+        if (receipt.tx) receipt.tx = DeSerializeFromJsonString(receipt.tx)
+        if (receipt.beforeStateAccounts)
+          receipt.beforeStateAccounts = DeSerializeFromJsonString(receipt.beforeStateAccounts)
+        if (receipt.accounts) receipt.accounts = DeSerializeFromJsonString(receipt.accounts)
+        if (receipt.appReceiptData) receipt.appReceiptData = DeSerializeFromJsonString(receipt.appReceiptData)
+        if (receipt.appliedReceipt) receipt.appliedReceipt = DeSerializeFromJsonString(receipt.appliedReceipt)
+      })
     }
   } catch (e) {
     Logger.mainLogger.error(e)
@@ -224,29 +199,19 @@ export async function queryReceiptsBetweenCycles(
   startCycleNumber: number,
   endCycleNumber: number
 ): Promise<Receipt[]> {
-  let dbReceipts: DbReceipt[]
-  const receipts: Receipt[] = []
+  let receipts: Receipt[] = []
   try {
     const sql = `SELECT * FROM receipts WHERE cycle BETWEEN ? AND ? ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    dbReceipts = (await db.all(sql, [startCycleNumber, endCycleNumber])) as DbReceipt[]
-    if (dbReceipts.length > 0) {
-      for (let i = 0; i < dbReceipts.length; i++) {
-        /* eslint-disable security/detect-object-injection */
-        receipts.push({
-          receiptId: dbReceipts[i].receiptId,
-          tx: dbReceipts[i].tx ? DeSerializeFromJsonString(dbReceipts[i].tx) : null,
-          cycle: dbReceipts[i].cycle,
-          timestamp: dbReceipts[i].timestamp,
-          beforeStateAccounts: dbReceipts[i].beforeStateAccounts
-            ? DeSerializeFromJsonString(dbReceipts[i].beforeStateAccounts)
-            : null,
-          accounts: dbReceipts[i].accounts ? DeSerializeFromJsonString(dbReceipts[i].accounts) : null,
-          receipt: dbReceipts[i].receipt ? DeSerializeFromJsonString(dbReceipts[i].receipt) : null,
-          result: dbReceipts[i].result ? DeSerializeFromJsonString(dbReceipts[i].result) : null,
-          sign: dbReceipts[i].sign ? DeSerializeFromJsonString(dbReceipts[i].sign) : null,
-        })
-        /* eslint-enable security/detect-object-injection */
-      }
+    receipts = (await db.all(sql, [startCycleNumber, endCycleNumber])) as DbReceipt[]
+    if (receipts.length > 0) {
+      receipts.forEach((receipt: any) => {
+        if (receipt.tx) receipt.tx = DeSerializeFromJsonString(receipt.tx)
+        if (receipt.beforeStateAccounts)
+          receipt.beforeStateAccounts = DeSerializeFromJsonString(receipt.beforeStateAccounts)
+        if (receipt.accounts) receipt.accounts = DeSerializeFromJsonString(receipt.accounts)
+        if (receipt.appReceiptData) receipt.appReceiptData = DeSerializeFromJsonString(receipt.appReceiptData)
+        if (receipt.appliedReceipt) receipt.appliedReceipt = DeSerializeFromJsonString(receipt.appliedReceipt)
+      })
     }
   } catch (e) {
     console.log(e)

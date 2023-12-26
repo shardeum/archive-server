@@ -2,8 +2,8 @@ import * as NodeList from '../NodeList'
 import * as Crypto from '../Crypto'
 import * as State from '../State'
 import * as Logger from '../Logger'
-import { P2P, StateManager } from '@shardus/types'
-import { getJson } from '../P2P'
+import { P2P as P2PTypes, StateManager } from '@shardus/types'
+import { getJson, postJson } from '../P2P'
 import { profilerInstance } from '../profiler/profiler'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import {
@@ -24,39 +24,32 @@ import { clearServingValidatorsInterval, initServingValidatorsInterval } from '.
 import { hexstring } from 'shardus-crypto-types'
 import { handleLostArchivers } from '../LostArchivers'
 import ShardFunctions from '../ShardFunctions'
-
-export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
-  certificate: string
-  marker: string
-  currentTime?: number
-}
-
-export interface LostNode {
-  counter: Cycle['counter']
-  timestamp: number
-  nodeInfo: NodeList.ConsensusNodeInfo
-}
+import { RequestDataType, queryFromArchivers } from '../API'
 
 interface ArchiverCycleResponse {
-  cycleInfo: Cycle[]
+  cycleInfo: P2PTypes.CycleCreatorTypes.CycleData[]
 }
 
 interface ConsensorCycleResponse {
-  newestCycle: Cycle
+  newestCycle: P2PTypes.CycleCreatorTypes.CycleData
 }
 
 export let currentCycleDuration = 0
 let currentCycleCounter = -1
 let currentCycleMarker = '0'.repeat(32)
 export let lastProcessedMetaData = -1
-export const CycleChain: Map<Cycle['counter'], Cycle> = new Map()
-export const lostNodes: LostNode[] = []
-export const removedNodes = []
-export let cycleRecordWithShutDownMode = null as P2P.CycleCreatorTypes.CycleRecord | null
-export let currentNetworkMode: P2P.ModesTypes.Record['mode'] = 'forming'
+export let CycleChain: Map<
+  P2PTypes.CycleCreatorTypes.CycleData['counter'],
+  P2PTypes.CycleCreatorTypes.CycleData
+> = new Map()
+export const removedAndApopedNodes = []
+export let cycleRecordWithShutDownMode = null as P2PTypes.CycleCreatorTypes.CycleRecord | null
+export let currentNetworkMode: P2PTypes.ModesTypes.Record['mode'] = 'forming'
 export let shardValuesByCycle = new Map<number, StateManager.shardFunctionTypes.CycleShardData>()
 
-export async function processCycles(cycles: Cycle[]): Promise<void> {
+const CYCLE_SHARD_STORAGE_LIMIT = 3
+
+export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData[]): Promise<void> {
   if (profilerInstance) profilerInstance.profileSectionStart('process_cycle', false)
   try {
     if (nestedCountersInstance) nestedCountersInstance.countEvent('cycle', 'process', 1)
@@ -106,12 +99,6 @@ export function getCurrentCycleMarker(): hexstring {
   return currentCycleMarker
 }
 
-export function getLostNodes(from: number, to: number): LostNode[] {
-  return lostNodes.filter((node: LostNode) => {
-    return node.counter >= from && node.counter <= to
-  })
-}
-
 export function setCurrentCycleDuration(duration: number): void {
   currentCycleDuration = duration * 1000
 }
@@ -128,7 +115,7 @@ export function setLastProcessedMetaDataCounter(value: number): void {
   lastProcessedMetaData = value
 }
 
-export function changeNetworkMode(newMode: P2P.ModesTypes.Record['mode']): void {
+export function changeNetworkMode(newMode: P2PTypes.ModesTypes.Record['mode']): void {
   if (newMode === currentNetworkMode) return
   // If the network mode is changed from restore to processing, clear the serving validators interval
   if (currentNetworkMode === 'restore' && newMode === 'processing') clearServingValidatorsInterval()
@@ -142,20 +129,76 @@ export function changeNetworkMode(newMode: P2P.ModesTypes.Record['mode']): void 
   currentNetworkMode = newMode
 }
 
-export function computeCycleMarker(fields: Cycle): string {
+export function computeCycleMarker(fields: P2PTypes.CycleCreatorTypes.CycleRecord): string {
   const cycleMarker = Crypto.hashObj(fields)
   return cycleMarker
 }
 
 // validation of cycle record against previous marker
-export function validateCycle(prev: Cycle, next: P2P.CycleCreatorTypes.CycleRecord): boolean {
-  const previousRecordWithoutMarker: Cycle = { ...prev }
+export function validateCycle(
+  prev: P2PTypes.CycleCreatorTypes.CycleData,
+  next: P2PTypes.CycleCreatorTypes.CycleData
+): boolean {
+  let previousRecordWithoutMarker: P2PTypes.CycleCreatorTypes.CycleData = { ...prev }
   delete previousRecordWithoutMarker.marker
   const prevMarker = computeCycleMarker(previousRecordWithoutMarker)
   return next.previous === prevMarker
 }
 
-export function setShutdownCycleRecord(cycleRecord: P2P.CycleCreatorTypes.CycleRecord): void {
+export const validateCycleData = (cycleRecord: P2PTypes.CycleCreatorTypes.CycleData): boolean => {
+  let err = Utils.validateTypes(cycleRecord, {
+    activated: 'a',
+    activatedPublicKeys: 'a',
+    active: 'n',
+    apoptosized: 'a',
+    archiverListHash: 's',
+    counter: 'n',
+    desired: 'n',
+    duration: 'n',
+    expired: 'n',
+    joined: 'a',
+    joinedArchivers: 'a',
+    joinedConsensors: 'a',
+    leavingArchivers: 'a',
+    lost: 'a',
+    lostSyncing: 'a',
+    marker: 's',
+    maxSyncTime: 'n',
+    mode: 's',
+    networkConfigHash: 's',
+    networkId: 's',
+    nodeListHash: 's',
+    previous: 's',
+    refreshedArchivers: 'a',
+    refreshedConsensors: 'a',
+    refuted: 'a',
+    removed: 'a',
+    returned: 'a',
+    standbyAdd: 'a',
+    standbyNodeListHash: 's',
+    standbyRemove: 'a',
+    start: 'n',
+    syncing: 'n',
+    target: 'n',
+    archiversAtShutdown: 'a?',
+    lostArchivers: 'a',
+    refutedArchivers: 'a',
+    removedArchivers: 'a',
+  })
+  if (err) {
+    Logger.mainLogger.error('Invalid Cycle Record', err)
+    return false
+  }
+  const cycleRecordWithoutMarker = { ...cycleRecord }
+  delete cycleRecordWithoutMarker.marker
+  if (computeCycleMarker(cycleRecordWithoutMarker) !== cycleRecord.marker) {
+    Logger.mainLogger.error('Invalid Cycle Record: cycle marker does not match with the computed marker')
+    return false
+  }
+  return true
+}
+
+export function setShutdownCycleRecord(cycleRecord: P2PTypes.CycleCreatorTypes.CycleData): void {
   cycleRecordWithShutDownMode = cycleRecord
 }
 
@@ -175,7 +218,7 @@ export interface JoinedConsensor extends P2PNode {
   cycleJoined: string
 }
 
-function updateNodeList(cycle: Cycle): void {
+function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   const {
     // lost,  (not used)
     joinedConsensors,
@@ -225,12 +268,12 @@ function updateNodeList(cycle: Cycle): void {
     NodeList.removeStandbyNodes(standbyRemove)
   }
 
-  const removedAndApopedNodes: NodeList.ConsensusNodeInfo[] = []
+  const removedConsensusNodes: NodeList.ConsensusNodeInfo[] = []
 
   const removedPks = [...removed, ...appRemoved].reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)
     if (nodeInfo) {
-      removedAndApopedNodes.push(nodeInfo)
+      removedConsensusNodes.push(nodeInfo)
       keys.push(nodeInfo.publicKey)
     }
     return keys
@@ -258,10 +301,12 @@ function updateNodeList(cycle: Cycle): void {
   // }, [])
   // NodeList.removeNodes(lostPks)
 
+  const apoptosizedConsensusNodes: NodeList.ConsensusNodeInfo[] = []
+
   const apoptosizedPks = apoptosized.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)
     if (nodeInfo) {
-      removedAndApopedNodes.push(nodeInfo)
+      apoptosizedConsensusNodes.push(nodeInfo)
       keys.push(nodeInfo.publicKey)
     }
     return keys
@@ -314,74 +359,63 @@ function updateNodeList(cycle: Cycle): void {
       if (dataSenders.has(key)) unsubscribeDataSender(key)
     }
   }
-  if (removedAndApopedNodes.length > 0) {
-    removedNodes.push({ cycle: cycle.counter, nodes: removedAndApopedNodes })
-    while (removedNodes.length > 10) {
-      removedNodes.shift()
+  if (removedConsensusNodes.length > 0 || apoptosizedConsensusNodes.length > 0) {
+    removedAndApopedNodes.push({
+      cycle: cycle.counter,
+      removed: removedConsensusNodes,
+      apoptosized: apoptosizedConsensusNodes,
+    })
+    while (removedAndApopedNodes.length > 10) {
+      removedAndApopedNodes.shift()
     }
   }
-
-  NodeList.updateActivePublicKeyListByCycle(counter)
-
   // To pick nodes only when the archiver is active
   if (State.isActive) {
     subscribeConsensorsByConsensusRadius()
   }
 }
 
-function isSameCycleInfo(info1: Cycle, info2: Cycle): boolean {
-  const cm1 = Utils.deepCopy(info1)
-  const cm2 = Utils.deepCopy(info2)
-  delete cm1.currentTime
-  delete cm2.currentTime
-  const equivalent = isDeepStrictEqual(cm1, cm2)
-  return equivalent
-}
-
 export async function fetchCycleRecords(
-  activeArchivers: State.ArchiverNodeInfo[],
   start: number,
   end: number
-): Promise<Cycle[]> {
-  const queryFn = async (archiver: State.ArchiverNodeInfo): Promise<Cycle[]> => {
-    const response = (await getJson(
-      `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${start}&end=${end}`,
-      20
-    )) as ArchiverCycleResponse
-    return response.cycleInfo
-  }
-  const { result } = await Utils.sequentialQuery(activeArchivers, queryFn)
-  return result as Cycle[]
+): Promise<P2PTypes.CycleCreatorTypes.CycleData[]> {
+  const response = (await queryFromArchivers(RequestDataType.CYCLE, { start, end })) as ArchiverCycleResponse
+  if (response) return response.cycleInfo
+  return []
 }
 
 export async function getNewestCycleFromConsensors(
   activeNodes: NodeList.ConsensusNodeInfo[]
-): Promise<Cycle> {
-  const queryFn = async (node: NodeList.ConsensusNodeInfo): Promise<Cycle> => {
+): Promise<P2PTypes.CycleCreatorTypes.CycleData> {
+  const queryFn = async (node: NodeList.ConsensusNodeInfo): Promise<P2PTypes.CycleCreatorTypes.CycleData> => {
     const response = (await getJson(
       `http://${node.ip}:${node.port}/sync-newest-cycle`
     )) as ConsensorCycleResponse
 
     if (response.newestCycle) {
-      return response.newestCycle as Cycle
+      return response.newestCycle as P2PTypes.CycleCreatorTypes.CycleData
     }
 
     return null
   }
-  const newestCycle = await Utils.robustQuery(activeNodes, queryFn, isSameCycleInfo)
+  const newestCycle = await Utils.robustQuery(activeNodes, queryFn)
   return newestCycle.value
 }
 
-export async function getNewestCycleFromArchivers(activeArchivers: State.ArchiverNodeInfo[]): Promise<Cycle> {
-  activeArchivers = activeArchivers.filter((archiver) => archiver.publicKey !== State.getNodeInfo().publicKey)
+export async function getNewestCycleFromArchivers(): Promise<P2PTypes.CycleCreatorTypes.CycleData> {
+  const activeArchivers = Utils.getRandomItemFromArr(State.activeArchivers, 0, 5)
 
-  const queryFn = async (archiver: State.ArchiverNodeInfo): Promise<Cycle> => {
-    const response = (await getJson(
-      `http://${archiver.ip}:${archiver.port}/cycleinfo/1`
-    )) as ArchiverCycleResponse
-    return response.cycleInfo[0]
+  const data = {
+    count: 1,
+    sender: config.ARCHIVER_PUBLIC_KEY,
   }
-  const cycleInfo = await Utils.robustQuery(activeArchivers, queryFn, isSameCycleInfo)
+  Crypto.sign(data)
+
+  const queryFn = async (node: any) => {
+    const response: any = await postJson(`http://${node.ip}:${node.port}/cycleinfo`, data)
+    return response.cycleInfo
+  }
+  const cycleInfo = await Utils.robustQuery(activeArchivers, queryFn)
   return cycleInfo.value[0]
 }
 
@@ -434,13 +468,16 @@ export async function recordArchiversReputation(): Promise<void> {
 }
 
 // This is called once per cycle to update to calculate the necessary shard values.
-function updateShardValues(cycle: Cycle, mode: P2P.ModesTypes.Record['mode']) {
+function updateShardValues(
+  cycle: P2PTypes.CycleCreatorTypes.CycleData,
+  mode: P2PTypes.ModesTypes.Record['mode']
+) {
   const cycleShardData = {} as StateManager.shardFunctionTypes.CycleShardData
 
   // todo get current cycle..  store this by cycle?
   cycleShardData.nodeShardDataMap = new Map()
   cycleShardData.parititionShardDataMap = new Map()
-  cycleShardData.nodes = NodeList.activeListByIdSorted as unknown as P2P.NodeListTypes.Node[]
+  cycleShardData.nodes = NodeList.activeListByIdSorted as unknown as P2PTypes.NodeListTypes.Node[]
   cycleShardData.cycleNumber = cycle.counter
   cycleShardData.partitionsToSkip = new Map()
   cycleShardData.hasCompleteData = false
@@ -498,7 +535,10 @@ function updateShardValues(cycle: Cycle, mode: P2P.ModesTypes.Record['mode']) {
   )
   if (profilerInstance) profilerInstance.profileSectionEnd('updateShardValues_computeNodePartitionDataMap2')
 
-  console.log('cycleShardData', cycleShardData.cycleNumber)
-  console.dir(cycleShardData, { depth: null })
+  // console.log('cycleShardData', cycleShardData.cycleNumber)
+  // console.dir(cycleShardData, { depth: null })
   shardValuesByCycle.set(cycleShardData.cycleNumber, cycleShardData)
+  if (shardValuesByCycle.size > CYCLE_SHARD_STORAGE_LIMIT) {
+    shardValuesByCycle.delete(shardValuesByCycle.keys().next().value)
+  }
 }

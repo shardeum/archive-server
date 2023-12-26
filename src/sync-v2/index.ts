@@ -4,7 +4,7 @@
  */
 
 import { okAsync, errAsync, ResultAsync } from 'neverthrow'
-import { hexstring, P2P } from '@shardus/types'
+import { hexstring, P2P as P2PTypes } from '@shardus/types'
 import {
   getCurrentCycleDataFromNode,
   robustQueryForCycleRecordHash,
@@ -16,7 +16,6 @@ import {
 import { ArchiverNodeInfo } from '../State'
 import { getActiveNodeListFromArchiver } from '../NodeList'
 import * as NodeList from '../NodeList'
-import { Cycle } from '../Data/Cycles'
 import { verifyCycleRecord, verifyStandbyList, verifyValidatorList } from './verify'
 import * as Logger from '../Logger'
 
@@ -28,7 +27,7 @@ import * as Logger from '../Logger'
  */
 async function getActiveListFromSomeArchiver(
   archivers: ArchiverNodeInfo[]
-): Promise<P2P.SyncTypes.ActiveNode[]> {
+): Promise<P2PTypes.SyncTypes.ActiveNode[]> {
   for (const archiver of archivers) {
     try {
       const nodeList = await getActiveNodeListFromArchiver(archiver)
@@ -48,7 +47,9 @@ async function getActiveListFromSomeArchiver(
 /**
  * Synchronizes the NodeList and gets the latest CycleRecord from other validators.
  */
-export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, Error> {
+export function syncV2(
+  activeArchivers: ArchiverNodeInfo[]
+): ResultAsync<P2PTypes.CycleCreatorTypes.CycleData, Error> {
   return ResultAsync.fromPromise(getActiveListFromSomeArchiver(activeArchivers), (e: Error) => e).andThen(
     (nodeList) =>
       syncValidatorList(nodeList).andThen(([validatorList, validatorListHash]) =>
@@ -106,7 +107,6 @@ export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, 
             return okAsync({
               ...cycle,
               marker: cycleMarker,
-              certificate: '',
             })
           })
         )
@@ -117,23 +117,23 @@ export function syncV2(activeArchivers: ArchiverNodeInfo[]): ResultAsync<Cycle, 
 /**
  * This function synchronizes a validator list from `activeNodes`.
  *
- * @param {P2P.SyncTypes.ActiveNode[]} activeNodes - An array of active nodes to be queried.
+ * @param {P2PTypes.SyncTypes.ActiveNode[]} activeNodes - An array of active nodes to be queried.
  * The function first performs a robust query for the latest node list hash.
  * After obtaining the hash, it retrieves the full node list from one of the winning nodes.
  *
- * @returns {ResultAsync<P2P.NodeListTypes.Node[], Error>} - A ResultAsync object. On success, it will contain
+ * @returns {ResultAsync<P2PTypes.NodeListTypes.Node[], Error>} - A ResultAsync object. On success, it will contain
  * an array of Node objects, and on error, it will contain an Error object. The function is asynchronous
  * and can be awaited.
  */
 function syncValidatorList(
-  activeNodes: P2P.SyncTypes.ActiveNode[]
-): ResultAsync<[P2P.NodeListTypes.Node[], hexstring], Error> {
+  activeNodes: P2PTypes.SyncTypes.ActiveNode[]
+): ResultAsync<[P2PTypes.NodeListTypes.Node[], hexstring], Error> {
   // run a robust query for the lastest node list hash
   return robustQueryForValidatorListHash(activeNodes).andThen(({ value, winningNodes }) =>
     // get full node list from one of the winning nodes
     getValidatorListFromNode(winningNodes[0], value.nodeListHash).andThen((validatorList) =>
       verifyValidatorList(validatorList, value.nodeListHash).map(
-        () => [validatorList, value.nodeListHash] as [P2P.NodeListTypes.Node[], hexstring]
+        () => [validatorList, value.nodeListHash] as [P2PTypes.NodeListTypes.Node[], hexstring]
       )
     )
   )
@@ -142,23 +142,23 @@ function syncValidatorList(
 /**
  * This function synchronizes a standby node list from `activeNodes`.
  *
- * @param {P2P.SyncTypes.ActiveNode[]} activeNodes - An array of active nodes to be queried.
+ * @param {P2PTypes.SyncTypes.ActiveNode[]} activeNodes - An array of active nodes to be queried.
  * The function first performs a robust query for the latest node list hash.
  * After obtaining the hash, it retrieves the full node list from one of the winning nodes.
  *
- * @returns {ResultAsync<P2P.NodeListTypes.Node[], Error>} - A ResultAsync object. On success, it will contain
+ * @returns {ResultAsync<P2PTypes.NodeListTypes.Node[], Error>} - A ResultAsync object. On success, it will contain
  * an array of Node objects, and on error, it will contain an Error object. The function is asynchronous
  * and can be awaited.
  */
 function syncStandbyNodeList(
-  activeNodes: P2P.SyncTypes.ActiveNode[]
-): ResultAsync<[P2P.JoinTypes.JoinRequest[], hexstring], Error> {
+  activeNodes: P2PTypes.SyncTypes.ActiveNode[]
+): ResultAsync<[P2PTypes.JoinTypes.JoinRequest[], hexstring], Error> {
   // run a robust query for the lastest archiver list hash
   return robustQueryForStandbyNodeListHash(activeNodes).andThen(({ value, winningNodes }) =>
     // get full standby list from one of the winning nodes
     getStandbyNodeListFromNode(winningNodes[0], value.standbyNodeListHash).andThen((standbyList) =>
       verifyStandbyList(standbyList, value.standbyNodeListHash).map(
-        () => [standbyList, value.standbyNodeListHash] as [P2P.JoinTypes.JoinRequest[], hexstring]
+        () => [standbyList, value.standbyNodeListHash] as [P2PTypes.JoinTypes.JoinRequest[], hexstring]
       )
     )
   )
@@ -167,23 +167,23 @@ function syncStandbyNodeList(
 /**
  * Synchronizes the latest cycle record from a list of active nodes.
  *
- * @param {P2P.SyncTypes.ActiveNode[]} activeNodes - An array of active nodes to be queried.
+ * @param {P2PTypes.SyncTypes.ActiveNode[]} activeNodes - An array of active nodes to be queried.
  * The function first performs a robust query for the latest cycle record hash.
  * After obtaining the hash, it retrieves the current cycle data from one of the winning nodes.
  *
- * @returns {ResultAsync<P2P.CycleCreatorTypes.CycleRecord, Error>} - A ResultAsync object.
+ * @returns {ResultAsync<P2PTypes.CycleCreatorTypes.CycleRecord, Error>} - A ResultAsync object.
  * On success, it will contain a CycleRecord object, and on error, it will contain an Error object.
  * The function is asynchronous and can be awaited.
  */
 function syncLatestCycleRecordAndMarker(
-  activeNodes: P2P.SyncTypes.ActiveNode[]
-): ResultAsync<[P2P.CycleCreatorTypes.CycleRecord, hexstring], Error> {
+  activeNodes: P2PTypes.SyncTypes.ActiveNode[]
+): ResultAsync<[P2PTypes.CycleCreatorTypes.CycleData, hexstring], Error> {
   // run a robust query for the latest cycle record hash
   return robustQueryForCycleRecordHash(activeNodes).andThen(({ value: cycleRecordHash, winningNodes }) =>
     // get current cycle record from node
     getCurrentCycleDataFromNode(winningNodes[0], cycleRecordHash).andThen((cycleRecord) =>
       verifyCycleRecord(cycleRecord, cycleRecordHash).map(
-        () => [cycleRecord, cycleRecordHash] as [P2P.CycleCreatorTypes.CycleRecord, hexstring]
+        () => [cycleRecord, cycleRecordHash] as [P2PTypes.CycleCreatorTypes.CycleData, hexstring]
       )
     )
   )
