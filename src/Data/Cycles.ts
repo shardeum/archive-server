@@ -176,6 +176,7 @@ function updateNodeList(cycle: Cycle): void {
     joinedConsensors,
     activatedPublicKeys,
     removed,
+    appRemoved,
     apoptosized,
     joinedArchivers,
     leavingArchivers,
@@ -220,7 +221,7 @@ function updateNodeList(cycle: Cycle): void {
 
   const removedAndApopedNodes: NodeList.ConsensusNodeInfo[] = []
 
-  const removedPks = removed.reduce((keys: string[], id) => {
+  const removedPks = [...removed, ...appRemoved].reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)
     if (nodeInfo) {
       removedAndApopedNodes.push(nodeInfo)

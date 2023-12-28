@@ -143,7 +143,7 @@ export function parseRecord(record: P2P.CycleCreatorTypes.CycleRecord): Change {
 
   return {
     added: [...added],
-    removed: [...record.apoptosized, ...record.removed],
+    removed: [...record.apoptosized, ...record.removed, ...record.appRemoved],
     updated: [...activated, ...refreshUpdated],
   }
 }
@@ -200,6 +200,7 @@ export function activeNodeCount(cycle: P2P.CycleCreatorTypes.CycleRecord): numbe
     cycle.activated.length +
     -cycle.apoptosized.length +
     -cycle.removed.length +
+    -cycle.appRemoved.length +
     -cycle.lost.length
   )
 }
@@ -211,7 +212,8 @@ export function totalNodeCount(cycle: P2P.CycleCreatorTypes.CycleRecord): number
     cycle.active +
     //    cycle.activated.length -      // don't count activated because it was already counted in syncing
     -cycle.apoptosized.length +
-    -cycle.removed.length
+    -cycle.removed.length +
+    -cycle.appRemoved.length
     // -cycle.lost.length
   )
 }
