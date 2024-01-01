@@ -9,5 +9,5 @@
     "strict": false,
     "moduleResolution": "node"
   },
-  "exclude": ["build"]
+  "exclude": ["build", "scripts"]
 }

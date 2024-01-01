@@ -294,12 +294,10 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       end: number
       count: number
       download: boolean
-      sender: string
-      sign: Signature
     }
   }>
 
-  server.post('/cycleinfo', async (_request: CycleInfoRequest, reply) => {
+  server.post('/cycleinfo', async (_request: CycleInfoRequest & Request, reply) => {
     const requestData = _request.body
     const result = validateRequestData(requestData, {
       start: 'n?',
@@ -407,12 +405,10 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       page: number
       txId: string
       txIdList: string
-      sender: string
-      sign: Signature
     }
   }>
 
-  server.post('/originalTx', async (_request: ReceiptRequest, reply) => {
+  server.post('/originalTx', async (_request: ReceiptRequest & Request, reply) => {
     const requestData = _request.body
     const result = validateRequestData(requestData, {
       count: 'n?',
@@ -550,7 +546,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     reply.send(res)
   })
 
-  server.post('/receipt', async (_request: ReceiptRequest, reply) => {
+  server.post('/receipt', async (_request: ReceiptRequest & Request, reply) => {
     const requestData = _request.body
     const result = validateRequestData(requestData, {
       count: 'n?',
@@ -697,12 +693,10 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       endCycle: number
       page: number
       accountId: string
-      sender: string
-      sign: Signature
     }
   }>
 
-  server.post('/account', async (_request: AccountRequest, reply) => {
+  server.post('/account', async (_request: AccountRequest & Request, reply) => {
     const requestData = _request.body
     const result = validateRequestData(requestData, {
       count: 'n?',
@@ -825,12 +819,10 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       txId: string
       page: number
       appReceiptId: string
-      sender: string
-      sign: Signature
     }
   }>
 
-  server.post('/transaction', async (_request: TransactionRequest, reply) => {
+  server.post('/transaction', async (_request: TransactionRequest & Request, reply) => {
     const requestData = _request.body
     const result = validateRequestData(requestData, {
       count: 'n?',

@@ -17,6 +17,7 @@ export interface Config {
   N_NODE_REJECT_PERCENT: number
   N_NODELIST: number
   N_RANDOM_NODELIST_BUCKETS: number // Number of random node lists in the NodeList cache
+  RECEIPT_CONFIRMATIONS: number // Number of receipt confirmations (from other validators) before storing a tx receipt
   STATISTICS: {
     save: boolean
     interval: number
@@ -56,6 +57,7 @@ let config: Config = {
   N_NODE_REJECT_PERCENT: 5, // Percentage of old nodes to remove from nodelist
   N_NODELIST: 30, // number of active node list GET /nodelist should emit but if the total active nodelist is less than said value it will emit all the node list.
   N_RANDOM_NODELIST_BUCKETS: 10,
+  RECEIPT_CONFIRMATIONS: 5,
   STATISTICS: {
     save: true,
     interval: 1,

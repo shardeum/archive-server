@@ -1,4 +1,3 @@
-import { Signature } from '@shardus/crypto-utils'
 import { P2P as P2PTypes } from '@shardus/types'
 import * as Account from '../dbstore/accounts'
 import * as Transaction from '../dbstore/transactions'
@@ -14,11 +13,13 @@ import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } f
 import * as State from '../State'
 import * as Utils from '../Utils'
 import { DataType, GossipData, adjacentArchivers, sendDataToAdjacentArchivers } from './GossipData'
-import { getJson } from '../P2P'
+import { getJson, postJson } from '../P2P'
 import { globalAccountsMap, setGlobalNetworkAccount } from '../GlobalAccount'
 import { CycleLogWriter, ReceiptLogWriter, OriginalTxDataLogWriter } from '../Data/DataLogWriter'
 import * as OriginalTxDB from '../dbstore/originalTxsData'
 import ShardFunction from '../ShardFunctions'
+import { ConsensusNodeInfo } from '../NodeList'
+import { verifyAccountHash } from '../shardeum/calculateAccountHash'
 
 export let storingAccountData = false
 export const receiptsMap: Map<string, number> = new Map()
@@ -31,84 +32,73 @@ export interface TxsData {
   txId: string
   cycle: number
 }
-// We might have to move type definitions to a separate place
 
 /**
- * ArchiverReceipt is the full data (shardusReceipt + appReceiptData + accounts ) of a tx that is sent to the archiver
+ * Calls the /get-tx-receipt endpoint of the nodes in the execution group of the receipt to verify the receipt. If "RECEIPT_CONFIRMATIONS" number of nodes return the same receipt, the receipt is deemed valid.
+ * @param receipt
+ * @param executionGroupNodes
+ * @returns boolean
  */
-export interface ArchiverReceipt {
-  tx: {
-    originalTxData: OpaqueTransaction
-    txId: string
-    timestamp: number
+const isReceiptRobust = async (
+  receipt: Receipt.ArchiverReceipt,
+  executionGroupNodes: ConsensusNodeInfo[],
+  minConfirmations: number = config.RECEIPT_CONFIRMATIONS
+): Promise<{ success: boolean; newReceipt?: Receipt.ArchiverReceipt }> => {
+  const result = { success: false }
+  // Created signedData with full_receipt = false outside of queryReceipt to avoid signing the same data multiple times
+  let signedData = Crypto.sign({ txId: receipt.tx.txId, full_receipt: false })
+  const queryReceipt = async (node: ConsensusNodeInfo) => {
+    try {
+      return postJson(`http://${node.ip}:${node.port}/get-tx-receipt`, signedData)
+    } catch (error) {
+      Logger.mainLogger.error('Error in /get-tx-receipt:', error)
+      return null
+    }
   }
-  cycle: number
-  beforeStateAccounts: Account.AccountCopy[]
-  accounts: Account.AccountCopy[]
-  appReceiptData: any
-  appliedReceipt: AppliedReceipt2
-  executionShardKey: string
-}
+  const robustQuery = await Utils.robustQuery(
+    executionGroupNodes,
+    (execNode) => queryReceipt(execNode),
+    undefined,
+    5,
+    false // set shuffleNodes to false
+  )
+  if (!robustQuery) {
+    Logger.mainLogger.error(
+      `❌ 'null' response from all nodes in receipt-validation for txId: ${receipt.tx.txId}`
+    )
+    return result
+  }
 
-type ObjectAlias = object
-/**
- * OpaqueTransaction is the way shardus should see transactions internally. it should not be able to mess with parameters individually
- */
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface OpaqueTransaction extends ObjectAlias {}
-
-export type AppliedVote = {
-  txid: string
-  transaction_result: boolean
-  account_id: string[]
-  //if we add hash state before then we could prove a dishonest apply vote
-  //have to consider software version
-  account_state_hash_after: string[]
-  account_state_hash_before: string[]
-  cant_apply: boolean // indicates that the preapply could not give a pass or fail
-  node_id: string // record the node that is making this vote.. todo could look this up from the sig later
-  sign: Signature
-  // hash of app data
-  app_data_hash: string
-}
-
-/**
- * a space efficent version of the receipt
- *
- * use TellSignedVoteHash to send just signatures of the vote hash (votes must have a deterministic sort now)
- * never have to send or request votes individually, should be able to rely on existing receipt send/request
- * for nodes that match what is required.
- */
-export type AppliedReceipt2 = {
-  txid: string
-  result: boolean
-  //single copy of vote
-  appliedVote: AppliedVote
-  confirmOrChallenge: ConfirmOrChallengeMessage
-  //all signatures for this vote
-  signatures: [Signature] //Could have all signatures or best N.  (lowest signature value?)
-  // hash of app data
-  app_data_hash: string
-}
-
-export type ConfirmOrChallengeMessage = {
-  message: string
-  nodeId: string
-  appliedVote: AppliedVote
-  sign: Signature
+  if (robustQuery.count < minConfirmations) {
+    // update signedData with full_receipt = true
+    signedData = Crypto.sign({ txId: receipt.tx.txId, full_receipt: true })
+    for (const node of robustQuery.nodes) {
+      const fullReceipt: any = await queryReceipt(node)
+      if (!fullReceipt) continue
+      const isReceiptEqual = Utils.isDeepStrictEqual(
+        fullReceipt.receipt.appliedReceipt,
+        (robustQuery.value as any).receipt
+      )
+      if (isReceiptEqual && validateReceiptData(fullReceipt.receipt) && verifyAccountHash(fullReceipt)) {
+        return { success: true, newReceipt: fullReceipt.receipt }
+      }
+    }
+    return { success: false }
+  }
+  return { success: true }
 }
 
 // For debugging purpose, set this to true to stop saving tx data
 const stopSavingTxData = false
 
-export const validateReceiptData = (receipt: ArchiverReceipt) => {
+export const validateReceiptData = (receipt: Receipt.ArchiverReceipt) => {
   // Add type and value existence check
   let err = Utils.validateTypes(receipt, {
     tx: 'o',
     cycle: 'n',
     beforeStateAccounts: 'a',
     accounts: 'a',
-    appReceiptData: 'o',
+    appReceiptData: 'o?',
     appliedReceipt: 'o',
     executionShardKey: 's',
   })
@@ -217,42 +207,48 @@ export const validateReceiptData = (receipt: ArchiverReceipt) => {
   return true
 }
 
-export const verifyReceiptData = async (receipt: ArchiverReceipt) => {
+export const verifyReceiptData = async (
+  receipt: Receipt.ArchiverReceipt
+): Promise<{ success: boolean; newReceipt?: Receipt.ArchiverReceipt }> => {
+  const result = { success: false }
   // Check the signed nodes are part of the execution group nodes of the tx
   const { executionShardKey, cycle, appliedReceipt } = receipt
   const { appliedVote, confirmOrChallenge } = appliedReceipt
   const cycleShardData = shardValuesByCycle.get(cycle)
   if (!cycleShardData) {
     Logger.mainLogger.error('Cycle shard data not found')
-    return false
+    return result
   }
   // Determine the home partition index of the primary account (executionShardKey)
   const { homePartition } = ShardFunction.addressToPartition(cycleShardData.shardGlobals, executionShardKey)
   // Check if the appliedVote node is in the execution group
   if (!cycleShardData.nodeShardDataMap.has(appliedVote.node_id)) {
     Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote node is not in the active nodesList')
-    return false
+    return result
   }
   if (appliedVote.sign.owner !== cycleShardData.nodeShardDataMap.get(appliedVote.node_id).node.publicKey) {
     Logger.mainLogger.error(
       'Invalid receipt appliedReceipt appliedVote node signature owner and node public key does not match'
     )
-    return false
+    return result
   }
   if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[appliedVote.node_id]) {
     Logger.mainLogger.error(
       'Invalid receipt appliedReceipt appliedVote node is not in the execution group of the tx'
     )
-    return false
+    return result
   }
-  // TODO: Verify the signature of the appliedVote
+  if (!Crypto.verify(appliedVote)) {
+    Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote signature verification failed')
+    return result
+  }
 
   // Check if the confirmOrChallenge node is in the execution group
   if (!cycleShardData.nodeShardDataMap.has(confirmOrChallenge.nodeId)) {
     Logger.mainLogger.error(
       'Invalid receipt appliedReceipt confirmOrChallenge node is not in the active nodesList'
     )
-    return false
+    return result
   }
   if (
     confirmOrChallenge.sign.owner !==
@@ -261,27 +257,52 @@ export const verifyReceiptData = async (receipt: ArchiverReceipt) => {
     Logger.mainLogger.error(
       'Invalid receipt appliedReceipt confirmOrChallenge node signature owner and node public key does not match'
     )
-    return false
+    return result
   }
   if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[confirmOrChallenge.nodeId]) {
     Logger.mainLogger.error(
       'Invalid receipt appliedReceipt confirmOrChallenge node is not in the execution group of the tx'
     )
-    return false
+    return result
   }
-  // TODO: Verify the signature of the confirmOrChallenge
+  if (Crypto.verify(confirmOrChallenge)) {
+    Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge signature verification failed')
+    return result
+  }
 
-  // List the other execution group nodes of the tx apart from the two signed nodes, Use this list to robustQuery to verify the receipt
+  // List the execution group nodes of the tx, Use them to robustQuery to verify the receipt
   const executionGroupNodes = Object.values(
     cycleShardData.parititionShardDataMap.get(homePartition).coveredBy
+  ) as unknown as ConsensusNodeInfo[]
+  Logger.mainLogger.debug('executionGroupNodes', receipt.tx.txId, executionGroupNodes)
+  // List only random 3 x Receipt Confirmations number of nodes from the execution group
+  const filteredExecutionGroupNodes = Utils.getRandomItemFromArr(
+    executionGroupNodes,
+    0,
+    3 * config.RECEIPT_CONFIRMATIONS
   )
-  Logger.mainLogger.debug('executionGroupNodes', executionGroupNodes)
-  // Use the execution group nodes to robustQuery the receipt
-
-  return true
+  const minConfirmations =
+    filteredExecutionGroupNodes.length > config.RECEIPT_CONFIRMATIONS
+      ? config.RECEIPT_CONFIRMATIONS
+      : filteredExecutionGroupNodes.length
+  const { success, newReceipt } = await isReceiptRobust(
+    receipt,
+    filteredExecutionGroupNodes,
+    minConfirmations
+  )
+  if (!success) {
+    Logger.mainLogger.error('Invalid receipt: Robust check failed')
+    return result
+  }
+  if (newReceipt) return { success: true, newReceipt }
+  return { success: true }
 }
 
-export const storeReceiptData = async (receipts: ArchiverReceipt[], senderInfo = '', forceSaved = false): Promise<void> => {
+export const storeReceiptData = async (
+  receipts: Receipt.ArchiverReceipt[],
+  senderInfo = '',
+  forceSaved = false
+): Promise<void> => {
   if (!receipts || !Array.isArray(receipts) || receipts.length <= 0) return
   const bucketSize = 1000
   let combineReceipts = []
@@ -289,14 +310,33 @@ export const storeReceiptData = async (receipts: ArchiverReceipt[], senderInfo =
   let combineTransactions = []
   let txsData: TxsData[] = []
   if (!forceSaved) if (stopSavingTxData) return
-  for (const receipt of receipts) {
+  for (let receipt of receipts) {
     const txId = receipt?.tx?.txId
-    if (receiptsMap.has(txId)) {
+    if (receiptsMap.has(txId) || receiptsInValidationMap.has(txId)) {
       // console.log('RECEIPT', 'Skip', tx.txId, senderInfo)
       continue
     }
-    if (!validateReceiptData(receipt)) continue
-    if (State.isActive && !(await verifyReceiptData(receipt))) continue
+    receiptsInValidationMap.set(txId, receipt.cycle)
+    if (!validateReceiptData(receipt)) {
+      Logger.mainLogger.error('Invalid receipt: Validation failed', txId)
+      receiptsInValidationMap.delete(txId)
+      continue
+    }
+
+    if (State.isActive) {
+      if (!verifyAccountHash(receipt)) {
+        Logger.mainLogger.error('Invalid receipt: Account Verification failed', txId)
+        receiptsInValidationMap.delete(txId)
+        continue
+      }
+      const { success, newReceipt } = await verifyReceiptData(receipt)
+      if (!success) {
+        Logger.mainLogger.error('Invalid receipt: Verification failed', txId)
+        receiptsInValidationMap.delete(txId)
+        continue
+      }
+      if (newReceipt) receipt = newReceipt
+    }
     // await Receipt.insertReceipt({
     //   ...receipts[i],
     //   receiptId: tx.txId,
@@ -305,6 +345,7 @@ export const storeReceiptData = async (receipts: ArchiverReceipt[], senderInfo =
     const { accounts, cycle, tx, appReceiptData } = receipt
     if (config.VERBOSE) console.log(tx.txId, senderInfo)
     receiptsMap.set(tx.txId, cycle)
+    receiptsInValidationMap.delete(tx.txId)
     if (missingReceiptsMap.has(tx.txId)) missingReceiptsMap.delete(tx.txId)
     combineReceipts.push({
       ...receipt,
@@ -469,7 +510,6 @@ export const validateCycleData = (cycleRecord: P2PTypes.CycleCreatorTypes.CycleD
   }
   return true
 }
-
 
 export const storeCycleData = async (cycles: P2PTypes.CycleCreatorTypes.CycleData[] = []): Promise<void> => {
   if (cycles && cycles.length <= 0) return

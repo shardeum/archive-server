@@ -8,6 +8,10 @@ export interface CountSchema {
   count: string
 }
 
+export function isDeepStrictEqual(val1: unknown, val2: unknown) {
+  return util.isDeepStrictEqual(val1, val2)
+}
+
 export function safeParse<Type>(fallback: Type, json: string, msg?: string): Type {
   if (typeof json === 'object' && json !== null) {
     return json
