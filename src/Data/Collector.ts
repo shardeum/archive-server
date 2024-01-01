@@ -265,7 +265,7 @@ export const verifyReceiptData = async (
     )
     return result
   }
-  if (Crypto.verify(confirmOrChallenge)) {
+  if (!Crypto.verify(confirmOrChallenge)) {
     Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge signature verification failed')
     return result
   }

@@ -1,5 +1,6 @@
 import * as crypto from '../Crypto'
 import * as Logger from '../Logger'
+import { isEmptyObject } from '../Utils'
 import { ArchiverReceipt } from '../dbstore/receipts'
 
 // account types in Shardeum
@@ -55,9 +56,10 @@ const accountSpecificHash = (account: any): string => {
 
 // Converting the correct account data format to get the correct hash
 const fixAccountUint8Arrays = (account: any): void => {
-  if (account) return // if account is null, return
+  if (isEmptyObject(account)) return // if account is null, return
   if (account.storageRoot) account.storageRoot = Uint8Array.from(Object.values(account.storageRoot)) // Account
-  if (account.codeHash) account.codeHash = Uint8Array.from(Object.values(account.codeHash)) // Account and ContractCode
+  if (account.codeHash) account.codeHash = Uint8Array.from(Object.values(account.codeHash)) //
+  //Account and ContractCode
   if (account.codeByte) account.codeByte = Uint8Array.from(Object.values(account.codeByte)) // ContractCode
   if (account.value) account.value = Uint8Array.from(Object.values(account.value)) // ContractByte
 }

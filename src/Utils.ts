@@ -12,6 +12,10 @@ export function isDeepStrictEqual(val1: unknown, val2: unknown) {
   return util.isDeepStrictEqual(val1, val2)
 }
 
+export function isEmptyObject(obj: object): boolean {
+  return Object.keys(obj).length === 0 && obj.constructor === Object
+}
+
 export function safeParse<Type>(fallback: Type, json: string, msg?: string): Type {
   if (typeof json === 'object' && json !== null) {
     return json
