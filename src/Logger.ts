@@ -1,13 +1,12 @@
 import * as log4js from 'log4js'
 import { existsSync, mkdirSync } from 'fs'
-const stringify = require('fast-stable-stringify')
-const log4jsExtend = require('log4js-extend')
+const log4jsExtend = require('log4js-extend') // eslint-disable-line @typescript-eslint/no-var-requires
 
 interface Logger {
   baseDir: string
   config: LogsConfiguration
   logDir: string
-  log4Conf: any
+  log4Conf: any // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 export interface LogsConfiguration {
@@ -76,7 +75,7 @@ class Logger {
   }
 
   // Checks if the configuration has the required components
-  _checkValidConfig() {
+  _checkValidConfig(): void {
     const config = this.config
     if (!config.dir) throw Error('Fatal Error: Log directory not defined.')
     if (!config.files || typeof config.files !== 'object')
@@ -84,26 +83,26 @@ class Logger {
   }
 
   // Add filenames to each appender of type 'file'
-  _addFileNamesToAppenders() {
+  _addFileNamesToAppenders(): void {
     const conf = this.log4Conf
     for (const key in conf.appenders) {
-      const appender = conf.appenders[key]
+      const appender = conf.appenders[key] // eslint-disable-line security/detect-object-injection
       if (appender.type !== 'file') continue
       appender.filename = `${this.logDir}/${key}.log`
     }
   }
 
-  _configureLogs() {
+  _configureLogs(): log4js.Log4js {
     return log4js.configure(this.log4Conf)
   }
 
   // Get the specified logger
-  getLogger(logger: string) {
+  getLogger(logger: string): log4js.Logger {
     return log4js.getLogger(logger)
   }
 
   // Setup the logs with the provided configuration using the base directory provided for relative paths
-  _setupLogs() {
+  _setupLogs(): void {
     const baseDir = this.baseDir
     const config = this.config
 
@@ -113,13 +112,13 @@ class Logger {
 
     // Makes specified directory if it doesn't exist
     if (config.dir) {
-      let allArchiversLogDir = `${baseDir}/${config.dir.split('/')[0]}`
+      const allArchiversLogDir = `${baseDir}/${config.dir.split('/')[0]}`
       this.getLogger('main').info('allArchiversLogDir', allArchiversLogDir)
-      if (!existsSync(allArchiversLogDir)) mkdirSync(allArchiversLogDir)
+      if (!existsSync(allArchiversLogDir)) mkdirSync(allArchiversLogDir) // eslint-disable-line security/detect-non-literal-fs-filename
     }
 
     this.logDir = `${baseDir}/${config.dir}`
-    if (!existsSync(this.logDir)) mkdirSync(this.logDir)
+    if (!existsSync(this.logDir)) mkdirSync(this.logDir) // eslint-disable-line security/detect-non-literal-fs-filename
     // Read the log config from log config file
     this.log4Conf = config.options
     log4jsExtend(log4js)
@@ -129,7 +128,7 @@ class Logger {
   }
 
   // Tells this module that the server is shutting down, returns a Promise that resolves when all logs have been written to file, sockets are closed, etc.
-  shutdown() {
+  shutdown(): Promise<string> {
     return new Promise((resolve) => {
       log4js.shutdown(() => {
         resolve('done')
@@ -138,12 +137,12 @@ class Logger {
   }
 }
 
-export let mainLogger: any
-export let fatalLogger: any
-export let errorLogger: any
+export let mainLogger: log4js.Logger
+export let fatalLogger: log4js.Logger
+export let errorLogger: log4js.Logger
 
-export function initLogger(baseDir: string, logsConfig: LogsConfiguration) {
-  let logger = new Logger(baseDir, logsConfig)
+export function initLogger(baseDir: string, logsConfig: LogsConfiguration): void {
+  const logger = new Logger(baseDir, logsConfig)
   mainLogger = logger.getLogger('main')
   fatalLogger = logger.getLogger('fatal')
   errorLogger = logger.getLogger('errorFile')

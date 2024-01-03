@@ -19,7 +19,7 @@ interface WrappedData {
   timestamp: number
 
   /** optional data related to sync process */
-  syncData?: any
+  syncData?: unknown
 }
 
 type WrappedStateArray = WrappedData[]
@@ -31,9 +31,11 @@ type GetAccountDataByRangeSmart = {
   highestTs: number
   delta: number
 }
-type WrappedAccounts = {
-  wrappedAccounts: WrappedStateArray
-}
+
+// not used
+// type WrappedAccounts = {
+//   wrappedAccounts: WrappedStateArray
+// }
 
 type GlobalAccountReportResp = {
   ready: boolean
@@ -91,7 +93,7 @@ export const validateAccountDataRequest = (
     return { success: false, error: 'Invalid sign object attached' }
   }
   const nodePublicKey = sign.owner
-  if (!NodeList.byPublicKey[nodePublicKey]) {
+  if (!Object.prototype.hasOwnProperty.call(NodeList.byPublicKey, nodePublicKey)) {
     return { success: false, error: 'This node is not found in the nodelist!' }
   }
   if (!servingValidators.has(nodePublicKey) && servingValidators.size >= config.maxValidatorsToServe) {
@@ -141,7 +143,7 @@ export const validateAccountDataByListRequest = (
     return { success: false, error: 'Invalid sign object attached' }
   }
   const nodePublicKey = sign.owner
-  if (!NodeList.byPublicKey[nodePublicKey]) {
+  if (!Object.prototype.hasOwnProperty.call(NodeList.byPublicKey, nodePublicKey)) {
     return { success: false, error: 'This node is not found in the nodelist!' }
   }
   // TODO: Add max limit check for accountIds list query
@@ -182,8 +184,8 @@ export const validateGlobalAccountReportRequest = (
 export const provideAccountDataRequest = async (
   payload: AccountDataRequestSchema
 ): Promise<GetAccountDataByRangeSmart> => {
-  let wrappedAccounts: WrappedStateArray = []
-  let wrappedAccounts2: WrappedStateArray = [] // We might not need to provide data to this
+  const wrappedAccounts: WrappedStateArray = []
+  const wrappedAccounts2: WrappedStateArray = [] // We might not need to provide data to this
   let lastUpdateNeeded = false
   let highestTs = 0
   let delta = 0
@@ -196,9 +198,9 @@ export const provideAccountDataRequest = async (
   // AND accountId <= "${accountEnd}" AND accountId >= "${accountStart}"
   // ORDER BY timestamp, accountId  LIMIT ${maxRecords}`
 
-  let sqlPrefix = `SELECT * FROM accounts WHERE `
-  let queryString = `accountId BETWEEN ? AND ? AND timestamp BETWEEN ? AND ? ORDER BY timestamp ASC, accountId ASC LIMIT ${maxRecords}`
-  let offsetCondition = ` OFFSET ${offset}`
+  const sqlPrefix = `SELECT * FROM accounts WHERE `
+  const queryString = `accountId BETWEEN ? AND ? AND timestamp BETWEEN ? AND ? ORDER BY timestamp ASC, accountId ASC LIMIT ${maxRecords}`
+  const offsetCondition = ` OFFSET ${offset}`
   let sql = sqlPrefix
   let values = []
   if (accountOffset) {
@@ -260,7 +262,7 @@ export const provideAccountDataByListRequest = async (
   payload: AccountDataByListRequestSchema
 ): Promise<WrappedStateArray> => {
   const { accountIds } = payload
-  let wrappedAccounts: WrappedStateArray = []
+  const wrappedAccounts: WrappedStateArray = []
   const sql = `SELECT * FROM accounts WHERE accountId IN (?)`
   const accounts = await Account.fetchAccountsBySqlQuery(sql, accountIds)
   for (const account of accounts) {
@@ -285,7 +287,7 @@ export const provideGlobalAccountReportRequest = async (): Promise<GlobalAccount
 }
 
 // Remove validators from the list that have not requested data over 10 seconds, that way we can serve new validators
-const clearTimeoutServingValidators = () => {
+const clearTimeoutServingValidators = (): void => {
   const now = Date.now()
   for (const [validatorKey, lastServedTimestamp] of servingValidators.entries()) {
     if (now - lastServedTimestamp > SERVING_VALIDATOR_TIMEOUT) {
@@ -296,7 +298,7 @@ const clearTimeoutServingValidators = () => {
   if (config.VERBOSE) Logger.mainLogger.debug('Serving validators', servingValidators.size, servingValidators)
 }
 
-export const clearServingValidatorsInterval = () => {
+export const clearServingValidatorsInterval = (): void => {
   Logger.mainLogger.debug('clearServingValidatorsInterval')
   if (servingValidatorsRemovalInterval) {
     clearInterval(servingValidatorsRemovalInterval)
@@ -304,7 +306,7 @@ export const clearServingValidatorsInterval = () => {
   }
 }
 
-export const initServingValidatorsInterval = () => {
+export const initServingValidatorsInterval = (): void => {
   Logger.mainLogger.debug('initServingValidatorsInterval')
   if (!servingValidatorsRemovalInterval)
     servingValidatorsRemovalInterval = setInterval(clearTimeoutServingValidators, SERVING_VALIDATOR_TIMEOUT)

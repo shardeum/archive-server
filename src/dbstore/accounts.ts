@@ -6,19 +6,23 @@ import { DeSerializeFromJsonString, SerializeToJsonString } from '../utils/seria
 
 export type AccountCopy = {
   accountId: string
-  data: any
+  data: any // eslint-disable-line @typescript-eslint/no-explicit-any
   timestamp: number
   hash: string
   cycleNumber: number
   isGlobal?: boolean
 }
 
-export async function insertAccount(account: AccountCopy) {
+type DbAccountCopy = AccountCopy & {
+  data: string
+}
+
+export async function insertAccount(account: AccountCopy): Promise<void> {
   try {
     const fields = Object.keys(account).join(', ')
     const placeholders = Object.keys(account).fill('?').join(', ')
     const values = extractValues(account)
-    let sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
+    const sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
     await db.run(sql, values)
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Successfully inserted Account', account.accountId)
@@ -32,7 +36,7 @@ export async function insertAccount(account: AccountCopy) {
   }
 }
 
-export async function bulkInsertAccounts(accounts: AccountCopy[]) {
+export async function bulkInsertAccounts(accounts: AccountCopy[]): Promise<void> {
   try {
     const fields = Object.keys(accounts[0]).join(', ')
     const placeholders = Object.keys(accounts[0]).fill('?').join(', ')
@@ -49,7 +53,7 @@ export async function bulkInsertAccounts(accounts: AccountCopy[]) {
   }
 }
 
-export async function updateAccount(accountId: string, account: AccountCopy) {
+export async function updateAccount(accountId: string, account: AccountCopy): Promise<void> {
   try {
     const sql = `UPDATE accounts SET cycleNumber = $cycleNumber, timestamp = $timestamp, data = $data, hash = $hash WHERE accountId = $accountId `
     await db.run(sql, {
@@ -68,30 +72,44 @@ export async function updateAccount(accountId: string, account: AccountCopy) {
   }
 }
 
-export async function queryAccountByAccountId(accountId: string) {
+export async function queryAccountByAccountId(accountId: string): Promise<AccountCopy | null> {
   try {
     const sql = `SELECT * FROM accounts WHERE accountId=?`
-    let account: any = await db.get(sql, [accountId])
-    if (account) if (account && account.data) account.data = DeSerializeFromJsonString(account.data)
+    const dbAccount = (await db.get(sql, [accountId])) as DbAccountCopy
+    const account: AccountCopy = {} as AccountCopy
+    if (dbAccount) if (dbAccount && dbAccount.data) account.data = DeSerializeFromJsonString(dbAccount.data)
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Account accountId', account)
     }
     return account
   } catch (e) {
     Logger.mainLogger.error(e)
+    return null
   }
 }
 
-export async function queryLatestAccounts(count: number) {
+export async function queryLatestAccounts(count: number): Promise<AccountCopy[] | null> {
   try {
     const sql = `SELECT * FROM accounts ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${
       count ? count : 100
     }`
-    const accounts: any = await db.all(sql)
-    if (accounts.length > 0) {
-      accounts.forEach((account: any) => {
-        if (account && account.data) account.data = DeSerializeFromJsonString(account.data)
-      })
+    const dbAccounts = (await db.all(sql)) as DbAccountCopy[]
+    const accounts: AccountCopy[] = []
+    if (dbAccounts.length > 0) {
+      for (let i  = 0; i < dbAccounts.length; i++) {
+        /* eslint-disable security/detect-object-injection */
+        if (dbAccounts[i] && dbAccounts[i].data) {
+          accounts.push({
+            accountId: dbAccounts[i].accountId,
+            data: DeSerializeFromJsonString(dbAccounts[i].data),
+            timestamp: dbAccounts[i].timestamp,
+            hash: dbAccounts[i].hash,
+            cycleNumber: dbAccounts[i].cycleNumber,
+            isGlobal: dbAccounts[i].isGlobal === undefined ? undefined: dbAccounts[i].isGlobal
+          })
+        }
+        /* eslint-enable security/detect-object-injection */
+      }
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Account latest', accounts)
@@ -99,18 +117,31 @@ export async function queryLatestAccounts(count: number) {
     return accounts
   } catch (e) {
     Logger.mainLogger.error(e)
+    return null
   }
 }
 
-export async function queryAccounts(skip: number = 0, limit: number = 10000) {
-  let accounts
+export async function queryAccounts(skip = 0, limit = 10000): Promise<AccountCopy[]> {
+  let dbAccounts: DbAccountCopy[]
+  const accounts: AccountCopy[] = []
   try {
     const sql = `SELECT * FROM accounts ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    accounts = await db.all(sql)
-    if (accounts.length > 0) {
-      accounts.forEach((account: any) => {
-        if (account && account.data) account.data = DeSerializeFromJsonString(account.data)
-      })
+    dbAccounts = (await db.all(sql)) as DbAccountCopy[]
+    if (dbAccounts.length > 0) {
+      for (let i  = 0; i < dbAccounts.length; i++) {
+        /* eslint-disable security/detect-object-injection */
+        if (dbAccounts[i] && dbAccounts[i].data) {
+          accounts.push({
+            accountId: dbAccounts[i].accountId,
+            data: DeSerializeFromJsonString(dbAccounts[i].data),
+            timestamp: dbAccounts[i].timestamp,
+            hash: dbAccounts[i].hash,
+            cycleNumber: dbAccounts[i].cycleNumber,
+            isGlobal: dbAccounts[i].isGlobal === undefined ? undefined: dbAccounts[i].isGlobal
+          })
+        }
+        /* eslint-enable security/detect-object-injection */
+      }
     }
   } catch (e) {
     Logger.mainLogger.error(e)
@@ -121,7 +152,7 @@ export async function queryAccounts(skip: number = 0, limit: number = 10000) {
   return accounts
 }
 
-export async function queryAccountCount() {
+export async function queryAccountCount(): Promise<number> {
   let accounts
   try {
     const sql = `SELECT COUNT(*) FROM accounts`
@@ -137,7 +168,10 @@ export async function queryAccountCount() {
   return accounts
 }
 
-export async function queryAccountCountBetweenCycles(startCycleNumber: number, endCycleNumber: number) {
+export async function queryAccountCountBetweenCycles(
+  startCycleNumber: number,
+  endCycleNumber: number
+): Promise<number> {
   let accounts
   try {
     const sql = `SELECT COUNT(*) FROM accounts WHERE cycleNumber BETWEEN ? AND ?`
@@ -158,15 +192,27 @@ export async function queryAccountsBetweenCycles(
   limit = 10000,
   startCycleNumber: number,
   endCycleNumber: number
-) {
-  let accounts
+): Promise<AccountCopy[]> {
+  let dbAccounts: DbAccountCopy[]
+  const accounts: AccountCopy[] = []
   try {
     const sql = `SELECT * FROM accounts WHERE cycleNumber BETWEEN ? AND ? ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    accounts = await db.all(sql, [startCycleNumber, endCycleNumber])
-    if (accounts.length > 0) {
-      accounts.forEach((account: any) => {
-        if (account && account.data) account.data = DeSerializeFromJsonString(account.data)
-      })
+    dbAccounts = (await db.all(sql, [startCycleNumber, endCycleNumber])) as DbAccountCopy[]
+    if (dbAccounts.length > 0) {
+      for (let i  = 0; i < dbAccounts.length; i++) {
+        /* eslint-disable security/detect-object-injection */
+        if (dbAccounts[i] && dbAccounts[i].data) {
+          accounts.push({
+            accountId: dbAccounts[i].accountId,
+            data: DeSerializeFromJsonString(dbAccounts[i].data),
+            timestamp: dbAccounts[i].timestamp,
+            hash: dbAccounts[i].hash,
+            cycleNumber: dbAccounts[i].cycleNumber,
+            isGlobal: dbAccounts[i].isGlobal === undefined ? undefined: dbAccounts[i].isGlobal
+          })
+        }
+        /* eslint-enable security/detect-object-injection */
+      }
     }
   } catch (e) {
     Logger.mainLogger.error(e)
@@ -182,14 +228,25 @@ export async function queryAccountsBetweenCycles(
   return accounts
 }
 
-export async function fetchAccountsBySqlQuery(sql: string, value: string[]) {
-  let accounts: any = []
+export async function fetchAccountsBySqlQuery(sql: string, value: string[]): Promise<AccountCopy[]> {
+  const accounts: AccountCopy[] = []
   try {
-    accounts = await db.all(sql, value)
-    if (accounts.length > 0) {
-      accounts.forEach((account: any) => {
-        if (account && account.data) account.data = DeSerializeFromJsonString(account.data)
-      })
+    const dbAccounts = (await db.all(sql, value)) as DbAccountCopy[]
+    if (dbAccounts.length > 0) {
+      for (let i  = 0; i < dbAccounts.length; i++) {
+        /* eslint-disable security/detect-object-injection */
+        if (dbAccounts[i] && dbAccounts[i].data) {
+          accounts.push({
+            accountId: dbAccounts[i].accountId,
+            data: DeSerializeFromJsonString(dbAccounts[i].data),
+            timestamp: dbAccounts[i].timestamp,
+            hash: dbAccounts[i].hash,
+            cycleNumber: dbAccounts[i].cycleNumber,
+            isGlobal: dbAccounts[i].isGlobal === undefined ? undefined: dbAccounts[i].isGlobal
+          })
+        }
+        /* eslint-enable security/detect-object-injection */
+      }
     }
   } catch (e) {
     Logger.mainLogger.error(e)

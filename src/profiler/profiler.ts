@@ -1,25 +1,21 @@
 import { nestedCountersInstance } from './nestedCounters'
-import { memoryReportingInstance } from './memoryReporting'
-import { sleep } from '../Utils'
 import * as fastify from 'fastify'
 
-const NS_PER_SEC = 1e9
-
-let profilerSelfReporting = false
+const profilerSelfReporting = false
 
 interface Profiler {
-  sectionTimes: any
+  sectionTimes: object
   // instance: Profiler
 }
 
-export interface NodeLoad {
-  internal: number
-  external: number
+export let profilerInstance: Profiler
+
+export function setProfilerInstance(instance: Profiler): void {
+  profilerInstance = instance
 }
 
-export let profilerInstance: Profiler
 class Profiler {
-  sectionTimes: any
+  sectionTimes: object
   eventCounters: Map<string, Map<string, number>>
   stackHeight: number
   netInternalStackHeight: number
@@ -33,20 +29,20 @@ class Profiler {
     this.netInternalStackHeight = 0
     this.netExternalStackHeight = 0
     this.server = server
-    profilerInstance = this
 
     this.profileSectionStart('_total', true)
     this.profileSectionStart('_internal_total', true)
   }
 
-  registerEndpoints() {
+  registerEndpoints(): void {
     this.server.get('/perf', (req, res) => {
-      let result = this.printAndClearReport(1)
+      const result = this.printAndClearReport()
       res.send(result)
     })
   }
 
-  profileSectionStart(sectionName: string, internal = false) {
+  profileSectionStart(sectionName: string, internal = false): void {
+    // eslint-disable-next-line security/detect-object-injection
     let section = this.sectionTimes[sectionName]
 
     if (section != null && section.started === true) {
@@ -55,8 +51,8 @@ class Profiler {
     }
 
     if (section == null) {
-      let t = BigInt(0)
-      section = { name: sectionName, total: t, c: 0, internal }
+      section = { name: sectionName, total: BigInt(0), c: 0, internal }
+      // eslint-disable-next-line security/detect-object-injection
       this.sectionTimes[sectionName] = section
     }
 
@@ -87,8 +83,9 @@ class Profiler {
     }
   }
 
-  profileSectionEnd(sectionName: string, internal = false) {
-    let section = this.sectionTimes[sectionName]
+  profileSectionEnd(sectionName: string, internal = false): void {
+    // eslint-disable-next-line security/detect-object-injection
+    const section = this.sectionTimes[sectionName]
     if (section == null || section.started === false) {
       if (profilerSelfReporting) nestedCountersInstance.countEvent('profiler-end-error', sectionName)
       return
@@ -122,80 +119,76 @@ class Profiler {
     }
   }
 
-  cleanInt(x: any) {
-    x = Number(x)
-    return x >= 0 ? Math.floor(x) : Math.ceil(x)
-  }
+  //TODO - this is not used anywhere
+  // getTotalBusyInternal(): any {
+  //   if (profilerSelfReporting) nestedCountersInstance.countEvent('profiler-note', 'getTotalBusyInternal')
 
-  getTotalBusyInternal(): any {
-    if (profilerSelfReporting) nestedCountersInstance.countEvent('profiler-note', 'getTotalBusyInternal')
+  //   this.profileSectionEnd('_internal_total', true)
+  //   const internalTotalBusy = this.sectionTimes['_internal_totalBusy']
+  //   const internalTotal = this.sectionTimes['_internal_total']
+  //   const internalNetInternl = this.sectionTimes['_internal_net-internl']
+  //   const internalNetExternl = this.sectionTimes['_internal_net-externl']
+  //   let duty = BigInt(0)
+  //   let netInternlDuty = BigInt(0)
+  //   let netExternlDuty = BigInt(0)
+  //   if (internalTotalBusy != null && internalTotal != null) {
+  //     if (internalTotal.total > BigInt(0)) {
+  //       duty = (BigInt(100) * internalTotalBusy.total) / internalTotal.total
+  //     }
+  //   }
+  //   if (internalNetInternl != null && internalTotal != null) {
+  //     if (internalTotal.total > BigInt(0)) {
+  //       netInternlDuty = (BigInt(100) * internalNetInternl.total) / internalTotal.total
+  //     }
+  //   }
+  //   if (internalNetExternl != null && internalTotal != null) {
+  //     if (internalTotal.total > BigInt(0)) {
+  //       netExternlDuty = (BigInt(100) * internalNetExternl.total) / internalTotal.total
+  //     }
+  //   }
+  //   this.profileSectionStart('_internal_total', true)
 
-    this.profileSectionEnd('_internal_total', true)
-    let internalTotalBusy = this.sectionTimes['_internal_totalBusy']
-    let internalTotal = this.sectionTimes['_internal_total']
-    let internalNetInternl = this.sectionTimes['_internal_net-internl']
-    let internalNetExternl = this.sectionTimes['_internal_net-externl']
-    let duty = BigInt(0)
-    let netInternlDuty = BigInt(0)
-    let netExternlDuty = BigInt(0)
-    if (internalTotalBusy != null && internalTotal != null) {
-      if (internalTotal.total > BigInt(0)) {
-        duty = (BigInt(100) * internalTotalBusy.total) / internalTotal.total
-      }
-    }
-    if (internalNetInternl != null && internalTotal != null) {
-      if (internalTotal.total > BigInt(0)) {
-        netInternlDuty = (BigInt(100) * internalNetInternl.total) / internalTotal.total
-      }
-    }
-    if (internalNetExternl != null && internalTotal != null) {
-      if (internalTotal.total > BigInt(0)) {
-        netExternlDuty = (BigInt(100) * internalNetExternl.total) / internalTotal.total
-      }
-    }
-    this.profileSectionStart('_internal_total', true)
+  //   //clear these timers
+  //   internalTotal.total = BigInt(0)
+  //   internalTotalBusy.total = BigInt(0)
+  //   if (internalNetInternl) internalNetInternl.total = BigInt(0)
+  //   if (internalNetExternl) internalNetExternl.total = BigInt(0)
 
-    //clear these timers
-    internalTotal.total = BigInt(0)
-    internalTotalBusy.total = BigInt(0)
-    if (internalNetInternl) internalNetInternl.total = BigInt(0)
-    if (internalNetExternl) internalNetExternl.total = BigInt(0)
+  //   return {
+  //     duty: Number(duty) * 0.01,
+  //     netInternlDuty: Number(netInternlDuty) * 0.01,
+  //     netExternlDuty: Number(netExternlDuty) * 0.01,
+  //   }
+  // }
 
-    return {
-      duty: Number(duty) * 0.01,
-      netInternlDuty: Number(netInternlDuty) * 0.01,
-      netExternlDuty: Number(netExternlDuty) * 0.01,
-    }
-  }
-
-  clearTimes() {
-    for (let key in this.sectionTimes) {
+  clearTimes(): void {
+    for (const key in this.sectionTimes) {
       if (key.startsWith('_internal')) continue
 
-      if (this.sectionTimes.hasOwnProperty(key)) {
-        let section = this.sectionTimes[key]
+      if (Object.prototype.hasOwnProperty.call(this.sectionTimes, key)) {
+        // eslint-disable-next-line security/detect-object-injection
+        const section = this.sectionTimes[key]
         section.total = BigInt(0)
       }
     }
   }
 
-  printAndClearReport(delta?: number): string {
+  printAndClearReport(): string {
     this.profileSectionEnd('_total', true)
 
     let result = 'Profile Sections:\n'
-    let d1 = this.cleanInt(1e6) // will get us ms
-    let divider = BigInt(d1)
+    const divider = BigInt(1e6) // will get us ms
 
-    let totalSection = this.sectionTimes['_total']
-    let totalBusySection = this.sectionTimes['_totalBusy']
+    const totalSection = this.sectionTimes['_total']
     console.log('totalSection from printAndClearReport', totalSection)
 
-    let lines = []
-    for (let key in this.sectionTimes) {
+    const lines = []
+    for (const key in this.sectionTimes) {
       if (key.startsWith('_internal')) continue
 
-      if (this.sectionTimes.hasOwnProperty(key)) {
-        let section = this.sectionTimes[key]
+      if (Object.prototype.hasOwnProperty.call(this.sectionTimes, key)) {
+        // eslint-disable-next-line security/detect-object-injection
+        const section = this.sectionTimes[key]
 
         // result += `${section.name}: total ${section.total /
         //   divider} avg:${section.total / (divider * BigInt(section.c))} ,  ` // ${section.total} :
@@ -204,10 +197,10 @@ class Profiler {
         if (totalSection.total > BigInt(0)) {
           duty = (BigInt(100) * section.total) / totalSection.total
         }
-        let totalMs = section.total / divider
-        let dutyStr = `${duty}`.padStart(4)
-        let totalStr = `${totalMs}`.padStart(13)
-        let line = `${dutyStr}% ${section.name.padEnd(30)}, ${totalStr}ms, #:${section.c}`
+        const totalMs = section.total / divider
+        const dutyStr = `${duty}`.padStart(4)
+        const totalStr = `${totalMs}`.padStart(13)
+        const line = `${dutyStr}% ${section.name.padEnd(30)}, ${totalStr}ms, #:${section.c}`
         //section.total = BigInt(0)
 
         lines.push({ line, totalMs })

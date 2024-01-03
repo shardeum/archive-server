@@ -34,10 +34,10 @@ import { profilerInstance } from '../profiler/profiler'
 
 // Socket modules
 export let socketServer: SocketIO.Server
-let ioclient: SocketIOClientStatic = require('socket.io-client')
+import * as ioclient from 'socket.io-client'
 let socketClient: SocketIOClientStatic['Socket']
-export let socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
-let socketConnectionsTracker: Map<string, string> = new Map()
+export const socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
+const socketConnectionsTracker: Map<string, string> = new Map()
 let lastSentCycleCounterToExplorer = 0
 
 // let processedCounters = {}
@@ -54,9 +54,9 @@ interface DataResponse<T extends P2PTypes.SnapshotTypes.ValidTypes> {
   data: T[]
 }
 
-interface DataKeepAlive {
-  keepAlive: boolean
-}
+// interface DataKeepAlive {
+//   keepAlive: boolean
+// }
 
 export interface ReceiptMapQueryResponse {
   success: boolean
@@ -70,9 +70,10 @@ export interface SummaryBlobQueryResponse {
   success: boolean
   data: { [key: number]: StateManager.StateManagerTypes.SummaryBlob[] }
 }
+
 export interface DataQueryResponse {
   success: boolean
-  data: any
+  data: unknown
 }
 
 export class ArchivedCycle extends BaseModel {
@@ -83,17 +84,43 @@ export class ArchivedCycle extends BaseModel {
   summary!: StateManager.StateMetaDataTypes.Summary
 }
 
-export let StateMetaDataMap = new Map()
-export let currentDataSender: string = ''
+interface RequestType {
+  nodeInfo: State.ArchiverNodeInfo
+  publicKey: string
+  tag: string
+  type?: string
+}
 
-export function initSocketServer(io: SocketIO.Server) {
+interface ResponseType {
+  STATE_METADATA?: P2PTypes.SnapshotTypes.StateMetaData[]
+  [key: string]: unknown
+}
+
+interface ValidationAndStorageResult {
+  success: boolean
+  completed: number[]
+  failed: number[]
+  covered: number[]
+  blobs: unknown
+}
+
+interface NodeWithPort extends Node {
+  ip: string
+  port: number
+}
+
+export const StateMetaDataMap = new Map()
+export let currentDataSender = ''
+
+export function initSocketServer(io: SocketIO.Server): void {
   socketServer = io
-  socketServer.on('connection', (socket: SocketIO.Socket) => {
+  //`socket: SocketIO.Socket` removed as an argument
+  socketServer.on('connection', () => {
     Logger.mainLogger.debug('Explorer has connected')
   })
 }
 
-export function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
+export function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']): void {
   Logger.mainLogger.debug('Disconnecting previous connection', publicKey)
   if (!socketClient) return
   socketClient.emit('UNSUBSCRIBE', config.ARCHIVER_PUBLIC_KEY)
@@ -103,7 +130,7 @@ export function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInfo['pub
   currentDataSender = ''
 }
 
-export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
+export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
   if (config.VERBOSE) Logger.mainLogger.debug('Node Info to socker connect', node)
   if (config.VERBOSE) console.log('Node Info to socker connect', node)
   const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
@@ -147,7 +174,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo) {
       if (newData.responses && newData.responses.STATE_METADATA) {
         // Logger.mainLogger.debug('New DATA from consensor STATE_METADATA', newData.publicKey, newData.responses.STATE_METADATA)
         // let hashArray: any = Gossip.convertStateMetadataToHashArray(newData.responses.STATE_METADATA[0])
-        for (let stateMetadata of newData.responses.STATE_METADATA) {
+        for (const stateMetadata of newData.responses.STATE_METADATA) {
           StateMetaDataMap.set(stateMetadata.counter, stateMetadata)
           Gossip.sendGossip('hashes', stateMetadata)
         }
@@ -180,7 +207,7 @@ export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
   type: P2PTypes.SnapshotTypes.TypeName<T>,
   lastData: P2PTypes.SnapshotTypes.TypeIndex<T>,
   recipientPk: Crypto.types.publicKey
-) {
+): DataRequest<T> & Crypto.TaggedMessage {
   return Crypto.tag<DataRequest<T>>(
     {
       type,
@@ -190,7 +217,11 @@ export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
   )
 }
 
-export function createQueryRequest(type: string, lastData: number, recipientPk: Crypto.types.publicKey) {
+export function createQueryRequest(
+  type: string,
+  lastData: number,
+  recipientPk: Crypto.types.publicKey
+): Crypto.TaggedMessage & { type: string; lastData: number } {
   return Crypto.tag(
     {
       type,
@@ -214,11 +245,11 @@ const timeoutPadding = 1000
 
 export const emitter = new EventEmitter()
 
-export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
+export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['publicKey']): Promise<void> {
   nestedCountersInstance.countEvent('archiver', 'replace_data_sender')
   if (NodeList.getActiveList().length < 2) {
     Logger.mainLogger.debug('There is only one active node in the network. Unable to replace data sender')
-    let sender = dataSenders.get(publicKey)
+    const sender = dataSenders.get(publicKey)
     if (sender && sender.replaceTimeout) {
       nestedCountersInstance.countEvent('archiver', 'clear_replace_timeout')
       clearTimeout(sender.replaceTimeout)
@@ -277,13 +308,13 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
   sendDataRequest(newSender, dataRequest)
 }
 
-export async function subscribeRandomNodeForDataTransfer() {
+export async function subscribeRandomNodeForDataTransfer(): Promise<void> {
   let retry = 0
   let nodeSubscribedFail = true
   // Set randomly select a consensor as dataSender
   while (nodeSubscribedFail && retry < 10) {
-    let randomConsensor = NodeList.getRandomActiveNodes()[0]
-    let connectionStatus = await createDataTransferConnection(randomConsensor)
+    const randomConsensor = NodeList.getRandomActiveNodes()[0]
+    const connectionStatus = await createDataTransferConnection(randomConsensor)
     if (connectionStatus) nodeSubscribedFail = false
     else retry++
   }
@@ -302,9 +333,9 @@ export async function subscribeRandomNodeForDataTransfer() {
  */
 export function createContactTimeout(
   publicKey: NodeList.ConsensusNodeInfo['publicKey'],
-  msg: string = '',
+  msg = '',
   timeout: number | null = null
-) {
+): NodeJS.Timeout {
   // TODO: check what is the best contact timeout
   let ms: number
   if (timeout) ms = timeout
@@ -322,7 +353,7 @@ export function createContactTimeout(
   }, ms)
 }
 
-export function createReplaceTimeout(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
+export function createReplaceTimeout(publicKey: NodeList.ConsensusNodeInfo['publicKey']): NodeJS.Timeout {
   const ms = config.DATASENDER_TIMEOUT || 1000 * 60 * 60
   return setTimeout(() => {
     nestedCountersInstance.countEvent('archiver', 'replace_timeout')
@@ -331,19 +362,19 @@ export function createReplaceTimeout(publicKey: NodeList.ConsensusNodeInfo['publ
   }, ms)
 }
 
-export function addDataSenders(...senders: DataSender[]) {
+export function addDataSenders(...senders: DataSender[]): void {
   for (const sender of senders) {
     dataSenders.set(sender.nodeInfo.publicKey, sender)
     currentDataSender = sender.nodeInfo.publicKey
   }
 }
 
-function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
+function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']): DataSender[] {
   Logger.mainLogger.debug(`${new Date()}: Removing data sender ${publicKey}`)
   const removedSenders = []
   // console.log('removeDataSenders', dataSenders)
   // Logger.mainLogger.debug('removeDataSenders', dataSenders)
-  for (let [key, sender] of dataSenders) {
+  for (const [key, sender] of dataSenders) {
     // if (config.VERBOSE) Logger.mainLogger.debug(publicKey, key)
     if (key === publicKey && sender) {
       // Clear contactTimeout associated with this sender
@@ -368,10 +399,10 @@ function removeDataSenders(publicKey: NodeList.ConsensusNodeInfo['publicKey']) {
   return removedSenders
 }
 
-function selectNewDataSender(publicKey: string) {
+function selectNewDataSender(publicKey: string): NodeList.ConsensusNodeInfo | undefined {
   // Randomly pick an active node
   const activeList = NodeList.getActiveList()
-  let newSender = activeList[Math.floor(Math.random() * activeList.length)]
+  const newSender = activeList[Math.floor(Math.random() * activeList.length)]
   Logger.mainLogger.debug('New data sender is selected', newSender)
   if (newSender) {
     unsubscribeDataSender(publicKey)
@@ -380,7 +411,9 @@ function selectNewDataSender(publicKey: string) {
   return newSender
 }
 
-export async function createDataTransferConnection(newSenderInfo: NodeList.ConsensusNodeInfo) {
+export async function createDataTransferConnection(
+  newSenderInfo: NodeList.ConsensusNodeInfo
+): Promise<boolean> {
   initSocketClient(newSenderInfo)
   let count = 0
   while (!socketClients.has(newSenderInfo.publicKey) && count <= 50) {
@@ -428,21 +461,21 @@ export async function createDataTransferConnection(newSenderInfo: NodeList.Conse
   return true
 }
 
-export function sendDataRequest(sender: DataSender, dataRequest: any) {
+export function sendDataRequest(sender: DataSender, dataRequest: unknown): void {
   const taggedDataRequest = Crypto.tag(dataRequest, sender.nodeInfo.publicKey)
   Logger.mainLogger.info('Sending tagged data request to consensor.', sender)
   if (socketClients.has(sender.nodeInfo.publicKey))
     emitter.emit('selectNewDataSender', sender.nodeInfo, taggedDataRequest)
 }
 
-export async function subscribeMoreConsensors(numbersToSubscribe: number) {
+export async function subscribeMoreConsensors(numbersToSubscribe: number): Promise<void> {
   Logger.mainLogger.info(`Subscribing ${numbersToSubscribe} more consensors for tagged data request`)
   console.log('numbersToSubscribe', numbersToSubscribe)
   for (let i = 0; i < numbersToSubscribe; i++) {
     await Utils.sleep(60000)
     // Pick a new dataSender
     const activeList = NodeList.getActiveList()
-    let newSenderInfo = activeList[Math.floor(Math.random() * activeList.length)]
+    const newSenderInfo = activeList[Math.floor(Math.random() * activeList.length)]
     Logger.mainLogger.debug('New data sender is selected', newSenderInfo)
     if (!newSenderInfo) {
       Logger.mainLogger.error('Unable to select a new data sender.')
@@ -483,13 +516,19 @@ export async function subscribeMoreConsensors(numbersToSubscribe: number) {
   }
 }
 
-async function sendDataQuery(consensorNode: NodeList.ConsensusNodeInfo, dataQuery: any, validateFn: any) {
+async function sendDataQuery(
+  consensorNode: NodeList.ConsensusNodeInfo,
+  dataQuery: unknown,
+  validateFn: (cycle: number, partition: number) => boolean
+): Promise<unknown> {
   const taggedDataQuery = Crypto.tag(dataQuery, consensorNode.publicKey)
-  let result = await queryDataFromNode(consensorNode, taggedDataQuery, validateFn)
+  const result = await queryDataFromNode(consensorNode, taggedDataQuery, validateFn)
   return result
 }
 
-async function processData(newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage) {
+async function processData(
+  newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage
+): Promise<void> {
   // Get sender entry
   const sender = dataSenders.get(newData.publicKey)
 
@@ -520,8 +559,15 @@ async function processData(newData: DataResponse<P2PTypes.SnapshotTypes.ValidTyp
         processCycles(newData.responses.CYCLE as Cycle[])
         // socketServer.emit('ARCHIVED_CYCLE', 'CYCLE')
         if (newData.responses.CYCLE.length > 0) {
-          for (let cycle of newData.responses.CYCLE) {
-            let archivedCycle: any = {}
+          for (const cycle of newData.responses.CYCLE) {
+            const archivedCycle: ArchivedCycle = {
+              cycleRecord: cycle,
+              cycleMarker: cycle.marker,
+              data: undefined,
+              receipt: undefined,
+              summary: undefined,
+              _id: undefined,
+            }
             archivedCycle.cycleRecord = cycle
             archivedCycle.cycleMarker = cycle.marker
             Cycles.CycleChain.set(cycle.counter, cycle)
@@ -555,9 +601,9 @@ async function processData(newData: DataResponse<P2PTypes.SnapshotTypes.ValidTyp
   }
 }
 
-export async function processStateMetaData(response: any) {
+export async function processStateMetaData(response: ResponseType): Promise<void> {
   Logger.mainLogger.error('response', response)
-  let STATE_METADATA = response.STATE_METADATA
+  const STATE_METADATA = response.STATE_METADATA
   if (!STATE_METADATA || STATE_METADATA.length === 0) {
     Logger.mainLogger.error(
       'Invalid STATE_METADATA provided to processStateMetaData function',
@@ -566,21 +612,26 @@ export async function processStateMetaData(response: any) {
     return
   }
   profilerInstance.profileSectionStart('state_metadata')
-  for (let stateMetaData of STATE_METADATA) {
-    let data: { parentCycle: any; networkHash?: any; partitionHashes?: any }
+  for (const stateMetaData of STATE_METADATA) {
+    let data: { parentCycle: string; networkHash?: string; partitionHashes?: object }
     let receipt: {
-      parentCycle: any
-      networkHash?: any
-      partitionHashes?: any
-      partitionMaps?: {}
-      partitionTxs?: {}
+      parentCycle: string
+      networkHash?: string
+      partitionHashes?: object
+      partitionMaps?: object
+      partitionTxs?: object
     }
-    let summary: { parentCycle: any; networkHash?: any; partitionHashes?: any; partitionBlobs?: {} }
+    let summary: {
+      parentCycle: string
+      networkHash?: string
+      partitionHashes?: object
+      partitionBlobs?: object
+    }
     // [TODO] validate the state data by robust querying other nodes
 
     // store state hashes to archivedCycle
     for (const stateHashesForCycle of stateMetaData.stateHashes) {
-      let parentCycle = Cycles.CycleChain.get(stateHashesForCycle.counter)
+      const parentCycle = Cycles.CycleChain.get(stateHashesForCycle.counter)
       if (!parentCycle) {
         Logger.mainLogger.error('Unable to find parent cycle for cycle', stateHashesForCycle.counter)
         continue
@@ -599,7 +650,7 @@ export async function processStateMetaData(response: any) {
 
     // store receipt hashes to archivedCycle
     for (const receiptHashesForCycle of stateMetaData.receiptHashes) {
-      let parentCycle = Cycles.CycleChain.get(receiptHashesForCycle.counter)
+      const parentCycle = Cycles.CycleChain.get(receiptHashesForCycle.counter)
       if (!parentCycle) {
         Logger.mainLogger.error('Unable to find parent cycle for cycle', receiptHashesForCycle.counter)
         continue
@@ -619,11 +670,11 @@ export async function processStateMetaData(response: any) {
         let isDownloadSuccess = false
         let retry = 0
         let sleepCount = 0
-        let failedPartitions = new Map()
-        let coveredPartitions = new Map()
-        let downloadedReceiptMaps = new Map()
+        const failedPartitions = new Map()
+        const coveredPartitions = new Map()
+        const downloadedReceiptMaps = new Map()
 
-        let shouldProcessReceipt = (cycle: number, partition: number) => {
+        const shouldProcessReceipt = (cycle: number, partition: number): boolean => {
           if (cycle === receiptHashesForCycle.counter - 1)
             if (failedPartitions.has(partition) || !coveredPartitions.has(partition)) return true
           return false
@@ -631,28 +682,35 @@ export async function processStateMetaData(response: any) {
         const cycleActiveNodesSize =
           parentCycle.active + parentCycle.activated.length - parentCycle.removed.length
         while (!isDownloadSuccess && sleepCount < 20) {
-          let randomConsensor = NodeList.getRandomActiveNodes()[0]
+          const randomConsensor = NodeList.getRandomActiveNodes()[0]
           const queryRequest = createQueryRequest(
             'RECEIPT_MAP',
             receiptHashesForCycle.counter - 1,
             randomConsensor.publicKey
           )
-          let { success, completed, failed, covered, blobs } = await sendDataQuery(
+          const { success, completed, failed, covered, blobs } = (await sendDataQuery(
             randomConsensor,
             queryRequest,
             shouldProcessReceipt
-          )
+          )) as {
+            success: boolean
+            completed: number[]
+            failed: number[]
+            covered: number[]
+            blobs: Record<string, unknown>
+          }
           if (success) {
-            for (let partition of failed) {
+            for (const partition of failed) {
               failedPartitions.set(partition, true)
             }
-            for (let partition of completed) {
+            for (const partition of completed) {
               if (failedPartitions.has(partition)) failedPartitions.delete(partition)
             }
-            for (let partition of covered) {
+            for (const partition of covered) {
               coveredPartitions.set(partition, true)
             }
-            for (let partition in blobs) {
+            for (const partition in blobs) {
+              // eslint-disable-next-line security/detect-object-injection
               downloadedReceiptMaps.set(partition, blobs[partition])
             }
           }
@@ -701,7 +759,7 @@ export async function processStateMetaData(response: any) {
 
     // store summary hashes to archivedCycle
     for (const summaryHashesForCycle of stateMetaData.summaryHashes) {
-      let parentCycle = Cycles.CycleChain.get(summaryHashesForCycle.counter)
+      const parentCycle = Cycles.CycleChain.get(summaryHashesForCycle.counter)
       if (!parentCycle) {
         Logger.mainLogger.error('Unable to find parent cycle for cycle', summaryHashesForCycle.counter)
         continue
@@ -826,8 +884,9 @@ export async function processStateMetaData(response: any) {
   profilerInstance.profileSectionEnd('state_metadata')
 }
 
-export async function sendToExplorer(counter: number) {
+export async function sendToExplorer(counter: number): Promise<void> {
   if (socketServer) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let completedArchivedCycle: any[]
     if (lastSentCycleCounterToExplorer === 0) {
       completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(
@@ -839,7 +898,7 @@ export async function sendToExplorer(counter: number) {
       completedArchivedCycle = await Storage.queryAllArchivedCyclesBetween(counter, counter)
       Logger.mainLogger.debug('start, end', counter, counter)
     }
-    let signedDataToSend = Crypto.sign({
+    const signedDataToSend = Crypto.sign({
       archivedCycles: completedArchivedCycle,
     })
     Logger.mainLogger.debug('Sending completed archived_cycle to explorer', signedDataToSend)
@@ -848,8 +907,9 @@ export async function sendToExplorer(counter: number) {
   }
 }
 
-export async function fetchStateHashes(archivers: any) {
-  function _isSameStateHashes(info1: any, info2: any) {
+export async function fetchStateHashes(archivers: Node[]): Promise<unknown> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function _isSameStateHashes(info1: any, info2: any): boolean {
     const cm1 = Utils.deepCopy(info1)
     const cm2 = Utils.deepCopy(info2)
     delete cm1.currentTime
@@ -858,7 +918,8 @@ export async function fetchStateHashes(archivers: any) {
     return equivalent
   }
 
-  const queryFn = async (node: any) => {
+  const queryFn = async (node: NodeWithPort): Promise<unknown[]> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const response: any = await P2P.getJson(`http://${node.ip}:${node.port}/statehashes`)
     return response.stateHashes
   }
@@ -866,13 +927,13 @@ export async function fetchStateHashes(archivers: any) {
   return stateHashes.value[0]
 }
 
-export async function buildNodeListFromStoredCycle(lastStoredCycle: Cycles.Cycle) {
+export async function buildNodeListFromStoredCycle(lastStoredCycle: Cycles.Cycle): Promise<void> {
   Logger.mainLogger.debug('lastStoredCycle', lastStoredCycle)
   Logger.mainLogger.debug(`Syncing till cycle ${lastStoredCycle.counter}...`)
   const cyclesToGet = 2 * Math.floor(Math.sqrt(lastStoredCycle.active)) + 2
   Logger.mainLogger.debug(`Cycles to get is ${cyclesToGet}`)
 
-  let CycleChain = []
+  const CycleChain = []
   const squasher = new ChangeSquasher()
 
   CycleChain.unshift(lastStoredCycle)
@@ -934,8 +995,8 @@ export async function buildNodeListFromStoredCycle(lastStoredCycle: Cycles.Cycle
 
 export async function syncCyclesAndNodeList(
   activeArchivers: State.ArchiverNodeInfo[],
-  lastStoredCycleCount: number = 0
-) {
+  lastStoredCycleCount = 0
+): Promise<boolean> {
   // Get the networks newest cycle as the anchor point for sync
   Logger.mainLogger.debug('Getting newest cycle...')
   const cycleToSyncTo = await getNewestCycleFromArchivers(activeArchivers)
@@ -944,7 +1005,7 @@ export async function syncCyclesAndNodeList(
   const cyclesToGet = 2 * Math.floor(Math.sqrt(cycleToSyncTo.active)) + 2
   Logger.mainLogger.debug(`Cycles to get is ${cyclesToGet}`)
 
-  let CycleChain = []
+  const CycleChain = []
   const squasher = new ChangeSquasher()
 
   CycleChain.unshift(cycleToSyncTo)
@@ -1005,7 +1066,8 @@ export async function syncCyclesAndNodeList(
   Logger.mainLogger.debug('NodeList after sync', NodeList.getActiveList())
 
   for (let i = 0; i < CycleChain.length; i++) {
-    let record = CycleChain[i]
+    // eslint-disable-next-line security/detect-object-injection
+    const record = CycleChain[i]
     Cycles.CycleChain.set(record.counter, { ...record })
     Logger.mainLogger.debug('Inserting archived cycle for counter', record.counter)
     const archivedCycle = createArchivedCycle(record)
@@ -1035,7 +1097,8 @@ export async function syncCyclesAndNodeList(
     prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
 
     // Add prevCycles to our cycle chain
-    let combineCycles = []
+    // commented out because not currently used
+    // const combineCycles = []
     for (const prevCycle of prevCycles) {
       // Stop saving prevCycles if one of them is invalid
       if (validateCycle(prevCycle, savedCycleRecord) === false) {
@@ -1054,8 +1117,9 @@ export async function syncCyclesAndNodeList(
   return true
 }
 
-function createArchivedCycle(cycleRecord: Cycle) {
-  let archivedCycle: any = {
+function createArchivedCycle(cycleRecord: Cycle): ArchivedCycle {
+  const archivedCycle: ArchivedCycle = {
+    _id: '',
     cycleRecord: cycleRecord,
     cycleMarker: cycleRecord.marker,
     data: {},
@@ -1068,16 +1132,17 @@ function createArchivedCycle(cycleRecord: Cycle) {
 async function downloadArchivedCycles(
   archiver: State.ArchiverNodeInfo,
   cycleToSyncTo: number,
-  startCycle: number = 0
-) {
+  startCycle = 0
+): Promise<ArchivedCycle[]> {
   let complete = false
   let lastData = startCycle
-  let collector: any = []
+  let collector: ArchivedCycle[] = []
   let count = 0
-  let maxCount = Math.ceil((cycleToSyncTo - startCycle) / 5)
+  const maxCount = Math.ceil((cycleToSyncTo - startCycle) / 5)
   while (!complete && count < maxCount) {
     Logger.mainLogger.debug(`Downloading archive from cycle ${lastData} to cycle ${lastData + 5}`)
-    let response: any = await P2P.getJson(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const response: any = await P2P.getJson(
       `http://${archiver.ip}:${archiver.port}/full-archive?start=${lastData}&end=${lastData + 5}`
     )
     if (response && response.archivedCycles) {
@@ -1096,8 +1161,12 @@ async function downloadArchivedCycles(
   return collector
 }
 
-export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo, lastCycleCounter = 0) {
+export async function compareWithOldCyclesData(
+  archiver: State.ArchiverNodeInfo,
+  lastCycleCounter = 0
+): Promise<{ success: boolean; cycle: number }> {
   let downloadedCycles
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const response: any = await P2P.getJson(
     `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${lastCycleCounter - 10}&end=${
       lastCycleCounter - 1
@@ -1112,13 +1181,15 @@ export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo,
       }  from archiver ${archiver}`
     )
   }
-  let oldCycles = await Storage.queryCycleRecordsBetween(lastCycleCounter - 10, lastCycleCounter + 1)
+  const oldCycles = await Storage.queryCycleRecordsBetween(lastCycleCounter - 10, lastCycleCounter + 1)
   downloadedCycles.sort((a, b) => (a.counter > b.counter ? 1 : -1))
   oldCycles.sort((a, b) => (a.counter > b.counter ? 1 : -1))
   let success = false
   let cycle = 0
   for (let i = 0; i < downloadedCycles.length; i++) {
-    let downloadedCycle = downloadedCycles[i]
+    // eslint-disable-next-line security/detect-object-injection
+    const downloadedCycle = downloadedCycles[i]
+    // eslint-disable-next-line security/detect-object-injection
     const oldCycle = oldCycles[i]
     console.log(downloadedCycle, oldCycle)
     if (JSON.stringify(downloadedCycle) !== JSON.stringify(oldCycle)) {
@@ -1133,38 +1204,41 @@ export async function compareWithOldCyclesData(archiver: State.ArchiverNodeInfo,
   return { success, cycle }
 }
 
-export async function syncStateMetaData(activeArchivers: State.ArchiverNodeInfo[]) {
+export async function syncStateMetaData(activeArchivers: State.ArchiverNodeInfo[]): Promise<boolean> {
   const randomArchiver = Utils.getRandomItemFromArr(activeArchivers)[0]
-  let allCycleRecords = await Storage.queryAllCycleRecords()
-  let lastCycleCounter = allCycleRecords[0].counter
-  let downloadedArchivedCycles = await downloadArchivedCycles(randomArchiver, lastCycleCounter)
+  const allCycleRecords = await Storage.queryAllCycleRecords()
+  const lastCycleCounter = allCycleRecords[0].counter
+  const downloadedArchivedCycles = await downloadArchivedCycles(randomArchiver, lastCycleCounter)
 
-  let networkReceiptHashesFromRecords = new Map()
-  let networkDataHashesFromRecords = new Map()
-  let networkSummaryHashesFromRecords = new Map()
+  const networkReceiptHashesFromRecords = new Map()
+  const networkDataHashesFromRecords = new Map()
+  const networkSummaryHashesFromRecords = new Map()
 
-  allCycleRecords.forEach((cycleRecord: any) => {
+  allCycleRecords.forEach((cycleRecord: P2PTypes.CycleCreatorTypes.CycleRecord) => {
     if (cycleRecord.networkReceiptHash.length > 0) {
-      cycleRecord.networkReceiptHash.forEach((hash: any) => {
+      cycleRecord.networkReceiptHash.forEach((hash: P2PTypes.SnapshotTypes.NetworkHash) => {
         networkReceiptHashesFromRecords.set(hash.cycle, hash.hash)
       })
     }
     if (cycleRecord.networkDataHash.length > 0) {
-      cycleRecord.networkDataHash.forEach((hash: any) => {
+      cycleRecord.networkDataHash.forEach((hash: P2PTypes.SnapshotTypes.NetworkHash) => {
         networkDataHashesFromRecords.set(hash.cycle, hash.hash)
       })
     }
     if (cycleRecord.networkSummaryHash.length > 0) {
-      cycleRecord.networkSummaryHash.forEach((hash: any) => {
+      cycleRecord.networkSummaryHash.forEach((hash: P2PTypes.SnapshotTypes.NetworkHash) => {
         networkSummaryHashesFromRecords.set(hash.cycle, hash.hash)
       })
     }
   })
 
   for (let i = 0; i < downloadedArchivedCycles.length; i++) {
-    let marker = downloadedArchivedCycles[i].cycleRecord.marker
-    let counter = downloadedArchivedCycles[i].cycleRecord.counter
-    let downloadedArchivedCycle = downloadedArchivedCycles[i]
+    // eslint-disable-next-line security/detect-object-injection
+    const marker = downloadedArchivedCycles[i].cycleRecord.marker
+    // eslint-disable-next-line security/detect-object-injection
+    const counter = downloadedArchivedCycles[i].cycleRecord.counter
+    // eslint-disable-next-line security/detect-object-injection
+    const downloadedArchivedCycle = downloadedArchivedCycles[i]
 
     if (!downloadedArchivedCycle) {
       Logger.mainLogger.debug('Unable to download archivedCycle for counter', counter)
@@ -1260,25 +1334,35 @@ export const calculateNetworkHash = (data: object): string => {
 
 export type QueryDataResponse = ReceiptMapQueryResponse | StatsClumpQueryResponse
 
-async function queryDataFromNode(consensorNode: NodeList.ConsensusNodeInfo, dataQuery: any, validateFn: any) {
-  let request = {
+async function queryDataFromNode(
+  consensorNode: NodeList.ConsensusNodeInfo,
+  dataQuery: ReturnType<typeof Crypto.tag>,
+  validateFn: (cycle: number, partition: number) => boolean
+): Promise<ValidationAndStorageResult> {
+  const request: RequestType = {
     ...dataQuery,
     nodeInfo: State.getNodeInfo(),
   }
-  let result: any = { success: false, completed: [] }
+  let result: ValidationAndStorageResult = {
+    success: false,
+    completed: [],
+    failed: [],
+    covered: [],
+    blobs: {},
+  }
   try {
-    let response = (await P2P.postJson(
+    const response = (await P2P.postJson(
       `http://${consensorNode.ip}:${consensorNode.port}/querydata`,
       request
     )) as QueryDataResponse
     if (response && request.type === 'RECEIPT_MAP') {
-      let receiptMapData = response.data as ReceiptMapQueryResponse['data']
+      const receiptMapData = response.data as ReceiptMapQueryResponse['data']
       // for (let counter in response.data) {
       result = await validateAndStoreReceiptMaps(receiptMapData, validateFn)
       // }
     } else if (response && request.type === 'SUMMARY_BLOB') {
       // for (let counter in response.data) {
-      let summaryBlobData = response.data as StatsClumpQueryResponse['data']
+      const summaryBlobData = response.data as StatsClumpQueryResponse['data']
       result = await validateAndStoreSummaryBlobs(Object.values(summaryBlobData), validateFn)
       // }
     }
@@ -1294,33 +1378,41 @@ async function validateAndStoreReceiptMaps(
   receiptMapResultsForCycles: {
     [key: number]: StateManager.StateManagerTypes.ReceiptMapResult[]
   },
-  validateFn: any
-) {
-  let completed: number[] = []
-  let failed: number[] = []
-  let coveredPartitions: number[] = []
-  let receiptMaps: any = {}
-  for (let counter in receiptMapResultsForCycles) {
-    let receiptMapResults: StateManager.StateManagerTypes.ReceiptMapResult[] =
+  validateFn: (cycle: number, partition: number) => boolean
+): Promise<{
+  success: boolean
+  completed: number[]
+  failed: number[]
+  covered: number[]
+  blobs: unknown
+}> {
+  const completed: number[] = []
+  const failed: number[] = []
+  const coveredPartitions: number[] = []
+  const receiptMaps: unknown = {}
+  for (const counter in receiptMapResultsForCycles) {
+    const receiptMapResults: StateManager.StateManagerTypes.ReceiptMapResult[] =
+      // eslint-disable-next-line security/detect-object-injection
       receiptMapResultsForCycles[counter]
-    for (let receiptMap of receiptMapResults) {
-      let { cycle, partition } = receiptMap
+    for (const receiptMap of receiptMapResults) {
+      const { cycle, partition } = receiptMap
       if (validateFn) {
-        let shouldProcess = validateFn(cycle, partition)
+        const shouldProcess = validateFn(cycle, partition)
         if (!shouldProcess) {
           continue
         }
       }
       coveredPartitions.push(partition)
-      let reciptMapHash = await Storage.queryReceiptMapHash(parseInt(counter), partition)
+      const reciptMapHash = await Storage.queryReceiptMapHash(parseInt(counter), partition)
       if (!reciptMapHash) {
         Logger.mainLogger.error(`Unable to find receipt hash for counter ${counter}, partition ${partition}`)
         continue
       }
-      let calculatedReceiptMapHash = Crypto.hashObj(receiptMap)
+      const calculatedReceiptMapHash = Crypto.hashObj(receiptMap)
       if (calculatedReceiptMapHash === reciptMapHash) {
         await Storage.updateReceiptMap(receiptMap)
         completed.push(partition)
+        // eslint-disable-next-line security/detect-object-injection
         receiptMaps[partition] = receiptMap
       } else {
         Logger.mainLogger.error(
@@ -1341,36 +1433,42 @@ async function validateAndStoreReceiptMaps(
 
 async function validateAndStoreSummaryBlobs(
   statsClumpForCycles: StateManager.StateManagerTypes.StatsClump[],
-  validateFn: any
-) {
-  let completed: number[] = []
-  let failed: number[] = []
-  let coveredPartitions: number[] = []
-  let blobs: any = {}
+  validateFn: (cycle: number, partition: number) => boolean
+): Promise<{
+  success: boolean
+  completed: number[]
+  failed: number[]
+  covered: number[]
+  blobs: unknown
+}> {
+  const completed: number[] = []
+  const failed: number[] = []
+  const coveredPartitions: number[] = []
+  const blobs: unknown = {}
 
-  for (let statsClump of statsClumpForCycles) {
-    let { cycle, dataStats, txStats, covered } = statsClump
+  for (const statsClump of statsClumpForCycles) {
+    const { cycle, dataStats, txStats, covered } = statsClump
     if (!covered) continue
-    for (let partition of covered) {
+    for (const partition of covered) {
       if (validateFn) {
-        let shouldProcess = validateFn(cycle, partition)
+        const shouldProcess = validateFn(cycle, partition)
         if (!shouldProcess) {
           continue
         }
       }
       coveredPartitions.push(partition)
       let summaryBlob
-      let dataBlob = dataStats.find((d) => d.partition === partition)
-      let txBlob = txStats.find((t) => t.partition === partition)
-      let summaryHash = await Storage.querySummaryHash(cycle, partition)
+      const dataBlob = dataStats.find((d) => d.partition === partition)
+      const txBlob = txStats.find((t) => t.partition === partition)
+      const summaryHash = await Storage.querySummaryHash(cycle, partition)
       if (!summaryHash) {
         continue
       }
-      let summaryObj = {
+      const summaryObj = {
         dataStats: dataBlob ? dataBlob.opaqueBlob : {},
         txStats: txBlob ? txBlob.opaqueBlob : {},
       }
-      let calculatedSummaryHash = Crypto.hashObj(summaryObj)
+      const calculatedSummaryHash = Crypto.hashObj(summaryObj)
       if (summaryHash !== calculatedSummaryHash) {
         failed.push(partition)
         continue
@@ -1397,6 +1495,7 @@ async function validateAndStoreSummaryBlobs(
         try {
           await Storage.updateSummaryBlob(summaryBlob, cycle)
           completed.push(partition)
+          // eslint-disable-next-line security/detect-object-injection
           blobs[partition] = summaryBlob
         } catch (e) {
           Logger.mainLogger.error('Unable to store summary blob', e)
@@ -1416,18 +1515,17 @@ async function validateAndStoreSummaryBlobs(
 
 emitter.on(
   'selectNewDataSender',
-  async (newSenderInfo: NodeList.ConsensusNodeInfo, taggedDataRequest: any) => {
+  async (newSenderInfo: NodeList.ConsensusNodeInfo, taggedDataRequest: object) => {
     //let request = {
     //...dataRequest,
     //nodeInfo: State.getNodeInfo()
     //}
     if (socketClients.has(newSenderInfo.publicKey)) {
-      let response = await P2P.postJson(
+      const response = await P2P.postJson(
         `http://${newSenderInfo.ip}:${newSenderInfo.port}/requestdata`,
         taggedDataRequest
       )
       Logger.mainLogger.debug('/requestdata response', response)
-    } else {
     }
   }
 )

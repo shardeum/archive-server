@@ -1,8 +1,8 @@
 import { readFileSync } from 'fs'
-import { ArchiverNodeInfo } from './State'
 import * as Logger from './Logger'
 import * as merge from 'deepmerge'
 import * as minimist from 'minimist'
+import { join } from 'path'
 
 export interface Config {
   [index: string]: object | string | number | boolean
@@ -81,21 +81,27 @@ let config: Config = {
   globalNetworkAccount: process.env.GLOBAL_ACCOUNT || '0'.repeat(64), //this address will change in the future
   maxValidatorsToServe: 10, // max number of validators to serve accounts data during restore mode
 }
+// Override default config params from config file, env vars, and cli args
+export function overrideDefaultConfig(env: NodeJS.ProcessEnv, args: string[]): string {
+  let file = ''
 
-export function overrideDefaultConfig(file: string, env: NodeJS.ProcessEnv, args: string[]) {
   // Override config from config file
   try {
+    file = join(process.cwd(), 'archiver-config.json')
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     const fileConfig = JSON.parse(readFileSync(file, { encoding: 'utf8' }))
-    const overwriteMerge = (target: [], source: [], options: {}): [] => source
+    const overwriteMerge = (target: [], source: []): [] => source
     config = merge(config, fileConfig, { arrayMerge: overwriteMerge })
   } catch (err) {
-    if ((err as any).code !== 'ENOENT') {
+    if (err && err.code !== 'ENOENT') {
       console.warn('Failed to parse config file:', err)
     }
+    return ''
   }
 
   // Override config from env vars
   for (const param in config) {
+    /* eslint-disable security/detect-object-injection */
     if (env[param]) {
       switch (typeof config[param]) {
         case 'number': {
@@ -108,9 +114,9 @@ export function overrideDefaultConfig(file: string, env: NodeJS.ProcessEnv, args
         }
         case 'object': {
           try {
-            var parameterStr = env[param]
+            const parameterStr = env[param]
             if (parameterStr) {
-              let parameterObj = JSON.parse(parameterStr)
+              const parameterObj = JSON.parse(parameterStr)
               config[param] = parameterObj
             }
           } catch (e) {
@@ -124,14 +130,19 @@ export function overrideDefaultConfig(file: string, env: NodeJS.ProcessEnv, args
           break
         }
         default: {
+          break
         }
       }
     }
+    /* eslint-enable security/detect-object-injection */
+
+    return file
   }
 
   // Override config from cli args
   const parsedArgs = minimist(args.slice(2))
   for (const param of Object.keys(config)) {
+    /* eslint-disable security/detect-object-injection */
     if (parsedArgs[param]) {
       switch (typeof config[param]) {
         case 'number': {
@@ -151,10 +162,14 @@ export function overrideDefaultConfig(file: string, env: NodeJS.ProcessEnv, args
           break
         }
         default: {
+          break
         }
       }
     }
+    /* eslint-enable security/detect-object-injection */
   }
+
+  return file
 }
 
 export { config }

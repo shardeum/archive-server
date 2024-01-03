@@ -7,6 +7,8 @@ import fetch from 'node-fetch'
 import { Cycle } from './Data/Cycles'
 import { P2P as P2PTypes } from '@shardus/types'
 import { RequestInit, Response } from 'node-fetch'
+import * as cryptoTypes from './shardus-crypto-types'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { version } = require('../package.json')
 
 export enum RequestTypes {
@@ -44,7 +46,7 @@ export interface FirstNodeResponse {
   dataRequestStateMetaData?: Data.DataRequest<P2PTypes.SnapshotTypes.StateMetaData> & Crypto.TaggedMessage
 }
 
-export function createArchiverJoinRequest() {
+export function createArchiverJoinRequest(): ArchiverJoinRequest & cryptoTypes.SignedObject {
   const joinRequest: ArchiverJoinRequest = {
     nodeInfo: State.getNodeInfo(),
     appData: { version },
@@ -54,7 +56,7 @@ export function createArchiverJoinRequest() {
   return Crypto.sign(joinRequest)
 }
 
-export function createArchiverActiveRequest() {
+export function createArchiverActiveRequest(): ArchiverActiveRequest & cryptoTypes.SignedObject {
   const activeRequest: ArchiverActiveRequest = {
     nodeInfo: State.getNodeInfo(),
     requestType: RequestTypes.ACTIVE,
@@ -62,7 +64,7 @@ export function createArchiverActiveRequest() {
   return Crypto.sign(activeRequest)
 }
 
-export function createArchiverLeaveRequest() {
+export function createArchiverLeaveRequest(): ArchiverLeaveRequest & cryptoTypes.SignedObject {
   const leaveRequest: ArchiverLeaveRequest = {
     nodeInfo: State.getNodeInfo(),
     requestType: RequestTypes.LEAVE,
@@ -74,7 +76,7 @@ export function createArchiverLeaveRequest() {
 export async function postJson(
   url: string,
   body: object,
-  timeoutInSecond: number = 5
+  timeoutInSecond = 5
 ): Promise<Data.DataQueryResponse | null> {
   try {
     const res = await fetch(url, {
@@ -99,7 +101,7 @@ export async function postJson(
   }
 }
 
-export async function getJson(url: string, timeoutInSecond: number = 5): Promise<object | null> {
+export async function getJson(url: string, timeoutInSecond = 5): Promise<object | null> {
   try {
     const res = await get(url, timeoutInSecond, {
       headers: { 'Content-Type': 'application/json' },
@@ -120,7 +122,7 @@ export async function getJson(url: string, timeoutInSecond: number = 5): Promise
   }
 }
 
-export async function get(url: string, timeoutInSecond: number = 5, opts?: RequestInit): Promise<Response> {
+export async function get(url: string, timeoutInSecond = 5, opts?: RequestInit): Promise<Response> {
   return fetch(url, {
     method: 'get',
     timeout: timeoutInSecond * 1000,

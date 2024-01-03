@@ -9,7 +9,6 @@ import { nestedCountersInstance } from '../profiler/nestedCounters'
 import {
   clearDataSenders,
   dataSenders,
-  socketClients,
   subscribeConsensorsByConsensusRadius,
   unsubscribeDataSender,
 } from './Data'
@@ -26,6 +25,7 @@ import { handleLostArchivers } from '../LostArchivers'
 export interface Cycle extends P2P.CycleCreatorTypes.CycleRecord {
   certificate: string
   marker: string
+  currentTime?: number
 }
 
 export interface LostNode {
@@ -34,17 +34,25 @@ export interface LostNode {
   nodeInfo: NodeList.ConsensusNodeInfo
 }
 
+interface ArchiverCycleResponse {
+  cycleInfo: Cycle[]
+}
+
+interface ConsensorCycleResponse {
+  newestCycle: Cycle
+}
+
 export let currentCycleDuration = 0
 let currentCycleCounter = -1
 let currentCycleMarker = '0'.repeat(32)
 export let lastProcessedMetaData = -1
-export let CycleChain: Map<Cycle['counter'], any> = new Map()
-export let lostNodes: LostNode[] = []
+export const CycleChain: Map<Cycle['counter'], Cycle> = new Map()
+export const lostNodes: LostNode[] = []
 export const removedNodes = []
 export let cycleRecordWithShutDownMode = null as P2P.CycleCreatorTypes.CycleRecord | null
 export let currentNetworkMode: P2P.ModesTypes.Record['mode'] = 'forming'
 
-export async function processCycles(cycles: Cycle[]) {
+export async function processCycles(cycles: Cycle[]): Promise<void> {
   if (profilerInstance) profilerInstance.profileSectionStart('process_cycle', false)
   try {
     if (nestedCountersInstance) nestedCountersInstance.countEvent('cycle', 'process', 1)
@@ -93,29 +101,29 @@ export function getCurrentCycleMarker(): hexstring {
   return currentCycleMarker
 }
 
-export function getLostNodes(from: number, to: number) {
+export function getLostNodes(from: number, to: number): LostNode[] {
   return lostNodes.filter((node: LostNode) => {
     return node.counter >= from && node.counter <= to
   })
 }
 
-export function setCurrentCycleDuration(duration: number) {
+export function setCurrentCycleDuration(duration: number): void {
   currentCycleDuration = duration * 1000
 }
 
-export function setCurrentCycleCounter(value: number) {
+export function setCurrentCycleCounter(value: number): void {
   currentCycleCounter = value
 }
 
-export function setCurrentCycleMarker(value: hexstring) {
+export function setCurrentCycleMarker(value: hexstring): void {
   currentCycleMarker = value
 }
 
-export function setLastProcessedMetaDataCounter(value: number) {
+export function setLastProcessedMetaDataCounter(value: number): void {
   lastProcessedMetaData = value
 }
 
-export function changeNetworkMode(newMode: P2P.ModesTypes.Record['mode']) {
+export function changeNetworkMode(newMode: P2P.ModesTypes.Record['mode']): void {
   if (newMode === currentNetworkMode) return
   // If the network mode is changed from restore to processing, clear the serving validators interval
   if (currentNetworkMode === 'restore' && newMode === 'processing') clearServingValidatorsInterval()
@@ -129,20 +137,20 @@ export function changeNetworkMode(newMode: P2P.ModesTypes.Record['mode']) {
   currentNetworkMode = newMode
 }
 
-export function computeCycleMarker(fields: Cycle) {
+export function computeCycleMarker(fields: Cycle): string {
   const cycleMarker = Crypto.hashObj(fields)
   return cycleMarker
 }
 
 // validation of cycle record against previous marker
 export function validateCycle(prev: Cycle, next: P2P.CycleCreatorTypes.CycleRecord): boolean {
-  let previousRecordWithoutMarker: Cycle = { ...prev }
+  const previousRecordWithoutMarker: Cycle = { ...prev }
   delete previousRecordWithoutMarker.marker
   const prevMarker = computeCycleMarker(previousRecordWithoutMarker)
   return next.previous === prevMarker
 }
 
-export function setShutdownCycleRecord(cycleRecord: P2P.CycleCreatorTypes.CycleRecord) {
+export function setShutdownCycleRecord(cycleRecord: P2P.CycleCreatorTypes.CycleRecord): void {
   cycleRecordWithShutDownMode = cycleRecord
 }
 
@@ -162,12 +170,12 @@ export interface JoinedConsensor extends P2PNode {
   cycleJoined: string
 }
 
-function updateNodeList(cycle: Cycle) {
+function updateNodeList(cycle: Cycle): void {
   const {
+    // lost,  (not used)
     joinedConsensors,
     activatedPublicKeys,
     removed,
-    lost,
     apoptosized,
     joinedArchivers,
     leavingArchivers,
@@ -210,7 +218,7 @@ function updateNodeList(cycle: Cycle) {
     NodeList.removeStandbyNodes(standbyRemove)
   }
 
-  let removedAndApopedNodes: NodeList.ConsensusNodeInfo[] = []
+  const removedAndApopedNodes: NodeList.ConsensusNodeInfo[] = []
 
   const removedPks = removed.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)
@@ -253,8 +261,8 @@ function updateNodeList(cycle: Cycle) {
   }, [])
   NodeList.removeNodes(apoptosizedPks)
 
-  for (let joinedArchiver of joinedArchivers) {
-    let foundArchiver = State.activeArchivers.find((a) => a.publicKey === joinedArchiver.publicKey)
+  for (const joinedArchiver of joinedArchivers) {
+    const foundArchiver = State.activeArchivers.find((a) => a.publicKey === joinedArchiver.publicKey)
     if (!foundArchiver) {
       State.activeArchivers.push(joinedArchiver)
       Utils.insertSorted(
@@ -271,8 +279,8 @@ function updateNodeList(cycle: Cycle) {
     Logger.mainLogger.debug('active archiver list', State.activeArchivers)
   }
 
-  for (let refreshedArchiver of refreshedArchivers) {
-    let foundArchiver = State.activeArchivers.find((a) => a.publicKey === refreshedArchiver.publicKey)
+  for (const refreshedArchiver of refreshedArchivers) {
+    const foundArchiver = State.activeArchivers.find((a) => a.publicKey === refreshedArchiver.publicKey)
     if (!foundArchiver) {
       State.activeArchivers.push(refreshedArchiver)
       Utils.insertSorted(
@@ -288,7 +296,7 @@ function updateNodeList(cycle: Cycle) {
     }
   }
 
-  for (let leavingArchiver of leavingArchivers) {
+  for (const leavingArchiver of leavingArchivers) {
     State.removeActiveArchiver(leavingArchiver.publicKey)
     State.archiversReputation.delete(leavingArchiver.publicKey)
   }
@@ -311,70 +319,63 @@ function updateNodeList(cycle: Cycle) {
   }
 }
 
+function isSameCycleInfo(info1: Cycle, info2: Cycle): boolean {
+  const cm1 = Utils.deepCopy(info1)
+  const cm2 = Utils.deepCopy(info2)
+  delete cm1.currentTime
+  delete cm2.currentTime
+  const equivalent = isDeepStrictEqual(cm1, cm2)
+  return equivalent
+}
+
 export async function fetchCycleRecords(
   activeArchivers: State.ArchiverNodeInfo[],
   start: number,
   end: number
-): Promise<any> {
-  function isSameCyceInfo(info1: any, info2: any) {
-    const cm1 = Utils.deepCopy(info1)
-    const cm2 = Utils.deepCopy(info2)
-    delete cm1.currentTime
-    delete cm2.currentTime
-    const equivalent = isDeepStrictEqual(cm1, cm2)
-    return equivalent
-  }
-
-  const queryFn = async (node: any) => {
-    const response: any = await getJson(
-      `http://${node.ip}:${node.port}/cycleinfo?start=${start}&end=${end}`,
+): Promise<Cycle[]> {
+  const queryFn = async (archiver: State.ArchiverNodeInfo): Promise<Cycle[]> => {
+    const response = (await getJson(
+      `http://${archiver.ip}:${archiver.port}/cycleinfo?start=${start}&end=${end}`,
       20
-    )
+    )) as ArchiverCycleResponse
     return response.cycleInfo
   }
   const { result } = await Utils.sequentialQuery(activeArchivers, queryFn)
-  return result
+  return result as Cycle[]
 }
 
 export async function getNewestCycleFromConsensors(
   activeNodes: NodeList.ConsensusNodeInfo[]
 ): Promise<Cycle> {
-  function isSameCyceInfo(info1: any, info2: any) {
-    const cm1 = Utils.deepCopy(info1)
-    const cm2 = Utils.deepCopy(info2)
-    delete cm1.currentTime
-    delete cm2.currentTime
-    return isDeepStrictEqual(cm1, cm2)
-  }
+  const queryFn = async (node: NodeList.ConsensusNodeInfo): Promise<Cycle> => {
+    const response = (await getJson(
+      `http://${node.ip}:${node.port}/sync-newest-cycle`
+    )) as ConsensorCycleResponse
 
-  const queryFn = async (node: any) => {
-    const response: any = await getJson(`http://${node.ip}:${node.port}/sync-newest-cycle`)
-    if (response.newestCycle) return response.newestCycle
+    if (response.newestCycle) {
+      return response.newestCycle as Cycle
+    }
+
+    return null
   }
-  let newestCycle: any = await Utils.robustQuery(activeNodes, queryFn, isSameCyceInfo)
+  const newestCycle = await Utils.robustQuery(activeNodes, queryFn, isSameCycleInfo)
   return newestCycle.value
 }
 
-export async function getNewestCycleFromArchivers(activeArchivers: State.ArchiverNodeInfo[]): Promise<any> {
+export async function getNewestCycleFromArchivers(activeArchivers: State.ArchiverNodeInfo[]): Promise<Cycle> {
   activeArchivers = activeArchivers.filter((archiver) => archiver.publicKey !== State.getNodeInfo().publicKey)
-  function isSameCyceInfo(info1: any, info2: any) {
-    const cm1 = Utils.deepCopy(info1)
-    const cm2 = Utils.deepCopy(info2)
-    delete cm1.currentTime
-    delete cm2.currentTime
-    const equivalent = isDeepStrictEqual(cm1, cm2)
-    return equivalent
-  }
 
-  const queryFn = async (node: any) => {
-    const response: any = await getJson(`http://${node.ip}:${node.port}/cycleinfo/1`)
-    return response.cycleInfo
+  const queryFn = async (archiver: State.ArchiverNodeInfo): Promise<Cycle> => {
+    const response = (await getJson(
+      `http://${archiver.ip}:${archiver.port}/cycleinfo/1`
+    )) as ArchiverCycleResponse
+    return response.cycleInfo[0]
   }
-  let cycleInfo = await Utils.robustQuery(activeArchivers, queryFn, isSameCyceInfo)
+  const cycleInfo = await Utils.robustQuery(activeArchivers, queryFn, isSameCycleInfo)
   return cycleInfo.value[0]
 }
 
-export async function recordArchiversReputation() {
+export async function recordArchiversReputation(): Promise<void> {
   const activeArchivers = [...State.activeArchivers]
 
   const promises = activeArchivers.map((archiver) =>
@@ -389,6 +390,7 @@ export async function recordArchiversReputation() {
     .then((responses) => {
       let i = 0
       for (const response of responses) {
+        // eslint-disable-next-line security/detect-object-injection
         const archiver = activeArchivers[i]
         if (response.status === 'fulfilled') {
           const res = response.value

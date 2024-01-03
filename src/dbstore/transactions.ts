@@ -4,17 +4,26 @@ import { extractValues, extractValuesFromArray } from './sqlite3storage'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString } from '../utils/serialization'
+import { OriginalTxData } from './originalTxsData'
 
 export interface Transaction {
   txId: string
   accountId: string
   timestamp: number
   cycleNumber: number
-  data: any
+  data: unknown
   // keys: any // TODO: Remove this field in the places it is used
   result: TxResult
-  originalTxData: any
+  originalTxData: OriginalTxData
   sign: Signature
+}
+
+type DbTransaction = Transaction & {
+  data: string
+  keys: string
+  result: string
+  originalTxData: string
+  sign: string
 }
 
 export interface TxResult {
@@ -29,12 +38,12 @@ export interface TxRaw {
   }
 }
 
-export async function insertTransaction(transaction: Transaction) {
+export async function insertTransaction(transaction: Transaction): Promise<void> {
   try {
     const fields = Object.keys(transaction).join(', ')
     const placeholders = Object.keys(transaction).fill('?').join(', ')
     const values = extractValues(transaction)
-    let sql = 'INSERT OR REPLACE INTO transactions (' + fields + ') VALUES (' + placeholders + ')'
+    const sql = 'INSERT OR REPLACE INTO transactions (' + fields + ') VALUES (' + placeholders + ')'
     await db.run(sql, values)
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Successfully inserted Transaction', transaction.txId)
@@ -48,7 +57,7 @@ export async function insertTransaction(transaction: Transaction) {
   }
 }
 
-export async function bulkInsertTransactions(transactions: Transaction[]) {
+export async function bulkInsertTransactions(transactions: Transaction[]): Promise<void> {
   try {
     const fields = Object.keys(transactions[0]).join(', ')
     const placeholders = Object.keys(transactions[0]).fill('?').join(', ')
@@ -65,13 +74,12 @@ export async function bulkInsertTransactions(transactions: Transaction[]) {
   }
 }
 
-export async function queryTransactionByTxId(txId: string) {
+export async function queryTransactionByTxId(txId: string): Promise<Transaction> {
   try {
     const sql = `SELECT * FROM transactions WHERE txId=?`
-    let transaction: any = await db.get(sql, [txId])
+    const transaction = (await db.get(sql, [txId])) as DbTransaction // TODO: confirm structure of object from db
     if (transaction) {
       if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
-      if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
       if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
       if (transaction.originalTxData)
         transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
@@ -83,16 +91,16 @@ export async function queryTransactionByTxId(txId: string) {
     return transaction
   } catch (e) {
     Logger.mainLogger.error(e)
+    return null
   }
 }
 
-export async function queryTransactionByAccountId(accountId: string) {
+export async function queryTransactionByAccountId(accountId: string): Promise<Transaction> {
   try {
     const sql = `SELECT * FROM transactions WHERE accountId=?`
-    let transaction: any = await db.get(sql, [accountId])
+    const transaction = (await db.get(sql, [accountId])) as DbTransaction // TODO: confirm structure of object from db
     if (transaction) {
       if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
-      if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
       if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
       if (transaction.originalTxData)
         transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
@@ -104,19 +112,19 @@ export async function queryTransactionByAccountId(accountId: string) {
     return transaction
   } catch (e) {
     Logger.mainLogger.error(e)
+    return null
   }
 }
 
-export async function queryLatestTransactions(count: number) {
+export async function queryLatestTransactions(count: number): Promise<Transaction[]> {
   try {
     const sql = `SELECT * FROM transactions ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${
       count ? count : 100
     }`
-    const transactions: any = await db.all(sql)
+    const transactions = (await db.all(sql)) as DbTransaction[] // TODO: confirm structure of object from db
     if (transactions.length > 0) {
-      transactions.forEach((transaction: any) => {
+      transactions.forEach((transaction: DbTransaction) => {
         if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
-        if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
         if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
         if (transaction.originalTxData)
           transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
@@ -129,18 +137,18 @@ export async function queryLatestTransactions(count: number) {
     return transactions
   } catch (e) {
     Logger.mainLogger.error(e)
+    return null
   }
 }
 
-export async function queryTransactions(skip: number = 0, limit: number = 10000) {
+export async function queryTransactions(skip = 0, limit = 10000): Promise<Transaction[]> {
   let transactions
   try {
     const sql = `SELECT * FROM transactions ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    transactions = await db.all(sql)
+    transactions = (await db.all(sql)) as DbTransaction[] // TODO: confirm structure of object from db
     if (transactions.length > 0) {
-      transactions.forEach((transaction: any) => {
+      transactions.forEach((transaction: DbTransaction) => {
         if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
-        if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
         if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
         if (transaction.originalTxData)
           transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)
@@ -161,7 +169,7 @@ export async function queryTransactions(skip: number = 0, limit: number = 10000)
   return transactions
 }
 
-export async function queryTransactionCount() {
+export async function queryTransactionCount(): Promise<number> {
   let transactions
   try {
     const sql = `SELECT COUNT(*) FROM transactions`
@@ -177,7 +185,10 @@ export async function queryTransactionCount() {
   return transactions
 }
 
-export async function queryTransactionCountBetweenCycles(startCycleNumber: number, endCycleNumber: number) {
+export async function queryTransactionCountBetweenCycles(
+  startCycleNumber: number,
+  endCycleNumber: number
+): Promise<number> {
   let transactions
   try {
     const sql = `SELECT COUNT(*) FROM transactions WHERE cycleNumber BETWEEN ? AND ?`
@@ -198,15 +209,14 @@ export async function queryTransactionsBetweenCycles(
   limit = 10000,
   startCycleNumber: number,
   endCycleNumber: number
-) {
+): Promise<Transaction[]> {
   let transactions
   try {
     const sql = `SELECT * FROM transactions WHERE cycleNumber BETWEEN ? AND ? ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    transactions = await db.all(sql, [startCycleNumber, endCycleNumber])
+    transactions = (await db.all(sql, [startCycleNumber, endCycleNumber])) as DbTransaction[] // TODO: confirm structure of object from db
     if (transactions.length > 0) {
-      transactions.forEach((transaction: any) => {
+      transactions.forEach((transaction: DbTransaction) => {
         if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
-        if (transaction.keys) transaction.keys = DeSerializeFromJsonString(transaction.keys)
         if (transaction.result) transaction.result = DeSerializeFromJsonString(transaction.result)
         if (transaction.originalTxData)
           transaction.originalTxData = DeSerializeFromJsonString(transaction.originalTxData)

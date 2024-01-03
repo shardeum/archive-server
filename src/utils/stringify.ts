@@ -1,8 +1,8 @@
 const objToString = Object.prototype.toString
 const objKeys =
   Object.keys ||
-  function (obj) {
-    let keys = []
+  function (obj): string[] {
+    const keys = []
     for (const name in obj) {
       keys.push(name)
     }
@@ -13,8 +13,9 @@ export interface stringifierOptions {
   bufferEncoding: 'base64' | 'hex' | 'none'
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function stringify(val: any, options: stringifierOptions): string {
-  let returnVal = stringifier(val, false, options)
+  const returnVal = stringifier(val, false, options)
   if (returnVal !== undefined) {
     return '' + returnVal
   }
@@ -25,6 +26,7 @@ function isUnit8Array(value: unknown): boolean {
   return value instanceof Uint8Array
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function stringifier(val: any, isArrayProp: boolean, options: stringifierOptions): string | null | undefined {
   let i, max, str, keys, key, propVal, toStr
   if (val === true) {
@@ -36,6 +38,7 @@ function stringifier(val: any, isArrayProp: boolean, options: stringifierOptions
   if (isUnit8Array(val)) {
     val = Buffer.from(val)
   }
+  /* eslint-disable security/detect-object-injection */
   switch (typeof val) {
     case 'object':
       if (val === null) {
@@ -110,7 +113,7 @@ function stringifier(val: any, isArrayProp: boolean, options: stringifierOptions
   /* eslint-enable security/detect-object-injection */
 }
 
-function isBufferValue(toStr, val: Object) {
+function isBufferValue(toStr, val: object): boolean {
   return (
     toStr === '[object Object]' &&
     objKeys(val).length == 2 &&
@@ -121,13 +124,14 @@ function isBufferValue(toStr, val: Object) {
 
 /* cryptoStringifier is a close version of default fast-stringify-json that works with BigInts */
 function cryptoStringifier(val, isArrayProp): string {
-  var i, max, str, keys, key, propVal, toStr
+  let i, max, str, keys, key, propVal, toStr
   if (val === true) {
     return 'true'
   }
   if (val === false) {
     return 'false'
   }
+  /* eslint-disable security/detect-object-injection */
   switch (typeof val) {
     case 'object':
       if (val === null) {
@@ -178,6 +182,7 @@ function cryptoStringifier(val, isArrayProp): string {
     default:
       return isFinite(val) ? val : null
   }
+  /* eslint-enable security/detect-object-injection */
 }
 
 export function cryptoStringify(val: unknown, isArrayProp = false): string {

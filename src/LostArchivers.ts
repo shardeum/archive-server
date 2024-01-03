@@ -20,7 +20,8 @@ let shouldSendRefutes = false
  * If found in 'removedArchivers', we'll shut down.
  */
 export function handleLostArchivers<R extends Record>(record: R): void {
-  const debug = (...args: unknown[]): void => Logger.mainLogger.debug(...args)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const debug = (message: any, ...args: any[]): void => Logger.mainLogger.debug(message, ...args)
   debug('>> handleLostArchivers()')
   debug('  config.ARCHIVER_PUBLIC_KEY: ' + config.ARCHIVER_PUBLIC_KEY)
   // debug('  record: ' + JSON.stringify(record, null, 2))

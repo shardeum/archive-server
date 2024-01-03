@@ -5,10 +5,16 @@ import * as Logger from './Logger'
 import * as AccountDB from './dbstore/accounts'
 import { config } from './Config'
 import { postJson, getJson } from './P2P'
-import { sleep, robustQuery } from './Utils'
+import { robustQuery } from './Utils'
 
 let cachedGlobalNetworkAccount: object
 let cachedGlobalNetworkAccountHash: string
+
+interface Node {
+  ip: string
+  port: number
+}
+
 export interface GlobalAccountsHashAndTimestamp {
   hash: string
   timestamp: number
@@ -23,7 +29,7 @@ export function getGlobalNetworkAccount(hash: boolean): object | string {
   return cachedGlobalNetworkAccount
 }
 
-export function setGlobalNetworkAccount(account: any): void {
+export function setGlobalNetworkAccount(account: AccountDB.AccountCopy): void {
   cachedGlobalNetworkAccount = rfdc()(account)
   cachedGlobalNetworkAccountHash = account.data.hash
 }
@@ -40,9 +46,10 @@ export const loadGlobalAccounts = async (): Promise<void> => {
   }
 }
 
-export const syncGlobalAccount = async (): Promise<any> => {
+export const syncGlobalAccount = async (): Promise<void> => {
   try {
-    const queryFn = async (node: any): Promise<any> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const queryFn = async (node: Node): Promise<any> => {
       return await postJson(
         `http://${node.ip}:${node.port}/get_globalaccountreport_archiver`,
         Crypto.sign({})
@@ -56,20 +63,22 @@ export const syncGlobalAccount = async (): Promise<any> => {
     const {
       value: { accounts },
     } = globalAccsResponse
+    /* eslint-disable security/detect-object-injection */
     for (let i = 0; i < accounts.length; i++) {
       globalAccountsMap.set(accounts[i].id, {
         hash: accounts[i].hash,
         timestamp: accounts[i].timestamp,
       })
     }
+    /* eslint-enable security/detect-object-injection */
 
     if (globalAccountsMap.has(config.globalNetworkAccount)) {
       const savedNetworkAccount = await AccountDB.queryAccountByAccountId(config.globalNetworkAccount)
       if (savedNetworkAccount && savedNetworkAccount.hash === cachedGlobalNetworkAccountHash) {
         setGlobalNetworkAccount(savedNetworkAccount)
-        return
       }
-      const queryFn = async (node: any): Promise<any> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const queryFn = async (node: Node): Promise<any> => {
         return await getJson(`http://${node.ip}:${node.port}/get-network-account?hash=false`)
       }
       const networkAccResponse = await robustQuery(State.activeArchivers, queryFn)

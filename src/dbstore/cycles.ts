@@ -4,6 +4,8 @@ import { P2P, StateManager } from '@shardus/types'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString, SerializeToJsonString } from '../utils/serialization'
+import { CycleRecord } from '@shardus/types/build/src/p2p/CycleCreatorTypes'
+import { Cycle as CyclesCycle } from '../Data/Cycles'
 
 export interface Cycle {
   counter: number
@@ -11,12 +13,17 @@ export interface Cycle {
   cycleMarker: StateManager.StateMetaDataTypes.CycleMarker
 }
 
-export async function insertCycle(cycle: Cycle) {
+type DbCycle = Cycle & {
+  cycleRecord: string
+  cycleMarker: string
+}
+
+export async function insertCycle(cycle: Cycle): Promise<void> {
   try {
     const fields = Object.keys(cycle).join(', ')
     const placeholders = Object.keys(cycle).fill('?').join(', ')
     const values = extractValues(cycle)
-    let sql = 'INSERT OR REPLACE INTO cycles (' + fields + ') VALUES (' + placeholders + ')'
+    const sql = 'INSERT OR REPLACE INTO cycles (' + fields + ') VALUES (' + placeholders + ')'
     await db.run(sql, values)
     Logger.mainLogger.debug('Successfully inserted Cycle', cycle.cycleRecord.counter, cycle.cycleMarker)
   } catch (e) {
@@ -29,7 +36,7 @@ export async function insertCycle(cycle: Cycle) {
   }
 }
 
-export async function bulkInsertCycles(cycles: Cycle[]) {
+export async function bulkInsertCycles(cycles: Cycle[]): Promise<void> {
   try {
     const fields = Object.keys(cycles[0]).join(', ')
     const placeholders = Object.keys(cycles[0]).fill('?').join(', ')
@@ -46,7 +53,7 @@ export async function bulkInsertCycles(cycles: Cycle[]) {
   }
 }
 
-export async function updateCycle(marker: string, cycle: Cycle) {
+export async function updateCycle(marker: string, cycle: Cycle): Promise<void> {
   try {
     const sql = `UPDATE cycles SET counter = $counter, cycleRecord = $cycleRecord WHERE cycleMarker = $marker `
     await db.run(sql, {
@@ -63,12 +70,15 @@ export async function updateCycle(marker: string, cycle: Cycle) {
   }
 }
 
-export async function queryCycleByMarker(marker: string) {
+export async function queryCycleByMarker(marker: string): Promise<Cycle> {
   try {
     const sql = `SELECT * FROM cycles WHERE cycleMarker=? LIMIT 1`
-    const cycle: any = await db.get(sql, [marker])
-    if (cycle) {
-      if (cycle.cycleRecord) cycle.cycleRecord = DeSerializeFromJsonString(cycle.cycleRecord)
+    const dbCycle = (await db.get(sql, [marker])) as DbCycle
+    let cycle: Cycle
+    if (dbCycle) {
+      if (dbCycle.counter) cycle.counter = dbCycle.counter
+      if (dbCycle.cycleRecord) cycle.cycleRecord = DeSerializeFromJsonString(dbCycle.cycleRecord)
+      if (dbCycle.cycleMarker) cycle.cycleMarker = DeSerializeFromJsonString(dbCycle.cycleMarker)
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('cycle marker', cycle)
@@ -76,19 +86,24 @@ export async function queryCycleByMarker(marker: string) {
     return cycle
   } catch (e) {
     Logger.mainLogger.error(e)
+    return null
   }
 }
 
-export async function queryLatestCycleRecords(count: number) {
+export async function queryLatestCycleRecords(count: number): Promise<CyclesCycle[]> {
   try {
     const sql = `SELECT * FROM cycles ORDER BY counter DESC LIMIT ${count ? count : 100}`
-    let cycleRecords: any = await db.all(sql)
-    if (cycleRecords.length > 0) {
-      cycleRecords = cycleRecords.map((cycleRecord: any) => {
-        if (cycleRecord.cycleRecord)
-          cycleRecord.cycleRecord = DeSerializeFromJsonString(cycleRecord.cycleRecord)
-        return cycleRecord.cycleRecord
-      })
+    const cycles = (await db.all(sql)) as DbCycle[]
+    const cycleRecords: CyclesCycle[] = []
+    if (cycles.length > 0) {
+      for (let i  = 0; i < cycles.length; i++) {
+        /* eslint-disable security/detect-object-injection */
+        let tempCycleRecord: CyclesCycle
+        if (cycles[i].cycleRecord) tempCycleRecord = DeSerializeFromJsonString(cycles[i].cycleRecord) as CyclesCycle
+        if (cycles[i].cycleMarker) tempCycleRecord.marker = cycles[i].cycleMarker
+        cycleRecords.push(tempCycleRecord)
+        /* eslint-enable security/detect-object-injection */
+      }
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('cycle latest', cycleRecords)
@@ -96,19 +111,20 @@ export async function queryLatestCycleRecords(count: number) {
     return cycleRecords
   } catch (e) {
     Logger.mainLogger.error(e)
+    return null
   }
 }
 
-export async function queryCycleRecordsBetween(start: number, end: number) {
+export async function queryCycleRecordsBetween(start: number, end: number): Promise<CycleRecord[]> {
   try {
     const sql = `SELECT * FROM cycles WHERE counter BETWEEN ? AND ? ORDER BY counter ASC`
-    let cycleRecords: any = await db.all(sql, [start, end])
-    if (cycleRecords.length > 0) {
-      cycleRecords = cycleRecords.map((cycleRecord: any) => {
-        if (cycleRecord.cycleRecord)
-          cycleRecord.cycleRecord = DeSerializeFromJsonString(cycleRecord.cycleRecord)
-        return cycleRecord.cycleRecord
-      })
+    const cycles = (await db.all(sql, [start, end])) as DbCycle[]
+    const cycleRecords: P2P.CycleCreatorTypes.CycleRecord[] = []
+    if (cycles.length > 0) {
+      for (let i  = 0; i < cycles.length; i++) {
+        // eslint-disable-next-line security/detect-object-injection
+        if (cycles[i].cycleRecord) cycleRecords.push(DeSerializeFromJsonString(cycles[i].cycleRecord))
+      }
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('cycle between', cycleRecords)
@@ -116,10 +132,11 @@ export async function queryCycleRecordsBetween(start: number, end: number) {
     return cycleRecords
   } catch (e) {
     Logger.mainLogger.error(e)
+    return null
   }
 }
 
-export async function queryCyleCount() {
+export async function queryCyleCount(): Promise<number> {
   let cycles
   try {
     const sql = `SELECT COUNT(*) FROM cycles`

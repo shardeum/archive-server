@@ -1,5 +1,12 @@
 import * as util from 'util'
 import * as Logger from './Logger'
+import { AccountDataRequestSchema, GlobalAccountReportRequestSchema } from './Data/AccountDataProvider'
+import { ReceiptQuery, AccountQuery, TransactionQuery, FullArchiveQuery } from './server'
+import { Signature } from 'shardus-crypto-types'
+
+export interface CountSchema {
+  count: string
+}
 
 export function safeParse<Type>(fallback: Type, json: string, msg?: string): Type {
   if (typeof json === 'object' && json !== null) {
@@ -23,7 +30,9 @@ export function getRandom<T>(arr: T[], n: number): T[] {
   const result = new Array(n)
   while (n--) {
     const x = Math.floor(Math.random() * len)
+    // eslint-disable-next-line security/detect-object-injection
     result[n] = arr[x in taken ? taken[x] : x]
+    // eslint-disable-next-line security/detect-object-injection
     taken[x] = --len in taken ? taken[len] : len
   }
   return result
@@ -62,16 +71,17 @@ export interface SequentialQueryResult<Node> {
   errors: Array<SequentialQueryError<Node>>
 }
 
-export function shuffleArray<T>(array: T[]) {
+export function shuffleArray<T>(array: T[]): void {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
+    // eslint-disable-next-line security/detect-object-injection
     ;[array[i], array[j]] = [array[j], array[i]]
   }
 }
 
-export const robustPromiseAll = async (promises: any) => {
+export const robustPromiseAll = async <T>(promises: Promise<T>[]): Promise<[T[], Error[]]> => {
   // This is how we wrap a promise to prevent it from rejecting directing in the Promise.all and causing a short circuit
-  const wrapPromise = async (promise: any) => {
+  const wrapPromise = async (promise: Promise<T>): Promise<[T?, Error?]> => {
     // We are trying to await the promise, and catching any rejections
     // We return an array, the first index being resolve, and the second being an error
     try {
@@ -150,7 +160,7 @@ class Tally<Node = unknown, Response = unknown> {
     if (this.winCount === 1) return newTallyItem
     else return null
   }
-  getHighestCount() {
+  getHighestCount(): number {
     if (!this.items.length) return 0
     let highestCount = 0
     for (const item of this.items) {
@@ -172,6 +182,7 @@ class Tally<Node = unknown, Response = unknown> {
       }
       i += 1
     }
+    // eslint-disable-next-line security/detect-object-injection
     return this.items[highestIndex]
   }
 }
@@ -212,7 +223,7 @@ export async function robustQuery<Node = unknown, Response = unknown>(
 
   const queryNodes = async (nodes: Node[]): Promise<TallyItem<Node, Response>> => {
     // Wrap the query so that we know which node it's coming from
-    const wrappedQuery = async (node: any) => {
+    const wrappedQuery = async (node: Node): Promise<{ response: Response; node: Node }> => {
       const response = await queryFn(node)
       return { response, node }
     }
@@ -220,13 +231,14 @@ export async function robustQuery<Node = unknown, Response = unknown>(
     // We create a promise for each of the first `redundancy` nodes in the shuffled array
     const queries = []
     for (let i = 0; i < nodes.length; i++) {
+      // eslint-disable-next-line security/detect-object-injection
       const node = nodes[i]
       queries.push(wrappedQuery(node))
     }
     const [results, errs] = await robustPromiseAll(queries)
 
     let finalResult: TallyItem<Node, Response>
-    for (const result of results) {
+    for (const result of results as Array<{ response: Response; node: Node }>) {
       const { response, node } = result
       if (responses === null) continue // ignore null response; can be null if we tried to query ourself
       finalResult = responses.add(response, node)
@@ -279,12 +291,12 @@ export async function robustQuery<Node = unknown, Response = unknown>(
 export async function sequentialQuery<Node = unknown, Response = unknown>(
   nodes: Node[],
   queryFn: QueryFunction<Node, Response>,
-  verifyFn: VerifyFunction<Response> = () => true
+  verifyFn: VerifyFunction<Response> = (): boolean => true
 ): Promise<SequentialQueryResult<Node>> {
   nodes = [...nodes]
   shuffleArray(nodes)
 
-  let result: any
+  let result: Response | undefined
   const errors: Array<SequentialQueryError<Node>> = []
 
   for (const node of nodes) {
@@ -299,10 +311,10 @@ export async function sequentialQuery<Node = unknown, Response = unknown>(
         continue
       }
       result = response
-    } catch (error: any) {
+    } catch (error: unknown) {
       errors.push({
         node,
-        error,
+        error: error as Error,
       })
     }
   }
@@ -312,14 +324,14 @@ export async function sequentialQuery<Node = unknown, Response = unknown>(
   }
 }
 
-export const deepCopy = (obj: any) => {
+export const deepCopy = <T>(obj: T): T => {
   if (typeof obj !== 'object') {
     throw Error('Given element is not of type object.')
   }
   return JSON.parse(JSON.stringify(obj))
 }
 
-export const insertSorted = function (arr: any[], item: any, comparator?: Function) {
+export const insertSorted = function <T>(arr: T[], item: T, comparator?: (a: T, b: T) => number): void {
   let i = binarySearch(arr, item, comparator)
   if (i < 0) {
     i = -1 - i
@@ -327,9 +339,9 @@ export const insertSorted = function (arr: any[], item: any, comparator?: Functi
   arr.splice(i, 0, item)
 }
 
-export const computeMedian = (arr: number[] = [], sort = true) => {
+export const computeMedian = (arr: number[] = [], sort = true): number => {
   if (sort) {
-    arr.sort((a: any, b: any) => a - b)
+    arr.sort((a: number, b: number) => a - b)
   }
   const len = arr.length
   switch (len) {
@@ -342,6 +354,7 @@ export const computeMedian = (arr: number[] = [], sort = true) => {
     default: {
       const mid = len / 2
       if (len % 2 === 0) {
+        // eslint-disable-next-line security/detect-object-injection
         return arr[mid]
       } else {
         return (arr[Math.floor(mid)] + arr[Math.ceil(mid)]) / 2
@@ -350,10 +363,10 @@ export const computeMedian = (arr: number[] = [], sort = true) => {
   }
 }
 
-export const binarySearch = function (arr: any[], el: any, comparator?: Function) {
+export const binarySearch = function <T>(arr: T[], el: T, comparator?: (a: T, b: T) => number): number {
   if (comparator == null) {
     // Emulate the default Array.sort() comparator
-    comparator = (a: any, b: any) => {
+    comparator = (a: T, b: T): number => {
       return a.toString() > b.toString() ? 1 : a.toString() < b.toString() ? -1 : 0
     }
   }
@@ -361,6 +374,7 @@ export const binarySearch = function (arr: any[], el: any, comparator?: Function
   let n = arr.length - 1
   while (m <= n) {
     const k = (n + m) >> 1
+    // eslint-disable-next-line security/detect-object-injection
     const cmp = comparator(el, arr[k])
     if (cmp > 0) {
       m = k + 1
@@ -376,22 +390,19 @@ export const binarySearch = function (arr: any[], el: any, comparator?: Function
 // fail safe and fast
 // this function will pick non-repeating multiple random elements from an array if given amount n > 1
 //(partial) fisher-yates shuffle
-export function getRandomItemFromArr<T>(
-  arr: T[],
-  nodeRejectPercentage: number = 0,
-  n: number = 1
-): T[] | undefined {
+export function getRandomItemFromArr<T>(arr: T[], nodeRejectPercentage = 0, n = 1): T[] | undefined {
   if (!Array.isArray(arr)) return undefined
   if (arr.length === 0) return undefined
 
   let result: T[] = new Array(n),
-    len: number = arr.length,
-    taken: number[] = new Array(len)
+    len: number = arr.length
+  const taken: number[] = new Array(len)
 
   const oldNodesToAvoid = Math.floor((nodeRejectPercentage * len) / 100)
 
   if (n <= 1) {
     const randomIndex = Math.floor(Math.random() * arr.length)
+    // eslint-disable-next-line security/detect-object-injection
     return [arr[randomIndex]]
     // we can throw an error but no
     // let's just return one random item in this case for the safety
@@ -399,7 +410,9 @@ export function getRandomItemFromArr<T>(
 
   while (n-- && len > 0) {
     const x = Math.floor(oldNodesToAvoid + Math.random() * (len - oldNodesToAvoid))
+    // eslint-disable-next-line security/detect-object-injection
     result[n] = arr[x in taken ? taken[x] : x]
+    // eslint-disable-next-line security/detect-object-injection
     taken[x] = --len in taken ? taken[len] : len
   }
   // remove empty slots
@@ -409,9 +422,9 @@ export function getRandomItemFromArr<T>(
   return result
 }
 
-export async function sleep(time: number) {
+export async function sleep(time: number): Promise<boolean> {
   Logger.mainLogger.debug('sleeping for', time)
-  return new Promise((resolve: any) => {
+  return new Promise((resolve: (value: boolean) => void) => {
     setTimeout(() => {
       resolve(true)
     }, time)
@@ -432,11 +445,22 @@ Example of def:
 Returns a string with the first error encountered or and empty string ''.
 Errors are: "[name] is required" or "[name] must be, [type]"
 */
-export function validateTypes(inp: any, def: any) {
+export function validateTypes(
+  inp:
+    | AccountDataRequestSchema
+    | GlobalAccountReportRequestSchema
+    | Signature
+    | CountSchema
+    | ReceiptQuery
+    | AccountQuery
+    | TransactionQuery
+    | FullArchiveQuery,
+  def: Record<string, unknown> = {}
+): string {
   if (inp === undefined) return 'input is undefined'
   if (inp === null) return 'input is null'
   if (typeof inp !== 'object') return 'input must be object, not ' + typeof inp
-  const map: any = {
+  const map: Record<string, string> = {
     string: 's',
     number: 'n',
     boolean: 'b',
@@ -444,7 +468,7 @@ export function validateTypes(inp: any, def: any) {
     array: 'a',
     object: 'o',
   }
-  const imap: any = {
+  const imap: Record<string, string> = {
     s: 'string',
     n: 'number',
     b: 'boolean',
@@ -453,21 +477,28 @@ export function validateTypes(inp: any, def: any) {
     o: 'object',
   }
   const fields = Object.keys(def)
-  for (let name of fields) {
-    const types = def[name]
+  for (const name of fields) {
+    // eslint-disable-next-line security/detect-object-injection
+    const types = def[name] as string
     const opt = types.substr(-1, 1) === '?' ? 1 : 0
+    // eslint-disable-next-line security/detect-object-injection
     if (inp[name] === undefined && !opt) return name + ' is required'
+    // eslint-disable-next-line security/detect-object-injection
     if (inp[name] !== undefined) {
+      // eslint-disable-next-line security/detect-object-injection
       if (inp[name] === null && !opt) return name + ' cannot be null'
       let found = 0
       let be = ''
       for (let t = 0; t < types.length - opt; t++) {
+        // eslint-disable-next-line security/detect-object-injection
         let it = map[typeof inp[name]]
+        // eslint-disable-next-line security/detect-object-injection
         it = Array.isArray(inp[name]) ? 'a' : it
-        let is = types.substr(t, 1)
+        const is = types.substr(t, 1)
         if (it === is) {
           found = 1
           break
+          // eslint-disable-next-line security/detect-object-injection
         } else be += ', ' + imap[is]
       }
       if (!found) return name + ' must be' + be
@@ -479,7 +510,7 @@ export function validateTypes(inp: any, def: any) {
 /**
  * Checks whether the given thing is undefined
  */
-export function isUndefined(thing: unknown) {
+export function isUndefined(thing: unknown): boolean {
   return typeof thing === 'undefined'
 }
 
@@ -541,4 +572,9 @@ export interface AttemptOptions {
   logPrefix?: string
 }
 
-export const byIdAsc = (a: any, b: any) => (a.id === b.id ? 0 : a.id < b.id ? -1 : 1)
+interface Identifiable {
+  id: string | number
+}
+
+export const byIdAsc = (a: Identifiable, b: Identifiable): number =>
+  a.id === b.id ? 0 : a.id < b.id ? -1 : 1

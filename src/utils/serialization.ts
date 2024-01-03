@@ -1,7 +1,7 @@
 import { stringify } from './stringify'
 import { config } from '../Config'
 
-export function SerializeToJsonString(obj: any): string {
+export function SerializeToJsonString(obj: object): string {
   try {
     if (config.useSerialization) return stringify(obj, { bufferEncoding: 'base64' })
     else return JSON.stringify(obj)
@@ -23,11 +23,12 @@ export function DeSerializeFromJsonString<T>(jsonString: string): T {
   }
 }
 
-function base64BufferReviver(key: string, value: any) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function base64BufferReviver(key: string, value: any): unknown {
   const originalObject = value
   if (
     isObject(originalObject) &&
-    originalObject.hasOwnProperty('dataType') &&
+    Object.prototype.hasOwnProperty.call(originalObject, 'dataType') &&
     originalObject.dataType &&
     originalObject.dataType == 'bh'
   ) {
@@ -40,7 +41,7 @@ function base64BufferReviver(key: string, value: any) {
   }
 }
 
-export const isObject = (val) => {
+export const isObject = (val): boolean => {
   if (val === null) {
     return false
   }
@@ -50,6 +51,7 @@ export const isObject = (val) => {
   return typeof val === 'function' || typeof val === 'object'
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function GetBufferFromField(input: any, encoding?: 'base64' | 'hex'): Buffer {
   switch (encoding) {
     case 'base64':

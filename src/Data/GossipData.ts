@@ -25,7 +25,7 @@ export interface GossipData {
 // For debugging purpose, set this to true to stop gossiping tx data
 const stopGossipTxData = false
 
-export const getAdjacentLeftAndRightArchivers = () => {
+export const getAdjacentLeftAndRightArchivers = (): void => {
   if (State.activeArchivers.length <= 1) {
     adjacentArchivers = new Map()
     return
@@ -44,15 +44,20 @@ export const getAdjacentLeftAndRightArchivers = () => {
     let rightArchiverIndex = currentArchiverIndex + 1
     if (leftArchiverIndex < 0) leftArchiverIndex = State.activeArchiversByPublicKeySorted.length - 1
     if (rightArchiverIndex > State.activeArchiversByPublicKeySorted.length - 1) rightArchiverIndex = 0
+    /* eslint-disable security/detect-object-injection */
     leftArchiver = State.activeArchiversByPublicKeySorted[leftArchiverIndex]
     rightArchiver = State.activeArchiversByPublicKeySorted[rightArchiverIndex]
+    /* eslint-enable security/detect-object-injection */
   }
   adjacentArchivers = new Map()
   if (leftArchiver) adjacentArchivers.set(leftArchiver.publicKey, leftArchiver)
   if (rightArchiver) adjacentArchivers.set(rightArchiver.publicKey, rightArchiver)
 }
 
-export async function sendDataToAdjacentArchivers(dataType: DataType, data: GossipData['data']) {
+export async function sendDataToAdjacentArchivers(
+  dataType: DataType,
+  data: GossipData['data']
+): Promise<void> {
   if (stopGossipTxData) return
   if (adjacentArchivers.size === 0) return
   const gossipPayload = {
@@ -60,7 +65,7 @@ export async function sendDataToAdjacentArchivers(dataType: DataType, data: Goss
     data,
     sender: State.getNodeInfo().publicKey,
   } as GossipData
-  let signedDataToSend = Crypto.sign(gossipPayload)
+  const signedDataToSend = Crypto.sign(gossipPayload)
   try {
     Logger.mainLogger.debug(
       `Sending ${dataType} data to the archivers: ${Array.from(adjacentArchivers.values()).map(

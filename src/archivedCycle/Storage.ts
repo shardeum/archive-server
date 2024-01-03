@@ -1,17 +1,24 @@
-import { Cycle, CycleChain } from '../Data/Cycles'
+import { CycleChain } from '../Data/Cycles'
 import { Config } from '../Config'
 import * as StateMetaData from './StateMetaData'
-import { socketServer } from '../Data/Data'
-import { Database, BaseModel, FS_Persistence_Adapter } from 'tydb'
-import * as Crypto from '../Crypto'
+import { Database, FS_Persistence_Adapter } from 'tydb'
 import * as Logger from '../Logger'
 import { StateManager } from '@shardus/types'
+import { ArchivedCycle } from './StateMetaData'
+import { P2P } from '@shardus/types'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export let Collection: Database<any>
 
-export async function initStorage(config: Config) {
+interface CycleRecordDocument {
+  cycleMarker?: string
+  counter?: number
+  cycleRecord: P2P.CycleCreatorTypes.CycleRecord
+}
+
+export async function initStorage(config: Config): Promise<void> {
   // Get db file location from config
-  let dbFile = config.ARCHIVER_DB
+  const dbFile = config.ARCHIVER_DB
 
   Collection = new Database<StateMetaData.ArchivedCycle>({
     ref: dbFile,
@@ -22,7 +29,7 @@ export async function initStorage(config: Config) {
   await Collection.createIndex({ fieldName: 'cycleMarker', unique: true })
 }
 
-export async function insertArchivedCycle(archivedCycle: StateMetaData.ArchivedCycle) {
+export async function insertArchivedCycle(archivedCycle: StateMetaData.ArchivedCycle): Promise<void> {
   Logger.mainLogger.debug(
     'Inserting archived cycle',
     archivedCycle.cycleRecord.counter,
@@ -54,11 +61,11 @@ export async function insertArchivedCycle(archivedCycle: StateMetaData.ArchivedC
 }
 
 export async function updateReceiptMap(
-  receiptMapResult: StateManager.StateManagerTypes.ReceiptMapResult | any
-) {
+  receiptMapResult: StateManager.StateManagerTypes.ReceiptMapResult
+): Promise<void> {
   if (!receiptMapResult) return
   try {
-    let parentCycle = CycleChain.get(receiptMapResult.cycle)
+    const parentCycle = CycleChain.get(receiptMapResult.cycle)
 
     if (!parentCycle) {
       Logger.mainLogger.error('Unable find record with parent cycle with counter', receiptMapResult.cycle)
@@ -72,19 +79,20 @@ export async function updateReceiptMap(
       return
     }
 
-    let newPartitionMaps: any = {}
+    let newPartitionMaps: Record<string, unknown> = {}
     if (existingArchivedCycle.receipt && existingArchivedCycle.receipt.partitionMaps) {
       newPartitionMaps = { ...existingArchivedCycle.receipt.partitionMaps }
     }
 
     newPartitionMaps[receiptMapResult.partition] = receiptMapResult.receiptMap
 
-    let newPartitionTxs: any = {}
+    let newPartitionTxs: Record<string, unknown> = {}
     if (existingArchivedCycle.receipt && existingArchivedCycle.receipt.partitionTxs) {
       newPartitionTxs = { ...existingArchivedCycle.receipt.partitionTxs }
     }
     if (receiptMapResult.txsMapEVMReceipt) {
-      for (let id of Object.keys(receiptMapResult.txsMapEVMReceipt)) {
+      for (const id of Object.keys(receiptMapResult.txsMapEVMReceipt)) {
+        /* eslint-disable security/detect-object-injection */
         receiptMapResult.txsMap[id] = [...receiptMapResult.txsMap[id], receiptMapResult.txsMapEVMReceipt[id]]
       }
       newPartitionTxs[receiptMapResult.partition] = receiptMapResult.txsMap
@@ -122,10 +130,10 @@ export async function updateReceiptMap(
 export async function updateSummaryBlob(
   summaryBlob: StateManager.StateManagerTypes.SummaryBlob,
   cycle: number
-) {
+): Promise<void> {
   if (!summaryBlob) return
   try {
-    let parentCycle = CycleChain.get(cycle)
+    const parentCycle = CycleChain.get(cycle)
 
     if (!parentCycle) {
       Logger.mainLogger.error('Unable find record with parent cycle with counter', cycle)
@@ -139,7 +147,7 @@ export async function updateSummaryBlob(
       return
     }
 
-    let newPartitionBlobs: any = {}
+    let newPartitionBlobs: Record<string, unknown> = {}
     if (existingArchivedCycle.summary && existingArchivedCycle.summary.partitionBlobs) {
       newPartitionBlobs = { ...existingArchivedCycle.summary.partitionBlobs }
     }
@@ -168,8 +176,8 @@ export async function updateSummaryBlob(
   }
 }
 
-export async function updateArchivedCycle(marker: string, field: string, data: any) {
-  let updateObj: any = {}
+export async function updateArchivedCycle(marker: string, field: string, data: unknown): Promise<void> {
+  const updateObj: Record<string, unknown> = {}
   updateObj[field] = data
   await Collection.update({
     filter: { cycleMarker: marker },
@@ -189,8 +197,8 @@ export async function updateArchivedCycle(marker: string, field: string, data: a
   // }
 }
 
-export async function queryAllArchivedCycles(count?: number) {
-  let archivedCycles = await Collection.find({
+export async function queryAllArchivedCycles(count?: number): Promise<ArchivedCycle[]> {
+  const archivedCycles = await Collection.find({
     filter: {},
     sort: {
       'cycleRecord.counter': -1,
@@ -203,8 +211,8 @@ export async function queryAllArchivedCycles(count?: number) {
   return archivedCycles
 }
 
-export async function queryAllArchivedCyclesBetween(start: number, end: number) {
-  let archivedCycles = await Collection.find({
+export async function queryAllArchivedCyclesBetween(start: number, end: number): Promise<ArchivedCycle[]> {
+  const archivedCycles = await Collection.find({
     filter: {
       $and: [{ 'cycleRecord.counter': { $gte: start } }, { 'cycleRecord.counter': { $lte: end } }],
     },
@@ -232,8 +240,8 @@ export async function queryAllArchivedCyclesBetween(start: number, end: number) 
   return archivedCycles
 }
 
-export async function queryAllCycleRecords() {
-  let cycleRecords = await Collection.find({
+export async function queryAllCycleRecords(): Promise<P2P.CycleCreatorTypes.CycleRecord[]> {
+  const cycleRecords = await Collection.find({
     filter: {},
     sort: {
       'cycleRecord.counter': -1,
@@ -246,11 +254,11 @@ export async function queryAllCycleRecords() {
       summary: 0,
     },
   })
-  return cycleRecords.map((item: any) => item.cycleRecord)
+  return cycleRecords.map((item: CycleRecordDocument) => item.cycleRecord)
 }
 
-export async function queryLatestCycleRecords(count: number = 1) {
-  let cycleRecords = await Collection.find({
+export async function queryLatestCycleRecords(count = 1): Promise<P2P.CycleCreatorTypes.CycleRecord[]> {
+  const cycleRecords = await Collection.find({
     filter: {},
     sort: {
       'cycleRecord.counter': -1,
@@ -264,11 +272,14 @@ export async function queryLatestCycleRecords(count: number = 1) {
       summary: 0,
     },
   })
-  return cycleRecords.map((item: any) => item.cycleRecord)
+  return cycleRecords.map((item: CycleRecordDocument) => item.cycleRecord)
 }
 
-export async function queryCycleRecordsBetween(start: number, end: number) {
-  let cycleRecords = await Collection.find({
+export async function queryCycleRecordsBetween(
+  start: number,
+  end: number
+): Promise<P2P.CycleCreatorTypes.CycleRecord[]> {
+  const cycleRecords = await Collection.find({
     filter: {
       $and: [{ 'cycleRecord.counter': { $gte: start } }, { 'cycleRecord.counter': { $lte: end } }],
     },
@@ -276,18 +287,19 @@ export async function queryCycleRecordsBetween(start: number, end: number) {
       'cycleRecord.counter': -1,
     },
   })
-  return cycleRecords.map((item: any) => item.cycleRecord)
+  return cycleRecords.map((item: CycleRecordDocument) => item.cycleRecord)
 }
 
-export async function queryArchivedCycleByMarker(marker: string) {
-  let archivedCycles = await Collection.find({
+export async function queryArchivedCycleByMarker(marker: string): Promise<ArchivedCycle | undefined> {
+  const archivedCycles = await Collection.find({
     filter: { cycleMarker: marker },
   })
   if (archivedCycles.length > 0) return archivedCycles[0]
+  return undefined
 }
 
-export async function queryReceiptMapHash(counter: number, partition: number) {
-  let foundArchivedCycles = await Collection.find({
+export async function queryReceiptMapHash(counter: number, partition: number): Promise<string | undefined> {
+  const foundArchivedCycles = await Collection.find({
     filter: { 'cycleRecord.counter': counter },
   })
   if (foundArchivedCycles.length > 0) {
@@ -295,10 +307,11 @@ export async function queryReceiptMapHash(counter: number, partition: number) {
       return foundArchivedCycles[0].receipt.partitionHashes[partition]
     }
   }
+  return undefined
 }
 
-export async function querySummaryHash(counter: number, partition: number) {
-  let foundArchivedCycles = await Collection.find({
+export async function querySummaryHash(counter: number, partition: number): Promise<string | undefined> {
+  const foundArchivedCycles = await Collection.find({
     filter: { 'cycleRecord.counter': counter },
   })
   if (foundArchivedCycles.length > 0) {
@@ -306,4 +319,5 @@ export async function querySummaryHash(counter: number, partition: number) {
       return foundArchivedCycles[0].summary.partitionHashes[partition]
     }
   }
+  return undefined
 }

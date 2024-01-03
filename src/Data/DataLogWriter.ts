@@ -8,6 +8,11 @@ import { createWriteStream, WriteStream, existsSync } from 'fs'
 
 const LOG_WRITER_CONFIG = config.dataLogWriter
 
+interface deleteOldLogFilesResponse {
+  oldLogFiles: string[]
+  promises: Promise<void>[]
+}
+
 class DataLogWriter {
   logDir: string
   maxLogCounter: number
@@ -17,7 +22,7 @@ class DataLogWriter {
   totalNumberOfEntries: number
   activeLogFileName: string
   activeLogFilePath: string
-  writeQueue: any[]
+  writeQueue: string[]
   isWriting: boolean
 
   constructor(
@@ -39,10 +44,13 @@ class DataLogWriter {
 
   async init(): Promise<void> {
     // Create log directory if it does not exist.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     await fs.mkdir(this.logDir, { recursive: true })
     try {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
       if (existsSync(this.activeLogFilePath)) {
         // Read the active log file name from active-log.txt.
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
         const activeLog = await fs.readFile(this.activeLogFilePath, 'utf8')
         const activeLogNumber = parseInt(activeLog.replace(`${this.dataName}-log`, '').replace('.txt', ''))
         if (activeLogNumber > 0) {
@@ -55,6 +63,7 @@ class DataLogWriter {
           })
           this.totalNumberOfEntries += data.split('\n').length - 1
           console.log(`> DataLogWriter: Total ${this.dataName} Entries: ${this.totalNumberOfEntries}`)
+          // eslint-disable-next-line security/detect-non-literal-fs-filename
           this.dataLogWriteStream = createWriteStream(this.dataLogFilePath, { flags: 'a' })
           if (this.totalNumberOfEntries >= this.maxNumberEntriesPerLog) {
             // Finish the log file with the total number of entries.
@@ -66,6 +75,7 @@ class DataLogWriter {
           }
         }
       } else {
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
         await fs.writeFile(this.activeLogFilePath, `${this.dataName}-log${this.logCounter}.txt`)
       }
     } catch (err) {
@@ -75,7 +85,7 @@ class DataLogWriter {
     if (this.logCounter === 1) await this.setActiveLog()
   }
 
-  async deleteOldLogFiles(prefix: string): Promise<any> {
+  async deleteOldLogFiles(prefix: string): Promise<deleteOldLogFilesResponse> {
     // eslint-disable-next-line security/detect-non-literal-fs-filename
     const logFiles = await fs.readdir(this.logDir)
     const oldLogFiles = logFiles.filter((file) => file.startsWith(`${prefix}-${this.dataName}-log`))
@@ -145,6 +155,7 @@ class DataLogWriter {
             await this.rotateLogFile()
             await this.setActiveLog()
           }
+          // eslint-disable-next-line security/detect-object-injection
           await this.appendData(this.writeQueue[i])
           this.dataWriteIndex += 1
           this.totalNumberOfEntries += 1
@@ -165,13 +176,16 @@ class DataLogWriter {
     this.activeLogFilePath = path.join(this.logDir, this.activeLogFileName)
     // Initialising new data log file.
     this.dataLogFilePath = path.join(this.logDir, `${this.dataName}-log${this.logCounter}.txt`)
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     await fs.appendFile(this.dataLogFilePath, '')
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     this.dataLogWriteStream = createWriteStream(this.dataLogFilePath, { flags: 'a' })
     // Set the name of the new data log file name to the active-log file.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename
     await fs.writeFile(this.activeLogFilePath, `${this.dataName}-log${this.logCounter}.txt`)
   }
 
-  appendData(data: any): Promise<void> {
+  appendData(data: string): Promise<void> {
     // Check if we should continue writing
     const canContinueToWrite = this.dataLogWriteStream!.write(data)
 

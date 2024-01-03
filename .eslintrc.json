@@ -14,24 +14,7 @@
     "prettier"
   ],
   "ignorePatterns": [
-    "**/dbstore/**/*.ts",
-    "**/utils/**/*.ts",
-    "**/test/**/*.ts",
-    "**/statistics/index.ts",
-    "server.ts",
-    "**/profiler/**/*.ts",
-    "utils.ts",
-    "**/archivedCycle/**/*.ts",
-    "**/Data/**/*.ts",
-    "State.ts",
-    "P2P.ts",
-    "NodeList.ts",
-    "Logger.ts",
-    "Config.ts",
-    "Crypto.ts",
-    "module-declarations.d.ts",
-    "saveConsoleOutput.ts",
-    "shardus-crypto-types.ts"
+
   ],
   "rules": {
     "no-empty": [

@@ -1,13 +1,6 @@
-import { Stream } from 'stream'
-
-const NS_PER_SEC = 1e9
 import * as fastify from 'fastify'
 import { stringifyReduce } from './StringifyReduce'
 import * as core from '@shardus/crypto-utils'
-
-// process.hrtime.bigint()
-
-interface NestedCounters {}
 
 type CounterMap = Map<string, CounterNode>
 interface CounterNode {
@@ -15,7 +8,17 @@ interface CounterNode {
   subCounters: CounterMap
 }
 
+interface EntriesCounter {
+  key: string
+  count: number
+  subArray: EntriesCounter[]
+}
+
 export let nestedCountersInstance: NestedCounters
+
+export function setNestedCountersInstance(instance: NestedCounters): void {
+  nestedCountersInstance = instance
+}
 
 class NestedCounters {
   eventCounters: Map<string, CounterNode>
@@ -27,15 +30,14 @@ class NestedCounters {
     // this.sectionTimes = {}
     this.eventCounters = new Map()
     this.rareEventCounters = new Map()
-    nestedCountersInstance = this
     this.infLoopDebug = false
     this.server = server
   }
 
-  registerEndpoints() {
+  registerEndpoints(): void {
     this.server.get('/counts', (req, res) => {
       let outputStr = ''
-      let arrayReport = this.arrayitizeAndSort(this.eventCounters)
+      const arrayReport = this.arrayitizeAndSort(this.eventCounters)
       outputStr += `${Date.now()}\n`
       outputStr = this.printArrayReport(arrayReport, outputStr, 0)
       res.send(outputStr)
@@ -47,14 +49,12 @@ class NestedCounters {
 
     this.server.get('/debug-inf-loop', (req, res) => {
       res.send('starting inf loop, goodbye')
-      let counter = 1
       this.infLoopDebug = true
       while (this.infLoopDebug) {
-        let s = 'asdf'
-        let s2 = stringifyReduce({ test: [s, s, s, s, s, s, s] })
-        let s3 = stringifyReduce({ test: [s2, s2, s2, s2, s2, s2, s2] })
+        const s = 'asdf'
+        const s2 = stringifyReduce({ test: [s, s, s, s, s, s, s] })
+        const s3 = stringifyReduce({ test: [s2, s2, s2, s2, s2, s2, s2] })
         core.hash(s3)
-        counter++
       }
     })
 
@@ -64,7 +64,7 @@ class NestedCounters {
     })
   }
 
-  countEvent(category1: string, category2: string, count: number = 1) {
+  countEvent(category1: string, category2: string, count = 1): void {
     let counterMap: CounterMap = this.eventCounters
 
     let nextNode: CounterNode
@@ -89,7 +89,7 @@ class NestedCounters {
     counterMap = nextNode.subCounters
   }
 
-  countRareEvent(category1: string, category2: string, count: number = 1) {
+  countRareEvent(category1: string, category2: string, count = 1): void {
     // trigger normal event counter
     this.countEvent(category1, category2, count)
 
@@ -118,12 +118,12 @@ class NestedCounters {
     counterMap = nextNode.subCounters
   }
 
-  arrayitizeAndSort(counterMap: any): any[] {
-    let array = []
-    for (let key of counterMap.keys()) {
-      let valueObj = counterMap.get(key)
+  arrayitizeAndSort(counterMap: CounterMap): EntriesCounter[] {
+    const array = []
+    for (const key of counterMap.keys()) {
+      const valueObj = counterMap.get(key)
 
-      let newValueObj = { key, count: valueObj.count, subArray: null }
+      const newValueObj: EntriesCounter = { key, count: valueObj.count, subArray: null }
       // newValueObj.key = key
       array.push(newValueObj)
 
@@ -136,7 +136,6 @@ class NestedCounters {
       //   valueObj.avgLen = valueObj.logLen / valueObj.count
       // }
 
-      // @ts-ignore
       newValueObj.subArray = subArray
       // delete valueObj['subCounters']
     }
@@ -145,11 +144,11 @@ class NestedCounters {
     return array
   }
 
-  printArrayReport(arrayReport: any[], outputStr: string, indent = 0) {
-    let indentText = '___'.repeat(indent)
-    for (let item of arrayReport) {
-      let { key, count, subArray, avgLen, logLen } = item
-      let countStr = `${count}`
+  printArrayReport(arrayReport: EntriesCounter[], outputStr: string, indent = 0): string {
+    const indentText = '___'.repeat(indent)
+    for (const item of arrayReport) {
+      const { key, count, subArray } = item
+      const countStr = `${count}`
       outputStr += `${countStr.padStart(10)} ${indentText} ${key}\n`
       if (subArray != null && subArray.length > 0) {
         outputStr = this.printArrayReport(subArray, outputStr, indent + 1)

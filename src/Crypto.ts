@@ -5,7 +5,7 @@ import { cryptoStringify } from './utils/stringify'
 
 // Crypto initialization fns
 
-export function setCryptoHashKey(hashkey: string) {
+export function setCryptoHashKey(hashkey: string): void {
   core.init(hashkey)
   core.setCustomStringifier(cryptoStringify, 'shardus_crypto_stringify')
 }

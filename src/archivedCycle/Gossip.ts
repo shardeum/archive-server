@@ -1,15 +1,43 @@
-import fastify = require('fastify')
 import * as Crypto from '../Crypto'
 import * as StateMetaData from './StateMetaData'
 import * as State from '../State'
 import * as P2P from '../P2P'
-import { config, Config } from '../Config'
+import { config } from '../Config'
 import * as Logger from '../Logger'
-import { P2P as P2PTypes } from '@shardus/types'
 
-let gossipCollector = new Map()
+interface HashItem {
+  counter: number
+  partitionHashes: { [key: string]: unknown }
+  networkHash: string
+  receiptMapHashes: { [key: string]: unknown }
+  networkReceiptHash: string
+}
 
-export async function sendGossip(type: string, payload: any) {
+interface Gossip extends StateMetadata {
+  counter: number
+}
+
+interface GossipCounterItem {
+  count: number
+  gossip: Gossip
+}
+
+interface StateMetadata {
+  stateHashes: HashItem[]
+  receiptHashes: HashItem[]
+  summaryHashes: HashItem[]
+}
+
+interface HashCollectorItem {
+  counter: number
+  stateHashes?: HashItem
+  receiptHashes?: HashItem
+  summaryHashes?: HashItem
+}
+
+const gossipCollector = new Map()
+
+export async function sendGossip(type: string, payload: Record<string, unknown>): Promise<void> {
   let archivers: State.ArchiverNodeInfo[] = [...State.activeArchivers]
 
   if (archivers.length === 0) return
@@ -19,10 +47,12 @@ export async function sendGossip(type: string, payload: any) {
     sender: config.ARCHIVER_PUBLIC_KEY,
   }
 
-  archivers = archivers.sort((a: any, b: any) => a.publicKey - b.publicKey)
+  archivers = archivers.sort(
+    (a: State.ArchiverNodeInfo, b: State.ArchiverNodeInfo) => Number(a.publicKey) - Number(b.publicKey)
+  )
 
   // TODO: check if need to select random archivers instead of sending to all other archivers
-  let recipients: State.ArchiverNodeInfo[] = archivers.filter(
+  const recipients: State.ArchiverNodeInfo[] = archivers.filter(
     (a) => a.publicKey !== config.ARCHIVER_PUBLIC_KEY
   )
 
@@ -37,18 +67,25 @@ export async function sendGossip(type: string, payload: any) {
         recipients.map((node) => node.ip + ':' + node.port + `/gossip-${type}`)
       )}`
     )
-    await tell(recipients, `gossip-${type}`, gossipPayload, true)
+    await tell(recipients, `gossip-${type}`, gossipPayload)
   } catch (ex) {
     Logger.mainLogger.debug(ex)
     Logger.mainLogger.debug('Fail to gossip')
   }
 }
 
-async function tell(nodes: State.ArchiverNodeInfo[], route: string, message: any, logged = false) {
+async function tell(
+  nodes: State.ArchiverNodeInfo[],
+  route: string,
+  message: { [key: string]: unknown }
+): Promise<void> {
   let InternalTellCounter = 0
   const promises = []
   for (const node of nodes) {
     InternalTellCounter++
+    if (config.VERBOSE) {
+      Logger.mainLogger.debug(`InternalTellCounter: ${InternalTellCounter}`)
+    }
     const url = `http://${node.ip}:${node.port}/${route}`
     try {
       const promise = P2P.postJson(url, message)
@@ -67,9 +104,9 @@ async function tell(nodes: State.ArchiverNodeInfo[], route: string, message: any
   }
 }
 
-export function convertStateMetadataToHashArray(STATE_METATDATA: any) {
-  let hashCollector: any = {}
-  STATE_METATDATA.stateHashes.forEach((h: any) => {
+export function convertStateMetadataToHashArray(STATE_METATDATA: StateMetadata): HashCollectorItem[] {
+  const hashCollector: Record<number, HashCollectorItem> = {}
+  STATE_METATDATA.stateHashes.forEach((h: HashItem) => {
     if (!hashCollector[h.counter]) {
       hashCollector[h.counter] = {
         counter: h.counter,
@@ -77,7 +114,7 @@ export function convertStateMetadataToHashArray(STATE_METATDATA: any) {
     }
     hashCollector[h.counter]['stateHashes'] = h
   })
-  STATE_METATDATA.receiptHashes.forEach((h: any) => {
+  STATE_METATDATA.receiptHashes.forEach((h: HashItem) => {
     if (!hashCollector[h.counter]) {
       hashCollector[h.counter] = {
         counter: h.counter,
@@ -85,7 +122,7 @@ export function convertStateMetadataToHashArray(STATE_METATDATA: any) {
     }
     hashCollector[h.counter]['receiptHashes'] = h
   })
-  STATE_METATDATA.summaryHashes.forEach((h: any) => {
+  STATE_METATDATA.summaryHashes.forEach((h: HashItem) => {
     if (!hashCollector[h.counter]) {
       hashCollector[h.counter] = {
         counter: h.counter,
@@ -96,17 +133,19 @@ export function convertStateMetadataToHashArray(STATE_METATDATA: any) {
   return Object.values(hashCollector)
 }
 
-export function addHashesGossip(sender: string, gossip: any) {
-  let counter = gossip.counter
+export function addHashesGossip(sender: string, gossip: Gossip): void {
+  const counter = gossip.counter
   if (gossipCollector.has(counter)) {
-    let existingGossips = gossipCollector.get(counter)
+    const existingGossips = gossipCollector.get(counter)
+    // eslint-disable-next-line security/detect-object-injection
     existingGossips[sender] = gossip
   } else {
-    let obj: any = {}
+    const obj: Record<string, Gossip> = {}
+    // eslint-disable-next-line security/detect-object-injection
     obj[sender] = gossip
     gossipCollector.set(counter, obj)
   }
-  let totalGossip = gossipCollector.get(counter)
+  const totalGossip = gossipCollector.get(counter)
   if (totalGossip && Object.keys(totalGossip).length > 0.5 * State.activeArchivers.length) {
     setTimeout(() => {
       processGossip(counter)
@@ -115,16 +154,17 @@ export function addHashesGossip(sender: string, gossip: any) {
   }
 }
 
-function processGossip(counter: number) {
+function processGossip(counter: number): void {
   Logger.mainLogger.debug('Processing gossips for counter', counter, gossipCollector.get(counter))
-  let gossips = gossipCollector.get(counter)
+  const gossips = gossipCollector.get(counter)
   if (!gossips) {
     return
   }
-  let ourHashes = StateMetaData.StateMetaDataMap.get(counter)
-  let gossipCounter: any = {}
-  for (let sender in gossips) {
-    let hashedGossip = Crypto.hashObj(gossips[sender])
+  const ourHashes = StateMetaData.StateMetaDataMap.get(counter)
+  const gossipCounter: Record<string, GossipCounterItem> = {}
+  for (const sender in gossips) {
+    /* eslint-disable security/detect-object-injection */
+    const hashedGossip = Crypto.hashObj(gossips[sender])
     if (!gossipCounter[hashedGossip]) {
       gossipCounter[hashedGossip] = {
         count: 1,
@@ -136,15 +176,19 @@ function processGossip(counter: number) {
       }
     } else {
       gossipCounter[hashedGossip].count += 1
+      /* eslint-enable security/detect-object-injection */
     }
   }
-  let gossipWithHighestCount: P2PTypes.SnapshotTypes.StateMetaData[] = []
+  const gossipWithHighestCount: Gossip[] = []
   let highestCount = 0
-  let hashWithHighestCounter: any
-  for (let key in gossipCounter) {
+  let hashWithHighestCounter: string
+  for (const key in gossipCounter) {
+    // eslint-disable-next-line security/detect-object-injection
     if (gossipCounter[key].count > highestCount) {
+      // eslint-disable-next-line security/detect-object-injection
       gossipWithHighestCount.push(gossipCounter[key].gossip)
       hashWithHighestCounter = key
+      // eslint-disable-next-line security/detect-object-injection
       highestCount = gossipCounter[key].count
     }
   }
@@ -159,7 +203,7 @@ function processGossip(counter: number) {
     }
     Logger.mainLogger.error('our hash is different from other archivers hashes. Storing the correct hashes')
     Logger.mainLogger.debug('gossipWithHighestCount', gossipWithHighestCount[0].summaryHashes)
-    StateMetaData.processStateMetaData(gossipWithHighestCount)
+    StateMetaData.processStateMetaData({ gossipWithHighestCount })
     StateMetaData.replaceDataSender(StateMetaData.currentDataSender)
   }
 }

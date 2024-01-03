@@ -17,7 +17,7 @@ declare module 'shardus-crypto-types' {
   }
 
   export interface LooseObject {
-    [index: string]: any
+    [index: string]: unknown
   }
 
   export interface TaggedObject extends LooseObject {

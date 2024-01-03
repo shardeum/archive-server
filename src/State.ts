@@ -30,14 +30,14 @@ const nodeState: ArchiverNodeState = {
   curvePk: '',
   curveSk: '',
 }
-export let joinedArchivers: ArchiverNodeInfo[] = [] // Add joined archivers to this list first and move to activeArchivers when they are active
+export const joinedArchivers: ArchiverNodeInfo[] = [] // Add joined archivers to this list first and move to activeArchivers when they are active
 export let activeArchivers: ArchiverNodeInfo[] = []
 export let activeArchiversByPublicKeySorted: ArchiverNodeInfo[] = []
 export let isFirst = false
 export let isActive = false
-export let archiversReputation: Map<string, string> = new Map()
+export const archiversReputation: Map<string, string> = new Map()
 
-export async function initFromConfig(config: Config, shutDownMode: boolean = false) {
+export async function initFromConfig(config: Config, shutDownMode = false): Promise<void> {
   // Get own nodeInfo from config
   nodeState.ip = config.ARCHIVER_IP
   nodeState.port = config.ARCHIVER_PORT
@@ -71,17 +71,18 @@ export async function initFromConfig(config: Config, shutDownMode: boolean = fal
   if (shutDownMode) return
 
   let retryCount = 1
-  let waitTime = 1000 * 60
+  const waitTime = 1000 * 60
 
   while (retryCount < 10 && activeArchivers.length === 0) {
     Logger.mainLogger.debug(`Getting consensor list from other achivers. [round: ${retryCount}]`)
+    /* eslint-disable security/detect-object-injection */
     for (let i = 0; i < existingArchivers.length; i++) {
       if (existingArchivers[i].publicKey === nodeState.publicKey) {
         continue
       }
-      let response: any = await P2P.getJson(
+      const response = (await P2P.getJson(
         `http://${existingArchivers[i].ip}:${existingArchivers[i].port}/nodelist`
-      )
+      )) as Crypto.core.SignedObject
       Logger.mainLogger.debug(
         'response',
         `http://${existingArchivers[i].ip}:${existingArchivers[i].port}/nodelist`,
@@ -110,6 +111,7 @@ export async function initFromConfig(config: Config, shutDownMode: boolean = fal
         )
       }
     }
+    /* eslint-enable security/detect-object-injection */
     if (activeArchivers.length === 0) {
       Logger.mainLogger.error(`Unable to find active archivers. Waiting for ${waitTime} before trying again.`)
       // wait for 1 min before retrying
@@ -125,7 +127,7 @@ export async function initFromConfig(config: Config, shutDownMode: boolean = fal
   }
 }
 
-export async function exitArchiver() {
+export async function exitArchiver(): Promise<void> {
   try {
     const randomConsensors: NodeList.ConsensusNodeInfo[] = NodeList.getRandomActiveNodes(5)
     if (randomConsensors && randomConsensors.length > 0) {
@@ -141,7 +143,7 @@ export async function exitArchiver() {
   }
 }
 
-export function addSigListeners(sigint = true, sigterm = true) {
+export function addSigListeners(sigint = true, sigterm = true): void {
   if (sigint) {
     process.on('SIGINT', async () => {
       Logger.mainLogger.debug('Exiting on SIGINT')
@@ -157,14 +159,14 @@ export function addSigListeners(sigint = true, sigterm = true) {
   Logger.mainLogger.debug('Registerd exit signal listeners.')
 }
 
-export function removeActiveArchiver(publicKey: string) {
-  activeArchivers = activeArchivers.filter((a: any) => a.publicKey !== publicKey)
+export function removeActiveArchiver(publicKey: string): void {
+  activeArchivers = activeArchivers.filter((a: ArchiverNodeInfo) => a.publicKey !== publicKey)
   activeArchiversByPublicKeySorted = activeArchiversByPublicKeySorted.filter(
-    (a: any) => a.publicKey !== publicKey
+    (a: ArchiverNodeInfo) => a.publicKey !== publicKey
   )
 }
 
-export function resetActiveArchivers(archivers: ArchiverNodeInfo[]) {
+export function resetActiveArchivers(archivers: ArchiverNodeInfo[]): void {
   Logger.mainLogger.debug('Resetting active archivers.', archivers)
   activeArchivers = archivers
   activeArchiversByPublicKeySorted = [...archivers.sort(NodeList.byAscendingPublicKey)]
@@ -191,7 +193,7 @@ export async function compareCycleRecordWithOtherArchivers(
     .then((responses) => {
       let i = 0
       for (const response of responses) {
-        const archiver = activeArchivers[i]
+        const archiver = activeArchivers[i] // eslint-disable-line security/detect-object-injection
         if (response.status === 'fulfilled') {
           const res = response.value
           if (res && res.cycleInfo && res.cycleInfo.length > 0) {
@@ -223,18 +225,18 @@ export function getNodeInfo(): ArchiverNodeInfo {
   return sanitizedNodeInfo
 }
 
-export function getSecretKey() {
+export function getSecretKey(): Crypto.types.secretKey {
   return nodeState.secretKey
 }
 
-export function getCurveSk() {
+export function getCurveSk(): Crypto.types.curveSecretKey {
   return nodeState.curveSk
 }
 
-export function getCurvePk() {
+export function getCurvePk(): Crypto.types.curvePublicKey {
   return nodeState.curvePk
 }
 
-export function setActive() {
+export function setActive(): void {
   isActive = true
 }

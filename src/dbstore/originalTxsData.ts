@@ -9,7 +9,7 @@ export interface OriginalTxData {
   txId: string
   timestamp: number
   cycle: number
-  originalTxData: any
+  originalTxData: any // eslint-disable-line @typescript-eslint/no-explicit-any
   sign: Signature | string
 }
 
@@ -18,12 +18,21 @@ type DbOriginalTxData = OriginalTxData & {
   sign: string
 }
 
-export async function insertOriginalTxData(OriginalTxData: OriginalTxData) {
+type OriginalTxDataCount = {
+  cycle: number
+  originalTxDataCount: number
+}
+
+type DbOriginalTxDataCount = OriginalTxDataCount & {
+  'COUNT(*)': number
+}
+
+export async function insertOriginalTxData(OriginalTxData: OriginalTxData): Promise<void> {
   try {
     const fields = Object.keys(OriginalTxData).join(', ')
     const placeholders = Object.keys(OriginalTxData).fill('?').join(', ')
     const values = extractValues(OriginalTxData)
-    let sql = 'INSERT OR REPLACE INTO originalTxsData (' + fields + ') VALUES (' + placeholders + ')'
+    const sql = 'INSERT OR REPLACE INTO originalTxsData (' + fields + ') VALUES (' + placeholders + ')'
     await db.run(sql, values)
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Successfully inserted OriginalTxData', OriginalTxData.txId)
@@ -37,7 +46,7 @@ export async function insertOriginalTxData(OriginalTxData: OriginalTxData) {
   }
 }
 
-export async function bulkInsertOriginalTxsData(originalTxsData: OriginalTxData[]) {
+export async function bulkInsertOriginalTxsData(originalTxsData: OriginalTxData[]): Promise<void> {
   try {
     const fields = Object.keys(originalTxsData[0]).join(', ')
     const placeholders = Object.keys(originalTxsData[0]).fill('?').join(', ')
@@ -58,7 +67,7 @@ export async function queryOriginalTxDataCount(startCycle?: number, endCycle?: n
   let originalTxsData
   try {
     let sql = `SELECT COUNT(*) FROM originalTxsData`
-    let values: any[] = []
+    const values: number[] = []
     if (startCycle && endCycle) {
       sql += ` WHERE cycle BETWEEN ? AND ?`
       values.push(startCycle, endCycle)
@@ -79,23 +88,33 @@ export async function queryOriginalTxsData(
   startCycle?: number,
   endCycle?: number
 ): Promise<OriginalTxData[]> {
-  let originalTxsData
+  let dbOriginalTxsData: DbOriginalTxData[] = []
+  const originalTxsData: OriginalTxData[] = []
   try {
     let sql = `SELECT * FROM originalTxsData`
-    let sqlSuffix = ` ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    let values: any[] = []
+    const sqlSuffix = ` ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
+    const values: number[] = []
     if (startCycle && endCycle) {
       sql += ` WHERE cycle BETWEEN ? AND ?`
       values.push(startCycle, endCycle)
     }
     sql += sqlSuffix
-    originalTxsData = await db.all(sql, values)
-    originalTxsData.forEach((originalTxData: DbOriginalTxData) => {
-      if (originalTxData.originalTxData)
-        originalTxData.originalTxData = DeSerializeFromJsonString(originalTxData.originalTxData)
-      if (originalTxData.sign) originalTxData.sign = DeSerializeFromJsonString(originalTxData.sign)
-    })
-  } catch (e) {
+    dbOriginalTxsData = (await db.all(sql, values)) as DbOriginalTxData[]
+    if (dbOriginalTxsData.length > 0) {
+      for (let i = 0; i < dbOriginalTxsData.length; i++) {
+        /* eslint-disable security/detect-object-injection */
+        originalTxsData.push({
+          txId: dbOriginalTxsData[i].txId,
+          timestamp: dbOriginalTxsData[i].timestamp,
+          cycle: dbOriginalTxsData[i].cycle,
+          originalTxData: dbOriginalTxsData[i].originalTxData ? DeSerializeFromJsonString(dbOriginalTxsData[i].originalTxData) : null,
+          sign: dbOriginalTxsData[i].sign ? DeSerializeFromJsonString(dbOriginalTxsData[i].sign) : null
+        })
+        /* eslint-enable security/detect-object-injection */
+      }
+    }
+
+    } catch (e) {
     console.log(e)
   }
   if (config.VERBOSE) {
@@ -104,62 +123,84 @@ export async function queryOriginalTxsData(
   return originalTxsData
 }
 
-export async function queryOriginalTxDataByTxId(txId: string): Promise<OriginalTxData | null> {
+export async function queryOriginalTxDataByTxId(txId: string): Promise<OriginalTxData> {
   try {
     const sql = `SELECT * FROM originalTxsData WHERE txId=?`
-    const originalTxData = (await db.get(sql, [txId])) as DbOriginalTxData
-    if (originalTxData) {
-      if (originalTxData.originalTxData)
-        originalTxData.originalTxData = DeSerializeFromJsonString(originalTxData.originalTxData)
-      if (originalTxData.sign) originalTxData.sign = DeSerializeFromJsonString(originalTxData.sign)
+    const dbOriginalTxData: DbOriginalTxData = (await db.get(sql, [txId])) as DbOriginalTxData
+    let originalTxData: OriginalTxData
+    if (dbOriginalTxData) {
+      originalTxData = {
+        txId: dbOriginalTxData.txId,
+        timestamp: dbOriginalTxData.timestamp,
+        cycle: dbOriginalTxData.cycle,
+        originalTxData: dbOriginalTxData.originalTxData ? DeSerializeFromJsonString(dbOriginalTxData.originalTxData) : null,
+        sign: dbOriginalTxData.sign ? DeSerializeFromJsonString(dbOriginalTxData.sign) : null
+      }
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('OriginalTxData txId', originalTxData)
     }
-    return originalTxData as OriginalTxData
+    return originalTxData
   } catch (e) {
     console.log(e)
   }
   return null
 }
 
-export async function queryOriginalTxDataCountByCycles(start: number, end: number) {
-  let originalTxsData
+export async function queryOriginalTxDataCountByCycles(
+  start: number,
+  end: number
+): Promise<OriginalTxDataCount[]> {
+  const originalTxsDataCount: OriginalTxDataCount[] = []
+  let dbOriginalTxsDataCount: DbOriginalTxDataCount[] = []
   try {
     const sql = `SELECT cycle, COUNT(*) FROM originalTxsData GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
-    originalTxsData = await db.all(sql, [start, end])
+    dbOriginalTxsDataCount = (await db.all(sql, [start, end])) as DbOriginalTxDataCount[]
   } catch (e) {
     Logger.mainLogger.error(e)
   }
   if (config.VERBOSE) {
-    Logger.mainLogger.debug('OriginalTxData count by cycle', originalTxsData)
+    Logger.mainLogger.debug('OriginalTxData count by cycle', dbOriginalTxsDataCount)
   }
-  if (originalTxsData.length > 0) {
-    originalTxsData.forEach((OriginalTxData) => {
-      OriginalTxData['originalTxsData'] = OriginalTxData['COUNT(*)']
-      delete OriginalTxData['COUNT(*)']
-    })
+  if (dbOriginalTxsDataCount.length > 0) {
+    for (let i = 0; i < dbOriginalTxsDataCount.length; i++) {
+      /* eslint-disable security/detect-object-injection */
+      originalTxsDataCount.push({
+        cycle: dbOriginalTxsDataCount[i].cycle,
+        originalTxDataCount: dbOriginalTxsDataCount[i]['COUNT(*)'],
+      })
+      /* eslint-enable security/detect-object-injection */
+    }
   }
-  return originalTxsData
+  return originalTxsDataCount
 }
 
-export async function queryLatestOriginalTxs(count: number) {
+export async function queryLatestOriginalTxs(count: number): Promise<OriginalTxData[]> {
   try {
     const sql = `SELECT * FROM originalTxsData ORDER BY cycle DESC, timestamp DESC LIMIT ${
       count ? count : 100
     }`
-    const originalTxs: any = await db.all(sql)
-    if (originalTxs.length > 0) {
-      originalTxs.forEach((tx: DbOriginalTxData) => {
-        if (tx.originalTxData) tx.originalTxData = DeSerializeFromJsonString(tx.originalTxData)
-        if (tx.sign) tx.sign = DeSerializeFromJsonString(tx.sign)
-      })
+    const dbOriginalTxsData: DbOriginalTxData[] = (await db.all(sql)) as DbOriginalTxData[]
+    const originalTxsData: OriginalTxData[] = []
+    if (dbOriginalTxsData.length > 0) {
+      for (let i = 0; i < dbOriginalTxsData.length; i++) {
+        /* eslint-disable security/detect-object-injection */
+        originalTxsData.push({
+          txId: dbOriginalTxsData[i].txId,
+          timestamp: dbOriginalTxsData[i].timestamp,
+          cycle: dbOriginalTxsData[i].cycle,
+          originalTxData: dbOriginalTxsData[i].originalTxData ? DeSerializeFromJsonString(dbOriginalTxsData[i].originalTxData) : null,
+          sign: dbOriginalTxsData[i].sign ? DeSerializeFromJsonString(dbOriginalTxsData[i].sign) : null
+        })
+        /* eslint-enable security/detect-object-injection */
+      }
     }
     if (config.VERBOSE) {
-      Logger.mainLogger.debug('Latest Original-Tx: ', originalTxs)
+      Logger.mainLogger.debug('Latest Original-Tx: ', originalTxsData)
     }
-    return originalTxs
+    return originalTxsData
   } catch (e) {
     Logger.mainLogger.error(e)
+    return null
   }
 }

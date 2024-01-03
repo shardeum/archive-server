@@ -5,8 +5,18 @@ import { getJson } from '../../P2P'
 
 Crypto.setCryptoHashKey(config.ARCHIVER_HASH_KEY)
 
-export async function queryArchivedCycles(ip: any, port: any, count: number, start: number, end: number) {
-  let res: any = await getJson(`http://${ip}:${port}/full-archive/${count}`)
+interface Data {
+  length: string
+}
+
+export async function queryArchivedCycles(
+  ip: string,
+  port: string,
+  count: number,
+  start: number,
+  end: number
+): Promise<void> {
+  let res: unknown = await getJson(`http://${ip}:${port}/full-archive/${count}`)
   console.log(res)
   validateArchivedCycle(res)
 
@@ -15,7 +25,7 @@ export async function queryArchivedCycles(ip: any, port: any, count: number, sta
   validateArchivedCycle(res)
 }
 
-const validateArchivedCycle = (res) => {
+const validateArchivedCycle = (res): void => {
   const archivedCycles = res['archivedCycles']
 
   for (let i = 0; i < archivedCycles.length; i++) {
@@ -24,9 +34,11 @@ const validateArchivedCycle = (res) => {
     //     ? archivedCycles[i].receipt.partitionTxs[0]
     //     : 'no receipt'
     // )
+    // eslint-disable-next-line security/detect-object-injection
     const result = valueCheck(archivedCycles[i])
     if (result.length > 0) {
       console.log(
+        // eslint-disable-next-line security/detect-object-injection
         `Archived Cyle ${archivedCycles[i].cycleRecord.counter} doesn't have these values --> ${result}`
       )
     }
@@ -100,18 +112,22 @@ const expectedValue = {
   },
 }
 
-const valueCheck = (obj) => {
+const valueCheck = (obj): string[] => {
   const valueNotFound = []
-  for (let i of Object.keys(expectedValue)) {
+  for (const i of Object.keys(expectedValue)) {
     // console.log(i, typeof obj[i], typeof expectedValue[i])
-    if (!obj.hasOwnProperty(i) && typeof obj[i] !== typeof expectedValue[i]) {
+    //eslint-disable-next-line security/detect-object-injection
+    if (!Object.prototype.hasOwnProperty.call(obj, i) && typeof obj[i] !== typeof expectedValue[i]) {
       valueNotFound.push(i)
     }
 
     if (i === 'data' || i === 'receipt' || i === 'summary') {
+      //eslint-disable-next-line security/detect-object-injection
       if (obj[i]) {
+        //eslint-disable-next-line security/detect-object-injection
         const networkHash = obj[i].networkHash
         // console.log(obj[i].networkHash, obj[i].partitionHashes)
+        //eslint-disable-next-line security/detect-object-injection
         const calculatedHash = calculateNetworkHash(obj[i].partitionHashes)
         if (networkHash !== calculatedHash) {
           console.log(
@@ -119,20 +135,24 @@ const valueCheck = (obj) => {
           )
         }
         if (i === 'receipt') {
-          for (let partitionId in Object.values(obj[i].partitionMaps)) {
+          //eslint-disable-next-line security/detect-object-injection
+          for (const partitionId in Object.values(obj[i].partitionMaps)) {
             // console.log(
             //   obj[i].partitionMaps[partitionId],
             //   obj[i].partitionTxs[partitionId]
             // )
             let txCount = 0
-            for (let data of Object.values(obj[i].partitionMaps[partitionId])) {
-              const a: any = data
+            //eslint-disable-next-line security/detect-object-injection
+            for (const data of Object.values(obj[i].partitionMaps[partitionId])) {
+              const a: Data = data as Data
               txCount += parseInt(a.length)
             }
             const partitionBlock = {
               cycle: obj.cycleRecord.counter,
               partition: parseInt(partitionId),
+              //eslint-disable-next-line security/detect-object-injection
               receiptMap: obj[i].partitionMaps[partitionId],
+              //eslint-disable-next-line security/detect-object-injection
               txsMap: obj[i].partitionTxs[partitionId],
               txCount: txCount,
             }
@@ -141,6 +161,7 @@ const valueCheck = (obj) => {
             //   obj[i].partitionHashes[partitionId],
             //   Crypto.hashObj(partitionBlock)
             // )
+            //eslint-disable-next-line security/detect-object-injection
             if (obj[i].partitionHashes[partitionId] !== Crypto.hashObj(partitionBlock)) {
               console.log(
                 `The specified partitionHash and calculatedHash of ${i} are different in Archived Cyle ${obj.cycleRecord.counter}, ${partitionId}`
