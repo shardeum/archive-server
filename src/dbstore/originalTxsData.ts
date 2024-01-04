@@ -107,14 +107,15 @@ export async function queryOriginalTxsData(
           txId: dbOriginalTxsData[i].txId,
           timestamp: dbOriginalTxsData[i].timestamp,
           cycle: dbOriginalTxsData[i].cycle,
-          originalTxData: dbOriginalTxsData[i].originalTxData ? DeSerializeFromJsonString(dbOriginalTxsData[i].originalTxData) : null,
-          sign: dbOriginalTxsData[i].sign ? DeSerializeFromJsonString(dbOriginalTxsData[i].sign) : null
+          originalTxData: dbOriginalTxsData[i].originalTxData
+            ? DeSerializeFromJsonString(dbOriginalTxsData[i].originalTxData)
+            : null,
+          sign: dbOriginalTxsData[i].sign ? DeSerializeFromJsonString(dbOriginalTxsData[i].sign) : null,
         })
         /* eslint-enable security/detect-object-injection */
       }
     }
-
-    } catch (e) {
+  } catch (e) {
     console.log(e)
   }
   if (config.VERBOSE) {
@@ -133,8 +134,10 @@ export async function queryOriginalTxDataByTxId(txId: string): Promise<OriginalT
         txId: dbOriginalTxData.txId,
         timestamp: dbOriginalTxData.timestamp,
         cycle: dbOriginalTxData.cycle,
-        originalTxData: dbOriginalTxData.originalTxData ? DeSerializeFromJsonString(dbOriginalTxData.originalTxData) : null,
-        sign: dbOriginalTxData.sign ? DeSerializeFromJsonString(dbOriginalTxData.sign) : null
+        originalTxData: dbOriginalTxData.originalTxData
+          ? DeSerializeFromJsonString(dbOriginalTxData.originalTxData)
+          : null,
+        sign: dbOriginalTxData.sign ? DeSerializeFromJsonString(dbOriginalTxData.sign) : null,
       }
     }
     if (config.VERBOSE) {
@@ -189,8 +192,10 @@ export async function queryLatestOriginalTxs(count: number): Promise<OriginalTxD
           txId: dbOriginalTxsData[i].txId,
           timestamp: dbOriginalTxsData[i].timestamp,
           cycle: dbOriginalTxsData[i].cycle,
-          originalTxData: dbOriginalTxsData[i].originalTxData ? DeSerializeFromJsonString(dbOriginalTxsData[i].originalTxData) : null,
-          sign: dbOriginalTxsData[i].sign ? DeSerializeFromJsonString(dbOriginalTxsData[i].sign) : null
+          originalTxData: dbOriginalTxsData[i].originalTxData
+            ? DeSerializeFromJsonString(dbOriginalTxsData[i].originalTxData)
+            : null,
+          sign: dbOriginalTxsData[i].sign ? DeSerializeFromJsonString(dbOriginalTxsData[i].sign) : null,
         })
         /* eslint-enable security/detect-object-injection */
       }

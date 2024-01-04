@@ -111,7 +111,9 @@ export async function queryLatestReceipts(count: number): Promise<Receipt[]> {
           tx: dbReceipts[i].tx ? DeSerializeFromJsonString(dbReceipts[i].tx) : null,
           cycle: dbReceipts[i].cycle,
           timestamp: dbReceipts[i].timestamp,
-          beforeStateAccounts: dbReceipts[i].beforeStateAccounts ? DeSerializeFromJsonString(dbReceipts[i].beforeStateAccounts) : null,
+          beforeStateAccounts: dbReceipts[i].beforeStateAccounts
+            ? DeSerializeFromJsonString(dbReceipts[i].beforeStateAccounts)
+            : null,
           accounts: dbReceipts[i].accounts ? DeSerializeFromJsonString(dbReceipts[i].accounts) : null,
           receipt: dbReceipts[i].receipt ? DeSerializeFromJsonString(dbReceipts[i].receipt) : null,
           result: dbReceipts[i].result ? DeSerializeFromJsonString(dbReceipts[i].result) : null,
@@ -144,7 +146,9 @@ export async function queryReceipts(skip = 0, limit = 10000): Promise<Receipt[]>
           tx: dbReceipts[i].tx ? DeSerializeFromJsonString(dbReceipts[i].tx) : null,
           cycle: dbReceipts[i].cycle,
           timestamp: dbReceipts[i].timestamp,
-          beforeStateAccounts: dbReceipts[i].beforeStateAccounts ? DeSerializeFromJsonString(dbReceipts[i].beforeStateAccounts) : null,
+          beforeStateAccounts: dbReceipts[i].beforeStateAccounts
+            ? DeSerializeFromJsonString(dbReceipts[i].beforeStateAccounts)
+            : null,
           accounts: dbReceipts[i].accounts ? DeSerializeFromJsonString(dbReceipts[i].accounts) : null,
           receipt: dbReceipts[i].receipt ? DeSerializeFromJsonString(dbReceipts[i].receipt) : null,
           result: dbReceipts[i].result ? DeSerializeFromJsonString(dbReceipts[i].result) : null,
@@ -239,7 +243,9 @@ export async function queryReceiptsBetweenCycles(
           tx: dbReceipts[i].tx ? DeSerializeFromJsonString(dbReceipts[i].tx) : null,
           cycle: dbReceipts[i].cycle,
           timestamp: dbReceipts[i].timestamp,
-          beforeStateAccounts: dbReceipts[i].beforeStateAccounts ? DeSerializeFromJsonString(dbReceipts[i].beforeStateAccounts) : null,
+          beforeStateAccounts: dbReceipts[i].beforeStateAccounts
+            ? DeSerializeFromJsonString(dbReceipts[i].beforeStateAccounts)
+            : null,
           accounts: dbReceipts[i].accounts ? DeSerializeFromJsonString(dbReceipts[i].accounts) : null,
           receipt: dbReceipts[i].receipt ? DeSerializeFromJsonString(dbReceipts[i].receipt) : null,
           result: dbReceipts[i].result ? DeSerializeFromJsonString(dbReceipts[i].result) : null,

@@ -96,10 +96,11 @@ export async function queryLatestCycleRecords(count: number): Promise<CyclesCycl
     const cycles = (await db.all(sql)) as DbCycle[]
     const cycleRecords: CyclesCycle[] = []
     if (cycles.length > 0) {
-      for (let i  = 0; i < cycles.length; i++) {
+      for (let i = 0; i < cycles.length; i++) {
         /* eslint-disable security/detect-object-injection */
         let tempCycleRecord: CyclesCycle
-        if (cycles[i].cycleRecord) tempCycleRecord = DeSerializeFromJsonString(cycles[i].cycleRecord) as CyclesCycle
+        if (cycles[i].cycleRecord)
+          tempCycleRecord = DeSerializeFromJsonString(cycles[i].cycleRecord) as CyclesCycle
         if (cycles[i].cycleMarker) tempCycleRecord.marker = cycles[i].cycleMarker
         cycleRecords.push(tempCycleRecord)
         /* eslint-enable security/detect-object-injection */
@@ -121,7 +122,7 @@ export async function queryCycleRecordsBetween(start: number, end: number): Prom
     const cycles = (await db.all(sql, [start, end])) as DbCycle[]
     const cycleRecords: P2P.CycleCreatorTypes.CycleRecord[] = []
     if (cycles.length > 0) {
-      for (let i  = 0; i < cycles.length; i++) {
+      for (let i = 0; i < cycles.length; i++) {
         // eslint-disable-next-line security/detect-object-injection
         if (cycles[i].cycleRecord) cycleRecords.push(DeSerializeFromJsonString(cycles[i].cycleRecord))
       }
