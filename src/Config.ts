@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs'
+import * as fs from 'fs'
 import * as Logger from './Logger'
 import * as merge from 'deepmerge'
 import * as minimist from 'minimist'
@@ -11,7 +11,8 @@ export interface Config {
   ARCHIVER_HASH_KEY: string
   ARCHIVER_PUBLIC_KEY: string
   ARCHIVER_SECRET_KEY: string
-  ARCHIVER_DB: string
+  ARCHIVER_DB: string // Archiver DB folder name
+  EXISTING_ARCHIVER_DB_PATH: string
   DATASENDER_TIMEOUT: number
   RATE_LIMIT: number // number of allowed request per second,
   N_NODE_REJECT_PERCENT: number
@@ -42,6 +43,8 @@ export interface Config {
   sendActiveMessage: boolean
   globalNetworkAccount: string
   maxValidatorsToServe: number
+  verifyAccountData: boolean
+  limitToArchiversOnly: boolean
 }
 
 let config: Config = {
@@ -52,6 +55,7 @@ let config: Config = {
   ARCHIVER_SECRET_KEY: '',
   ARCHIVER_LOGS: 'archiver-logs',
   ARCHIVER_DB: 'archiver-db',
+  EXISTING_ARCHIVER_DB_PATH: '',
   DATASENDER_TIMEOUT: 1000 * 60 * 5,
   RATE_LIMIT: 100, // 100 req per second,
   N_NODE_REJECT_PERCENT: 5, // Percentage of old nodes to remove from nodelist
@@ -82,23 +86,24 @@ let config: Config = {
   sendActiveMessage: false,
   globalNetworkAccount: process.env.GLOBAL_ACCOUNT || '0'.repeat(64), //this address will change in the future
   maxValidatorsToServe: 10, // max number of validators to serve accounts data during restore mode
+  verifyAccountData: true,
+  limitToArchiversOnly: true,
 }
 // Override default config params from config file, env vars, and cli args
-export function overrideDefaultConfig(env: NodeJS.ProcessEnv, args: string[]): string {
-  let file = ''
+export async function overrideDefaultConfig(file: string): Promise<void> {
+  const env = process.env
+  const args = process.argv
 
   // Override config from config file
   try {
-    file = join(process.cwd(), 'archiver-config.json')
     // eslint-disable-next-line security/detect-non-literal-fs-filename
-    const fileConfig = JSON.parse(readFileSync(file, { encoding: 'utf8' }))
+    const fileConfig = JSON.parse(fs.readFileSync(file, { encoding: 'utf8' }))
     const overwriteMerge = (target: [], source: []): [] => source
     config = merge(config, fileConfig, { arrayMerge: overwriteMerge })
   } catch (err) {
     if (err && err.code !== 'ENOENT') {
       console.warn('Failed to parse config file:', err)
     }
-    return ''
   }
 
   // Override config from env vars
@@ -136,9 +141,6 @@ export function overrideDefaultConfig(env: NodeJS.ProcessEnv, args: string[]): s
         }
       }
     }
-    /* eslint-enable security/detect-object-injection */
-
-    return file
   }
 
   // Override config from cli args
@@ -168,10 +170,33 @@ export function overrideDefaultConfig(env: NodeJS.ProcessEnv, args: string[]): s
         }
       }
     }
-    /* eslint-enable security/detect-object-injection */
   }
 
-  return file
+  // Pull in secrets
+  const secretsPath = join(__dirname, '../.secrets')
+  const secrets = {}
+
+  if (fs.existsSync(secretsPath)) {
+    const lines = fs.readFileSync(secretsPath, 'utf-8').split('\n').filter(Boolean)
+
+    lines.forEach((line) => {
+      const [key, value] = line.split('=')
+      secrets[key.trim()] = value.trim()
+    })
+
+    // Now, secrets contain your secrets, for example:
+    // const apiKey = secrets.API_KEY;
+
+    if (secrets['ARCHIVER_PUBLIC_KEY']) config.ARCHIVER_PUBLIC_KEY = secrets['ARCHIVER_PUBLIC_KEY']
+    if (secrets['ARCHIVER_SECRET_KEY']) config.ARCHIVER_SECRET_KEY = secrets['ARCHIVER_SECRET_KEY']
+    if (secrets['ARCHIVER_HASH_KEY']) config.ARCHIVER_HASH_KEY = secrets['ARCHIVER_HASH_KEY']
+  }
+
+  if (config.ARCHIVER_HASH_KEY === '') {
+    // Use default hash key if none provided
+    //  pragma: allowlist nextline secret
+    config.ARCHIVER_HASH_KEY = '69fa4195670576c0160d660c3be36556ff8d504725be8a59b5a96509e0c994bc'
+  }
 }
 
 export { config }

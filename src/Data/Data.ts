@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import { publicKey, SignedObject } from '@shardus/crypto-utils'
 import * as Crypto from '../Crypto'
 import * as NodeList from '../NodeList'
 import * as Cycles from './Cycles'
@@ -26,6 +27,7 @@ import {
   storeAccountData,
   storingAccountData,
   storeOriginalTxData,
+  saveOnlyGossipData,
 } from './Collector'
 import * as CycleDB from '../dbstore/cycles'
 import * as ReceiptDB from '../dbstore/receipts'
@@ -42,7 +44,6 @@ import {
   MAX_BETWEEN_CYCLES_PER_REQUEST,
   RequestDataType,
 } from '../API'
-import * as GossipData from './GossipData'
 
 // Socket modules
 import ioclient = require('socket.io-client')
@@ -107,7 +108,7 @@ interface ArchiverTotalDataResponse {
 }
 
 interface ArchiverReceiptResponse {
-  receipts: ReceiptDB.Receipt[]
+  receipts: (ReceiptDB.Receipt | ReceiptDB.ReceiptCount)[] | number
 }
 
 interface ArchiverReceiptCountResponse {
@@ -115,7 +116,7 @@ interface ArchiverReceiptCountResponse {
 }
 
 interface ArchiverOriginalTxResponse {
-  originalTxs: OriginalTxDB.OriginalTxData[]
+  originalTxs: (OriginalTxDB.OriginalTxData | OriginalTxDB.OriginalTxDataCount)[] | number
 }
 
 interface ArchiverOriginalTxCountResponse {
@@ -130,16 +131,10 @@ interface IncomingTimes {
   end: number
 }
 
-export interface DataQueryResponse {
-  success: boolean
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  data: any
-}
-
 export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
   type: P2PTypes.SnapshotTypes.TypeName<T>,
   lastData: P2PTypes.SnapshotTypes.TypeIndex<T>,
-  recipientPk: Crypto.types.publicKey
+  recipientPk: publicKey
 ): DataRequest<T> & Crypto.TaggedMessage {
   return Crypto.tag<DataRequest<T>>(
     {
@@ -266,7 +261,8 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
             )
           storeOriginalTxData(
             newData.responses.ORIGINAL_TX_DATA,
-            sender.nodeInfo.ip + ':' + sender.nodeInfo.port
+            sender.nodeInfo.ip + ':' + sender.nodeInfo.port,
+            saveOnlyGossipData
           )
         }
         if (newData.responses && newData.responses.RECEIPT) {
@@ -278,7 +274,12 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
               sender.nodeInfo.port,
               newData.responses.RECEIPT.length
             )
-          storeReceiptData(newData.responses.RECEIPT, sender.nodeInfo.ip + ':' + sender.nodeInfo.port)
+          storeReceiptData(
+            newData.responses.RECEIPT,
+            sender.nodeInfo.ip + ':' + sender.nodeInfo.port,
+            true,
+            saveOnlyGossipData
+          )
         }
         if (newData.responses && newData.responses.CYCLE) {
           collectCycleData(newData.responses.CYCLE, sender.nodeInfo.ip + ':' + sender.nodeInfo.port)
@@ -343,7 +344,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
 
 export function collectCycleData(
   cycleData: P2PTypes.CycleCreatorTypes.CycleData[],
-  senderInfo: string = ''
+  senderInfo: string
 ): void {
   for (const cycle of cycleData) {
     // Logger.mainLogger.debug('Cycle received', cycle.counter, senderInfo)
@@ -545,6 +546,7 @@ interface configConsensusResponse {
   config?: {
     sharding?: {
       nodesPerConsensusGroup?: number
+      nodesPerEdge?: number
     }
   }
 }
@@ -774,7 +776,7 @@ export async function joinNetwork(
 
 export async function submitJoin(
   nodes: NodeList.ConsensusNodeInfo[],
-  joinRequest: P2P.ArchiverJoinRequest & Crypto.types.SignedObject
+  joinRequest: P2P.ArchiverJoinRequest & SignedObject
 ): Promise<void> {
   // Send the join request to a handful of the active node all at once:w
   const selectedNodes = Utils.getRandom(nodes, Math.min(nodes.length, 5))
@@ -886,10 +888,10 @@ export async function checkJoinStatus(): Promise<boolean> {
   const ourNodeInfo = State.getNodeInfo()
 
   try {
-    const response: any = (await queryFromArchivers(RequestDataType.CYCLE, {
+    const response = (await queryFromArchivers(RequestDataType.CYCLE, {
       count: 1,
     })) as ArchiverCycleResponse
-    if (response && response.cycleInfo[0] && response.cycleInfo[0].joinedArchivers) {
+    if (response && response.cycleInfo && response.cycleInfo[0] && response.cycleInfo[0].joinedArchivers) {
       const joinedArchivers = response.cycleInfo[0].joinedArchivers
       const refreshedArchivers = response.cycleInfo[0].refreshedArchivers
       Logger.mainLogger.debug('cycle counter', response.cycleInfo[0].counter)
@@ -909,28 +911,30 @@ export async function checkJoinStatus(): Promise<boolean> {
   }
 }
 
-export function checkActiveStatus(): Promise<boolean> {
+// This will be used once activeArchivers field is added to the cycle record
+export async function checkActiveStatus(): Promise<boolean> {
   Logger.mainLogger.debug('Checking active status')
   const ourNodeInfo = State.getNodeInfo()
-  return new Promise(async (resolve) => {
+  try {
     const latestCycle = await getNewestCycleFromArchivers()
-    try {
-      if (latestCycle && latestCycle.activeArchivers) {
-        const activeArchivers = latestCycle.activeArchivers
-        Logger.mainLogger.debug('cycle counter', latestCycle.counter)
-        Logger.mainLogger.debug('Active archivers', activeArchivers)
 
-        const isActive = activeArchivers.some((a: any) => a.publicKey === ourNodeInfo.publicKey)
-        Logger.mainLogger.debug('isActive', isActive)
-        resolve(isActive)
-      } else {
-        resolve(false)
-      }
-    } catch (e) {
-      Logger.mainLogger.error(e)
-      resolve(false)
+    if (latestCycle && latestCycle['activeArchivers']) {
+      const activeArchivers = latestCycle['activeArchivers']
+      Logger.mainLogger.debug('cycle counter', latestCycle.counter)
+      Logger.mainLogger.debug('Active archivers', activeArchivers)
+
+      const isActive = activeArchivers.some(
+        (a: State.ArchiverNodeInfo) => a.publicKey === ourNodeInfo.publicKey
+      )
+      Logger.mainLogger.debug('isActive', isActive)
+      return isActive
+    } else {
+      return false
     }
-  })
+  } catch (e) {
+    Logger.mainLogger.error(e)
+    return false
+  }
 }
 
 export async function getTotalDataFromArchivers(): Promise<ArchiverTotalDataResponse | null> {
@@ -1173,7 +1177,7 @@ export async function buildNodeListFromStoredCycle(
   Logger.mainLogger.debug('Latest cycle after sync', lastStoredCycle.counter)
 }
 
-export async function syncCyclesAndNodeList(lastStoredCycleCount: number = 0): Promise<void> {
+export async function syncCyclesAndNodeList(lastStoredCycleCount = 0): Promise<void> {
   // Get the networks newest cycle as the anchor point for sync
   Logger.mainLogger.debug('Getting newest cycle...')
   const cycleToSyncTo = await getNewestCycleFromArchivers()
@@ -1379,9 +1383,9 @@ export async function syncReceipts(): Promise<void> {
       QUERY_TIMEOUT_MAX
     )) as ArchiverReceiptResponse
     if (res && res.receipts) {
-      const downloadedReceipts = res.receipts
+      const downloadedReceipts = res.receipts as ReceiptDB.Receipt[]
       Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
-      await storeReceiptData(downloadedReceipts, '', true)
+      await storeReceiptData(downloadedReceipts)
       if (downloadedReceipts.length < MAX_RECEIPTS_PER_REQUEST) {
         start += downloadedReceipts.length
         end = start + MAX_RECEIPTS_PER_REQUEST
@@ -1481,9 +1485,9 @@ export async function syncReceiptsByCycle(lastStoredReceiptCycle = 0, cycleToSyn
           QUERY_TIMEOUT_MAX
         )) as ArchiverReceiptResponse
         if (res && res.receipts) {
-          const downloadedReceipts = res.receipts
+          const downloadedReceipts = res.receipts as ReceiptDB.Receipt[]
           Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
-          await storeReceiptData(downloadedReceipts, '', true)
+          await storeReceiptData(downloadedReceipts)
           savedReceiptsCountBetweenCycles += downloadedReceipts.length
           if (savedReceiptsCountBetweenCycles > receiptsCountToSyncBetweenCycles) {
             response = (await queryFromArchivers(
@@ -1564,7 +1568,7 @@ export const syncOriginalTxs = async (): Promise<void> => {
     if (res && res.originalTxs) {
       const downloadedOriginalTxs = res.originalTxs
       Logger.mainLogger.debug('Downloaded Original-Txs: ', downloadedOriginalTxs.length)
-      await storeOriginalTxData(downloadedOriginalTxs, '', true)
+      await storeOriginalTxData(downloadedOriginalTxs)
       if (downloadedOriginalTxs.length < MAX_ORIGINAL_TXS_PER_REQUEST) {
         start += downloadedOriginalTxs.length
         end = start + MAX_ORIGINAL_TXS_PER_REQUEST
@@ -1667,9 +1671,9 @@ export const syncOriginalTxsByCycle = async (
           QUERY_TIMEOUT_MAX
         )) as ArchiverOriginalTxResponse
         if (res && res.originalTxs) {
-          const downloadedOriginalTxs = res.originalTxs
+          const downloadedOriginalTxs = res.originalTxs as OriginalTxDB.OriginalTxData[]
           Logger.mainLogger.debug('Downloaded Original-Txs: ', downloadedOriginalTxs.length)
-          await storeOriginalTxData(downloadedOriginalTxs, '', true)
+          await storeOriginalTxData(downloadedOriginalTxs)
           savedOriginalTxCountBetweenCycles += downloadedOriginalTxs.length
           if (savedOriginalTxCountBetweenCycles > originalTxCountToSyncBetweenCycles) {
             response = (await queryFromArchivers(
@@ -1814,9 +1818,9 @@ export const syncCyclesAndReceiptsData = async (
         QUERY_TIMEOUT_MAX
       )) as ArchiverReceiptResponse
       if (res && res.receipts) {
-        const downloadedReceipts = res.receipts
+        const downloadedReceipts = res.receipts as ReceiptDB.Receipt[]
         Logger.mainLogger.debug(`Downloaded receipts`, downloadedReceipts.length)
-        await storeReceiptData(downloadedReceipts, '', true)
+        await storeReceiptData(downloadedReceipts)
         if (downloadedReceipts.length < MAX_ORIGINAL_TXS_PER_REQUEST) {
           startReceipt += downloadedReceipts.length + 1
           endReceipt = downloadedReceipts.length + MAX_ORIGINAL_TXS_PER_REQUEST
@@ -1839,9 +1843,9 @@ export const syncCyclesAndReceiptsData = async (
         QUERY_TIMEOUT_MAX
       )) as ArchiverOriginalTxResponse
       if (res && res.originalTxs) {
-        const downloadedOriginalTxs = res.originalTxs
+        const downloadedOriginalTxs = res.originalTxs as OriginalTxDB.OriginalTxData[]
         Logger.mainLogger.debug(`Downloaded Original-Txs: `, downloadedOriginalTxs.length)
-        await storeOriginalTxData(downloadedOriginalTxs, '', true)
+        await storeOriginalTxData(downloadedOriginalTxs)
         if (downloadedOriginalTxs.length < MAX_ORIGINAL_TXS_PER_REQUEST) {
           startOriginalTx += downloadedOriginalTxs.length + 1
           endOriginalTx = downloadedOriginalTxs.length + MAX_ORIGINAL_TXS_PER_REQUEST
@@ -1950,6 +1954,8 @@ export const syncCyclesAndTxsDataBetweenCycles = async (
 // }
 export async function compareWithOldOriginalTxsData(lastStoredOriginalTxCycle = 0): Promise<CompareResponse> {
   const numberOfCyclesTocompare = 10
+  let success = false
+  let matchedCycle = 0
   const endCycle = lastStoredOriginalTxCycle
   const startCycle = endCycle - numberOfCyclesTocompare > 0 ? endCycle - numberOfCyclesTocompare : 0
   const response = (await queryFromArchivers(
@@ -1962,17 +1968,16 @@ export async function compareWithOldOriginalTxsData(lastStoredOriginalTxCycle = 
     QUERY_TIMEOUT_MAX
   )) as ArchiverOriginalTxResponse
 
-  let downloadedOriginalTxsByCycles: OriginalTxDB.OriginalTxData[] = []
-
-  if (response && response.originalTxs) {
-    downloadedOriginalTxsByCycles = response.originalTxs
-  } else {
-    throw Error(`Can't fetch original tx data from cycle ${startCycle} to cycle ${endCycle} from archivers`)
+  if (!response || !response.originalTxs) {
+    Logger.mainLogger.error(
+      `Can't fetch original tx data from cycle ${startCycle} to cycle ${endCycle} from archivers`
+    )
+    return { success, matchedCycle }
   }
+  const downloadedOriginalTxsByCycles = response.originalTxs as OriginalTxDB.OriginalTxDataCount[]
+
   const oldOriginalTxCountByCycle = await OriginalTxDB.queryOriginalTxDataCountByCycles(startCycle, endCycle)
 
-  let success = false
-  let matchedCycle = 0
   for (let i = 0; i < downloadedOriginalTxsByCycles.length; i++) {
     // eslint-disable-next-line security/detect-object-injection
     const downloadedOriginalTx = downloadedOriginalTxsByCycles[i]
@@ -1980,8 +1985,10 @@ export async function compareWithOldOriginalTxsData(lastStoredOriginalTxCycle = 
     const oldOriginalTx = oldOriginalTxCountByCycle[i]
     Logger.mainLogger.debug(downloadedOriginalTx, oldOriginalTx)
     if (
+      !downloadedOriginalTx ||
+      !oldOriginalTx ||
       downloadedOriginalTx.cycle !== oldOriginalTx.cycle ||
-      downloadedOriginalTx.originalTxData !== oldOriginalTx.originalTxDataCount
+      downloadedOriginalTx.originalTxDataCount !== oldOriginalTx.originalTxDataCount
     ) {
       return {
         success,
@@ -1997,6 +2004,8 @@ export async function compareWithOldOriginalTxsData(lastStoredOriginalTxCycle = 
 
 export async function compareWithOldReceiptsData(lastStoredReceiptCycle = 0): Promise<CompareResponse> {
   const numberOfCyclesTocompare = 10
+  let success = false
+  let matchedCycle = 0
   const endCycle = lastStoredReceiptCycle
   const startCycle = endCycle - numberOfCyclesTocompare > 0 ? endCycle - numberOfCyclesTocompare : 0
   const response = (await queryFromArchivers(
@@ -2009,16 +2018,15 @@ export async function compareWithOldReceiptsData(lastStoredReceiptCycle = 0): Pr
     QUERY_TIMEOUT_MAX
   )) as ArchiverReceiptResponse
 
-  // TODO this could be typed as ReceiptDB.Receipt[] but it need investigation regarding downloadedReceipt.receipts and oldReceipt.receipts
-  let downloadedReceiptCountByCycles = []
-  if (response && response.receipts) {
-    downloadedReceiptCountByCycles = response.receipts
-  } else {
-    throw Error(`Can't fetch receipts data from cycle ${startCycle} to cycle ${endCycle}  from archivers`)
+  if (!response || !response.receipts) {
+    Logger.mainLogger.error(
+      `Can't fetch receipts data from cycle ${startCycle} to cycle ${endCycle}  from archivers`
+    )
+    return { success, matchedCycle }
   }
+  const downloadedReceiptCountByCycles = response.receipts as ReceiptDB.ReceiptCount[]
+
   const oldReceiptCountByCycle = await ReceiptDB.queryReceiptCountByCycles(startCycle, endCycle)
-  let success = false
-  let matchedCycle = 0
   for (let i = 0; i < downloadedReceiptCountByCycles.length; i++) {
     // eslint-disable-next-line security/detect-object-injection
     const downloadedReceipt = downloadedReceiptCountByCycles[i]
@@ -2026,8 +2034,10 @@ export async function compareWithOldReceiptsData(lastStoredReceiptCycle = 0): Pr
     const oldReceipt = oldReceiptCountByCycle[i]
     Logger.mainLogger.debug(downloadedReceipt, oldReceipt)
     if (
+      !downloadedReceipt ||
+      !oldReceipt ||
       downloadedReceipt.cycle !== oldReceipt.cycle ||
-      downloadedReceipt.receipts !== oldReceipt.receiptCount
+      downloadedReceipt.receiptCount !== oldReceipt.receiptCount
     ) {
       return {
         success,
@@ -2058,8 +2068,6 @@ export async function compareWithOldCyclesData(lastCycleCounter = 0): Promise<Co
   }
   const downloadedCycles = response.cycleInfo
   const oldCycles = await CycleDB.queryCycleRecordsBetween(lastCycleCounter - 10, lastCycleCounter + 1)
-  downloadedCycles.sort((a, b) => (a.counter > b.counter ? 1 : -1))
-  oldCycles.sort((a, b) => (a.counter > b.counter ? 1 : -1))
   let success = false
   let matchedCycle = 0
   for (let i = 0; i < downloadedCycles.length; i++) {
@@ -2067,8 +2075,8 @@ export async function compareWithOldCyclesData(lastCycleCounter = 0): Promise<Co
     const downloadedCycle = downloadedCycles[i]
     // eslint-disable-next-line security/detect-object-injection
     const oldCycle = oldCycles[i]
-    console.log(downloadedCycle, oldCycle)
-    if (JSON.stringify(downloadedCycle) !== JSON.stringify(oldCycle)) {
+    if (!downloadedCycle || !oldCycle || JSON.stringify(downloadedCycle) !== JSON.stringify(oldCycle)) {
+      console.log(downloadedCycle, oldCycle)
       return {
         success,
         matchedCycle,

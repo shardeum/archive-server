@@ -6,18 +6,18 @@ import * as Data from './Data/Data'
 import * as Utils from './Utils'
 import * as Logger from './Logger'
 import { getFinalArchiverList } from '@shardus/archiver-discovery'
-import * as ShardusCrypto from '@shardus/crypto-utils'
 import { P2P as P2PTypes } from '@shardus/types'
+import { publicKey, secretKey, curvePublicKey, curveSecretKey } from '@shardus/crypto-utils'
 import fetch from 'node-fetch'
 import { getAdjacentLeftAndRightArchivers } from './Data/GossipData'
 
 export interface ArchiverNodeState {
   ip: string
   port: number
-  publicKey: Crypto.types.publicKey
-  secretKey: Crypto.types.secretKey
-  curvePk: Crypto.types.curvePublicKey
-  curveSk: Crypto.types.curveSecretKey
+  publicKey: publicKey
+  secretKey: secretKey
+  curvePk: curvePublicKey
+  curveSk: curveSecretKey
 }
 
 export type ArchiverNodeInfo = Omit<ArchiverNodeState, 'secretKey' | 'curveSk'>
@@ -94,7 +94,7 @@ export async function initFromConfig(config: Config, shutDownMode = false): Prom
         )
         continue
       }
-      if (!ShardusCrypto.verifyObj(response)) {
+      if (!Crypto.verify(response)) {
         /* prettier-ignore */ console.log(`Invalid signature when fetching from archiver ${existingArchivers[i].ip}:${existingArchivers[i].port}`)
         continue
       }
@@ -225,15 +225,15 @@ export function getNodeInfo(): ArchiverNodeInfo {
   return sanitizedNodeInfo
 }
 
-export function getSecretKey(): Crypto.types.secretKey {
+export function getSecretKey(): secretKey {
   return nodeState.secretKey
 }
 
-export function getCurveSk(): Crypto.types.curveSecretKey {
+export function getCurveSk(): curveSecretKey {
   return nodeState.curveSk
 }
 
-export function getCurvePk(): Crypto.types.curvePublicKey {
+export function getCurvePk(): curvePublicKey {
   return nodeState.curvePk
 }
 

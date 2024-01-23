@@ -15,13 +15,12 @@ import {
   unsubscribeDataSender,
 } from './Data'
 import * as Utils from '../Utils'
-import { isDeepStrictEqual } from 'util'
 import { config } from '../Config'
 import fetch from 'node-fetch'
 import { getAdjacentLeftAndRightArchivers, sendDataToAdjacentArchivers, DataType } from './GossipData'
 import { storeCycleData } from './Collector'
 import { clearServingValidatorsInterval, initServingValidatorsInterval } from './AccountDataProvider'
-import { hexstring } from 'shardus-crypto-types'
+import { hexstring } from '@shardus/crypto-utils'
 import { handleLostArchivers } from '../LostArchivers'
 import ShardFunctions from '../ShardFunctions'
 import { RequestDataType, queryFromArchivers } from '../API'
@@ -38,14 +37,14 @@ export let currentCycleDuration = 0
 let currentCycleCounter = -1
 let currentCycleMarker = '0'.repeat(32)
 export let lastProcessedMetaData = -1
-export let CycleChain: Map<
+export const CycleChain: Map<
   P2PTypes.CycleCreatorTypes.CycleData['counter'],
   P2PTypes.CycleCreatorTypes.CycleData
 > = new Map()
 export const removedAndApopedNodes = []
 export let cycleRecordWithShutDownMode = null as P2PTypes.CycleCreatorTypes.CycleRecord | null
 export let currentNetworkMode: P2PTypes.ModesTypes.Record['mode'] = 'forming'
-export let shardValuesByCycle = new Map<number, StateManager.shardFunctionTypes.CycleShardData>()
+export const shardValuesByCycle = new Map<number, StateManager.shardFunctionTypes.CycleShardData>()
 
 const CYCLE_SHARD_STORAGE_LIMIT = 3
 
@@ -74,9 +73,11 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
 
       Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
 
-      sendDataToAdjacentArchivers(DataType.CYCLE, [cycle])
-      // Check the archivers reputaion in every new cycle & record the status
-      recordArchiversReputation()
+      if (State.isActive) {
+        sendDataToAdjacentArchivers(DataType.CYCLE, [cycle])
+        // Check the archivers reputaion in every new cycle & record the status
+        if (State.isActive) recordArchiversReputation()
+      }
       if (currentNetworkMode === 'shutdown') {
         Logger.mainLogger.debug(Date.now(), `❌ Shutdown Cycle Record received at Cycle #: ${cycle.counter}`)
         await Utils.sleep(currentCycleDuration)
@@ -139,14 +140,14 @@ export function validateCycle(
   prev: P2PTypes.CycleCreatorTypes.CycleData,
   next: P2PTypes.CycleCreatorTypes.CycleData
 ): boolean {
-  let previousRecordWithoutMarker: P2PTypes.CycleCreatorTypes.CycleData = { ...prev }
+  const previousRecordWithoutMarker: P2PTypes.CycleCreatorTypes.CycleData = { ...prev }
   delete previousRecordWithoutMarker.marker
   const prevMarker = computeCycleMarker(previousRecordWithoutMarker)
   return next.previous === prevMarker
 }
 
 export const validateCycleData = (cycleRecord: P2PTypes.CycleCreatorTypes.CycleData): boolean => {
-  let err = Utils.validateTypes(cycleRecord, {
+  const err = Utils.validateTypes(cycleRecord, {
     activated: 'a',
     activatedPublicKeys: 'a',
     active: 'n',
@@ -411,8 +412,13 @@ export async function getNewestCycleFromArchivers(): Promise<P2PTypes.CycleCreat
   }
   Crypto.sign(data)
 
-  const queryFn = async (node: any) => {
-    const response: any = await postJson(`http://${node.ip}:${node.port}/cycleinfo`, data)
+  const queryFn = async (
+    node: NodeList.ConsensusNodeInfo
+  ): Promise<P2PTypes.CycleCreatorTypes.CycleData[]> => {
+    const response = (await postJson(
+      `http://${node.ip}:${node.port}/cycleinfo`,
+      data
+    )) as ArchiverCycleResponse
     return response.cycleInfo
   }
   const cycleInfo = await Utils.robustQuery(activeArchivers, queryFn)
@@ -471,7 +477,7 @@ export async function recordArchiversReputation(): Promise<void> {
 function updateShardValues(
   cycle: P2PTypes.CycleCreatorTypes.CycleData,
   mode: P2PTypes.ModesTypes.Record['mode']
-) {
+): void {
   const cycleShardData = {} as StateManager.shardFunctionTypes.CycleShardData
 
   // todo get current cycle..  store this by cycle?

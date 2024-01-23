@@ -1,10 +1,9 @@
 import * as crypto from '../Crypto'
 import * as Logger from '../Logger'
-import { isEmptyObject } from '../Utils'
 import { ArchiverReceipt } from '../dbstore/receipts'
 
 // account types in Shardeum
-enum AccountType {
+export enum AccountType {
   Account = 0, //  EOA or CA
   ContractStorage = 1, // Contract storage key value pair
   ContractCode = 2, // Contract code bytes
@@ -20,7 +19,7 @@ enum AccountType {
   InternalTxReceipt = 12,
 }
 
-const accountSpecificHash = (account: any): string => {
+export const accountSpecificHash = (account: any): string => {
   let hash
   delete account.hash
   if (
@@ -55,8 +54,8 @@ const accountSpecificHash = (account: any): string => {
 }
 
 // Converting the correct account data format to get the correct hash
-const fixAccountUint8Arrays = (account: any): void => {
-  if (isEmptyObject(account)) return // if account is null, return
+export const fixAccountUint8Arrays = (account: any): void => {
+  if (!account) return // if account is null, return
   if (account.storageRoot) account.storageRoot = Uint8Array.from(Object.values(account.storageRoot)) // Account
   if (account.codeHash) account.codeHash = Uint8Array.from(Object.values(account.codeHash)) //
   //Account and ContractCode
@@ -65,28 +64,33 @@ const fixAccountUint8Arrays = (account: any): void => {
 }
 
 export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
-  for (const account of receipt.accounts) {
-    if (account.data.accountType === AccountType.Account) {
-      fixAccountUint8Arrays(account.data.account)
-      // console.dir(acc, { depth: null })
-    } else if (
-      account.data.accountType === AccountType.ContractCode ||
-      account.data.accountType === AccountType.ContractStorage
-    ) {
-      fixAccountUint8Arrays(account.data)
-      // console.dir(acc, { depth: null })
+  try {
+    for (const account of receipt.accounts) {
+      if (account.data.accountType === AccountType.Account) {
+        fixAccountUint8Arrays(account.data.account)
+        // console.dir(acc, { depth: null })
+      } else if (
+        account.data.accountType === AccountType.ContractCode ||
+        account.data.accountType === AccountType.ContractStorage
+      ) {
+        fixAccountUint8Arrays(account.data)
+        // console.dir(acc, { depth: null })
+      }
+      const calculatedAccountHash = accountSpecificHash(account.data)
+      const indexOfAccount = receipt.appliedReceipt.appliedVote.account_id.indexOf(account.accountId)
+      if (indexOfAccount === -1) {
+        Logger.mainLogger.error('Account not found', account.data.accountId)
+        return false
+      }
+      const expectedAccountHash = receipt.appliedReceipt.appliedVote.account_state_hash_after[indexOfAccount]
+      if (calculatedAccountHash !== expectedAccountHash) {
+        Logger.mainLogger.error('Account hash does not match', account.data.accountId)
+        return false // return false if any account hash does not match
+      }
     }
-    const calculatedAccountHash = accountSpecificHash(account.data)
-    const indexOfAccount = receipt.appliedReceipt.appliedVote.account_id.indexOf(account.accountId)
-    if (indexOfAccount === -1) {
-      Logger.mainLogger.error('Account not found', account.data.accountId)
-      return false
-    }
-    const expectedAccountHash = receipt.appliedReceipt.appliedVote.account_state_hash_after[indexOfAccount]
-    if (calculatedAccountHash !== expectedAccountHash) {
-      Logger.mainLogger.error('Account hash does not match', account.data.accountId)
-      return false // return false if any account hash does not match
-    }
+    return true
+  } catch (e) {
+    Logger.mainLogger.error('Error in verifyAccountHash', e)
+    return false
   }
-  return true
 }

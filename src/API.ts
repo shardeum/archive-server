@@ -27,7 +27,7 @@ import * as AccountDataProvider from './Data/AccountDataProvider'
 import { getGlobalNetworkAccount } from './GlobalAccount'
 import { cycleRecordWithShutDownMode } from './Data/Cycles'
 import { isDebugMiddleware } from './DebugMode'
-const { version } = require('../package.json')
+const { version } = require('../package.json') // eslint-disable-line @typescript-eslint/no-var-requires
 
 const TXID_LENGTH = 64
 export const MAX_ACCOUNTS_PER_REQUEST = 1000
@@ -404,7 +404,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       type: string
       page: number
       txId: string
-      txIdList: string
+      txIdList: string[]
     }
   }>
 
@@ -419,7 +419,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       type: 's?',
       page: 'n?',
       txId: 's?',
-      txIdList: 's?',
+      txIdList: 'a?',
       sender: 's',
       sign: 'o',
     })
@@ -428,7 +428,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       return
     }
     const { count, start, end, startCycle, endCycle, type, page, txId, txIdList } = _request.body
-    let originalTxs: OriginalTxDB.OriginalTxData[] | number = []
+    let originalTxs: (OriginalTxDB.OriginalTxData | OriginalTxDB.OriginalTxDataCount)[] | number = []
     if (count) {
       if (count <= 0 || Number.isNaN(count)) {
         reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
@@ -452,19 +452,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const originalTx = await OriginalTxDB.queryOriginalTxDataByTxId(txId)
       if (originalTx) originalTxs.push(originalTx)
     } else if (txIdList) {
-      let txIdListArr: string[] = []
-      try {
-        txIdListArr = JSON.parse(txIdList)
-      } catch (e) {
-        reply.send(
-          Crypto.sign({
-            success: false,
-            error: `Invalid txIdList ${txIdList}`,
-          })
-        )
-        return
-      }
-      for (const txId of txIdListArr) {
+      for (const txId of txIdList) {
         if (typeof txId !== 'string' || txId.length !== TXID_LENGTH) {
           reply.send(
             Crypto.sign({
@@ -557,7 +545,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       type: 's?',
       page: 'n?',
       txId: 's?',
-      txIdList: 's?',
+      txIdList: 'a?',
       sender: 's',
       sign: 'o',
     })
@@ -566,7 +554,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       return
     }
     const { count, start, end, startCycle, endCycle, type, page, txId, txIdList } = _request.body
-    let receipts: ReceiptDB.Receipt[] | number = []
+    let receipts: (ReceiptDB.Receipt | ReceiptDB.ReceiptCount)[] | number = []
     if (count) {
       if (count <= 0 || Number.isNaN(count)) {
         reply.send(Crypto.sign({ success: false, error: `Invalid count` }))
@@ -590,19 +578,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const receipt = await ReceiptDB.queryReceiptByReceiptId(txId)
       if (receipt) receipts.push(receipt)
     } else if (txIdList) {
-      let txIdListArr: string[] = []
-      try {
-        txIdListArr = JSON.parse(txIdList)
-      } catch (e) {
-        reply.send(
-          Crypto.sign({
-            success: false,
-            error: `Invalid txIdList ${txIdList}`,
-          })
-        )
-        return
-      }
-      for (const txId of txIdListArr) {
+      for (const txId of txIdList) {
         if (typeof txId !== 'string' || txId.length !== TXID_LENGTH) {
           reply.send(
             Crypto.sign({
@@ -713,7 +689,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       reply.send(Crypto.sign({ success: false, error: result.error }))
       return
     }
-    let accounts = []
+    let accounts: AccountDB.AccountCopy | AccountDB.AccountCopy[] | number = []
     let totalAccounts = 0
     let res
     const { count, start, end, startCycle, endCycle, page, accountId } = _request.body
@@ -727,6 +703,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         return
       }
       accounts = await AccountDB.queryLatestAccounts(count)
+      res = { accounts }
     } else if (start || end) {
       const from = start ? start : 0
       const to = end ? end : from
@@ -750,9 +727,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         return
       }
       accounts = await AccountDB.queryAccounts(from, count + 1)
-      res = Crypto.sign({
-        accounts,
-      })
+      res = { accounts }
     } else if (startCycle || endCycle) {
       const from = startCycle ? startCycle : 0
       const to = endCycle ? endCycle : from
@@ -785,20 +760,13 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         const limit = MAX_ACCOUNTS_PER_REQUEST
         if (skip > 0) skip = skip * limit
         accounts = await AccountDB.queryAccountsBetweenCycles(skip, limit, from, to)
-        res = Crypto.sign({
-          accounts,
-          totalAccounts,
-        })
+        res = { accounts, totalAccounts }
       } else {
-        res = Crypto.sign({
-          totalAccounts,
-        })
+        res = { accounts }
       }
     } else if (accountId) {
       accounts = await AccountDB.queryAccountByAccountId(accountId)
-      res = Crypto.sign({
-        accounts,
-      })
+      res = { accounts }
     } else {
       reply.send({
         success: false,
@@ -806,7 +774,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       })
       return
     }
-    reply.send(res)
+    reply.send(Crypto.sign(res))
   })
 
   type TransactionRequest = FastifyRequest<{
@@ -841,7 +809,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       return
     }
     const { count, start, end, txId, appReceiptId, startCycle, endCycle, page } = _request.body
-    let transactions = []
+    let transactions: TransactionDB.Transaction | TransactionDB.Transaction[] = []
     let totalTransactions = 0
     let res
     if (count) {
@@ -854,6 +822,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         return
       }
       transactions = await TransactionDB.queryLatestTransactions(count)
+      res = { transactions }
     } else if (start || end) {
       const from = start ? start : 0
       const to = end ? end : from
@@ -877,9 +846,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         return
       }
       transactions = await TransactionDB.queryTransactions(from, count + 1)
-      res = Crypto.sign({
-        transactions,
-      })
+      res = { transactions }
     } else if (startCycle || endCycle) {
       const from = startCycle ? startCycle : 0
       const to = endCycle ? endCycle : from
@@ -912,32 +879,25 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         const limit = MAX_ACCOUNTS_PER_REQUEST
         if (skip > 0) skip = skip * limit
         transactions = await TransactionDB.queryTransactionsBetweenCycles(skip, limit, from, to)
-        res = Crypto.sign({
-          transactions,
-          totalTransactions,
-        })
+        res = { transactions, totalTransactions }
       } else {
-        res = Crypto.sign({
-          totalTransactions,
-        })
+        res = { transactions }
       }
     } else if (txId) {
       transactions = await TransactionDB.queryTransactionByTxId(txId)
-      res = Crypto.sign({
-        transactions,
-      })
+      res = { transactions }
     } else if (appReceiptId) {
       transactions = await TransactionDB.queryTransactionByAccountId(appReceiptId)
-      res = Crypto.sign({
-        transactions,
-      })
+      res = { transactions }
     } else {
-      res = {
+      res = Crypto.sign({
         success: false,
-        error: 'not specified which account to show',
-      }
+        error: 'not specified which transaction to show',
+      })
+      reply.send(res)
+      return
     }
-    reply.send(res)
+    reply.send(Crypto.sign(res))
   })
 
   server.post('/totalData', async (_request: Request, reply) => {
@@ -1222,7 +1182,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     type GossipHashesRequest = FastifyRequest<{
       Body: {
         sender: string
-        data: unknown
+        data: any // eslint-disable-line @typescript-eslint/no-explicit-any
       }
     }>
 
@@ -1255,7 +1215,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
 
 export const validateRequestData = (
   data: unknown & { sender: string; sign: Signature },
-  expectedDataType: unknown
+  expectedDataType: Record<string, unknown>
 ): { success: boolean; error?: string } => {
   try {
     let err = Utils.validateTypes(data, expectedDataType)
@@ -1273,7 +1233,13 @@ export const validateRequestData = (
       return { success: false, error: 'Data sender publicKey and sign owner key does not match' }
     }
     if (config.limitToArchiversOnly) {
-      // Check if the sender is in the archiver list
+      // Check if the sender is in the archiver list or is the devPublicKey
+      if (
+        !State.activeArchivers.some((archiver) => archiver.publicKey === data.sender) ||
+        config.DEBUG.devPublicKey !== data.sender
+      ) {
+        return { success: true }
+      }
     }
     if (!Crypto.verify(data)) {
       Logger.mainLogger.error('Invalid signature', data)

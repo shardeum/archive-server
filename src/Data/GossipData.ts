@@ -2,8 +2,7 @@ import * as State from '../State'
 import * as Logger from '../Logger'
 import * as Crypto from '../Crypto'
 import { postJson } from '../P2P'
-import { Signature } from 'shardus-crypto-types'
-import { TxsData } from './Collector'
+import { Signature } from '@shardus/crypto-utils'
 import { P2P as P2PTypes } from '@shardus/types'
 
 // adjacentArchivers are one archiver from left and one archiver from right of the current archiver
@@ -15,9 +14,11 @@ export enum DataType {
   CYCLE = 'CYCLE',
 }
 
+export type TxId = string
+
 export interface GossipData {
   dataType: DataType
-  data: TxsData[] | P2PTypes.CycleCreatorTypes.CycleData[]
+  data: TxId[] | P2PTypes.CycleCreatorTypes.CycleData[]
   sender: string
   sign: Signature
 }

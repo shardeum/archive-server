@@ -18,6 +18,7 @@ import {
   activeNodeCount,
   applyNodeListChange,
 } from '../Data/CycleParser'
+import { publicKey } from '@shardus/crypto-utils'
 
 import * as State from '../State'
 import * as P2P from '../P2P'
@@ -205,7 +206,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
 export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
   type: P2PTypes.SnapshotTypes.TypeName<T>,
   lastData: P2PTypes.SnapshotTypes.TypeIndex<T>,
-  recipientPk: Crypto.types.publicKey
+  recipientPk: publicKey
 ): DataRequest<T> & Crypto.TaggedMessage {
   return Crypto.tag<DataRequest<T>>(
     {
@@ -219,7 +220,7 @@ export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
 export function createQueryRequest(
   type: string,
   lastData: number,
-  recipientPk: Crypto.types.publicKey
+  recipientPk: publicKey
 ): Crypto.TaggedMessage & { type: string; lastData: number } {
   return Crypto.tag(
     {
@@ -1111,11 +1112,9 @@ export async function syncCyclesAndNodeList(lastStoredCycleCount = 0): Promise<v
     }
     endCycle = nextEnd - 1
   }
-
-  return true
 }
 
-function createArchivedCycle(cycleRecord: P2PTypes.CycleCreatorTypes.CycleData) {
+function createArchivedCycle(cycleRecord: P2PTypes.CycleCreatorTypes.CycleData): ArchivedCycle {
   const archivedCycle: ArchivedCycle = {
     _id: '',
     cycleRecord: cycleRecord,

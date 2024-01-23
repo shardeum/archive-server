@@ -1,4 +1,4 @@
-import { Signature } from 'shardus-crypto-types'
+// import { Signature } from 'shardus-crypto-types'
 import * as db from './sqlite3storage'
 import { extractValues, extractValuesFromArray } from './sqlite3storage'
 import * as Logger from '../Logger'
@@ -9,16 +9,16 @@ export interface OriginalTxData {
   txId: string
   timestamp: number
   cycle: number
-  originalTxData: any // eslint-disable-line @typescript-eslint/no-explicit-any
-  sign: Signature
+  originalTxData: object // eslint-disable-line @typescript-eslint/no-explicit-any
+  // sign: Signature
 }
 
 type DbOriginalTxData = OriginalTxData & {
   originalTxData: string
-  sign: string
+  // sign: string
 }
 
-type OriginalTxDataCount = {
+export interface OriginalTxDataCount {
   cycle: number
   originalTxDataCount: number
 }
@@ -88,8 +88,7 @@ export async function queryOriginalTxsData(
   startCycle?: number,
   endCycle?: number
 ): Promise<OriginalTxData[]> {
-  let dbOriginalTxsData: DbOriginalTxData[] = []
-  const originalTxsData: OriginalTxData[] = []
+  let originalTxsData: DbOriginalTxData[] = []
   try {
     let sql = `SELECT * FROM originalTxsData`
     const sqlSuffix = ` ORDER BY cycle ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
@@ -99,22 +98,12 @@ export async function queryOriginalTxsData(
       values.push(startCycle, endCycle)
     }
     sql += sqlSuffix
-    dbOriginalTxsData = (await db.all(sql, values)) as DbOriginalTxData[]
-    if (dbOriginalTxsData.length > 0) {
-      for (let i = 0; i < dbOriginalTxsData.length; i++) {
-        /* eslint-disable security/detect-object-injection */
-        originalTxsData.push({
-          txId: dbOriginalTxsData[i].txId,
-          timestamp: dbOriginalTxsData[i].timestamp,
-          cycle: dbOriginalTxsData[i].cycle,
-          originalTxData: dbOriginalTxsData[i].originalTxData
-            ? DeSerializeFromJsonString(dbOriginalTxsData[i].originalTxData)
-            : null,
-          sign: dbOriginalTxsData[i].sign ? DeSerializeFromJsonString(dbOriginalTxsData[i].sign) : null,
-        })
-        /* eslint-enable security/detect-object-injection */
-      }
-    }
+    originalTxsData = (await db.all(sql, values)) as DbOriginalTxData[]
+    originalTxsData.forEach((originalTxData: DbOriginalTxData) => {
+      if (originalTxData.originalTxData)
+        originalTxData.originalTxData = DeSerializeFromJsonString(originalTxData.originalTxData)
+      // if (originalTxData.sign) originalTxData.sign = DeSerializeFromJsonString(originalTxData.sign)
+    })
   } catch (e) {
     console.log(e)
   }
@@ -127,23 +116,16 @@ export async function queryOriginalTxsData(
 export async function queryOriginalTxDataByTxId(txId: string): Promise<OriginalTxData> {
   try {
     const sql = `SELECT * FROM originalTxsData WHERE txId=?`
-    const dbOriginalTxData: DbOriginalTxData = (await db.get(sql, [txId])) as DbOriginalTxData
-    let originalTxData: OriginalTxData
-    if (dbOriginalTxData) {
-      originalTxData = {
-        txId: dbOriginalTxData.txId,
-        timestamp: dbOriginalTxData.timestamp,
-        cycle: dbOriginalTxData.cycle,
-        originalTxData: dbOriginalTxData.originalTxData
-          ? DeSerializeFromJsonString(dbOriginalTxData.originalTxData)
-          : null,
-        sign: dbOriginalTxData.sign ? DeSerializeFromJsonString(dbOriginalTxData.sign) : null,
-      }
+    const originalTxData = (await db.get(sql, [txId])) as DbOriginalTxData
+    if (originalTxData) {
+      if (originalTxData.originalTxData)
+        originalTxData.originalTxData = DeSerializeFromJsonString(originalTxData.originalTxData)
+      // if (originalTxData.sign) originalTxData.sign = DeSerializeFromJsonString(originalTxData.sign)
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('OriginalTxData txId', originalTxData)
     }
-    return originalTxData
+    return originalTxData as OriginalTxData
   } catch (e) {
     console.log(e)
   }
@@ -183,22 +165,12 @@ export async function queryLatestOriginalTxs(count: number): Promise<OriginalTxD
     const sql = `SELECT * FROM originalTxsData ORDER BY cycle DESC, timestamp DESC LIMIT ${
       count ? count : 100
     }`
-    const dbOriginalTxsData: DbOriginalTxData[] = (await db.all(sql)) as DbOriginalTxData[]
-    const originalTxsData: OriginalTxData[] = []
-    if (dbOriginalTxsData.length > 0) {
-      for (let i = 0; i < dbOriginalTxsData.length; i++) {
-        /* eslint-disable security/detect-object-injection */
-        originalTxsData.push({
-          txId: dbOriginalTxsData[i].txId,
-          timestamp: dbOriginalTxsData[i].timestamp,
-          cycle: dbOriginalTxsData[i].cycle,
-          originalTxData: dbOriginalTxsData[i].originalTxData
-            ? DeSerializeFromJsonString(dbOriginalTxsData[i].originalTxData)
-            : null,
-          sign: dbOriginalTxsData[i].sign ? DeSerializeFromJsonString(dbOriginalTxsData[i].sign) : null,
-        })
-        /* eslint-enable security/detect-object-injection */
-      }
+    const originalTxsData = (await db.all(sql)) as DbOriginalTxData[]
+    if (originalTxsData.length > 0) {
+      originalTxsData.forEach((tx: DbOriginalTxData) => {
+        if (tx.originalTxData) tx.originalTxData = DeSerializeFromJsonString(tx.originalTxData)
+        // if (tx.sign) tx.sign = DeSerializeFromJsonString(tx.sign)
+      })
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Latest Original-Tx: ', originalTxsData)

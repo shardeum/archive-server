@@ -1,19 +1,8 @@
 import * as util from 'util'
 import * as Logger from './Logger'
-import { AccountDataRequestSchema, GlobalAccountReportRequestSchema } from './Data/AccountDataProvider'
-import { ReceiptQuery, AccountQuery, TransactionQuery, FullArchiveQuery } from './server'
-import { Signature } from 'shardus-crypto-types'
 
 export interface CountSchema {
   count: string
-}
-
-export function isDeepStrictEqual(val1: unknown, val2: unknown) {
-  return util.isDeepStrictEqual(val1, val2)
-}
-
-export function isEmptyObject(obj: object): boolean {
-  return Object.keys(obj).length === 0 && obj.constructor === Object
 }
 
 export function safeParse<Type>(fallback: Type, json: string, msg?: string): Type {
@@ -206,7 +195,9 @@ export async function robustQuery<Node = unknown, Response = unknown>(
   queryFn: QueryFunction<Node, Response>,
   equalityFn: EqualityFunction<Response> = util.isDeepStrictEqual,
   redundancy = 3,
-  shuffleNodes = true
+  shuffleNodes = true,
+  delayTimeInMS = 0, // Add a delay after we have queried half of the nodes
+  disableFailLog = false
 ): Promise<TallyItem<Node, Response>> {
   if (nodes.length === 0) throw new Error('No nodes given.')
   if (typeof queryFn !== 'function') {
@@ -268,9 +259,14 @@ export async function robustQuery<Node = unknown, Response = unknown>(
     tries += 1
     const toQuery = redundancy - responses.getHighestCount()
     if (nodes.length < toQuery) {
-      Logger.mainLogger.error('In robustQuery stopping since we ran out of nodes to query.')
+      if (!disableFailLog)
+        Logger.mainLogger.error('In robustQuery stopping since we ran out of nodes to query.')
       break
     }
+    if (delayTimeInMS > 0 && Math.ceil(nodeCount / 2) >= nodes.length) {
+      await sleep(delayTimeInMS)
+    }
+
     const nodesToQuery = nodes.splice(0, toQuery)
     finalResult = await queryNodes(nodesToQuery)
     if (tries >= 20) {
@@ -286,11 +282,12 @@ export async function robustQuery<Node = unknown, Response = unknown>(
     // TODO:  We return the item that had the most nodes reporting it. However, the caller should know
     //        what the count was. We should return [item, count] so that caller gets both.
     //        This change would require also changing all the places it is called.
-    Logger.mainLogger.error(
-      `Could not get ${redundancy} ${redundancy > 1 ? 'redundant responses' : 'response'} from ${nodeCount} ${
-        nodeCount !== 1 ? 'nodes' : 'node'
-      }. Encountered ${errors} query errors.`
-    )
+    if (!disableFailLog)
+      Logger.mainLogger.error(
+        `Could not get ${redundancy} ${
+          redundancy > 1 ? 'redundant responses' : 'response'
+        } from ${nodeCount} ${nodeCount !== 1 ? 'nodes' : 'node'}. Encountered ${errors} query errors.`
+      )
     console.trace()
     return responses.getHighestCountItem()
   }
@@ -453,18 +450,7 @@ Example of def:
 Returns a string with the first error encountered or and empty string ''.
 Errors are: "[name] is required" or "[name] must be, [type]"
 */
-export function validateTypes(
-  inp:
-    | AccountDataRequestSchema
-    | GlobalAccountReportRequestSchema
-    | Signature
-    | CountSchema
-    | ReceiptQuery
-    | AccountQuery
-    | TransactionQuery
-    | FullArchiveQuery,
-  def: Record<string, unknown> = {}
-): string {
+export function validateTypes(inp: object, def: Record<string, unknown> = {}): string {
   if (inp === undefined) return 'input is undefined'
   if (inp === null) return 'input is null'
   if (typeof inp !== 'object') return 'input must be object, not ' + typeof inp

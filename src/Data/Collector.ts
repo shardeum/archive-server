@@ -1,19 +1,26 @@
 import { P2P as P2PTypes } from '@shardus/types'
+import { isDeepStrictEqual } from 'util'
 import * as Account from '../dbstore/accounts'
 import * as Transaction from '../dbstore/transactions'
 import * as Receipt from '../dbstore/receipts'
 import * as OriginalTxsData from '../dbstore/originalTxsData'
 import * as Crypto from '../Crypto'
-import { clearCombinedAccountsData, combineAccountsData, socketServer, collectCycleData } from './Data'
+import {
+  clearCombinedAccountsData,
+  combineAccountsData,
+  socketServer,
+  collectCycleData,
+  nodesPerConsensusGroup,
+} from './Data'
 import { config } from '../Config'
 import * as Logger from '../Logger'
 import { profilerInstance } from '../profiler/profiler'
-import { getCurrentCycleCounter, shardValuesByCycle } from './Cycles'
+import { getCurrentCycleCounter, shardValuesByCycle, computeCycleMarker } from './Cycles'
 import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 import * as State from '../State'
 import * as Utils from '../Utils'
-import { DataType, GossipData, adjacentArchivers, sendDataToAdjacentArchivers } from './GossipData'
-import { getJson, postJson } from '../P2P'
+import { DataType, GossipData, adjacentArchivers, sendDataToAdjacentArchivers, TxId } from './GossipData'
+import { postJson } from '../P2P'
 import { globalAccountsMap, setGlobalNetworkAccount } from '../GlobalAccount'
 import { CycleLogWriter, ReceiptLogWriter, OriginalTxDataLogWriter } from '../Data/DataLogWriter'
 import * as OriginalTxDB from '../dbstore/originalTxsData'
@@ -22,15 +29,22 @@ import { ConsensusNodeInfo } from '../NodeList'
 import { verifyAccountHash } from '../shardeum/calculateAccountHash'
 
 export let storingAccountData = false
-export const receiptsMap: Map<string, number> = new Map()
-export const lastReceiptMapResetTimestamp = 0
-export const originalTxsMap: Map<string, number> = new Map()
+export const processedReceiptsMap: Map<string, number> = new Map()
+export const receiptsInValidationMap: Map<string, number> = new Map()
+export const processedOriginalTxsMap: Map<string, number> = new Map()
+export const originalTxsInValidationMap: Map<string, number> = new Map()
 export const missingReceiptsMap: Map<string, number> = new Map()
 export const missingOriginalTxsMap: Map<string, number> = new Map()
 
-export interface TxsData {
-  txId: string
-  cycle: number
+const WAIT_TIME_FOR_MISSING_TX_DATA = 2000 // in ms
+
+// For debugging gossip data, set this to true. This will save only the gossip data received from the adjacent archivers.
+export const saveOnlyGossipData = false
+
+type GET_TX_RECEIPT_RESPONSE = {
+  success: boolean
+  receipt?: Receipt.ArchiverReceipt | Receipt.AppliedReceipt2
+  reason?: string
 }
 
 /**
@@ -47,40 +61,109 @@ const isReceiptRobust = async (
   const result = { success: false }
   // Created signedData with full_receipt = false outside of queryReceipt to avoid signing the same data multiple times
   let signedData = Crypto.sign({ txId: receipt.tx.txId, full_receipt: false })
-  const queryReceipt = async (node: ConsensusNodeInfo) => {
+  const queryReceipt = async (node: ConsensusNodeInfo): Promise<GET_TX_RECEIPT_RESPONSE | null> => {
+    const QUERY_RECEIPT_TIMEOUT_SECOND = 2
     try {
-      return postJson(`http://${node.ip}:${node.port}/get-tx-receipt`, signedData)
+      return (await postJson(
+        `http://${node.ip}:${node.port}/get-tx-receipt`,
+        signedData,
+        QUERY_RECEIPT_TIMEOUT_SECOND
+      )) as GET_TX_RECEIPT_RESPONSE
     } catch (error) {
       Logger.mainLogger.error('Error in /get-tx-receipt:', error)
       return null
     }
   }
-  const robustQuery = await Utils.robustQuery(
+  // Use only random 3 x Receipt Confirmations number of nodes from the execution group to reduce the number of nodes to query in large execution groups
+  const filteredExecutionGroupNodes = Utils.getRandomItemFromArr(
     executionGroupNodes,
-    (execNode) => queryReceipt(execNode),
-    undefined,
-    5,
-    false // set shuffleNodes to false
+    0,
+    3 * config.RECEIPT_CONFIRMATIONS
   )
-  if (!robustQuery) {
+  const isReceiptEqual = (receipt1: any, receipt2: any): boolean => {
+    if (!receipt1 || !receipt2) return false
+    const r1 = Utils.deepCopy(receipt1)
+    const r2 = Utils.deepCopy(receipt2)
+
+    // The confirmOrChallenge node could be different in the two receipts, so we need to remove it before comparing
+    delete r1?.confirmOrChallenge?.nodeId
+    delete r1?.confirmOrChallenge?.sign
+    delete r2?.confirmOrChallenge?.nodeId
+    delete r2?.confirmOrChallenge?.sign
+
+    const equivalent = isDeepStrictEqual(r1, r2)
+    return equivalent
+  }
+  const robustQuery = await Utils.robustQuery(
+    filteredExecutionGroupNodes,
+    (execNode) => queryReceipt(execNode),
+    (rec1: GET_TX_RECEIPT_RESPONSE, rec2: GET_TX_RECEIPT_RESPONSE) =>
+      isReceiptEqual(rec1?.receipt, rec2?.receipt),
+    minConfirmations,
+    false, // set shuffleNodes to false,
+    500, // Add 500 ms delay
+    true
+  )
+  if (config.VERBOSE) Logger.mainLogger.debug('robustQuery', receipt.tx.txId, robustQuery)
+  if (!robustQuery || !robustQuery.value || !(robustQuery.value as any).receipt) {
     Logger.mainLogger.error(
       `❌ 'null' response from all nodes in receipt-validation for txId: ${receipt.tx.txId}`
     )
     return result
   }
 
+  const robustQueryReceipt = (robustQuery.value as any).receipt as Receipt.AppliedReceipt2
+
   if (robustQuery.count < minConfirmations) {
+    // Wait for 500ms and try fetching the receipt from the nodes that did not respond in the robustQuery
+    await Utils.sleep(500)
+    let requiredConfirmations = minConfirmations - robustQuery.count
+    let nodesToQuery = executionGroupNodes.filter(
+      (node) => !robustQuery.nodes.some((n) => n.publicKey === node.publicKey)
+    )
+    let retryCount = 5 // Retry 5 times
+    while (requiredConfirmations > 0) {
+      if (nodesToQuery.length === 0) {
+        if (retryCount === 0) break
+        // Wait for 500ms and try again
+        await Utils.sleep(500)
+        nodesToQuery = executionGroupNodes.filter(
+          (node) => !robustQuery.nodes.some((n) => n.publicKey === node.publicKey)
+        )
+        retryCount--
+        if (nodesToQuery.length === 0) break
+      }
+      const node = nodesToQuery[0]
+      nodesToQuery.splice(0, 1)
+      const receiptResult: any = await queryReceipt(node)
+      if (!receiptResult || !receiptResult.receipt) continue
+      if (isReceiptEqual(robustQueryReceipt, receiptResult.receipt)) {
+        requiredConfirmations--
+        robustQuery.nodes.push(node)
+      }
+    }
+  }
+
+  // Check if the robustQueryReceipt is the same as our receipt
+  const sameReceipt = isReceiptEqual(receipt.appliedReceipt, robustQueryReceipt)
+
+  if (!sameReceipt) {
+    Logger.mainLogger.debug('Found different receipt in robustQuery', receipt.tx.txId)
+    if (config.VERBOSE) Logger.mainLogger.debug(receipt.appliedReceipt)
+    if (config.VERBOSE) Logger.mainLogger.debug(robustQueryReceipt)
     // update signedData with full_receipt = true
     signedData = Crypto.sign({ txId: receipt.tx.txId, full_receipt: true })
     for (const node of robustQuery.nodes) {
-      const fullReceipt: any = await queryReceipt(node)
-      if (!fullReceipt) continue
-      const isReceiptEqual = Utils.isDeepStrictEqual(
-        fullReceipt.receipt.appliedReceipt,
-        (robustQuery.value as any).receipt
-      )
-      if (isReceiptEqual && validateReceiptData(fullReceipt.receipt) && verifyAccountHash(fullReceipt)) {
-        return { success: true, newReceipt: fullReceipt.receipt }
+      const fullReceiptResult: GET_TX_RECEIPT_RESPONSE = await queryReceipt(node)
+      if (config.VERBOSE) Logger.mainLogger.debug('fullReceiptResult', receipt.tx.txId, fullReceiptResult)
+      if (!fullReceiptResult || !fullReceiptResult.receipt) continue
+      const fullReceipt = fullReceiptResult.receipt as Receipt.ArchiverReceipt
+      if (
+        isReceiptEqual(fullReceipt.appliedReceipt, robustQueryReceipt) &&
+        validateReceiptData(fullReceipt)
+      ) {
+        if (config.verifyAccountData && !verifyAccountHash(fullReceipt)) continue
+        return { success: true, newReceipt: fullReceipt }
       }
     }
     return { success: false }
@@ -88,10 +171,7 @@ const isReceiptRobust = async (
   return { success: true }
 }
 
-// For debugging purpose, set this to true to stop saving tx data
-const stopSavingTxData = false
-
-export const validateReceiptData = (receipt: Receipt.ArchiverReceipt) => {
+export const validateReceiptData = (receipt: Receipt.ArchiverReceipt): boolean => {
   // Add type and value existence check
   let err = Utils.validateTypes(receipt, {
     tx: 'o',
@@ -274,22 +354,12 @@ export const verifyReceiptData = async (
   const executionGroupNodes = Object.values(
     cycleShardData.parititionShardDataMap.get(homePartition).coveredBy
   ) as unknown as ConsensusNodeInfo[]
-  Logger.mainLogger.debug('executionGroupNodes', receipt.tx.txId, executionGroupNodes)
-  // List only random 3 x Receipt Confirmations number of nodes from the execution group
-  const filteredExecutionGroupNodes = Utils.getRandomItemFromArr(
-    executionGroupNodes,
-    0,
-    3 * config.RECEIPT_CONFIRMATIONS
-  )
+  if (config.VERBOSE) Logger.mainLogger.debug('executionGroupNodes', receipt.tx.txId, executionGroupNodes)
   const minConfirmations =
-    filteredExecutionGroupNodes.length > config.RECEIPT_CONFIRMATIONS
+    nodesPerConsensusGroup > config.RECEIPT_CONFIRMATIONS
       ? config.RECEIPT_CONFIRMATIONS
-      : filteredExecutionGroupNodes.length
-  const { success, newReceipt } = await isReceiptRobust(
-    receipt,
-    filteredExecutionGroupNodes,
-    minConfirmations
-  )
+      : Math.ceil(config.RECEIPT_CONFIRMATIONS / 2) // 3 out of 5 nodes
+  const { success, newReceipt } = await isReceiptRobust(receipt, executionGroupNodes, minConfirmations)
   if (!success) {
     Logger.mainLogger.error('Invalid receipt: Robust check failed')
     return result
@@ -301,18 +371,19 @@ export const verifyReceiptData = async (
 export const storeReceiptData = async (
   receipts: Receipt.ArchiverReceipt[],
   senderInfo = '',
-  forceSaved = false
+  verifyData = false,
+  saveOnlyGossipData = false
 ): Promise<void> => {
   if (!receipts || !Array.isArray(receipts) || receipts.length <= 0) return
   const bucketSize = 1000
   let combineReceipts = []
   let combineAccounts = []
   let combineTransactions = []
-  let txsData: TxsData[] = []
-  if (!forceSaved) if (stopSavingTxData) return
+  let txIdList: TxId[] = []
+  if (saveOnlyGossipData) return
   for (let receipt of receipts) {
     const txId = receipt?.tx?.txId
-    if (receiptsMap.has(txId) || receiptsInValidationMap.has(txId)) {
+    if (processedReceiptsMap.has(txId) || receiptsInValidationMap.has(txId)) {
       // console.log('RECEIPT', 'Skip', tx.txId, senderInfo)
       continue
     }
@@ -323,8 +394,8 @@ export const storeReceiptData = async (
       continue
     }
 
-    if (State.isActive) {
-      if (!verifyAccountHash(receipt)) {
+    if (verifyData) {
+      if (config.verifyAccountData && !verifyAccountHash(receipt)) {
         Logger.mainLogger.error('Invalid receipt: Account Verification failed', txId)
         receiptsInValidationMap.delete(txId)
         continue
@@ -343,8 +414,8 @@ export const storeReceiptData = async (
     //   timestamp: tx.timestamp,
     // })
     const { accounts, cycle, tx, appReceiptData } = receipt
-    if (config.VERBOSE) console.log(tx.txId, senderInfo)
-    receiptsMap.set(tx.txId, cycle)
+    if (config.VERBOSE) console.log('RECEIPT', tx.txId, senderInfo)
+    processedReceiptsMap.set(tx.txId, cycle)
     receiptsInValidationMap.delete(tx.txId)
     if (missingReceiptsMap.has(tx.txId)) missingReceiptsMap.delete(tx.txId)
     combineReceipts.push({
@@ -360,11 +431,7 @@ export const storeReceiptData = async (
           timestamp: tx.timestamp,
         })}\n`
       )
-    txsData.push({
-      txId: tx.txId,
-      cycle: cycle,
-    })
-    // console.log('RECEIPT', 'Save', tx.txId, senderInfo)
+    txIdList.push(tx.txId)
     for (let j = 0; j < accounts.length; j++) {
       // eslint-disable-next-line security/detect-object-injection
       const account = accounts[j]
@@ -426,16 +493,10 @@ export const storeReceiptData = async (
     combineTransactions.push(txObj)
     // Receipts size can be big, better to save per 100
     if (combineReceipts.length >= 100) {
-      if (socketServer) {
-        const signedDataToSend = Crypto.sign({
-          receipts: combineReceipts,
-        })
-        socketServer.emit('RECEIPT', signedDataToSend)
-      }
       await Receipt.bulkInsertReceipts(combineReceipts)
-      sendDataToAdjacentArchivers(DataType.RECEIPT, txsData)
+      if (State.isActive) sendDataToAdjacentArchivers(DataType.RECEIPT, txIdList)
       combineReceipts = []
-      txsData = []
+      txIdList = []
     }
     if (combineAccounts.length >= bucketSize) {
       await Account.bulkInsertAccounts(combineAccounts)
@@ -448,21 +509,15 @@ export const storeReceiptData = async (
   }
   // Receipts size can be big, better to save per 100
   if (combineReceipts.length > 0) {
-    if (socketServer) {
-      const signedDataToSend = Crypto.sign({
-        receipts: combineReceipts,
-      })
-      socketServer.emit('RECEIPT', signedDataToSend)
-    }
     await Receipt.bulkInsertReceipts(combineReceipts)
-    sendDataToAdjacentArchivers(DataType.RECEIPT, txsData)
+    if (State.isActive) sendDataToAdjacentArchivers(DataType.RECEIPT, txIdList)
   }
   if (combineAccounts.length > 0) await Account.bulkInsertAccounts(combineAccounts)
   if (combineTransactions.length > 0) await Transaction.bulkInsertTransactions(combineTransactions)
 }
 
-export const validateCycleData = (cycleRecord: P2PTypes.CycleCreatorTypes.CycleData) => {
-  let err = Utils.validateTypes(cycleRecord, {
+export const validateCycleData = (cycleRecord: P2PTypes.CycleCreatorTypes.CycleData): boolean => {
+  const err = Utils.validateTypes(cycleRecord, {
     activated: 'a',
     activatedPublicKeys: 'a',
     active: 'n',
@@ -525,13 +580,6 @@ export const storeCycleData = async (cycles: P2PTypes.CycleCreatorTypes.CycleDat
       cycleRecord,
     }
     if (config.dataLogWrite && CycleLogWriter) CycleLogWriter.writeToLog(`${JSON.stringify(cycleObj)}\n`)
-    if (socketServer) {
-      const signedDataToSend = Crypto.sign({
-        cycles: [cycleObj],
-      })
-
-      socketServer.emit('RECEIPT', signedDataToSend)
-    }
     const cycleExist = await queryCycleByMarker(cycleObj.cycleMarker)
     if (cycleExist) {
       if (JSON.stringify(cycleObj) !== JSON.stringify(cycleExist))
@@ -589,17 +637,15 @@ export const storeAccountData = async (restoreData: StoreAccountParam = {}): Pro
   if (receipts && receipts.length > 0) {
     Logger.mainLogger.debug('Received receipts Size', receipts.length)
     const combineTransactions = []
-    for (let i = 0; i < receipts.length; i++) {
-      // eslint-disable-next-line security/detect-object-injection
-      const receipt = receipts[i]
-      const txObj = {
+    for (const receipt of receipts) {
+      const txObj: Transaction.Transaction = {
         txId: receipt.data.txId || receipt.txId,
-        appReceiptId: receipt.accountId,
+        appReceiptId: receipt.appReceiptId,
         timestamp: receipt.timestamp,
         cycleNumber: receipt.cycleNumber,
         data: receipt.data,
         originalTxData: {},
-      } as Transaction.Transaction
+      }
       combineTransactions.push(txObj)
     }
     await Transaction.bulkInsertTransactions(combineTransactions)
@@ -619,53 +665,44 @@ export const storeAccountData = async (restoreData: StoreAccountParam = {}): Pro
 
 export const storeOriginalTxData = async (
   originalTxsData: OriginalTxsData.OriginalTxData[] = [],
-  forceSaved = false
+  senderInfo = '',
+  saveOnlyGossipData = false
 ): Promise<void> => {
   if (!originalTxsData || !Array.isArray(originalTxsData) || originalTxsData.length <= 0) return
   const bucketSize = 1000
   let combineOriginalTxsData = []
-  let txsData: TxsData[] = []
-  if (!forceSaved) if (stopSavingTxData) return
+  let txIdList: TxId[] = []
+  if (saveOnlyGossipData) return
   for (const originalTxData of originalTxsData) {
     const txId = originalTxData.txId
-    if (originalTxsMap.has(txId)) {
+    if (processedOriginalTxsMap.has(txId) || originalTxsInValidationMap.has(txId)) {
       // console.log('ORIGINAL_TX_DATA', 'Skip', txId, senderInfo)
       continue
     }
-    if (validateOriginalTxData(originalTxData) === false) continue
-    originalTxsMap.set(txId, originalTxData.cycle)
+    if (validateOriginalTxData(originalTxData) === false) {
+      Logger.mainLogger.error('Invalid originalTxData: Validation failed', txId)
+      originalTxsInValidationMap.delete(txId)
+      continue
+    }
+    processedOriginalTxsMap.set(txId, originalTxData.cycle)
+    originalTxsInValidationMap.delete(txId)
     if (missingOriginalTxsMap.has(txId)) missingOriginalTxsMap.delete(txId)
 
     if (config.dataLogWrite && OriginalTxDataLogWriter)
       OriginalTxDataLogWriter.writeToLog(`${JSON.stringify(originalTxData)}\n`)
     combineOriginalTxsData.push(originalTxData)
-    txsData.push({
-      txId: txId,
-      cycle: originalTxData.cycle,
-    })
-    // console.log('ORIGINAL_TX_DATA', 'Save', txId, senderInfo)
+    txIdList.push(txId)
+    if (config.VERBOSE) console.log('ORIGINAL_TX_DATA', txId, senderInfo)
     if (combineOriginalTxsData.length >= bucketSize) {
-      if (socketServer) {
-        const signedDataToSend = Crypto.sign({
-          originalTxsData: combineOriginalTxsData,
-        })
-        socketServer.emit('RECEIPT', signedDataToSend)
-      }
       await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
-      sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txsData)
+      if (State.isActive) sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txIdList)
       combineOriginalTxsData = []
-      txsData = []
+      txIdList = []
     }
   }
   if (combineOriginalTxsData.length > 0) {
-    if (socketServer) {
-      const signedDataToSend = Crypto.sign({
-        originalTxsData: combineOriginalTxsData,
-      })
-      socketServer.emit('RECEIPT', signedDataToSend)
-    }
     await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
-    sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txsData)
+    if (State.isActive) sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txIdList)
   }
 }
 interface validateResponse {
@@ -674,22 +711,22 @@ interface validateResponse {
   error?: string
 }
 
-export const validateOriginalTxData = (originalTxData: OriginalTxsData.OriginalTxData) => {
-  let err = Utils.validateTypes(originalTxData, {
+export const validateOriginalTxData = (originalTxData: OriginalTxsData.OriginalTxData): boolean => {
+  const err = Utils.validateTypes(originalTxData, {
     txId: 's',
     timestamp: 'n',
     cycle: 'n',
-    sign: 'o',
+    // sign: 'o',
     originalTxData: 'o',
   })
   if (err) {
     Logger.mainLogger.error('Invalid originalTxsData', err)
     return false
   }
-  err = Utils.validateTypes(originalTxData.sign, {
-    owner: 's',
-    sig: 's',
-  })
+  // err = Utils.validateTypes(originalTxData.sign, {
+  //   owner: 's',
+  //   sig: 's',
+  // })
   if (err) {
     Logger.mainLogger.error('Invalid originalTxsData signature', err)
     return false
@@ -739,22 +776,20 @@ export const validateGossipData = (data: GossipData): validateResponse => {
 export const processGossipData = (gossipdata: GossipData): void => {
   const { dataType, data, sender } = gossipdata
   if (dataType === DataType.RECEIPT) {
-    for (const txData of data as TxsData[]) {
-      const { txId, cycle } = txData
-      if (receiptsMap.has(txId) && receiptsMap.get(txId) === cycle) {
+    for (const txId of data as TxId[]) {
+      if (processedReceiptsMap.has(txId) || receiptsInValidationMap.has(txId)) {
         // console.log('GOSSIP', 'RECEIPT', 'SKIP', txId, sender)
         continue
-      } else missingReceiptsMap.set(txId, cycle)
+      } else missingReceiptsMap.set(txId, Date.now())
       // console.log('GOSSIP', 'RECEIPT', 'MISS', txId, sender)
     }
   }
   if (dataType === DataType.ORIGINAL_TX_DATA) {
-    for (const txData of data as TxsData[]) {
-      const { txId, cycle } = txData
-      if (originalTxsMap.has(txId) && originalTxsMap.get(txId) === cycle) {
+    for (const txId of data as TxId[]) {
+      if (processedOriginalTxsMap.has(txId) || originalTxsInValidationMap.has(txId)) {
         // console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'SKIP', txId, sender)
         continue
-      } else missingOriginalTxsMap.set(txId, cycle)
+      } else missingOriginalTxsMap.set(txId, Date.now())
       // console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'MISS', txId, sender)
     }
   }
@@ -767,12 +802,15 @@ export const processGossipData = (gossipdata: GossipData): void => {
 }
 
 export const collectMissingReceipts = async (): Promise<void> => {
-  const bucketSize = 100
   if (missingReceiptsMap.size === 0) return
-  const cloneMissingReceiptsMap = new Map()
-  for (const [txId, cycle] of missingReceiptsMap) {
-    cloneMissingReceiptsMap.set(txId, cycle)
-    missingReceiptsMap.delete(txId)
+  const bucketSize = 100
+  const currentTimestamp = Date.now()
+  const cloneMissingReceiptsMap = new Set()
+  for (const [txId, timestamp] of missingReceiptsMap) {
+    if (currentTimestamp - timestamp > WAIT_TIME_FOR_MISSING_TX_DATA) {
+      cloneMissingReceiptsMap.add(txId)
+      missingReceiptsMap.delete(txId)
+    }
   }
   Logger.mainLogger.debug(
     'Collecting missing receipts',
@@ -801,13 +839,9 @@ export const collectMissingReceipts = async (): Promise<void> => {
       if (receipts && receipts.length > -1) {
         const receiptsToSave = []
         for (const receipt of receipts) {
-          const { tx, cycle } = receipt
-          if (
-            tx &&
-            cloneMissingReceiptsMap.has(tx['txId']) &&
-            cloneMissingReceiptsMap.get(tx['txId']) === cycle
-          ) {
-            cloneMissingReceiptsMap.delete(tx['txId'])
+          const { tx } = receipt
+          if (tx && cloneMissingReceiptsMap.has(tx.txId)) {
+            cloneMissingReceiptsMap.delete(tx.txId)
             receiptsToSave.push(receipt)
           }
         }
@@ -864,14 +898,14 @@ export const queryTxDataFromArchivers = async (
 ): Promise<QueryTxDataFromArchiversResponse> => {
   let api_route = ''
   if (txDataType === DataType.RECEIPT) {
-    // Query from other archivers using receipt endpoint
-    // Using the existing GET /receipts endpoint for now; might have to change to POST /receipts endpoint
-    api_route = `receipt?txIdList=${JSON.stringify(txIdList)}`
+    api_route = `receipt`
   } else if (txDataType === DataType.ORIGINAL_TX_DATA) {
-    api_route = `originalTx?txIdList=${JSON.stringify(txIdList)}`
+    api_route = `originalTx`
   }
-  const response = (await getJson(
-    `http://${archiver.ip}:${archiver.port}/${api_route}`
+  const signedData = Crypto.sign({ txIdList, sender: State.getNodeInfo().publicKey })
+  const response = (await postJson(
+    `http://${archiver.ip}:${archiver.port}/${api_route}`,
+    signedData
   )) as TxDataFromArchiversResponse
   if (response) {
     if (txDataType === DataType.RECEIPT) {
@@ -890,12 +924,15 @@ export const queryTxDataFromArchivers = async (
 }
 
 export const collectMissingOriginalTxsData = async (): Promise<void> => {
-  const bucketSize = 100
   if (missingOriginalTxsMap.size === 0) return
-  const cloneMissingOriginalTxsMap = new Map()
-  for (const [txId, cycle] of missingOriginalTxsMap) {
-    cloneMissingOriginalTxsMap.set(txId, cycle)
-    missingOriginalTxsMap.delete(txId)
+  const bucketSize = 100
+  const currentTimestamp = Date.now()
+  const cloneMissingOriginalTxsMap = new Set()
+  for (const [txId, timestamp] of missingOriginalTxsMap) {
+    if (currentTimestamp - timestamp > WAIT_TIME_FOR_MISSING_TX_DATA) {
+      cloneMissingOriginalTxsMap.add(txId)
+      missingOriginalTxsMap.delete(txId)
+    }
   }
   Logger.mainLogger.debug(
     'Collecting missing originalTxsData',
@@ -924,13 +961,13 @@ export const collectMissingOriginalTxsData = async (): Promise<void> => {
       if (originalTxs && originalTxs.length > -1) {
         const originalTxsDataToSave = []
         for (const originalTx of originalTxs) {
-          const { txId, cycle } = originalTx
-          if (cloneMissingOriginalTxsMap.has(txId) && cloneMissingOriginalTxsMap.get(txId) === cycle) {
+          const { txId } = originalTx
+          if (cloneMissingOriginalTxsMap.has(txId)) {
             cloneMissingOriginalTxsMap.delete(txId)
             originalTxsDataToSave.push(originalTx)
           }
         }
-        await storeOriginalTxData(originalTxsDataToSave, archiver.ip + ':' + archiver.port, true)
+        await storeOriginalTxData(originalTxsDataToSave, archiver.ip + ':' + archiver.port)
       }
       start = end
     }
@@ -947,9 +984,9 @@ export const collectMissingOriginalTxsData = async (): Promise<void> => {
 export function cleanOldReceiptsMap(): void {
   // Clean receipts that are older than last 2 cycles
   const cycleNumber = getCurrentCycleCounter() - 1
-  for (let [key, value] of receiptsMap) {
+  for (const [key, value] of processedReceiptsMap) {
     if (value < cycleNumber) {
-      receiptsMap.delete(key)
+      processedReceiptsMap.delete(key)
     }
   }
   if (config.VERBOSE) console.log('Clean old receipts map!', getCurrentCycleCounter())
@@ -958,9 +995,9 @@ export function cleanOldReceiptsMap(): void {
 export function cleanOldOriginalTxsMap(): void {
   // Clean originalTxs that are older than last 2 cycles
   const cycleNumber = getCurrentCycleCounter() - 1
-  for (let [key, value] of originalTxsMap) {
+  for (const [key, value] of processedOriginalTxsMap) {
     if (value < cycleNumber) {
-      originalTxsMap.delete(key)
+      processedOriginalTxsMap.delete(key)
     }
   }
   if (config.VERBOSE) console.log('Clean old originalTxs map!', getCurrentCycleCounter())
@@ -979,5 +1016,5 @@ export const scheduleMissingTxsDataQuery = (): void => {
   setInterval(() => {
     collectMissingReceipts()
     collectMissingOriginalTxsData()
-  }, 5000)
+  }, 1000)
 }

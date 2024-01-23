@@ -13,7 +13,6 @@ import { overrideDefaultConfig, config } from './Config'
 import * as Crypto from './Crypto'
 import * as State from './State'
 import * as NodeList from './NodeList'
-import * as P2P from './P2P'
 import * as Storage from './archivedCycle/Storage'
 import * as Data from './Data/Data'
 import * as Cycles from './Data/Cycles'
@@ -21,15 +20,14 @@ import { initDataLogWriter } from './Data/DataLogWriter'
 import * as Utils from './Utils'
 import { syncStateMetaData } from './archivedCycle/StateMetaData'
 import * as Logger from './Logger'
-import { P2P as P2PTypes } from '@shardus/types'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import MemoryReporting, {
   memoryReportingInstance,
   setMemoryReportingInstance,
 } from './profiler/memoryReporting'
-import NestedCounters, { nestedCountersInstance, setNestedCountersInstance } from './profiler/nestedCounters'
-import Profiler, { profilerInstance, setProfilerInstance } from './profiler/profiler'
+import NestedCounters, { setNestedCountersInstance } from './profiler/nestedCounters'
+import Profiler, { setProfilerInstance } from './profiler/profiler'
 import Statistics from './statistics'
 import * as dbstore from './dbstore'
 import * as CycleDB from './dbstore/cycles'
@@ -38,12 +36,9 @@ import * as OriginalTxDB from './dbstore/originalTxsData'
 import { startSaving } from './saveConsoleOutput'
 import { setupArchiverDiscovery } from '@shardus/archiver-discovery'
 import * as Collector from './Data/Collector'
-import * as path from 'path'
-import * as fs from 'fs'
 import { loadGlobalAccounts, syncGlobalAccount } from './GlobalAccount'
 import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycles'
 import { registerRoutes } from './API'
-import { isDebugMode } from './DebugMode'
 
 // Socket modules
 let io: SocketIO.Server
@@ -101,58 +96,18 @@ export type FullArchiveRequest = FastifyRequest<{
   Querystring: FullArchiveQuery
 }>
 
-// Override default config params from config file, env vars, and cli args
-// commented out since never used
-// const file = join(process.cwd(), 'archiver-config.json')
-const env = process.env
-const args = process.argv
+const configFile = join(process.cwd(), 'archiver-config.json')
 let logDir: string
 
 async function start(): Promise<void> {
-  const configFilePath = overrideDefaultConfig(env, args)
-
-  if (isDebugMode()) {
-    //use a default key for debug mode
-    //  pragma: allowlist nextline secret
-    config.ARCHIVER_PUBLIC_KEY = '758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3'
-    //  pragma: allowlist nextline secret
-    config.ARCHIVER_HASH_KEY = '69fa4195670576c0160d660c3be36556ff8d504725be8a59b5a96509e0c994bc'
-    config.ARCHIVER_SECRET_KEY =
-      //  pragma: allowlist nextline secret
-      '3be00019f23847529bd63e41124864983175063bb524bd54ea3c155f2fa12969758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3'
-  } else {
-    // Pull in secrets
-    const secretsPath = path.join(__dirname, '../.secrets')
-    const secrets = {}
-
-    if (fs.existsSync(secretsPath)) {
-      const lines = fs.readFileSync(secretsPath, 'utf-8').split('\n').filter(Boolean)
-
-      lines.forEach((line) => {
-        const [key, value] = line.split('=')
-        secrets[key.trim()] = value.trim()
-      })
-    }
-
-    if (secrets['ARCHIVER_PUBLIC_KEY'] === undefined) config.ARCHIVER_PUBLIC_KEY = ''
-    else config.ARCHIVER_PUBLIC_KEY = secrets['ARCHIVER_PUBLIC_KEY']
-
-    if (secrets['ARCHIVER_SECRET_KEY'] === undefined) config.ARCHIVER_SECRET_KEY = ''
-    else config.ARCHIVER_SECRET_KEY = secrets['ARCHIVER_SECRET_KEY']
-
-    if (secrets['ARCHIVER_HASH_KEY'] === undefined) config.ARCHIVER_HASH_KEY = ''
-    else config.ARCHIVER_HASH_KEY = secrets['ARCHIVER_HASH_KEY']
-  }
-  // Now, secrets contain your secrets, for example:
-  // const apiKey = secrets.API_KEY;
-
+  overrideDefaultConfig(configFile)
   // Set crypto hash keys from config
   const hashKey = config.ARCHIVER_HASH_KEY
   Crypto.setCryptoHashKey(hashKey)
   try {
     await setupArchiverDiscovery({
       hashKey,
-      customConfigPath: configFilePath,
+      customConfigPath: configFile.toString(),
     })
   } catch (e) {
     console.log('Error setting up archiver discovery: ', e)
@@ -186,7 +141,7 @@ async function start(): Promise<void> {
 
   const lastStoredCycle = await CycleDB.queryLatestCycleRecords(1)
   if (lastStoredCycle && lastStoredCycle.length > 0) {
-    const lastStoredCycleMode = lastStoredCycle[0].mode as P2PTypes.ModesTypes.Record['mode']
+    const lastStoredCycleMode = lastStoredCycle[0].mode
     if (lastStoredCycleMode === 'shutdown') {
       setShutdownCycleRecord(lastStoredCycle[0])
       Logger.mainLogger.debug('Found shutdown cycleRecord', cycleRecordWithShutDownMode)

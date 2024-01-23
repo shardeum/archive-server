@@ -4,18 +4,15 @@ import { P2P, StateManager } from '@shardus/types'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString, SerializeToJsonString } from '../utils/serialization'
-import { CycleRecord } from '@shardus/types/build/src/p2p/CycleCreatorTypes'
-import { Cycle as CyclesCycle } from '../Data/Cycles'
 
 export interface Cycle {
-  counter: number
-  cycleRecord: P2P.CycleCreatorTypes.CycleRecord
+  counter: P2P.CycleCreatorTypes.CycleData['counter']
+  cycleRecord: P2P.CycleCreatorTypes.CycleData
   cycleMarker: StateManager.StateMetaDataTypes.CycleMarker
 }
 
 type DbCycle = Cycle & {
   cycleRecord: string
-  cycleMarker: string
 }
 
 export async function insertCycle(cycle: Cycle): Promise<void> {
@@ -76,9 +73,11 @@ export async function queryCycleByMarker(marker: string): Promise<Cycle> {
     const dbCycle = (await db.get(sql, [marker])) as DbCycle
     let cycle: Cycle
     if (dbCycle) {
-      if (dbCycle.counter) cycle.counter = dbCycle.counter
-      if (dbCycle.cycleRecord) cycle.cycleRecord = DeSerializeFromJsonString(dbCycle.cycleRecord)
-      if (dbCycle.cycleMarker) cycle.cycleMarker = DeSerializeFromJsonString(dbCycle.cycleMarker)
+      cycle = {
+        counter: cycle.counter,
+        cycleRecord: DeSerializeFromJsonString(dbCycle.cycleRecord),
+        cycleMarker: cycle.cycleMarker,
+      }
     }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('cycle marker', cycle)
@@ -90,20 +89,14 @@ export async function queryCycleByMarker(marker: string): Promise<Cycle> {
   }
 }
 
-export async function queryLatestCycleRecords(count: number): Promise<CyclesCycle[]> {
+export async function queryLatestCycleRecords(count: number): Promise<P2P.CycleCreatorTypes.CycleData[]> {
   try {
     const sql = `SELECT * FROM cycles ORDER BY counter DESC LIMIT ${count ? count : 100}`
-    const cycles = (await db.all(sql)) as DbCycle[]
-    const cycleRecords: CyclesCycle[] = []
-    if (cycles.length > 0) {
-      for (let i = 0; i < cycles.length; i++) {
-        /* eslint-disable security/detect-object-injection */
-        let tempCycleRecord: CyclesCycle
-        if (cycles[i].cycleRecord)
-          tempCycleRecord = DeSerializeFromJsonString(cycles[i].cycleRecord) as CyclesCycle
-        if (cycles[i].cycleMarker) tempCycleRecord.marker = cycles[i].cycleMarker
-        cycleRecords.push(tempCycleRecord)
-        /* eslint-enable security/detect-object-injection */
+    const dbCycles = (await db.all(sql)) as DbCycle[]
+    const cycleRecords: P2P.CycleCreatorTypes.CycleData[] = []
+    if (dbCycles.length > 0) {
+      for (const cycle of dbCycles) {
+        if (cycle.cycleRecord) cycleRecords.push(DeSerializeFromJsonString(cycle.cycleRecord))
       }
     }
     if (config.VERBOSE) {
@@ -112,19 +105,21 @@ export async function queryLatestCycleRecords(count: number): Promise<CyclesCycl
     return cycleRecords
   } catch (e) {
     Logger.mainLogger.error(e)
-    return null
+    return []
   }
 }
 
-export async function queryCycleRecordsBetween(start: number, end: number): Promise<CycleRecord[]> {
+export async function queryCycleRecordsBetween(
+  start: number,
+  end: number
+): Promise<P2P.CycleCreatorTypes.CycleData[]> {
   try {
     const sql = `SELECT * FROM cycles WHERE counter BETWEEN ? AND ? ORDER BY counter ASC`
-    const cycles = (await db.all(sql, [start, end])) as DbCycle[]
-    const cycleRecords: P2P.CycleCreatorTypes.CycleRecord[] = []
-    if (cycles.length > 0) {
-      for (let i = 0; i < cycles.length; i++) {
-        // eslint-disable-next-line security/detect-object-injection
-        if (cycles[i].cycleRecord) cycleRecords.push(DeSerializeFromJsonString(cycles[i].cycleRecord))
+    const dbCycles = (await db.all(sql, [start, end])) as DbCycle[]
+    const cycleRecords: P2P.CycleCreatorTypes.CycleData[] = []
+    if (dbCycles.length > 0) {
+      for (const cycle of dbCycles) {
+        if (cycle.cycleRecord) cycleRecords.push(DeSerializeFromJsonString(cycle.cycleRecord))
       }
     }
     if (config.VERBOSE) {
@@ -133,7 +128,7 @@ export async function queryCycleRecordsBetween(start: number, end: number): Prom
     return cycleRecords
   } catch (e) {
     Logger.mainLogger.error(e)
-    return null
+    return []
   }
 }
 

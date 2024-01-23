@@ -1,10 +1,9 @@
-import { Signature } from 'shardus-crypto-types'
+// import { Signature } from 'shardus-crypto-types'
 import * as db from './sqlite3storage'
 import { extractValues, extractValuesFromArray } from './sqlite3storage'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString } from '../utils/serialization'
-import { OriginalTxData } from './originalTxsData'
 
 /**
  * Transaction is for storing dapp receipt (eg. evm receipt in shardeum)
@@ -15,16 +14,14 @@ export interface Transaction {
   appReceiptId?: string // Dapp receipt id (eg. txhash of evm receipt in shardeum)
   timestamp: number
   cycleNumber: number
-  data: unknown
-  originalTxData: OriginalTxData
+  data: unknown & { txId?: string; appReceiptId?: string }
+  originalTxData: object
 }
 
 type DbTransaction = Transaction & {
   data: string
-  keys: string
-  result: string
   originalTxData: string
-  sign: string
+  // sign: string
 }
 
 export async function insertTransaction(transaction: Transaction): Promise<void> {

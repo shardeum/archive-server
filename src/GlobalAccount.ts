@@ -90,6 +90,7 @@ export const syncGlobalAccount = async (): Promise<void> => {
       const savedNetworkAccount = await AccountDB.queryAccountByAccountId(config.globalNetworkAccount)
       if (savedNetworkAccount && savedNetworkAccount.hash === cachedGlobalNetworkAccountHash) {
         setGlobalNetworkAccount(savedNetworkAccount)
+        return
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const queryFn = async (node: Node): Promise<any> => {

@@ -6,7 +6,7 @@ import 'node-fetch'
 import fetch from 'node-fetch'
 import { P2P as P2PTypes } from '@shardus/types'
 import { RequestInit, Response } from 'node-fetch'
-import * as cryptoTypes from './shardus-crypto-types'
+import { SignedObject } from '@shardus/crypto-utils'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { version } = require('../package.json')
 
@@ -47,7 +47,7 @@ export interface FirstNodeResponse {
   dataRequestStateMetaData?: Data.DataRequest<P2PTypes.SnapshotTypes.StateMetaData> & Crypto.TaggedMessage
 }
 
-export function createArchiverJoinRequest(): ArchiverJoinRequest & cryptoTypes.SignedObject {
+export function createArchiverJoinRequest(): ArchiverJoinRequest & SignedObject {
   const joinRequest: ArchiverJoinRequest = {
     nodeInfo: State.getNodeInfo(),
     appData: { version },
@@ -57,7 +57,7 @@ export function createArchiverJoinRequest(): ArchiverJoinRequest & cryptoTypes.S
   return Crypto.sign(joinRequest)
 }
 
-export function createArchiverActiveRequest(): ArchiverActiveRequest & cryptoTypes.SignedObject {
+export function createArchiverActiveRequest(): ArchiverActiveRequest & SignedObject {
   const activeRequest: ArchiverActiveRequest = {
     nodeInfo: State.getNodeInfo(),
     requestType: RequestTypes.ACTIVE,
@@ -65,7 +65,7 @@ export function createArchiverActiveRequest(): ArchiverActiveRequest & cryptoTyp
   return Crypto.sign(activeRequest)
 }
 
-export function createArchiverLeaveRequest(): ArchiverLeaveRequest & cryptoTypes.SignedObject {
+export function createArchiverLeaveRequest(): ArchiverLeaveRequest & SignedObject {
   const leaveRequest: ArchiverLeaveRequest = {
     nodeInfo: State.getNodeInfo(),
     requestType: RequestTypes.LEAVE,
@@ -78,7 +78,7 @@ export async function postJson(
   url: string,
   body: object,
   timeoutInSecond = 5
-): Promise<Data.DataQueryResponse | null> {
+): Promise<(object & { success?: boolean }) | null> {
   try {
     const res = await fetch(url, {
       method: 'post',

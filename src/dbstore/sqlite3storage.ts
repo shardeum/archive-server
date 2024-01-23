@@ -8,10 +8,14 @@ const sqlite3 = require('sqlite3').verbose()
 let db: Database
 
 export async function init(config: Config): Promise<void> {
-  console.log(config.ARCHIVER_DB)
-  createDirectories(config.ARCHIVER_DB)
-  const dbName = `${config.ARCHIVER_DB}/archiverdb-${config.ARCHIVER_PORT}.sqlite3`
-  // const dbName = config.ARCHIVER_DB
+  let dbName: string
+  if (config.EXISTING_ARCHIVER_DB_PATH !== '') dbName = config.EXISTING_ARCHIVER_DB_PATH
+  else {
+    console.log(config.ARCHIVER_DB)
+    createDirectories(config.ARCHIVER_DB)
+    dbName = `${config.ARCHIVER_DB}/archiverdb-${config.ARCHIVER_PORT}.sqlite3`
+  }
+  console.log('dbName', dbName)
   db = new sqlite3.Database(dbName)
   await run('PRAGMA journal_mode=WAL')
   console.log('Database initialized.')
