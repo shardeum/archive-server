@@ -985,6 +985,7 @@ export async function syncGenesisAccountsFromArchiver(): Promise<void> {
     { startCycle: 0, endCycle: 5 },
     QUERY_TIMEOUT_MAX
   )) as ArchiverAccountResponse
+  console.log('res TotalGenesis', res)
   if (res && (res.totalAccounts || res.totalAccounts === 0)) {
     totalGenesisAccounts = res.totalAccounts
     Logger.mainLogger.debug('TotalGenesis Accounts', totalGenesisAccounts)
@@ -1037,6 +1038,7 @@ export async function syncGenesisTransactionsFromArchiver(): Promise<void> {
     },
     QUERY_TIMEOUT_MAX
   )) as ArchiverTransactionResponse
+  console.log('res TotalGenesis', res)
   if (res && (res.totalTransactions || res.totalTransactions === 0)) {
     totalGenesisTransactions = res.totalTransactions
     Logger.mainLogger.debug('TotalGenesis Transactions', totalGenesisTransactions)

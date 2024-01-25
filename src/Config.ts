@@ -45,6 +45,7 @@ export interface Config {
   maxValidatorsToServe: number
   verifyAccountData: boolean
   limitToArchiversOnly: boolean
+  verifyAppReceiptData: boolean
 }
 
 let config: Config = {
@@ -88,6 +89,7 @@ let config: Config = {
   maxValidatorsToServe: 10, // max number of validators to serve accounts data during restore mode
   verifyAccountData: true,
   limitToArchiversOnly: true,
+  verifyAppReceiptData: true
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {

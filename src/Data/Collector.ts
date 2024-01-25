@@ -19,7 +19,7 @@ import { getCurrentCycleCounter, shardValuesByCycle, computeCycleMarker } from '
 import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 import * as State from '../State'
 import * as Utils from '../Utils'
-import { DataType, GossipData, adjacentArchivers, sendDataToAdjacentArchivers, TxId } from './GossipData'
+import { DataType, GossipData, adjacentArchivers, sendDataToAdjacentArchivers, TxData } from './GossipData'
 import { postJson } from '../P2P'
 import { globalAccountsMap, setGlobalNetworkAccount } from '../GlobalAccount'
 import { CycleLogWriter, ReceiptLogWriter, OriginalTxDataLogWriter } from '../Data/DataLogWriter'
@@ -27,6 +27,7 @@ import * as OriginalTxDB from '../dbstore/originalTxsData'
 import ShardFunction from '../ShardFunctions'
 import { ConsensusNodeInfo } from '../NodeList'
 import { verifyAccountHash } from '../shardeum/calculateAccountHash'
+import { verifyAppReceiptData } from '../shardeum/verifyAppReceiptData'
 
 export let storingAccountData = false
 export const processedReceiptsMap: Map<string, number> = new Map()
@@ -379,15 +380,20 @@ export const storeReceiptData = async (
   let combineReceipts = []
   let combineAccounts = []
   let combineTransactions = []
-  let txIdList: TxId[] = []
+  let txDataList: TxData[] = []
   if (saveOnlyGossipData) return
   for (let receipt of receipts) {
     const txId = receipt?.tx?.txId
-    if (processedReceiptsMap.has(txId) || receiptsInValidationMap.has(txId)) {
+    const timestamp = receipt?.tx?.timestamp
+    if (!txId || !timestamp) continue
+    if (
+      (processedReceiptsMap.has(txId) && processedReceiptsMap.get(txId) === timestamp) ||
+      (receiptsInValidationMap.has(txId) && receiptsInValidationMap.get(txId) === timestamp)
+    ) {
       // console.log('RECEIPT', 'Skip', tx.txId, senderInfo)
       continue
     }
-    receiptsInValidationMap.set(txId, receipt.cycle)
+    receiptsInValidationMap.set(txId, timestamp)
     if (!validateReceiptData(receipt)) {
       Logger.mainLogger.error('Invalid receipt: Validation failed', txId)
       receiptsInValidationMap.delete(txId)
@@ -395,6 +401,11 @@ export const storeReceiptData = async (
     }
 
     if (verifyData) {
+      if (config.verifyAppReceiptData) {
+        const { valid, needToSave } = await verifyAppReceiptData(receipt)
+        if (!valid) Logger.mainLogger.error('Invalid receipt: App Receipt Verification failed', txId)
+        if (!needToSave) continue
+      }
       if (config.verifyAccountData && !verifyAccountHash(receipt)) {
         Logger.mainLogger.error('Invalid receipt: Account Verification failed', txId)
         receiptsInValidationMap.delete(txId)
@@ -415,7 +426,7 @@ export const storeReceiptData = async (
     // })
     const { accounts, cycle, tx, appReceiptData } = receipt
     if (config.VERBOSE) console.log('RECEIPT', tx.txId, senderInfo)
-    processedReceiptsMap.set(tx.txId, cycle)
+    processedReceiptsMap.set(tx.txId, tx.timestamp)
     receiptsInValidationMap.delete(tx.txId)
     if (missingReceiptsMap.has(tx.txId)) missingReceiptsMap.delete(tx.txId)
     combineReceipts.push({
@@ -431,7 +442,7 @@ export const storeReceiptData = async (
           timestamp: tx.timestamp,
         })}\n`
       )
-    txIdList.push(tx.txId)
+    txDataList.push({ txId, timestamp })
     for (let j = 0; j < accounts.length; j++) {
       // eslint-disable-next-line security/detect-object-injection
       const account = accounts[j]
@@ -494,9 +505,9 @@ export const storeReceiptData = async (
     // Receipts size can be big, better to save per 100
     if (combineReceipts.length >= 100) {
       await Receipt.bulkInsertReceipts(combineReceipts)
-      if (State.isActive) sendDataToAdjacentArchivers(DataType.RECEIPT, txIdList)
+      if (State.isActive) sendDataToAdjacentArchivers(DataType.RECEIPT, txDataList)
       combineReceipts = []
-      txIdList = []
+      txDataList = []
     }
     if (combineAccounts.length >= bucketSize) {
       await Account.bulkInsertAccounts(combineAccounts)
@@ -510,7 +521,7 @@ export const storeReceiptData = async (
   // Receipts size can be big, better to save per 100
   if (combineReceipts.length > 0) {
     await Receipt.bulkInsertReceipts(combineReceipts)
-    if (State.isActive) sendDataToAdjacentArchivers(DataType.RECEIPT, txIdList)
+    if (State.isActive) sendDataToAdjacentArchivers(DataType.RECEIPT, txDataList)
   }
   if (combineAccounts.length > 0) await Account.bulkInsertAccounts(combineAccounts)
   if (combineTransactions.length > 0) await Transaction.bulkInsertTransactions(combineTransactions)
@@ -671,11 +682,15 @@ export const storeOriginalTxData = async (
   if (!originalTxsData || !Array.isArray(originalTxsData) || originalTxsData.length <= 0) return
   const bucketSize = 1000
   let combineOriginalTxsData = []
-  let txIdList: TxId[] = []
+  let txDataList: TxData[] = []
   if (saveOnlyGossipData) return
   for (const originalTxData of originalTxsData) {
-    const txId = originalTxData.txId
-    if (processedOriginalTxsMap.has(txId) || originalTxsInValidationMap.has(txId)) {
+    const { txId, timestamp } = originalTxData
+    if (!txId || !timestamp) continue
+    if (
+      (processedOriginalTxsMap.has(txId) && processedOriginalTxsMap.get(txId) === timestamp) ||
+      (originalTxsInValidationMap.has(txId) && originalTxsInValidationMap.get(txId) === timestamp)
+    ) {
       // console.log('ORIGINAL_TX_DATA', 'Skip', txId, senderInfo)
       continue
     }
@@ -684,25 +699,25 @@ export const storeOriginalTxData = async (
       originalTxsInValidationMap.delete(txId)
       continue
     }
-    processedOriginalTxsMap.set(txId, originalTxData.cycle)
+    processedOriginalTxsMap.set(txId, timestamp)
     originalTxsInValidationMap.delete(txId)
     if (missingOriginalTxsMap.has(txId)) missingOriginalTxsMap.delete(txId)
 
     if (config.dataLogWrite && OriginalTxDataLogWriter)
       OriginalTxDataLogWriter.writeToLog(`${JSON.stringify(originalTxData)}\n`)
     combineOriginalTxsData.push(originalTxData)
-    txIdList.push(txId)
+    txDataList.push({ txId, timestamp })
     if (config.VERBOSE) console.log('ORIGINAL_TX_DATA', txId, senderInfo)
     if (combineOriginalTxsData.length >= bucketSize) {
       await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
-      if (State.isActive) sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txIdList)
+      if (State.isActive) sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txDataList)
       combineOriginalTxsData = []
-      txIdList = []
+      txDataList = []
     }
   }
   if (combineOriginalTxsData.length > 0) {
     await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
-    if (State.isActive) sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txIdList)
+    if (State.isActive) sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txDataList)
   }
 }
 interface validateResponse {
@@ -776,8 +791,11 @@ export const validateGossipData = (data: GossipData): validateResponse => {
 export const processGossipData = (gossipdata: GossipData): void => {
   const { dataType, data, sender } = gossipdata
   if (dataType === DataType.RECEIPT) {
-    for (const txId of data as TxId[]) {
-      if (processedReceiptsMap.has(txId) || receiptsInValidationMap.has(txId)) {
+    for (const { txId, timestamp } of data as TxData[]) {
+      if (
+        (processedReceiptsMap.has(txId) && processedReceiptsMap.get(txId) === timestamp) ||
+        (receiptsInValidationMap.has(txId) && receiptsInValidationMap.get(txId) === timestamp)
+      ) {
         // console.log('GOSSIP', 'RECEIPT', 'SKIP', txId, sender)
         continue
       } else missingReceiptsMap.set(txId, Date.now())
@@ -785,8 +803,11 @@ export const processGossipData = (gossipdata: GossipData): void => {
     }
   }
   if (dataType === DataType.ORIGINAL_TX_DATA) {
-    for (const txId of data as TxId[]) {
-      if (processedOriginalTxsMap.has(txId) || originalTxsInValidationMap.has(txId)) {
+    for (const { txId, timestamp } of data as TxData[]) {
+      if (
+        (processedOriginalTxsMap.has(txId) && processedOriginalTxsMap.get(txId) === timestamp) ||
+        (originalTxsInValidationMap.has(txId) && originalTxsInValidationMap.get(txId) === timestamp)
+      ) {
         // console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'SKIP', txId, sender)
         continue
       } else missingOriginalTxsMap.set(txId, Date.now())
@@ -981,34 +1002,29 @@ export const collectMissingOriginalTxsData = async (): Promise<void> => {
   }
 }
 
-export function cleanOldReceiptsMap(): void {
-  // Clean receipts that are older than last 2 cycles
-  const cycleNumber = getCurrentCycleCounter() - 1
+export function cleanOldReceiptsMap(timestamp: number): void {
+  const currentTimestamp = Date.now()
   for (const [key, value] of processedReceiptsMap) {
-    if (value < cycleNumber) {
+    console.log('cleanOldReceiptsMap', key, currentTimestamp - value, timestamp - value, value < timestamp)
+
+    if (value < timestamp) {
       processedReceiptsMap.delete(key)
     }
   }
+  console.log('cleanOldReceiptsMap remaining', processedReceiptsMap)
   if (config.VERBOSE) console.log('Clean old receipts map!', getCurrentCycleCounter())
 }
 
-export function cleanOldOriginalTxsMap(): void {
-  // Clean originalTxs that are older than last 2 cycles
-  const cycleNumber = getCurrentCycleCounter() - 1
+export function cleanOldOriginalTxsMap(timestamp: number): void {
+  const currentTimestamp = Date.now()
   for (const [key, value] of processedOriginalTxsMap) {
-    if (value < cycleNumber) {
+    console.log('cleanOldOriginalTxsMap', currentTimestamp - value, timestamp - value, value < timestamp)
+    if (value < timestamp) {
       processedOriginalTxsMap.delete(key)
     }
   }
+  console.log('cleanOldOriginalTxsMap remaining', processedOriginalTxsMap)
   if (config.VERBOSE) console.log('Clean old originalTxs map!', getCurrentCycleCounter())
-}
-
-export const scheduleCacheCleanup = (): void => {
-  // Set to clean old receipts and originalTxs map every minute
-  setInterval(() => {
-    cleanOldReceiptsMap()
-    cleanOldOriginalTxsMap()
-  }, 60000)
 }
 
 export const scheduleMissingTxsDataQuery = (): void => {

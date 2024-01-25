@@ -14,11 +14,11 @@ export enum DataType {
   CYCLE = 'CYCLE',
 }
 
-export type TxId = string
+export type TxData = { txId: string; timestamp: number }
 
 export interface GossipData {
   dataType: DataType
-  data: TxId[] | P2PTypes.CycleCreatorTypes.CycleData[]
+  data: TxData[] | P2PTypes.CycleCreatorTypes.CycleData[]
   sender: string
   sign: Signature
 }

@@ -762,7 +762,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         accounts = await AccountDB.queryAccountsBetweenCycles(skip, limit, from, to)
         res = { accounts, totalAccounts }
       } else {
-        res = { accounts }
+        res = { totalAccounts }
       }
     } else if (accountId) {
       accounts = await AccountDB.queryAccountByAccountId(accountId)
@@ -881,7 +881,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         transactions = await TransactionDB.queryTransactionsBetweenCycles(skip, limit, from, to)
         res = { transactions, totalTransactions }
       } else {
-        res = { transactions }
+        res = { totalTransactions }
       }
     } else if (txId) {
       transactions = await TransactionDB.queryTransactionByTxId(txId)
@@ -1234,11 +1234,11 @@ export const validateRequestData = (
     }
     if (config.limitToArchiversOnly) {
       // Check if the sender is in the archiver list or is the devPublicKey
-      if (
-        !State.activeArchivers.some((archiver) => archiver.publicKey === data.sender) ||
-        config.DEBUG.devPublicKey !== data.sender
-      ) {
-        return { success: true }
+      const approvedSender =
+        State.activeArchivers.some((archiver) => archiver.publicKey === data.sender) ||
+        config.DEBUG.devPublicKey === data.sender
+      if (!approvedSender) {
+        return { success: false, error: 'Data request sender is not an archiver' }
       }
     }
     if (!Crypto.verify(data)) {

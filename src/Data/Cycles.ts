@@ -18,7 +18,7 @@ import * as Utils from '../Utils'
 import { config } from '../Config'
 import fetch from 'node-fetch'
 import { getAdjacentLeftAndRightArchivers, sendDataToAdjacentArchivers, DataType } from './GossipData'
-import { storeCycleData } from './Collector'
+import { cleanOldOriginalTxsMap, cleanOldReceiptsMap, storeCycleData } from './Collector'
 import { clearServingValidatorsInterval, initServingValidatorsInterval } from './AccountDataProvider'
 import { hexstring } from '@shardus/crypto-utils'
 import { handleLostArchivers } from '../LostArchivers'
@@ -86,6 +86,12 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
         setShutdownCycleRecord(cycle)
         NodeList.toggleFirstNode()
       }
+      // Clean receipts/originalTxs cache that are older than the current cycle
+      const cleanupTimestamp = cycle.start * 1000
+      const currentTimestamp = Date.now()
+      console.log('cleanupTimestamp', cleanupTimestamp, currentTimestamp, currentTimestamp - cleanupTimestamp)
+      cleanOldOriginalTxsMap(cleanupTimestamp)
+      cleanOldReceiptsMap(cleanupTimestamp)
     }
   } finally {
     if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
