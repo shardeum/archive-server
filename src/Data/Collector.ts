@@ -1003,27 +1003,20 @@ export const collectMissingOriginalTxsData = async (): Promise<void> => {
 }
 
 export function cleanOldReceiptsMap(timestamp: number): void {
-  const currentTimestamp = Date.now()
   for (const [key, value] of processedReceiptsMap) {
-    console.log('cleanOldReceiptsMap', key, currentTimestamp - value, timestamp - value, value < timestamp)
-
     if (value < timestamp) {
       processedReceiptsMap.delete(key)
     }
   }
-  console.log('cleanOldReceiptsMap remaining', processedReceiptsMap)
   if (config.VERBOSE) console.log('Clean old receipts map!', getCurrentCycleCounter())
 }
 
 export function cleanOldOriginalTxsMap(timestamp: number): void {
-  const currentTimestamp = Date.now()
   for (const [key, value] of processedOriginalTxsMap) {
-    console.log('cleanOldOriginalTxsMap', currentTimestamp - value, timestamp - value, value < timestamp)
     if (value < timestamp) {
       processedOriginalTxsMap.delete(key)
     }
   }
-  console.log('cleanOldOriginalTxsMap remaining', processedOriginalTxsMap)
   if (config.VERBOSE) console.log('Clean old originalTxs map!', getCurrentCycleCounter())
 }
 

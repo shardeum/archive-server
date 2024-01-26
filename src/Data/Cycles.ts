@@ -86,10 +86,8 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
         setShutdownCycleRecord(cycle)
         NodeList.toggleFirstNode()
       }
-      // Clean receipts/originalTxs cache that are older than the current cycle
+      // Clean receipts/originalTxs cache that are older than the current cycle start time
       const cleanupTimestamp = cycle.start * 1000
-      const currentTimestamp = Date.now()
-      console.log('cleanupTimestamp', cleanupTimestamp, currentTimestamp, currentTimestamp - cleanupTimestamp)
       cleanOldOriginalTxsMap(cleanupTimestamp)
       cleanOldReceiptsMap(cleanupTimestamp)
     }

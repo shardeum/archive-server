@@ -96,12 +96,16 @@ export async function overrideDefaultConfig(file: string): Promise<void> {
   const env = process.env
   const args = process.argv
 
+  console.dir(config, { depth: null })
+
   // Override config from config file
   try {
     // eslint-disable-next-line security/detect-non-literal-fs-filename
     const fileConfig = JSON.parse(fs.readFileSync(file, { encoding: 'utf8' }))
+    console.dir(fileConfig, { depth: null })
     const overwriteMerge = (target: [], source: []): [] => source
     config = merge(config, fileConfig, { arrayMerge: overwriteMerge })
+    console.dir(config, { depth: null })
   } catch (err) {
     if (err && err.code !== 'ENOENT') {
       console.warn('Failed to parse config file:', err)
@@ -196,8 +200,13 @@ export async function overrideDefaultConfig(file: string): Promise<void> {
 
   if (config.ARCHIVER_HASH_KEY === '') {
     // Use default hash key if none provided
-    //  pragma: allowlist nextline secret
+    // pragma: allowlist nextline secret
     config.ARCHIVER_HASH_KEY = '69fa4195670576c0160d660c3be36556ff8d504725be8a59b5a96509e0c994bc'
+  }
+  if (config.DEBUG.devPublicKey === '') {
+    // Use default dev public key if none provided
+    // pragma: allowlist nextline secret
+    config.DEBUG.devPublicKey = '774491f80f47fedb119bb861601490f42bc3ea3b57fc63906c0d08e6d777a592'
   }
 }
 
