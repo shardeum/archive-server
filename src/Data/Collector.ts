@@ -182,6 +182,7 @@ export const validateReceiptData = (receipt: Receipt.ArchiverReceipt): boolean =
     appReceiptData: 'o?',
     appliedReceipt: 'o',
     executionShardKey: 's',
+    globalModification: 'b',
   })
   if (err) {
     Logger.mainLogger.error('Invalid receipt data', err)
@@ -224,6 +225,8 @@ export const validateReceiptData = (receipt: Receipt.ArchiverReceipt): boolean =
       return false
     }
   }
+  if (receipt.globalModification) return true
+  // Global Modification Tx does not have appliedReceipt
   err = Utils.validateTypes(receipt.appliedReceipt, {
     txid: 's',
     result: 'b',
@@ -293,7 +296,8 @@ export const verifyReceiptData = async (
 ): Promise<{ success: boolean; newReceipt?: Receipt.ArchiverReceipt }> => {
   const result = { success: false }
   // Check the signed nodes are part of the execution group nodes of the tx
-  const { executionShardKey, cycle, appliedReceipt } = receipt
+  const { executionShardKey, cycle, appliedReceipt, globalModification } = receipt
+  if (globalModification && config.skipGlobalTxReceiptVerification) return { success: true }
   const { appliedVote, confirmOrChallenge } = appliedReceipt
   const cycleShardData = shardValuesByCycle.get(cycle)
   if (!cycleShardData) {
@@ -404,7 +408,10 @@ export const storeReceiptData = async (
       if (config.verifyAppReceiptData) {
         const { valid, needToSave } = await verifyAppReceiptData(receipt)
         if (!valid) Logger.mainLogger.error('Invalid receipt: App Receipt Verification failed', txId)
-        if (!needToSave) continue
+        if (!needToSave) {
+          receiptsInValidationMap.delete(txId)
+          continue
+        }
       }
       if (config.verifyAccountData && !verifyAccountHash(receipt)) {
         Logger.mainLogger.error('Invalid receipt: Account Verification failed', txId)

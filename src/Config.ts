@@ -46,6 +46,7 @@ export interface Config {
   verifyAccountData: boolean
   limitToArchiversOnly: boolean
   verifyAppReceiptData: boolean
+  skipGlobalTxReceiptVerification: boolean // To skip verification of global tx receipts for now
 }
 
 let config: Config = {
@@ -89,23 +90,20 @@ let config: Config = {
   maxValidatorsToServe: 10, // max number of validators to serve accounts data during restore mode
   verifyAccountData: true,
   limitToArchiversOnly: true,
-  verifyAppReceiptData: true
+  verifyAppReceiptData: true,
+  skipGlobalTxReceiptVerification: true,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {
   const env = process.env
   const args = process.argv
 
-  console.dir(config, { depth: null })
-
   // Override config from config file
   try {
     // eslint-disable-next-line security/detect-non-literal-fs-filename
     const fileConfig = JSON.parse(fs.readFileSync(file, { encoding: 'utf8' }))
-    console.dir(fileConfig, { depth: null })
     const overwriteMerge = (target: [], source: []): [] => source
     config = merge(config, fileConfig, { arrayMerge: overwriteMerge })
-    console.dir(config, { depth: null })
   } catch (err) {
     if (err && err.code !== 'ENOENT') {
       console.warn('Failed to parse config file:', err)

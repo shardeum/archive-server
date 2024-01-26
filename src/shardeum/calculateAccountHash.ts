@@ -1,3 +1,4 @@
+import { config } from '../Config'
 import * as crypto from '../Crypto'
 import * as Logger from '../Logger'
 import { ArchiverReceipt } from '../dbstore/receipts'
@@ -65,6 +66,7 @@ export const fixAccountUint8Arrays = (account: any): void => {
 
 export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
   try {
+    if (receipt.globalModification && config.skipGlobalTxReceiptVerification) return true // return true if global modification
     for (const account of receipt.accounts) {
       if (account.data.accountType === AccountType.Account) {
         fixAccountUint8Arrays(account.data.account)

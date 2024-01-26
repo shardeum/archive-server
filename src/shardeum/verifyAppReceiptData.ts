@@ -1,3 +1,4 @@
+import { config } from '../Config'
 import * as crypto from '../Crypto'
 import * as Logger from '../Logger'
 import * as Receipt from '../dbstore/receipts'
@@ -13,7 +14,7 @@ export const verifyAppReceiptData = async (
   receipt: ArchiverReceipt
 ): Promise<{ valid: boolean; needToSave: boolean }> => {
   let result = { valid: false, needToSave: false }
-  const { appReceiptData, tx } = receipt
+  const { appReceiptData, tx, globalModification } = receipt
   const newShardeumReceipt = appReceiptData.data as ShardeumReceipt
   if (!newShardeumReceipt.amountSpent || !newShardeumReceipt.readableReceipt) {
     Logger.mainLogger.error(`appReceiptData missing amountSpent or readableReceipt`)
@@ -52,6 +53,7 @@ export const verifyAppReceiptData = async (
       } else result = { valid: true, needToSave: true }
     }
   } else result = { valid: true, needToSave: true }
+  if (globalModification && config.skipGlobalTxReceiptVerification) return { valid: true, needToSave: true }
   // Finally verify appReceiptData hash
   const appReceiptDataCopy = { ...appReceiptData }
   const calculatedAppReceiptDataHash = calculateAppReceiptDataHash(appReceiptDataCopy)
