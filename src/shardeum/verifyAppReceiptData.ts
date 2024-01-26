@@ -66,11 +66,34 @@ export const verifyAppReceiptData = async (
   return result
 }
 
+// Converting the correct appReceipt data format to get the correct hash
 const calculateAppReceiptDataHash = (appReceiptData: any): string => {
-  if (appReceiptData.data && appReceiptData.data.receipt && appReceiptData.data.receipt.bitvector)
-    appReceiptData.data.receipt.bitvector = Uint8Array.from(
-      Object.values(appReceiptData.data.receipt.bitvector)
-    )
-  const hash = crypto.hashObj(appReceiptData)
-  return hash
+  try {
+    if (appReceiptData.data && appReceiptData.data.receipt) {
+      if (appReceiptData.data.receipt.bitvector)
+        appReceiptData.data.receipt.bitvector = Uint8Array.from(
+          Object.values(appReceiptData.data.receipt.bitvector)
+        )
+      if (appReceiptData.data.receipt.logs && appReceiptData.data.receipt.logs.length > 0) {
+        appReceiptData.data.receipt.logs = appReceiptData.data.receipt.logs.map((log) => {
+          return log.map((log1) => {
+            if (Array.isArray(log1)) {
+              return log1.map((log2) => {
+                log2 = Uint8Array.from(Object.values(log2))
+                return log2
+              })
+            } else {
+              log1 = Uint8Array.from(Object.values(log1))
+              return log1
+            }
+          })
+        })
+      }
+    }
+    const hash = crypto.hashObj(appReceiptData)
+    return hash
+  } catch (err) {
+    Logger.mainLogger.error(`calculateAppReceiptDataHash error: ${err}`)
+    return ''
+  }
 }
