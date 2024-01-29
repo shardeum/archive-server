@@ -108,6 +108,7 @@ async function start(): Promise<void> {
     await setupArchiverDiscovery({
       hashKey,
       customConfigPath: configFile.toString(),
+      archiverTimeoutInMilliSeconds: 2000, // 2 seconds
     })
   } catch (e) {
     console.log('Error setting up archiver discovery: ', e)
