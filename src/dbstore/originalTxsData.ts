@@ -113,10 +113,7 @@ export async function queryOriginalTxsData(
   return originalTxsData
 }
 
-export async function queryOriginalTxDataByTxId(
-  txId: string,
-  timestamp: number = 0
-): Promise<OriginalTxData> {
+export async function queryOriginalTxDataByTxId(txId: string, timestamp = 0): Promise<OriginalTxData> {
   try {
     const sql = `SELECT * FROM originalTxsData WHERE txId=?` + (timestamp && ` AND timestamp=?`)
     const value = timestamp ? [txId, timestamp] : [txId]

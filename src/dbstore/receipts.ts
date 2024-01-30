@@ -123,7 +123,7 @@ export async function bulkInsertReceipts(receipts: Receipt[]): Promise<void> {
   }
 }
 
-export async function queryReceiptByReceiptId(receiptId: string, timestamp: number = 0): Promise<Receipt> {
+export async function queryReceiptByReceiptId(receiptId: string, timestamp = 0): Promise<Receipt> {
   try {
     const sql = `SELECT * FROM receipts WHERE receiptId=?` + (timestamp && ` AND timestamp=?`)
     const value = timestamp ? [receiptId, timestamp] : [receiptId]
