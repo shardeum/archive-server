@@ -123,10 +123,11 @@ export async function bulkInsertReceipts(receipts: Receipt[]): Promise<void> {
   }
 }
 
-export async function queryReceiptByReceiptId(receiptId: string): Promise<Receipt> {
+export async function queryReceiptByReceiptId(receiptId: string, timestamp: number = 0): Promise<Receipt> {
   try {
-    const sql = `SELECT * FROM receipts WHERE receiptId=?`
-    const receipt = (await db.get(sql, [receiptId])) as DbReceipt
+    const sql = `SELECT * FROM receipts WHERE receiptId=?` + (timestamp && ` AND timestamp=?`)
+    const value = timestamp ? [receiptId, timestamp] : [receiptId]
+    const receipt = (await db.get(sql, value)) as DbReceipt
     if (receipt) deserializeDbReceipt(receipt)
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Receipt receiptId', receipt)

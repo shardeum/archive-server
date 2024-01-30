@@ -452,8 +452,8 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const originalTx = await OriginalTxDB.queryOriginalTxDataByTxId(txId)
       if (originalTx) originalTxs.push(originalTx)
     } else if (txIdList) {
-      for (const txId of txIdList) {
-        if (typeof txId !== 'string' || txId.length !== TXID_LENGTH) {
+      for (const [txId, txTimestamp] of txIdList) {
+        if (typeof txId !== 'string' || txId.length !== TXID_LENGTH || typeof txTimestamp !== 'number') {
           reply.send(
             Crypto.sign({
               success: false,
@@ -462,7 +462,8 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
           )
           return
         }
-        const originalTx = await OriginalTxDB.queryOriginalTxDataByTxId(txId)
+
+        const originalTx = await OriginalTxDB.queryOriginalTxDataByTxId(txId, txTimestamp)
         if (originalTx) originalTxs.push(originalTx)
       }
     } else if (start || end) {
@@ -578,8 +579,8 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const receipt = await ReceiptDB.queryReceiptByReceiptId(txId)
       if (receipt) receipts.push(receipt)
     } else if (txIdList) {
-      for (const txId of txIdList) {
-        if (typeof txId !== 'string' || txId.length !== TXID_LENGTH) {
+      for (const [txId, txTimestamp] of txIdList) {
+        if (typeof txId !== 'string' || txId.length !== TXID_LENGTH || typeof txTimestamp !== 'number') {
           reply.send(
             Crypto.sign({
               success: false,
@@ -588,7 +589,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
           )
           return
         }
-        const receipt = await ReceiptDB.queryReceiptByReceiptId(txId)
+        const receipt = await ReceiptDB.queryReceiptByReceiptId(txId, txTimestamp)
         if (receipt) receipts.push(receipt)
       }
     } else if (start || end) {

@@ -113,10 +113,14 @@ export async function queryOriginalTxsData(
   return originalTxsData
 }
 
-export async function queryOriginalTxDataByTxId(txId: string): Promise<OriginalTxData> {
+export async function queryOriginalTxDataByTxId(
+  txId: string,
+  timestamp: number = 0
+): Promise<OriginalTxData> {
   try {
-    const sql = `SELECT * FROM originalTxsData WHERE txId=?`
-    const originalTxData = (await db.get(sql, [txId])) as DbOriginalTxData
+    const sql = `SELECT * FROM originalTxsData WHERE txId=?` + (timestamp && ` AND timestamp=?`)
+    const value = timestamp ? [txId, timestamp] : [txId]
+    const originalTxData = (await db.get(sql, value)) as DbOriginalTxData
     if (originalTxData) {
       if (originalTxData.originalTxData)
         originalTxData.originalTxData = DeSerializeFromJsonString(originalTxData.originalTxData)
