@@ -24,16 +24,6 @@ export const isDebugMiddleware = (_req, res): void => {
   const isDebug = isDebugMode()
   if (!isDebug) {
     try {
-      //auth with by checking a password against a hash
-      if (_req.query.auth != null) {
-        const hashedAuth = Crypto.hashObj({ key: _req.query.auth })
-        const hashedDevKey = getHashedDevKey()
-        // can get a hash back if no key is set
-        if (hashedDevKey === '' || hashedDevKey !== hashedAuth) {
-          throw new Error('FORBIDDEN. HashedDevKey authentication is failed.')
-        }
-        return
-      }
       //auth my by checking a signature
       if (_req.query.sig != null && _req.query.sig_counter != null) {
         const ownerPk = getDevPublicKey()
