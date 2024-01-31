@@ -75,7 +75,6 @@ type DbReceipt = Receipt & {
   accounts: string
   appReceiptData: string
   appliedReceipt: string
-  sign: string
 }
 
 export interface ReceiptCount {
@@ -125,7 +124,7 @@ export async function bulkInsertReceipts(receipts: Receipt[]): Promise<void> {
 
 export async function queryReceiptByReceiptId(receiptId: string, timestamp = 0): Promise<Receipt> {
   try {
-    const sql = `SELECT * FROM receipts WHERE receiptId=?` + (timestamp && ` AND timestamp=?`)
+    const sql = `SELECT * FROM receipts WHERE receiptId=?` + (timestamp ? ` AND timestamp=?` : '')
     const value = timestamp ? [receiptId, timestamp] : [receiptId]
     const receipt = (await db.get(sql, value)) as DbReceipt
     if (receipt) deserializeDbReceipt(receipt)
@@ -271,4 +270,6 @@ function deserializeDbReceipt(receipt: DbReceipt): void {
   if (receipt.accounts) receipt.accounts = DeSerializeFromJsonString(receipt.accounts)
   if (receipt.appReceiptData) receipt.appReceiptData = DeSerializeFromJsonString(receipt.appReceiptData)
   if (receipt.appliedReceipt) receipt.appliedReceipt = DeSerializeFromJsonString(receipt.appliedReceipt)
+  // globalModification is stored as 0 or 1 in the database, convert it to boolean
+  receipt.globalModification = (receipt.globalModification as unknown as number) === 1
 }

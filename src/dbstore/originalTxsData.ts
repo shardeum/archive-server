@@ -115,7 +115,7 @@ export async function queryOriginalTxsData(
 
 export async function queryOriginalTxDataByTxId(txId: string, timestamp = 0): Promise<OriginalTxData> {
   try {
-    const sql = `SELECT * FROM originalTxsData WHERE txId=?` + (timestamp && ` AND timestamp=?`)
+    const sql = `SELECT * FROM originalTxsData WHERE txId=?` + (timestamp ? ` AND timestamp=?` : '')
     const value = timestamp ? [txId, timestamp] : [txId]
     const originalTxData = (await db.get(sql, value)) as DbOriginalTxData
     if (originalTxData) {
