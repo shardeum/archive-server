@@ -1823,7 +1823,7 @@ export const syncCyclesAndReceiptsData = async (
         await storeReceiptData(downloadedReceipts)
         if (downloadedReceipts.length < MAX_ORIGINAL_TXS_PER_REQUEST) {
           startReceipt += downloadedReceipts.length + 1
-          endReceipt = downloadedReceipts.length + MAX_ORIGINAL_TXS_PER_REQUEST
+          endReceipt += downloadedReceipts.length + MAX_ORIGINAL_TXS_PER_REQUEST
           continue
         }
       } else {
@@ -1848,7 +1848,7 @@ export const syncCyclesAndReceiptsData = async (
         await storeOriginalTxData(downloadedOriginalTxs)
         if (downloadedOriginalTxs.length < MAX_ORIGINAL_TXS_PER_REQUEST) {
           startOriginalTx += downloadedOriginalTxs.length + 1
-          endOriginalTx = downloadedOriginalTxs.length + MAX_ORIGINAL_TXS_PER_REQUEST
+          endOriginalTx += downloadedOriginalTxs.length + MAX_ORIGINAL_TXS_PER_REQUEST
           continue
         }
       } else {
@@ -1879,7 +1879,7 @@ export const syncCyclesAndReceiptsData = async (
         }
         if (cycles.length < MAX_CYCLES_PER_REQUEST) {
           startCycle += cycles.length + 1
-          endCycle = cycles.length + MAX_CYCLES_PER_REQUEST
+          endCycle += cycles.length + MAX_CYCLES_PER_REQUEST
           continue
         }
       } else {

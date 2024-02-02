@@ -114,8 +114,8 @@ export function isEmpty(): boolean {
 type Node = ConsensusNodeInfo | JoinedConsensor
 
 export function addNodes(status: NodeStatus, cycleMarkerJoined: string, nodes: Node[]): void {
-  Logger.mainLogger.debug('Typeof Nodes to add', typeof nodes)
-  Logger.mainLogger.debug('Length of Nodes to add', nodes.length)
+  Logger.mainLogger.debug('Typeof nodes to add', NodeStatus)
+  Logger.mainLogger.debug('Length of nodes to add', nodes.length)
   Logger.mainLogger.debug('Nodes to add', nodes)
   for (const node of nodes) {
     const ipPort = getIpPort(node)
@@ -173,7 +173,7 @@ export function refreshNodes(
   cycleMarkerJoined: string,
   nodes: ConsensusNodeInfo[] | JoinedConsensor[]
 ): void {
-  Logger.mainLogger.debug('Typeof Nodes to refresh', typeof nodes)
+  Logger.mainLogger.debug('Typeof Nodes to refresh', NodeStatus)
   Logger.mainLogger.debug('Length of Nodes to refresh', nodes.length)
   Logger.mainLogger.debug('Nodes to refresh', nodes)
   for (const node of nodes) {
