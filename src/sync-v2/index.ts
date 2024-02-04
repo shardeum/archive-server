@@ -157,9 +157,7 @@ function syncStandbyNodeList(
   return robustQueryForStandbyNodeListHash(activeNodes).andThen(({ value, winningNodes }) =>
     // get full standby list from one of the winning nodes
     getStandbyNodeListFromNode(winningNodes[0], value.standbyNodeListHash).andThen((standbyList) =>
-      verifyStandbyList(standbyList, value.standbyNodeListHash).map(
-        () => [standbyList, value.standbyNodeListHash] as [P2PTypes.JoinTypes.JoinRequest[], hexstring]
-      )
+      okAsync([standbyList, value.standbyNodeListHash] as [P2PTypes.JoinTypes.JoinRequest[], hexstring])
     )
   )
 }

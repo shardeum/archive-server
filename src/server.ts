@@ -251,7 +251,7 @@ async function syncAndStartServer(): Promise<void> {
   let lastStoredCycleCount = await CycleDB.queryCyleCount()
   let lastStoredOriginalTxCount = await OriginalTxDB.queryOriginalTxDataCount()
   // Query the latest cycle record from the database
-  let lastStoredCycleInfo = await CycleDB.queryLatestCycleRecords(1)
+  let lastStoredCycleInfo = (await CycleDB.queryLatestCycleRecords(1))[0]
 
   // Initialize last stored receipt cycle as 0
   let lastStoredReceiptCycle = 0
@@ -293,7 +293,7 @@ async function syncAndStartServer(): Promise<void> {
     Logger.mainLogger.debug('Validating old cycles data!')
 
     // Compare old cycle data with the archiver data
-    const cycleResult = await Data.compareWithOldCyclesData(lastStoredCycleCount)
+    const cycleResult = await Data.compareWithOldCyclesData(lastStoredCycleInfo[0].counter)
 
     // If the cycle data does not match, clear the DB and start again
     if (!cycleResult.success) {
@@ -436,22 +436,19 @@ async function syncAndStartServer(): Promise<void> {
     lastStoredReceiptCount = await ReceiptDB.queryReceiptCount()
     lastStoredOriginalTxCount = await OriginalTxDB.queryOriginalTxDataCount()
     lastStoredCycleCount = await CycleDB.queryCyleCount()
-    lastStoredCycleInfo = await CycleDB.queryLatestCycleRecords(1)
+    lastStoredCycleInfo = (await CycleDB.queryLatestCycleRecords(1))[0]
 
     // Check for any missing data and perform syncing if necessary
-    if (lastStoredCycleCount && lastStoredCycleInfo && lastStoredCycleInfo.length > 0) {
-      if (lastStoredCycleCount - 1 !== lastStoredCycleInfo[0].counter) {
-        throw Error(
-          `The archiver has ${lastStoredCycleCount} and the latest stored cycle is ${lastStoredCycleInfo[0].counter}`
-        )
-      }
-      // The following function also syncs Original-tx data
-      await Data.syncCyclesAndReceiptsData(
-        lastStoredCycleCount,
-        lastStoredReceiptCount,
-        lastStoredOriginalTxCount
+    if (lastStoredCycleCount - 1 !== lastStoredCycleInfo.counter) {
+      throw Error(
+        `The archiver has ${lastStoredCycleCount} and the latest stored cycle is ${lastStoredCycleInfo.counter}`
       )
     }
+    await Data.syncCyclesAndTxsData(
+      lastStoredCycleCount,
+      lastStoredReceiptCount,
+      lastStoredOriginalTxCount
+    )
   } else {
     // Sync all state metadata until no older data is fetched from other archivers
     await syncStateMetaData(State.activeArchivers)

@@ -455,9 +455,7 @@ export const storeReceiptData = async (
         })}\n`
       )
     txDataList.push({ txId, timestamp })
-    for (let j = 0; j < accounts.length; j++) {
-      // eslint-disable-next-line security/detect-object-injection
-      const account = accounts[j]
+    for (const account of accounts) {
       const accObj: Account.AccountCopy = {
         accountId: account.accountId,
         data: account.data,
@@ -466,6 +464,11 @@ export const storeReceiptData = async (
         cycleNumber: cycle,
         isGlobal: account.isGlobal || false,
       }
+      if (account.timestamp !== account.data['timestamp'])
+        Logger.mainLogger.error('Mismatched account timestamp', txId, account.accountId)
+      if (account.hash !== account.data['hash'])
+        Logger.mainLogger.error('Mismatched account hash', txId, account.accountId)
+
       const accountExist = await Account.queryAccountByAccountId(account.accountId)
       if (accountExist) {
         if (accObj.timestamp > accountExist.timestamp) await Account.updateAccount(accObj.accountId, accObj)

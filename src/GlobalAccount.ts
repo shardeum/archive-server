@@ -32,7 +32,7 @@ export function getGlobalNetworkAccount(hash: boolean): object | string {
 
 export function setGlobalNetworkAccount(account: AccountDB.AccountCopy): void {
   cachedGlobalNetworkAccount = rfdc()(account)
-  cachedGlobalNetworkAccountHash = account.data.hash
+  cachedGlobalNetworkAccountHash = account.hash
 }
 
 export const loadGlobalAccounts = async (): Promise<void> => {
@@ -70,25 +70,24 @@ export const syncGlobalAccount = async (): Promise<void> => {
     }
 
     const globalAccsResponse = await robustQuery(filteredArchivers, queryFn, equalFn)
+    Logger.mainLogger.debug('syncGlobalAccount() - globalAccsResponse', globalAccsResponse)
     if (!globalAccsResponse) {
-      Logger.mainLogger.warn('get_globalaccountreport_archiver() - robustResponse is null')
-      throw new Error('get_globalaccountreport_archiver() - robustResponse is null')
+      Logger.mainLogger.warn('() - robustResponse is null')
+      throw new Error('() - robustResponse is null')
     }
     const {
       value: { accounts },
     } = globalAccsResponse
-    /* eslint-disable security/detect-object-injection */
-    for (let i = 0; i < accounts.length; i++) {
-      globalAccountsMap.set(accounts[i].id, {
-        hash: accounts[i].hash,
-        timestamp: accounts[i].timestamp,
-      })
+    for (const { id, hash, timestamp } of accounts) {
+      globalAccountsMap.set(id, { hash, timestamp })
     }
-    /* eslint-enable security/detect-object-injection */
 
     if (globalAccountsMap.has(config.globalNetworkAccount)) {
       const savedNetworkAccount = await AccountDB.queryAccountByAccountId(config.globalNetworkAccount)
-      if (savedNetworkAccount && savedNetworkAccount.hash === cachedGlobalNetworkAccountHash) {
+      if (
+        savedNetworkAccount &&
+        savedNetworkAccount.hash === globalAccountsMap.get(config.globalNetworkAccount).hash
+      ) {
         setGlobalNetworkAccount(savedNetworkAccount)
         return
       }
@@ -96,7 +95,8 @@ export const syncGlobalAccount = async (): Promise<void> => {
       const queryFn = async (node: Node): Promise<any> => {
         return await getJson(`http://${node.ip}:${node.port}/get-network-account?hash=false`)
       }
-      const networkAccResponse = await robustQuery(State.activeArchivers, queryFn)
+      const networkAccResponse = await robustQuery(filteredArchivers, queryFn)
+      Logger.mainLogger.debug('syncGlobalAccount() - networkAccResponse', networkAccResponse)
       if (!networkAccResponse) {
         Logger.mainLogger.warn('get-network-account() - robustResponse is null')
         throw new Error('get-network-account() - robustResponse is null')

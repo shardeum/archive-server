@@ -1725,7 +1725,7 @@ export const syncOriginalTxsByCycle = async (
   }
 }
 
-export const syncCyclesAndReceiptsData = async (
+export const syncCyclesAndTxsData = async (
   lastStoredCycleCount = 0,
   lastStoredReceiptCount = 0,
   lastStoredOriginalTxCount = 0
@@ -2101,30 +2101,46 @@ async function downloadOldCycles(
   }
 
   let savedCycleRecord = cycleToSyncTo
+  const MAX_RETRY_COUNT = 3
+  let retryCount = 0
   while (endCycle > lastStoredCycleCount) {
-    let nextEnd: number = endCycle - MAX_CYCLES_PER_REQUEST
-    if (nextEnd < 0) nextEnd = 0
-    if (nextEnd < lastStoredCycleCount) nextEnd = lastStoredCycleCount
-    Logger.mainLogger.debug(`Getting cycles ${nextEnd} - ${endCycle} ...`)
-    const prevCycles = await fetchCycleRecords(nextEnd, endCycle)
-
-    // If prevCycles is empty, start over
-    if (prevCycles.length < 1) throw new Error('Got empty previous cycles')
+    let startCycle: number = endCycle - MAX_CYCLES_PER_REQUEST
+    if (startCycle < 0) startCycle = 0
+    if (startCycle < lastStoredCycleCount) startCycle = lastStoredCycleCount
+    Logger.mainLogger.debug(`Getting cycles ${startCycle} - ${endCycle} ...`)
+    const res = (await queryFromArchivers(
+      RequestDataType.CYCLE,
+      {
+        start: startCycle,
+        end: endCycle,
+      },
+      QUERY_TIMEOUT_MAX
+    )) as ArchiverCycleResponse
+    if (!res || !res.cycleInfo) {
+      Logger.mainLogger.error(
+        `Can't fetch data from cycle ${startCycle} to cycle ${endCycle}  from archivers`
+      )
+      if (retryCount < MAX_RETRY_COUNT) {
+        retryCount++
+        continue
+      } else {
+        endCycle = startCycle - 1
+        retryCount = 0
+      }
+    }
+    const prevCycles = res.cycleInfo as P2PTypes.CycleCreatorTypes.CycleData[]
     prevCycles.sort((a, b) => (a.counter > b.counter ? -1 : 1))
 
-    // Add prevCycles to our cycle chain
-    const combineCycles = []
+    const combineCycles: P2PTypes.CycleCreatorTypes.CycleData[] = []
     for (const prevCycle of prevCycles) {
-      // Stop saving prevCycles if one of them is invalid
       if (validateCycle(prevCycle, savedCycleRecord) === false) {
         Logger.mainLogger.error(`Record ${prevCycle.counter} failed validation`)
         Logger.mainLogger.debug('fail', prevCycle, savedCycleRecord)
-        break
       }
       savedCycleRecord = prevCycle
       combineCycles.push(prevCycle)
     }
     await storeCycleData(combineCycles)
-    endCycle = nextEnd - 1
+    endCycle = startCycle - 1
   }
 }
