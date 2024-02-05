@@ -43,6 +43,8 @@ const runProgram = async (): Promise<void> => {
     latestVersion: '1.9.0',
     minVersion: '1.9.0',
   }
+  // If there is a config in the listOfChanges that will override the validator config at the network restart, we can add it here
+  // networkAccount.data.listOfChanges.push({ change: { p2p: { minNodes: 150 } }, cycle: 55037 })
 
   const calculatedAccountHash = accountSpecificHash(networkAccount.data)
 
