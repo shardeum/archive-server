@@ -10,7 +10,7 @@ export const initializeDB = async (config: Config): Promise<void> => {
     'CREATE INDEX if not exists `transactions_idx` ON `transactions` (`cycleNumber` DESC, `timestamp` DESC)'
   )
   await db.runCreate(
-    'CREATE TABLE if not exists `transactions_appReceiptId_idx` ON `transactions` (`appReceiptId`)'
+    'CREATE INDEX if not exists `transactions_appReceiptId_idx` ON `transactions` (`appReceiptId`)'
   )
   await db.runCreate(
     'CREATE TABLE if not exists `cycles` (`cycleMarker` TEXT NOT NULL UNIQUE PRIMARY KEY, `counter` NUMBER NOT NULL, `cycleRecord` JSON NOT NULL)'

@@ -114,7 +114,7 @@ export function isEmpty(): boolean {
 type Node = ConsensusNodeInfo | JoinedConsensor
 
 export function addNodes(status: NodeStatus, cycleMarkerJoined: string, nodes: Node[]): void {
-  Logger.mainLogger.debug('Typeof nodes to add', NodeStatus)
+  Logger.mainLogger.debug('Typeof nodes to add', status)
   Logger.mainLogger.debug('Length of nodes to add', nodes.length)
   Logger.mainLogger.debug('Nodes to add', nodes)
   for (const node of nodes) {
