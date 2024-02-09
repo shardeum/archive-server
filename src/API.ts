@@ -299,14 +299,18 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
 
   server.post('/cycleinfo', async (_request: CycleInfoRequest & Request, reply) => {
     const requestData = _request.body
-    const result = validateRequestData(requestData, {
-      start: 'n?',
-      end: 'n?',
-      count: 'n?',
-      download: 'b?',
-      sender: 's',
-      sign: 'o',
-    })
+    const result = validateRequestData(
+      requestData,
+      {
+        start: 'n?',
+        end: 'n?',
+        count: 'n?',
+        download: 'b?',
+        sender: 's',
+        sign: 'o',
+      },
+      true
+    )
     if (!result.success) {
       reply.send(Crypto.sign({ success: false, error: result.error }))
       return
@@ -1216,7 +1220,8 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
 
 export const validateRequestData = (
   data: unknown & { sender: string; sign: Signature },
-  expectedDataType: Record<string, unknown>
+  expectedDataType: Record<string, unknown>,
+  skipArchiverCheck = false
 ): { success: boolean; error?: string } => {
   try {
     let err = Utils.validateTypes(data, expectedDataType)
@@ -1233,7 +1238,7 @@ export const validateRequestData = (
       Logger.mainLogger.error('Data sender publicKey and sign owner key does not match')
       return { success: false, error: 'Data sender publicKey and sign owner key does not match' }
     }
-    if (config.limitToArchiversOnly) {
+    if (!skipArchiverCheck && config.limitToArchiversOnly) {
       // Check if the sender is in the archiver list or is the devPublicKey
       const approvedSender =
         State.activeArchivers.some((archiver) => archiver.publicKey === data.sender) ||

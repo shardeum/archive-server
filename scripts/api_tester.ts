@@ -15,13 +15,16 @@ const devAccount = {
 const ARCHIVER_URL = `http://127.0.0.1:4000`
 
 const data: any = {
-  count: 100,
+  count: 1,
   sender: devAccount.publicKey,
 }
 crypto.signObj(data, devAccount.secretKey, devAccount.publicKey)
 // console.log(data)
 
-fetch(`${ARCHIVER_URL}/cycleinfo`, {
+// Update endpoints name ... totalData / cycleinfo / receipt / account / transaction
+fetch(`${ARCHIVER_URL}/totalData`, {
+  // fetch(`${ARCHIVER_URL}/cycleinfo`, {
+  // fetch(`${ARCHIVER_URL}/receipt`, {
   method: 'post',
   body: JSON.stringify(data),
   headers: { 'Content-Type': 'application/json' },
