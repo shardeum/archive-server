@@ -173,7 +173,7 @@ export function refreshNodes(
   cycleMarkerJoined: string,
   nodes: ConsensusNodeInfo[] | JoinedConsensor[]
 ): void {
-  Logger.mainLogger.debug('Typeof Nodes to refresh', NodeStatus)
+  Logger.mainLogger.debug('Typeof Nodes to refresh', status)
   Logger.mainLogger.debug('Length of Nodes to refresh', nodes.length)
   Logger.mainLogger.debug('Nodes to refresh', nodes)
   for (const node of nodes) {
