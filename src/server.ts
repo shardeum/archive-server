@@ -294,7 +294,7 @@ async function syncAndStartServer(): Promise<void> {
     Logger.mainLogger.debug('Validating old cycles data!')
 
     // Compare old cycle data with the archiver data
-    const cycleResult = await Data.compareWithOldCyclesData(lastStoredCycleInfo[0].counter)
+    const cycleResult = await Data.compareWithOldCyclesData(lastStoredCycleInfo.counter)
 
     // If the cycle data does not match, clear the DB and start again
     if (!cycleResult.success) {
@@ -445,11 +445,7 @@ async function syncAndStartServer(): Promise<void> {
         `The archiver has ${lastStoredCycleCount} and the latest stored cycle is ${lastStoredCycleInfo.counter}`
       )
     }
-    await Data.syncCyclesAndTxsData(
-      lastStoredCycleCount,
-      lastStoredReceiptCount,
-      lastStoredOriginalTxCount
-    )
+    await Data.syncCyclesAndTxsData(lastStoredCycleCount, lastStoredReceiptCount, lastStoredOriginalTxCount)
   } else {
     // Sync all state metadata until no older data is fetched from other archivers
     await syncStateMetaData(State.activeArchivers)
