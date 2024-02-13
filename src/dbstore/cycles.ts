@@ -74,9 +74,9 @@ export async function queryCycleByMarker(marker: string): Promise<Cycle> {
     let cycle: Cycle
     if (dbCycle) {
       cycle = {
-        counter: cycle.counter,
+        counter: dbCycle.counter,
         cycleRecord: DeSerializeFromJsonString(dbCycle.cycleRecord),
-        cycleMarker: cycle.cycleMarker,
+        cycleMarker: dbCycle.cycleMarker,
       }
     }
     if (config.VERBOSE) {
