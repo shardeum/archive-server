@@ -9,8 +9,6 @@ import { startSaving } from '../src/saveConsoleOutput'
 import * as Logger from '../src/Logger'
 import { accountSpecificHash } from '../src/shardeum/calculateAccountHash'
 
-const networkAccountId = '0'.repeat(64)
-
 // Override default config params from config file, env vars, and cli args
 const file = join(process.cwd(), 'archiver-config.json')
 let logDir: string
@@ -34,6 +32,7 @@ const runProgram = async (): Promise<void> => {
   }
   await dbstore.initializeDB(config)
 
+  const networkAccountId = config.globalNetworkAccount
   const networkAccount = (await AccountDB.queryAccountByAccountId(networkAccountId)) as AccountDB.AccountCopy
   console.log('Network account before', networkAccount)
 
