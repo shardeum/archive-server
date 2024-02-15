@@ -77,7 +77,6 @@ export const fromP2PTypesNode = (node: P2PTypes.NodeListTypes.Node): JoinedConse
 // STATE
 
 const list: ConsensusNodeInfo[] = []
-const metadata: Map<string, ConsensusNodeMetadata> = new Map()
 const standbyList: Map<string, ConsensusNodeInfo> = new Map()
 const syncingList: Map<string, ConsensusNodeInfo> = new Map()
 const activeList: Map<string, ConsensusNodeInfo> = new Map()
@@ -113,32 +112,37 @@ export function isEmpty(): boolean {
 
 type Node = ConsensusNodeInfo | JoinedConsensor
 
-export function addNodes(status: NodeStatus, cycleMarkerJoined: string, nodes: Node[]): void {
-  Logger.mainLogger.debug('Typeof nodes to add', status)
-  Logger.mainLogger.debug('Length of nodes to add', nodes.length)
-  Logger.mainLogger.debug('Nodes to add', nodes)
+export function addNodes(status: NodeStatus, nodes: Node[]): void {
+  if (nodes.length === 0) return
+  Logger.mainLogger.debug(`Adding ${status} nodes to the list`, nodes.length, nodes)
   for (const node of nodes) {
     const ipPort = getIpPort(node)
 
     // If node not in lists, add it
     // eslint-disable-next-line security/detect-object-injection
     if (byPublicKey[node.publicKey] === undefined && byIpPort[ipPort] === undefined) {
-      Logger.mainLogger.debug('adding new node', node.publicKey)
       list.push(node)
+      const key = node.publicKey
       switch (status) {
         case NodeStatus.SYNCING:
+          if (standbyList.has(key)) standbyList.delete(key)
+          if (activeList.has(key)) {
+            activeList.delete(key)
+            activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey === key)
+          }
+          if (syncingList.has(key)) break
           syncingList.set(node.publicKey, node)
           break
         case NodeStatus.ACTIVE:
+          if (standbyList.has(key)) standbyList.delete(key)
+          if (syncingList.has(key)) syncingList.delete(key)
+          if (activeList.has(key)) break
           activeList.set(node.publicKey, node)
           Utils.insertSorted(activeListByIdSorted, node, byAscendingNodeId)
           // Logger.mainLogger.debug(
           //   'activeListByIdSorted',
           //   activeListByIdSorted.map((node) => node.id)
           // )
-          break
-        case NodeStatus.STANDBY:
-          standbyList.set(node.publicKey, node)
           break
       }
       /* eslint-disable security/detect-object-injection */
@@ -156,11 +160,6 @@ export function addNodes(status: NodeStatus, cycleMarkerJoined: string, nodes: N
         byId[node.id] = node
       }
     }
-
-    // Update its metadata
-    metadata.set(node.publicKey, {
-      cycleMarkerJoined,
-    })
   }
 
   // Set updated time for cache
@@ -168,14 +167,9 @@ export function addNodes(status: NodeStatus, cycleMarkerJoined: string, nodes: N
     realUpdatedTimes.set('/nodelist', Date.now())
   }
 }
-export function refreshNodes(
-  status: NodeStatus,
-  cycleMarkerJoined: string,
-  nodes: ConsensusNodeInfo[] | JoinedConsensor[]
-): void {
-  Logger.mainLogger.debug('Typeof Nodes to refresh', status)
-  Logger.mainLogger.debug('Length of Nodes to refresh', nodes.length)
-  Logger.mainLogger.debug('Nodes to refresh', nodes)
+export function refreshNodes(status: NodeStatus, nodes: ConsensusNodeInfo[] | JoinedConsensor[]): void {
+  if (nodes.length === 0) return
+  Logger.mainLogger.debug('Refreshing nodes', nodes.length, nodes)
   for (const node of nodes) {
     const ipPort = getIpPort(node)
 
@@ -195,9 +189,6 @@ export function refreshNodes(
           //   'activeListByIdSorted',
           //   activeListByIdSorted.map((node) => node.id)
           // )
-          break
-        case NodeStatus.STANDBY:
-          standbyList.set(node.publicKey, node)
           break
       }
 
@@ -263,6 +254,13 @@ export function removeNodes(publicKeys: string[]): string[] {
   }
 
   return [...keysToDelete.keys()]
+}
+
+export const addStandbyNodes = (nodes: ConsensusNodeInfo[]): void => {
+  for (const node of nodes) {
+    if (standbyList.has(node.publicKey)) continue
+    standbyList.set(node.publicKey, node)
+  }
 }
 
 export const removeStandbyNodes = (publicKeys: string[]): void => {
@@ -427,7 +425,6 @@ export function changeNodeListInRestore(): void {
 export function clearNodeListCache(): void {
   try {
     cache.clear()
-    metadata.clear()
     activeList.clear()
     syncingList.clear()
     realUpdatedTimes.clear()

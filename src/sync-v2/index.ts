@@ -99,9 +99,9 @@ export function syncV2(
               ip: joinRequest.nodeInfo.externalIp,
               port: joinRequest.nodeInfo.externalPort,
             }))
-            NodeList.addNodes(NodeList.NodeStatus.SYNCING, cycleMarker, syncingNodeList)
-            NodeList.addNodes(NodeList.NodeStatus.ACTIVE, cycleMarker, activeNodeList)
-            NodeList.addNodes(NodeList.NodeStatus.STANDBY, cycleMarker, standbyNodeList)
+            NodeList.addNodes(NodeList.NodeStatus.SYNCING, syncingNodeList)
+            NodeList.addNodes(NodeList.NodeStatus.ACTIVE, activeNodeList)
+            NodeList.addStandbyNodes(standbyNodeList)
 
             // return a cycle that we'll store in the database
             return okAsync({

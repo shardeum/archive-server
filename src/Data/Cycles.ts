@@ -225,7 +225,6 @@ export interface JoinedConsensor extends P2PNode {
 
 function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   const {
-    // lost,  (not used)
     joinedConsensors,
     activatedPublicKeys,
     removed,
@@ -237,7 +236,7 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
     refreshedArchivers,
     standbyAdd,
     standbyRemove,
-    counter,
+    lostAfterSelection,
   } = cycle
 
   const consensorInfos = joinedConsensors.map((jc) => ({
@@ -254,11 +253,11 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
     id: jc.id,
   }))
 
-  NodeList.addNodes(NodeList.NodeStatus.SYNCING, cycle.marker, consensorInfos)
+  NodeList.addNodes(NodeList.NodeStatus.SYNCING, consensorInfos)
 
   NodeList.setStatus(NodeList.NodeStatus.ACTIVE, activatedPublicKeys)
 
-  NodeList.refreshNodes(NodeList.NodeStatus.ACTIVE, cycle.marker, refreshedConsensorInfos)
+  NodeList.refreshNodes(NodeList.NodeStatus.ACTIVE, refreshedConsensorInfos)
 
   if (standbyAdd.length > 0) {
     const standbyNodeList: NodeList.ConsensusNodeInfo[] = standbyAdd.map((joinRequest) => ({
@@ -266,7 +265,7 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
       ip: joinRequest.nodeInfo.externalIp,
       port: joinRequest.nodeInfo.externalPort,
     }))
-    NodeList.addNodes(NodeList.NodeStatus.STANDBY, cycle.marker, standbyNodeList)
+    NodeList.addStandbyNodes(standbyNodeList)
   }
 
   if (standbyRemove.length > 0) {
@@ -317,6 +316,15 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
     return keys
   }, [])
   NodeList.removeNodes(apoptosizedPks)
+
+  const lostAfterSelectionPks = lostAfterSelection.reduce((keys: string[], id) => {
+    const nodeInfo = NodeList.getNodeInfoById(id)
+    if (nodeInfo) {
+      keys.push(nodeInfo.publicKey)
+    }
+    return keys
+  }, [])
+  NodeList.removeNodes(lostAfterSelectionPks)
 
   for (const joinedArchiver of joinedArchivers) {
     const foundArchiver = State.activeArchivers.find((a) => a.publicKey === joinedArchiver.publicKey)

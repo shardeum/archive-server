@@ -142,7 +142,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       Data.initSocketClient(firstNode)
 
       // Add first node to NodeList
-      NodeList.addNodes(NodeList.NodeStatus.SYNCING, 'bogus', [firstNode])
+      NodeList.addNodes(NodeList.NodeStatus.SYNCING, [firstNode])
 
       // Set first node as dataSender
       const firstDataSender: Data.DataSender = {

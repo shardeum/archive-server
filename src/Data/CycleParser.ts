@@ -174,7 +174,7 @@ export function applyNodeListChange(change: Change): void {
 
     for (const cycleJoined in nodesBycycleJoined) {
       // eslint-disable-next-line security/detect-object-injection
-      NodeList.addNodes(NodeList.NodeStatus.SYNCING, cycleJoined, nodesBycycleJoined[cycleJoined])
+      NodeList.addNodes(NodeList.NodeStatus.SYNCING, nodesBycycleJoined[cycleJoined])
     }
   }
   // This is not needed though since no removed nodes are ever added to this list
