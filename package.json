@@ -1,6 +1,6 @@
 {
   "name": "@shardus/archiver",
-  "version": "3.4.9",
+  "version": "3.4.10",
   "engines": {
     "node": "18.16.1"
   },
