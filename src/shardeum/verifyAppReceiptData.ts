@@ -22,7 +22,7 @@ export const verifyAppReceiptData = async (
   }
   result = { valid: true, needToSave: false }
   const receiptExist = await Receipt.queryReceiptByReceiptId(tx.txId)
-  if (receiptExist) {
+  if (receiptExist && receiptExist.timestamp !== receipt.tx.timestamp) {
     const existingShardeumReceipt = receiptExist.appReceiptData.data as ShardeumReceipt
     /**
      * E: existing receipt, N: new receipt, X: any value
@@ -40,16 +40,28 @@ export const verifyAppReceiptData = async (
     if (existingShardeumReceipt.readableReceipt.status === 0) {
       if (newShardeumReceipt.readableReceipt.status === 1) {
         if (existingShardeumReceipt.amountSpent !== '0') {
-          Logger.mainLogger.error(`Success and failed receipts with gas charged`, receiptExist, receipt)
+          Logger.mainLogger.error(
+            `Success and failed receipts with gas charged`,
+            JSON.stringify(receiptExist),
+            JSON.stringify(receipt)
+          )
         } else result = { valid: true, needToSave: true }
       } else {
         if (existingShardeumReceipt.amountSpent !== '0' && newShardeumReceipt.amountSpent !== '0') {
-          Logger.mainLogger.error(`Both failed receipts with gas charged`, receiptExist, receipt)
+          Logger.mainLogger.error(
+            `Both failed receipts with gas charged`,
+            JSON.stringify(receiptExist),
+            JSON.stringify(receipt)
+          )
         } else result = { valid: true, needToSave: true }
       }
     } else {
       if (newShardeumReceipt.readableReceipt.status === 1) {
-        Logger.mainLogger.error(`Duplicate success receipt`, receiptExist, receipt)
+        Logger.mainLogger.error(
+          `Duplicate success receipt`,
+          JSON.stringify(receiptExist),
+          JSON.stringify(receipt)
+        )
       } else result = { valid: true, needToSave: true }
     }
   } else result = { valid: true, needToSave: true }
