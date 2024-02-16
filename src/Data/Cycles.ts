@@ -382,6 +382,8 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
       removedAndApopedNodes.shift()
     }
   }
+  NodeList.realUpdatedTimes.set('/nodelist', Date.now())
+  NodeList.realUpdatedTimes.set('/full-nodelist', Date.now())
   // To pick nodes only when the archiver is active
   if (State.isActive) {
     subscribeConsensorsByConsensusRadius()

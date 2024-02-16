@@ -40,53 +40,6 @@ export const MAX_BETWEEN_CYCLES_PER_REQUEST = 100
 let reachabilityAllowed = true
 
 export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, ServerResponse>): void {
-  /**
-   * Check the cache for the node list, if it's hot, return it. Otherwise,
-   * rebuild the cache and return the node list.
-   */
-  const getCachedNodeList = (): NodeList.SignedNodeList => {
-    const cacheUpdatedTime = NodeList.cacheUpdatedTimes.get('/nodelist')
-    const realUpdatedTime = NodeList.realUpdatedTimes.get('/nodelist')
-
-    const byAscendingNodeId = (a: NodeList.ConsensusNodeInfo, b: NodeList.ConsensusNodeInfo): number =>
-      a.id > b.id ? 1 : -1
-    const bucketCacheKey = (index: number): string => `/nodelist/${index}`
-
-    if (cacheUpdatedTime && realUpdatedTime && cacheUpdatedTime > realUpdatedTime) {
-      // cache is hot, send cache
-
-      const randomIndex = Math.floor(Math.random() * config.N_RANDOM_NODELIST_BUCKETS)
-      const cachedNodeList = NodeList.cache.get(bucketCacheKey(randomIndex))
-      return cachedNodeList
-    }
-
-    // cache is cold, remake cache
-    const nodeCount = Math.min(config.N_NODELIST, NodeList.getActiveNodeCount())
-
-    for (let index = 0; index < config.N_RANDOM_NODELIST_BUCKETS; index++) {
-      // If we dont have any active nodes, send back the first node in our list
-      const nodeList =
-        nodeCount < 1 ? NodeList.getList().slice(0, 1) : NodeList.getRandomActiveNodes(nodeCount)
-      const sortedNodeList = [...nodeList].sort(byAscendingNodeId)
-      const signedSortedNodeList = Crypto.sign({
-        nodeList: sortedNodeList,
-      })
-
-      // Update cache
-      NodeList.cache.set(bucketCacheKey(index), signedSortedNodeList)
-    }
-
-    // Update cache timestamps
-    if (NodeList.realUpdatedTimes.get('/nodelist') === undefined) {
-      // This gets set when the list of nodes changes. For the first time, set to a large value
-      NodeList.realUpdatedTimes.set('/nodelist', Infinity)
-    }
-    NodeList.cacheUpdatedTimes.set('/nodelist', Date.now())
-
-    const nodeList = NodeList.cache.get(bucketCacheKey(0))
-    return nodeList
-  }
-
   type Request = FastifyRequest<{
     Body: {
       sender: string
@@ -192,7 +145,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     } else {
       // Note, this is doing the same thing as GET /nodelist. However, it has been kept for backwards
       // compatibility.
-      const res = getCachedNodeList()
+      const res = NodeList.getCachedNodeList()
       reply.send(res)
     }
     profilerInstance.profileSectionEnd('POST_nodelist')
@@ -202,10 +155,9 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     profilerInstance.profileSectionStart('GET_nodelist')
     nestedCountersInstance.countEvent('consensor', 'GET_nodelist')
 
-    const nodeList = getCachedNodeList()
+    const res = NodeList.getCachedNodeList()
+    reply.send(res)
     profilerInstance.profileSectionEnd('GET_nodelist')
-
-    reply.send(nodeList)
   })
 
   type FullNodeListRequest = FastifyRequest<{
@@ -226,18 +178,15 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     (_request: FullNodeListRequest, reply) => {
       profilerInstance.profileSectionStart('FULL_nodelist')
       nestedCountersInstance.countEvent('consensor', 'FULL_nodelist')
-      const { activeOnly, syncingOnly, standbyOnly } = _request.query
-      const activeNodeList = NodeList.getActiveList()
-      const syncingNodeList = NodeList.getSyncingList()
-      if (activeOnly === 'true') reply.send(Crypto.sign({ nodeList: activeNodeList }))
-      else if (syncingOnly === 'true') reply.send(Crypto.sign({ nodeList: syncingNodeList }))
-      else if (standbyOnly === 'true') {
-        const standbyNodeList = NodeList.getStandbyList()
-        reply.send(Crypto.sign({ nodeList: standbyNodeList }))
-      } else {
-        const fullNodeList = activeNodeList.concat(syncingNodeList)
-        reply.send(Crypto.sign({ nodeList: fullNodeList }))
-      }
+      const query = _request.query
+      let activeOnly = false
+      let syncingOnly = false
+      let standbyOnly = false
+      if (query.activeOnly === 'true') activeOnly = true
+      if (query.syncingOnly === 'true') syncingOnly = true
+      if (query.standbyOnly === 'true') standbyOnly = true
+      const res = NodeList.getCachedFullNodeList(activeOnly, syncingOnly, standbyOnly)
+      reply.send(res)
       profilerInstance.profileSectionEnd('FULL_nodelist')
     }
   )

@@ -61,8 +61,8 @@ let config: Config = {
   DATASENDER_TIMEOUT: 1000 * 60 * 5,
   RATE_LIMIT: 100, // 100 req per second,
   N_NODE_REJECT_PERCENT: 5, // Percentage of old nodes to remove from nodelist
-  N_NODELIST: 30, // number of active node list GET /nodelist should emit but if the total active nodelist is less than said value it will emit all the node list.
-  N_RANDOM_NODELIST_BUCKETS: 10,
+  N_NODELIST: 10, // number of active node list GET /nodelist should emit but if the total active nodelist is less than said value it will emit all the node list.
+  N_RANDOM_NODELIST_BUCKETS: 100,
   RECEIPT_CONFIRMATIONS: 5,
   STATISTICS: {
     save: true,

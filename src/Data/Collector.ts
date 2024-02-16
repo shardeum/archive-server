@@ -82,11 +82,11 @@ const isReceiptRobust = async (
       return null
     }
   }
-  // Use only random 3 x Receipt Confirmations number of nodes from the execution group to reduce the number of nodes to query in large execution groups
+  // Use only random 5 x Receipt Confirmations number of nodes from the execution group to reduce the number of nodes to query in large execution groups
   const filteredExecutionGroupNodes = Utils.getRandomItemFromArr(
     executionGroupNodes,
     0,
-    3 * config.RECEIPT_CONFIRMATIONS
+    5 * config.RECEIPT_CONFIRMATIONS
   )
   const isReceiptEqual = (receipt1: any, receipt2: any): boolean => {
     if (!receipt1 || !receipt2) return false
