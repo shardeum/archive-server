@@ -557,6 +557,7 @@ function updateShardValues(
 
   // console.log('cycleShardData', cycleShardData.cycleNumber)
   // console.dir(cycleShardData, { depth: null })
+  Logger.mainLogger.debug('cycleShardData', cycleShardData.cycleNumber, cycleShardData.nodes)
   shardValuesByCycle.set(cycleShardData.cycleNumber, cycleShardData)
   if (shardValuesByCycle.size > CYCLE_SHARD_STORAGE_LIMIT) {
     shardValuesByCycle.delete(shardValuesByCycle.keys().next().value)

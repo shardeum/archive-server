@@ -39,30 +39,31 @@ export const verifyAppReceiptData = async (
     // Added only logging of unexpected cases and needToSave = true cases ( check `else` condition )
     if (existingShardeumReceipt.readableReceipt.status === 0) {
       if (newShardeumReceipt.readableReceipt.status === 1) {
-        if (existingShardeumReceipt.amountSpent !== '0') {
+        if (existingShardeumReceipt.amountSpent !== '0x0') {
           Logger.mainLogger.error(
             `Success and failed receipts with gas charged`,
             JSON.stringify(receiptExist),
             JSON.stringify(receipt)
           )
-        } else result = { valid: true, needToSave: true }
+        } else result = { valid: true, needToSave: true } // Success receipt
       } else {
-        if (existingShardeumReceipt.amountSpent !== '0' && newShardeumReceipt.amountSpent !== '0') {
+        if (existingShardeumReceipt.amountSpent !== '0x0' && newShardeumReceipt.amountSpent !== '0x0') {
           Logger.mainLogger.error(
             `Both failed receipts with gas charged`,
             JSON.stringify(receiptExist),
             JSON.stringify(receipt)
           )
-        } else result = { valid: true, needToSave: true }
+        } else if (newShardeumReceipt.amountSpent !== '0x0') {
+          // Failed receipt with gas charged
+          result = { valid: true, needToSave: true }
+        }
       }
-    } else {
-      if (newShardeumReceipt.readableReceipt.status === 1) {
-        Logger.mainLogger.error(
-          `Duplicate success receipt`,
-          JSON.stringify(receiptExist),
-          JSON.stringify(receipt)
-        )
-      } else result = { valid: true, needToSave: true }
+    } else if (newShardeumReceipt.readableReceipt.status === 1) {
+      Logger.mainLogger.error(
+        `Duplicate success receipt`,
+        JSON.stringify(receiptExist),
+        JSON.stringify(receipt)
+      )
     }
   } else result = { valid: true, needToSave: true }
   if (globalModification && config.skipGlobalTxReceiptVerification) return { valid: true, needToSave: true }

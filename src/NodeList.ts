@@ -306,9 +306,9 @@ export function getList(): ConsensusNodeInfo[] {
   return list
 }
 
-export function getActiveList(): ConsensusNodeInfo[] {
-  // return [...activeList.values()]
-  return activeListByIdSorted
+export function getActiveList(id_sorted = true): ConsensusNodeInfo[] {
+  if (id_sorted) return activeListByIdSorted
+  return [...activeList.values()]
 }
 
 export function getActiveNodeCount(): number {
@@ -376,7 +376,7 @@ export const getCachedFullNodeList = (
   }
 
   // cache is cold, remake cache
-  const activeNodeList = getActiveList()
+  const activeNodeList = getActiveList(false)
   const syncingNodeList = getSyncingList()
   const standbyNodeList = getStandbyList()
   const activeSyncingNodeList = activeNodeList.concat(syncingNodeList) // active + syncing

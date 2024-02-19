@@ -241,7 +241,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
         }
         // Clear senders contactTimeout, if it has one
         if (sender.contactTimeout) {
-          Logger.mainLogger.debug('Clearing contact timeout.')
+          if (config.VERBOSE) Logger.mainLogger.debug('Clearing contact timeout.')
           clearTimeout(sender.contactTimeout)
           sender.contactTimeout = null
           nestedCountersInstance.countEvent('archiver', 'clear_contact_timeout')
@@ -528,7 +528,7 @@ export function createContactTimeout(
   ms = 0
 ): NodeJS.Timeout {
   if (!ms) ms = 15 * 1000 // Change contact timeout to 15s for now
-  Logger.mainLogger.debug('Created contact timeout: ' + ms, `for ${publicKey}`)
+  if (config.VERBOSE) Logger.mainLogger.debug('Created contact timeout: ' + ms, `for ${publicKey}`)
   nestedCountersInstance.countEvent('archiver', 'contact_timeout_created')
   return setTimeout(() => {
     // Logger.mainLogger.debug('nestedCountersInstance', nestedCountersInstance)

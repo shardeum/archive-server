@@ -78,7 +78,7 @@ export function syncV2(
             const syncingNodeList: NodeList.ConsensusNodeInfo[] = []
             const activeNodeList: NodeList.ConsensusNodeInfo[] = []
             for (const node of validatorList) {
-              if (node.status === 'syncing') {
+              if (node.status === 'selected' || node.status === 'syncing' || node.status === 'ready') {
                 syncingNodeList.push({
                   publicKey: node.publicKey,
                   ip: node.externalIp,
