@@ -20,6 +20,17 @@ export const verifyAppReceiptData = async (
     Logger.mainLogger.error(`appReceiptData missing amountSpent or readableReceipt`)
     return result
   }
+  if (
+    newShardeumReceipt.amountSpent === '0x0' &&
+    newShardeumReceipt.readableReceipt.status === 0 &&
+    receipt.accounts.length > 0
+  ) {
+    Logger.mainLogger.error(
+      `The receipt has 0 amountSpent and status 0 but has status updated accounts!`,
+      receipt.tx.txId,
+      receipt.cycle
+    )
+  }
   result = { valid: true, needToSave: false }
   const receiptExist = await Receipt.queryReceiptByReceiptId(tx.txId)
   if (receiptExist && receiptExist.timestamp !== receipt.tx.timestamp) {
