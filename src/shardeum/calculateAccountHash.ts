@@ -84,7 +84,7 @@ export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
       const calculatedAccountHash = accountSpecificHash(account.data)
       const indexOfAccount = receipt.appliedReceipt.appliedVote.account_id.indexOf(account.accountId)
       if (indexOfAccount === -1) {
-        Logger.mainLogger.error('Account not found', account.data.accountId)
+        Logger.mainLogger.error('Account not found', account.accountId, receipt.tx.txId, receipt.cycle)
         return false
       }
       const expectedAccountHash = receipt.appliedReceipt.appliedVote.account_state_hash_after[indexOfAccount]
