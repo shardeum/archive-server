@@ -406,7 +406,7 @@ export const storeReceiptData = async (
     }
     receiptsInValidationMap.set(txId, timestamp)
     if (!validateReceiptData(receipt)) {
-      Logger.mainLogger.error('Invalid receipt: Validation failed', txId, receipt.cycle)
+      Logger.mainLogger.error('Invalid receipt: Validation failed', txId, receipt.cycle, timestamp)
       receiptsInValidationMap.delete(txId)
       continue
     }
@@ -415,21 +415,31 @@ export const storeReceiptData = async (
       if (config.verifyAppReceiptData) {
         const { valid, needToSave } = await verifyAppReceiptData(receipt)
         if (!valid)
-          Logger.mainLogger.error('Invalid receipt: App Receipt Verification failed', txId, receipt.cycle)
+          Logger.mainLogger.error(
+            'Invalid receipt: App Receipt Verification failed',
+            txId,
+            receipt.cycle,
+            timestamp
+          )
         if (!needToSave) {
-          Logger.mainLogger.error('Valid receipt: but no need to save', txId, receipt.cycle)
+          Logger.mainLogger.error('Valid receipt: but no need to save', txId, receipt.cycle, timestamp)
           receiptsInValidationMap.delete(txId)
           continue
         }
       }
       if (config.verifyAccountData && !verifyAccountHash(receipt)) {
-        Logger.mainLogger.error('Invalid receipt: Account Verification failed', txId, receipt.cycle)
+        Logger.mainLogger.error(
+          'Invalid receipt: Account Verification failed',
+          txId,
+          receipt.cycle,
+          timestamp
+        )
         receiptsInValidationMap.delete(txId)
         continue
       }
       const { success, newReceipt } = await verifyReceiptData(receipt)
       if (!success) {
-        Logger.mainLogger.error('Invalid receipt: Verification failed', txId, receipt.cycle)
+        Logger.mainLogger.error('Invalid receipt: Verification failed', txId, receipt.cycle, timestamp)
         receiptsInValidationMap.delete(txId)
         continue
       }

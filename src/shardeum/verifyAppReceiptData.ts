@@ -28,7 +28,8 @@ export const verifyAppReceiptData = async (
     Logger.mainLogger.error(
       `The receipt has 0 amountSpent and status 0 but has state updated accounts!`,
       receipt.tx.txId,
-      receipt.cycle
+      receipt.cycle,
+      receipt.tx.timestamp
     )
   }
   result = { valid: true, needToSave: false }

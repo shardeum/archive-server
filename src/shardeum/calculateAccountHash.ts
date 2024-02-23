@@ -84,13 +84,25 @@ export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
       const calculatedAccountHash = accountSpecificHash(account.data)
       const indexOfAccount = receipt.appliedReceipt.appliedVote.account_id.indexOf(account.accountId)
       if (indexOfAccount === -1) {
-        Logger.mainLogger.error('Account not found', account.accountId, receipt.tx.txId, receipt.cycle)
+        Logger.mainLogger.error(
+          'Account not found',
+          account.accountId,
+          receipt.tx.txId,
+          receipt.cycle,
+          receipt.tx.timestamp
+        )
         return false
       }
       const expectedAccountHash = receipt.appliedReceipt.appliedVote.account_state_hash_after[indexOfAccount]
       if (calculatedAccountHash !== expectedAccountHash) {
-        Logger.mainLogger.error('Account hash does not match', account.data.accountId)
-        return false // return false if any account hash does not match
+        Logger.mainLogger.error(
+          'Account hash does not match',
+          account.accountId,
+          receipt.tx.txId,
+          receipt.cycle,
+          receipt.tx.timestamp
+        )
+        return false
       }
     }
     return true
