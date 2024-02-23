@@ -1763,10 +1763,6 @@ class ShardFunctions {
       return results
     }
 
-    //TODO found a bug here. the consensus radius needs to hold one more node!!! (update: it appears this bug has been fixed when
-    //     scanAmount became radius*2 + 1 instead of radius*2 in older commented out calculations)
-    //     could write test code to validate this is fixed for 0-n active nodes.
-
     let scanIndex = scanStart
     for (let i = 0; i < scanAmount; i++) {
       scanCount++
