@@ -351,7 +351,7 @@ export const getCachedNodeList = (): SignedNodeList => {
   // Update cache timestamps
   if (realUpdatedTimes.get('/nodelist') === undefined) {
     // This gets set when the list of nodes changes. For the first time, set to a large value
-    realUpdatedTimes.set('/nodelist', Infinity)
+    realUpdatedTimes.set('/nodelist', Date.now())
   }
   cacheUpdatedTimes.set('/nodelist', Date.now())
 
@@ -388,7 +388,7 @@ export const getCachedFullNodeList = (
   // Update cache timestamps
   if (realUpdatedTimes.get('/full-nodelist') === undefined) {
     // This gets set when the list of nodes changes. For the first time, set to a large value
-    realUpdatedTimes.set('/full-nodelist', Infinity)
+    realUpdatedTimes.set('/full-nodelist', Date.now())
   }
   cacheUpdatedTimes.set('/full-nodelist', Date.now())
 
