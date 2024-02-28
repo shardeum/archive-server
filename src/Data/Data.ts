@@ -2053,21 +2053,21 @@ export async function compareWithOldReceiptsData(lastStoredReceiptCycle = 0): Pr
 
 export async function compareWithOldCyclesData(lastCycleCounter = 0): Promise<CompareResponse> {
   const numberOfCyclesTocompare = 10
+  const start = lastCycleCounter - numberOfCyclesTocompare
+  const end = lastCycleCounter
   const response = (await queryFromArchivers(
     RequestDataType.CYCLE,
     {
-      start: lastCycleCounter - numberOfCyclesTocompare,
-      end: lastCycleCounter - 1,
+      start,
+      end,
     },
     QUERY_TIMEOUT_MAX
   )) as ArchiverCycleResponse
   if (!response && !response.cycleInfo) {
-    throw Error(
-      `Can't fetch data from cycle ${lastCycleCounter - 10} to cycle ${lastCycleCounter - 1}  from archivers`
-    )
+    throw Error(`Can't fetch data from cycle ${start} to cycle ${end}  from archivers`)
   }
   const downloadedCycles = response.cycleInfo
-  const oldCycles = await CycleDB.queryCycleRecordsBetween(lastCycleCounter - 10, lastCycleCounter + 1)
+  const oldCycles = await CycleDB.queryCycleRecordsBetween(start, end)
   let success = false
   let matchedCycle = 0
   for (let i = 0; i < downloadedCycles.length; i++) {
@@ -2076,7 +2076,7 @@ export async function compareWithOldCyclesData(lastCycleCounter = 0): Promise<Co
     // eslint-disable-next-line security/detect-object-injection
     const oldCycle = oldCycles[i]
     if (!downloadedCycle || !oldCycle || JSON.stringify(downloadedCycle) !== JSON.stringify(oldCycle)) {
-      console.log(downloadedCycle, oldCycle)
+      console.log('Mismatched cycle Number', downloadedCycle.counter, oldCycle.counter)
       return {
         success,
         matchedCycle,
