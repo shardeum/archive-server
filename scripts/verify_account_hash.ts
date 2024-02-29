@@ -10,11 +10,9 @@ import * as Logger from '../src/Logger'
 import { AccountType, fixAccountUint8Arrays, accountSpecificHash } from '../src/shardeum/calculateAccountHash'
 
 const updateHash = false
-
-// Override default config params from config file, env vars, and cli args
-const file = join(process.cwd(), 'archiver-config.json')
-let logDir: string
 const runProgram = async (): Promise<void> => {
+  // Override default config params from config file, env vars, and cli args
+  const file = join(process.cwd(), 'archiver-config.json')
   overrideDefaultConfig(file)
   // Set crypto hash keys from config
   const hashKey = config.ARCHIVER_HASH_KEY
@@ -25,7 +23,7 @@ const runProgram = async (): Promise<void> => {
   } catch (err) {
     console.log('Failed to parse archiver log file:', err)
   }
-  logDir = `${config.ARCHIVER_LOGS}/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
+  const logDir = `${config.ARCHIVER_LOGS}/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
   const baseDir = '.'
   logsConfig.dir = logDir
   Logger.initLogger(baseDir, logsConfig)

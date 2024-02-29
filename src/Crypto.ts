@@ -34,7 +34,7 @@ export interface TaggedMessage extends TaggedObject {
 const curvePublicKeys: Map<publicKey, curvePublicKey> = new Map()
 const sharedKeys: Map<publicKey, sharedKey> = new Map()
 
-function getOrCreateCurvePk(pk: publicKey): curvePublicKey {
+export function getOrCreateCurvePk(pk: publicKey): curvePublicKey {
   let curvePk = curvePublicKeys.get(pk)
   if (!curvePk) {
     curvePk = core.convertPkToCurve(pk)

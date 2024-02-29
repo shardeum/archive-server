@@ -9,10 +9,27 @@ import { startSaving } from '../src/saveConsoleOutput'
 import * as Logger from '../src/Logger'
 import { P2P } from '@shardus/types'
 
-// Override default config params from config file, env vars, and cli args
-const file = join(process.cwd(), 'archiver-config.json')
-let logDir: string
+const archiversAtShutdown = [
+  {
+    ip: '72.14.186.172',
+    port: 4000,
+    publicKey: '7af699dd711074eb96a8d1103e32b589e511613ebb0c6a789a9e8791b2b05f34',
+  },
+  {
+    ip: '50.116.36.114',
+    port: 4000,
+    publicKey: '2db7c949632d26b87d7e7a5a4ad41c306f63ee972655121a37c5e4f52b00a542',
+  },
+  {
+    ip: '192.155.85.143',
+    port: 4000,
+    publicKey: 'f8452228fa67578d6957392858fbbe3545ab98dbbc277e9b8b9f7a0f5177ca36',
+  },
+]
+
 const runProgram = async (): Promise<void> => {
+  // Override default config params from config file, env vars, and cli args
+  const file = join(process.cwd(), 'archiver-config.json')
   overrideDefaultConfig(file)
   // Set crypto hash keys from config
   const hashKey = config.ARCHIVER_HASH_KEY
@@ -23,7 +40,7 @@ const runProgram = async (): Promise<void> => {
   } catch (err) {
     console.log('Failed to parse archiver log file:', err)
   }
-  logDir = `${config.ARCHIVER_LOGS}/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
+  const logDir = `${config.ARCHIVER_LOGS}/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
   const baseDir = '.'
   logsConfig.dir = logDir
   Logger.initLogger(baseDir, logsConfig)
@@ -40,26 +57,9 @@ const runProgram = async (): Promise<void> => {
     counter: latestCycleRecord.counter + 1,
     mode: 'shutdown' as P2P.ModesTypes.Record['mode'],
     removed: ['all'],
-    archiversAtShutdown: [
-      {
-        curvePk: '363afebb8cca474bd4e3c29d0109ad068736b7802c34ed8b7038cd6a95bb1e24',
-        ip: '127.0.0.1',
-        port: 4000,
-        publicKey: '758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3',
-      },
-      {
-        curvePk: '478d2d552c3007c35367e27f1bd385d293d6b9c20019d414870bf523dfa1297f',
-        ip: '127.0.0.1',
-        port: 4001,
-        publicKey: 'e8a5c26b9e2c3c31eb7c7d73eaed9484374c16d983ce95f3ab18a62521964a94',
-      },
-      {
-        curvePk: '903115c5665346df730e85a828be46c5ae8af68ddc5bc6430b63d599f4dce151',
-        ip: '127.0.0.1',
-        port: 4002,
-        publicKey: '9426b64e675cad739d69526bf7e27f3f304a8a03dca508a9180f01e9269ce447',
-      },
-    ],
+    archiversAtShutdown: archiversAtShutdown.map((archiver) => {
+      return { ...archiver, curvePk: Crypto.getOrCreateCurvePk(archiver.publicKey) }
+    }),
     lostArchivers: [],
     refutedArchivers: [],
     removedArchivers: [],
