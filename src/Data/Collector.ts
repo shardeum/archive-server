@@ -14,6 +14,7 @@ import {
 } from './Data'
 import { config } from '../Config'
 import * as Logger from '../Logger'
+import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
 import { getCurrentCycleCounter, shardValuesByCycle, computeCycleMarker } from './Cycles'
 import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
@@ -59,6 +60,7 @@ type GET_TX_RECEIPT_RESPONSE = {
  * Calls the /get-tx-receipt endpoint of the nodes in the execution group of the receipt to verify the receipt. If "RECEIPT_CONFIRMATIONS" number of nodes return the same receipt, the receipt is deemed valid.
  * @param receipt
  * @param executionGroupNodes
+ * @param minConfirmations
  * @returns boolean
  */
 const isReceiptRobust = async (
@@ -79,6 +81,7 @@ const isReceiptRobust = async (
       )) as GET_TX_RECEIPT_RESPONSE
     } catch (error) {
       Logger.mainLogger.error('Error in /get-tx-receipt:', error)
+      nestedCountersInstance.countEvent('receipt', 'Error_in_get-tx-receipt')
       return null
     }
   }
@@ -115,8 +118,10 @@ const isReceiptRobust = async (
   if (config.VERBOSE) Logger.mainLogger.debug('robustQuery', receipt.tx.txId, robustQuery)
   if (!robustQuery || !robustQuery.value || !(robustQuery.value as any).receipt) {
     Logger.mainLogger.error(
-      `❌ 'null' response from all nodes in receipt-validation for txId: ${receipt.tx.txId}`
+      `❌ 'null' response from all nodes in receipt-validation for txId: ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp})
+      }`
     )
+    nestedCountersInstance.countEvent('receipt', 'null_response_from_all_nodes_in_receipt-validation')
     return result
   }
 
@@ -157,6 +162,7 @@ const isReceiptRobust = async (
 
   if (!sameReceipt) {
     Logger.mainLogger.debug('Found different receipt in robustQuery', receipt.tx.txId)
+    nestedCountersInstance.countEvent('receipt', 'Found_different_receipt_in_robustQuery')
     if (config.VERBOSE) Logger.mainLogger.debug(receipt.appliedReceipt)
     if (config.VERBOSE) Logger.mainLogger.debug(robustQueryReceipt)
     // update signedData with full_receipt = true
@@ -171,16 +177,25 @@ const isReceiptRobust = async (
         validateReceiptData(fullReceipt)
       ) {
         if (config.verifyAccountData && !verifyAccountHash(fullReceipt)) continue
+        Logger.mainLogger.debug('Found valid full receipt in robustQuery', receipt.tx.txId)
+        nestedCountersInstance.countEvent('receipt', 'Found_valid_full_receipt_in_robustQuery')
         return { success: true, newReceipt: fullReceipt }
       }
     }
+    Logger.mainLogger.error('No valid full receipt found in robustQuery', receipt.tx.txId)
+    nestedCountersInstance.countEvent('receipt', 'No_valid_full_receipt_found_in_robustQuery')
     return { success: false }
   }
   return { success: true }
 }
 
+/**
+ * Validate type and field existence of the receipt data before processing it further
+ * @param receipt
+ * @returns boolean
+ */
 export const validateReceiptData = (receipt: Receipt.ArchiverReceipt): boolean => {
-  // Add type and value existence check
+  // Add type and field existence check
   let err = Utils.validateTypes(receipt, {
     tx: 'o',
     cycle: 'n',
@@ -309,6 +324,7 @@ export const verifyReceiptData = async (
   const cycleShardData = shardValuesByCycle.get(cycle)
   if (!cycleShardData) {
     Logger.mainLogger.error('Cycle shard data not found')
+    nestedCountersInstance.countEvent('receipt', 'Cycle_shard_data_not_found')
     return result
   }
   // Determine the home partition index of the primary account (executionShardKey)
@@ -316,11 +332,16 @@ export const verifyReceiptData = async (
   // Check if the appliedVote node is in the execution group
   if (!cycleShardData.nodeShardDataMap.has(appliedVote.node_id)) {
     Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote node is not in the active nodesList')
+    nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_appliedVote_node_not_in_active_nodesList')
     return result
   }
   if (appliedVote.sign.owner !== cycleShardData.nodeShardDataMap.get(appliedVote.node_id).node.publicKey) {
     Logger.mainLogger.error(
       'Invalid receipt appliedReceipt appliedVote node signature owner and node public key does not match'
+    )
+    nestedCountersInstance.countEvent(
+      'receipt',
+      'Invalid_receipt_appliedVote_node_signature_owner_and_node_public_key_does_not_match'
     )
     return result
   }
@@ -328,10 +349,15 @@ export const verifyReceiptData = async (
     Logger.mainLogger.error(
       'Invalid receipt appliedReceipt appliedVote node is not in the execution group of the tx'
     )
+    nestedCountersInstance.countEvent(
+      'receipt',
+      'Invalid_receipt_appliedVote_node_not_in_execution_group_of_tx'
+    )
     return result
   }
   if (!Crypto.verify(appliedVote)) {
     Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote signature verification failed')
+    nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_appliedVote_signature_verification_failed')
     return result
   }
 
@@ -339,6 +365,10 @@ export const verifyReceiptData = async (
   if (!cycleShardData.nodeShardDataMap.has(confirmOrChallenge.nodeId)) {
     Logger.mainLogger.error(
       'Invalid receipt appliedReceipt confirmOrChallenge node is not in the active nodesList'
+    )
+    nestedCountersInstance.countEvent(
+      'receipt',
+      'Invalid_receipt_confirmOrChallenge_node_not_in_active_nodesList'
     )
     return result
   }
@@ -349,16 +379,28 @@ export const verifyReceiptData = async (
     Logger.mainLogger.error(
       'Invalid receipt appliedReceipt confirmOrChallenge node signature owner and node public key does not match'
     )
+    nestedCountersInstance.countEvent(
+      'receipt',
+      'Invalid_receipt_confirmOrChallenge_signature_owner_and_node_public_key_does_not_match'
+    )
     return result
   }
   if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[confirmOrChallenge.nodeId]) {
     Logger.mainLogger.error(
       'Invalid receipt appliedReceipt confirmOrChallenge node is not in the execution group of the tx'
     )
+    nestedCountersInstance.countEvent(
+      'receipt',
+      'Invalid_receipt_confirmOrChallenge_node_not_in_execution_group_of_tx'
+    )
     return result
   }
   if (!Crypto.verify(confirmOrChallenge)) {
     Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge signature verification failed')
+    nestedCountersInstance.countEvent(
+      'receipt',
+      'Invalid_receipt_confirmOrChallenge_signature_verification_failed'
+    )
     return result
   }
 
@@ -374,6 +416,7 @@ export const verifyReceiptData = async (
   const { success, newReceipt } = await isReceiptRobust(receipt, executionGroupNodes, minConfirmations)
   if (!success) {
     Logger.mainLogger.error('Invalid receipt: Robust check failed')
+    nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_robust_check_failed')
     return result
   }
   if (newReceipt) return { success: true, newReceipt }
@@ -405,25 +448,35 @@ export const storeReceiptData = async (
       continue
     }
     receiptsInValidationMap.set(txId, timestamp)
+    nestedCountersInstance.countEvent('receipt', 'Validate_receipt')
     if (!validateReceiptData(receipt)) {
       Logger.mainLogger.error('Invalid receipt: Validation failed', txId, receipt.cycle, timestamp)
       receiptsInValidationMap.delete(txId)
+      nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_validation_failed')
+      profilerInstance.profileSectionEnd('Validate_receipt')
       continue
     }
 
     if (verifyData) {
       if (config.verifyAppReceiptData) {
         const { valid, needToSave } = await verifyAppReceiptData(receipt)
-        if (!valid)
+        if (!valid) {
           Logger.mainLogger.error(
             'Invalid receipt: App Receipt Verification failed',
             txId,
             receipt.cycle,
             timestamp
           )
+          receiptsInValidationMap.delete(txId)
+          nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_app_receipt_verification_failed')
+          profilerInstance.profileSectionEnd('Validate_receipt')
+          continue
+        }
         if (!needToSave) {
           Logger.mainLogger.error('Valid receipt: but no need to save', txId, receipt.cycle, timestamp)
           receiptsInValidationMap.delete(txId)
+          nestedCountersInstance.countEvent('receipt', 'Valid_receipt_but_no_need_to_save')
+          profilerInstance.profileSectionEnd('Validate_receipt')
           continue
         }
       }
@@ -435,15 +488,20 @@ export const storeReceiptData = async (
           timestamp
         )
         receiptsInValidationMap.delete(txId)
+        nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_account_verification_failed')
+        profilerInstance.profileSectionEnd('Validate_receipt')
         continue
       }
       const { success, newReceipt } = await verifyReceiptData(receipt)
       if (!success) {
         Logger.mainLogger.error('Invalid receipt: Verification failed', txId, receipt.cycle, timestamp)
         receiptsInValidationMap.delete(txId)
+        nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_verification_failed')
+        profilerInstance.profileSectionEnd('Validate_receipt')
         continue
       }
       if (newReceipt) receipt = newReceipt
+      profilerInstance.profileSectionEnd('Validate_receipt')
     }
     // await Receipt.insertReceipt({
     //   ...receipts[i],
