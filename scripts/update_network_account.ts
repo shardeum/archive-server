@@ -9,10 +9,14 @@ import { startSaving } from '../src/saveConsoleOutput'
 import * as Logger from '../src/Logger'
 import { accountSpecificHash } from '../src/shardeum/calculateAccountHash'
 
-// Override default config params from config file, env vars, and cli args
-const file = join(process.cwd(), 'archiver-config.json')
-let logDir: string
+const activeVersion = '1.9.0'
+const latestVersion = '1.9.0'
+const minVersion = '1.9.0'
+// const archiver = { "activeVersion": "3.4.12", "latestVersion": "3.4.12", "minVersion": "3.4.12" }
+
 const runProgram = async (): Promise<void> => {
+  // Override default config params from config file, env vars, and cli args
+  const file = join(process.cwd(), 'archiver-config.json')
   overrideDefaultConfig(file)
   // Set crypto hash keys from config
   const hashKey = config.ARCHIVER_HASH_KEY
@@ -23,7 +27,7 @@ const runProgram = async (): Promise<void> => {
   } catch (err) {
     console.log('Failed to parse archiver log file:', err)
   }
-  logDir = `${config.ARCHIVER_LOGS}/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
+  const logDir = `${config.ARCHIVER_LOGS}/${config.ARCHIVER_IP}_${config.ARCHIVER_PORT}`
   const baseDir = '.'
   logsConfig.dir = logDir
   Logger.initLogger(baseDir, logsConfig)
@@ -38,11 +42,12 @@ const runProgram = async (): Promise<void> => {
 
   networkAccount.data.current = {
     ...networkAccount.data.current,
-    activeVersion: '1.9.0',
-    latestVersion: '1.9.0',
-    minVersion: '1.9.0',
+    activeVersion,
+    latestVersion,
+    minVersion,
+    // archiver,
   }
-  // If there is a config in the listOfChanges that will override the validator config at the network restart, we can add it here
+  // If there is a validator config in the listOfChanges that need to be overridden at the network restart, we can add it here. eg:
   // networkAccount.data.listOfChanges.push({ change: { p2p: { minNodes: 150 } }, cycle: 55037 })
 
   const calculatedAccountHash = accountSpecificHash(networkAccount.data)
