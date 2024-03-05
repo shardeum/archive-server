@@ -401,12 +401,19 @@ export const getCachedFullNodeList = (
 export async function getActiveNodeListFromArchiver(
   archiver: State.ArchiverNodeInfo
 ): Promise<ConsensusNodeInfo[]> {
-  const response = (await P2P.getJson(
-    `http://${archiver.ip}:${archiver.port}/nodelist`
-  )) as ConsensusNodeListResponse
+  const response = (await P2P.getJson(`http://${archiver.ip}:${archiver.port}/nodelist`)) as SignedNodeList
   Logger.mainLogger.debug('response', `http://${archiver.ip}:${archiver.port}/nodelist`, response)
+
   if (response && response.nodeList && response.nodeList.length > 0) {
-    // TODO: validate the response is from archiver
+    const isResponseVerified = Crypto.verify(response)
+    const isFromActiveArchiver = State.activeArchivers.some(
+      (archiver) => archiver.publicKey === response.sign.owner
+    )
+
+    if (!isResponseVerified || !isFromActiveArchiver) {
+      Logger.mainLogger.debug(`Fail to verify the response from the archiver ${archiver.ip}:${archiver.port}`)
+      return []
+    }
     return response.nodeList
   } else Logger.mainLogger.debug(`Fail To get nodeList from the archiver ${archiver.ip}:${archiver.port}`)
   return []
