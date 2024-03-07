@@ -11,19 +11,19 @@ import { P2P } from '@shardus/types'
 
 const archiversAtShutdown = [
   {
-    ip: '72.14.186.172',
+    ip: '127.0.0.1',
     port: 4000,
-    publicKey: '7af699dd711074eb96a8d1103e32b589e511613ebb0c6a789a9e8791b2b05f34',
+    publicKey: '758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3',
   },
   {
-    ip: '50.116.36.114',
-    port: 4000,
-    publicKey: '2db7c949632d26b87d7e7a5a4ad41c306f63ee972655121a37c5e4f52b00a542',
+    ip: '127.0.0.1',
+    port: 4001,
+    publicKey: 'e8a5c26b9e2c3c31eb7c7d73eaed9484374c16d983ce95f3ab18a62521964a94',
   },
   {
-    ip: '192.155.85.143',
-    port: 4000,
-    publicKey: 'f8452228fa67578d6957392858fbbe3545ab98dbbc277e9b8b9f7a0f5177ca36',
+    ip: '127.0.0.1',
+    port: 4002,
+    publicKey: '9426b64e675cad739d69526bf7e27f3f304a8a03dca508a9180f01e9269ce447',
   },
 ]
 
