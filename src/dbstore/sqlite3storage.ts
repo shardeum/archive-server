@@ -4,7 +4,6 @@ import { Config } from '../Config'
 import { SerializeToJsonString } from '../utils/serialization'
 import { Database } from 'sqlite3'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const sqlite3 = require('sqlite3').verbose()
 let db: Database
 
 export async function init(config: Config): Promise<void> {
@@ -16,7 +15,12 @@ export async function init(config: Config): Promise<void> {
     dbName = `${config.ARCHIVER_DB}/archiverdb-${config.ARCHIVER_PORT}.sqlite3`
   }
   console.log('dbName', dbName)
-  db = new sqlite3.Database(dbName)
+  db = new Database(dbName, (err) => {
+    if (err) {
+      console.log('Error opening database:', err)
+      throw err
+    }
+  })
   await run('PRAGMA journal_mode=WAL')
   console.log('Database initialized.')
 }
