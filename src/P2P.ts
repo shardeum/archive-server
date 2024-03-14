@@ -123,7 +123,7 @@ export async function getJson(url: string, timeoutInSecond = 5): Promise<object 
   }
 }
 
-export async function get(url: string, timeoutInSecond = 5, opts?: RequestInit): Promise<Response> {
+export async function get(url: string, timeoutInSecond = 20, opts?: RequestInit): Promise<Response> {
   return fetch(url, {
     method: 'get',
     timeout: timeoutInSecond * 1000,

@@ -30,12 +30,13 @@ import { isDebugMiddleware } from './DebugMode'
 const { version } = require('../package.json') // eslint-disable-line @typescript-eslint/no-var-requires
 
 const TXID_LENGTH = 64
-export const MAX_ACCOUNTS_PER_REQUEST = 1000
-export const MAX_RECEIPTS_PER_REQUEST = 100
-export const MAX_ORIGINAL_TXS_PER_REQUEST = 100
-export const MAX_CYCLES_PER_REQUEST = 100
-
-export const MAX_BETWEEN_CYCLES_PER_REQUEST = 100
+const {
+  MAX_CYCLES_PER_REQUEST,
+  MAX_ORIGINAL_TXS_PER_REQUEST,
+  MAX_RECEIPTS_PER_REQUEST,
+  MAX_ACCOUNTS_PER_REQUEST,
+  MAX_BETWEEN_CYCLES_PER_REQUEST,
+} = config.REQUEST_LIMIT
 
 let reachabilityAllowed = true
 

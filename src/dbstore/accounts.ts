@@ -54,13 +54,13 @@ export async function bulkInsertAccounts(accounts: AccountCopy[]): Promise<void>
   }
 }
 
-export async function updateAccount(accountId: string, account: AccountCopy): Promise<void> {
+export async function updateAccount(account: AccountCopy): Promise<void> {
   try {
     const sql = `UPDATE accounts SET cycleNumber = $cycleNumber, timestamp = $timestamp, data = $data, hash = $hash WHERE accountId = $accountId `
     await db.run(sql, {
       $cycleNumber: account.cycleNumber,
       $timestamp: account.timestamp,
-      $data: account.data && SerializeToJsonString(account.data),
+      $data: SerializeToJsonString(account.data),
       $hash: account.hash,
       $accountId: account.accountId,
     })
@@ -91,9 +91,8 @@ export async function queryAccountByAccountId(accountId: string): Promise<Accoun
 
 export async function queryLatestAccounts(count: number): Promise<AccountCopy[] | null> {
   try {
-    const sql = `SELECT * FROM accounts ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${
-      count ? count : 100
-    }`
+    const sql = `SELECT * FROM accounts ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${count ? count : 100
+      }`
     const dbAccounts = (await db.all(sql)) as DbAccountCopy[]
     const accounts: AccountCopy[] = []
     if (dbAccounts.length > 0) {

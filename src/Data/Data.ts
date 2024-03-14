@@ -35,20 +35,12 @@ import * as OriginalTxDB from '../dbstore/originalTxsData'
 import * as StateMetaData from '../archivedCycle/StateMetaData'
 import fetch from 'node-fetch'
 import { syncV2 } from '../sync-v2'
-import {
-  queryFromArchivers,
-  MAX_ACCOUNTS_PER_REQUEST,
-  MAX_RECEIPTS_PER_REQUEST,
-  MAX_ORIGINAL_TXS_PER_REQUEST,
-  MAX_CYCLES_PER_REQUEST,
-  MAX_BETWEEN_CYCLES_PER_REQUEST,
-  RequestDataType,
-} from '../API'
-
+import { queryFromArchivers, RequestDataType } from '../API'
 // Socket modules
 import ioclient = require('socket.io-client')
 import { Transaction } from '../dbstore/transactions'
 import { AccountCopy } from '../dbstore/accounts'
+
 export let socketServer: SocketIO.Server
 export const socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
 // let socketConnectionsTracker: Map<string, string> = new Map()
@@ -64,6 +56,14 @@ let subsetNodesMapByConsensusRadius: Map<number, NodeList.ConsensusNodeInfo[]> =
 const maxCyclesInCycleTracker = 5
 const receivedCycleTracker = {}
 const QUERY_TIMEOUT_MAX = 30 // 30seconds
+
+const {
+  MAX_ACCOUNTS_PER_REQUEST,
+  MAX_RECEIPTS_PER_REQUEST,
+  MAX_ORIGINAL_TXS_PER_REQUEST,
+  MAX_CYCLES_PER_REQUEST,
+  MAX_BETWEEN_CYCLES_PER_REQUEST,
+} = config.REQUEST_LIMIT
 
 export enum DataRequestTypes {
   SUBSCRIBE = 'SUBSCRIBE',

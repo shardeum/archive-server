@@ -47,6 +47,13 @@ export interface Config {
   limitToArchiversOnly: boolean
   verifyAppReceiptData: boolean
   skipGlobalTxReceiptVerification: boolean // To skip verification of global tx receipts for now
+  REQUEST_LIMIT: {
+    MAX_ACCOUNTS_PER_REQUEST: number
+    MAX_RECEIPTS_PER_REQUEST: number
+    MAX_ORIGINAL_TXS_PER_REQUEST: number
+    MAX_CYCLES_PER_REQUEST: number
+    MAX_BETWEEN_CYCLES_PER_REQUEST: number
+  }
 }
 
 let config: Config = {
@@ -93,6 +100,13 @@ let config: Config = {
   limitToArchiversOnly: true,
   verifyAppReceiptData: true,
   skipGlobalTxReceiptVerification: true,
+  REQUEST_LIMIT: {
+    MAX_ACCOUNTS_PER_REQUEST: 1000,
+    MAX_RECEIPTS_PER_REQUEST: 100,
+    MAX_ORIGINAL_TXS_PER_REQUEST: 100,
+    MAX_CYCLES_PER_REQUEST: 100,
+    MAX_BETWEEN_CYCLES_PER_REQUEST: 100,
+  },
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {
