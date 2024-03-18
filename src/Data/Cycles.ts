@@ -24,6 +24,7 @@ import { hexstring } from '@shardus/crypto-utils'
 import { handleLostArchivers } from '../LostArchivers'
 import ShardFunctions from '../ShardFunctions'
 import { RequestDataType, queryFromArchivers } from '../API'
+import { stringifyReduce } from '../profiler/StringifyReduce'
 
 interface ArchiverCycleResponse {
   cycleInfo: P2PTypes.CycleCreatorTypes.CycleData[]
@@ -557,7 +558,8 @@ function updateShardValues(
 
   // console.log('cycleShardData', cycleShardData.cycleNumber)
   // console.dir(cycleShardData, { depth: null })
-  Logger.mainLogger.debug('cycleShardData', cycleShardData.cycleNumber, cycleShardData.nodes)
+  const list = cycleShardData.nodes.map((n) => n['ip'] + ':' + n['port'] + ':' + n.publicKey)
+  Logger.mainLogger.debug('cycleShardData', cycleShardData.cycleNumber, list.length, stringifyReduce(list))
   shardValuesByCycle.set(cycleShardData.cycleNumber, cycleShardData)
   if (shardValuesByCycle.size > CYCLE_SHARD_STORAGE_LIMIT) {
     shardValuesByCycle.delete(shardValuesByCycle.keys().next().value)
