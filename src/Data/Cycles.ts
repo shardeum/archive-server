@@ -65,7 +65,7 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
 
       // Update NodeList from cycle info
       updateNodeList(cycle)
-      updateShardValues(cycle, cycle.mode)
+      updateShardValues(cycle)
       changeNetworkMode(cycle.mode)
       handleLostArchivers(cycle)
 
@@ -489,10 +489,7 @@ export async function recordArchiversReputation(): Promise<void> {
 }
 
 // This is called once per cycle to update to calculate the necessary shard values.
-function updateShardValues(
-  cycle: P2PTypes.CycleCreatorTypes.CycleData,
-  mode: P2PTypes.ModesTypes.Record['mode']
-): void {
+function updateShardValues(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   const cycleShardData = {} as StateManager.shardFunctionTypes.CycleShardData
 
   // todo get current cycle..  store this by cycle?
