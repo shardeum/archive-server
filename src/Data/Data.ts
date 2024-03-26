@@ -40,7 +40,7 @@ import { queryFromArchivers, RequestDataType } from '../API'
 import ioclient = require('socket.io-client')
 import { Transaction } from '../dbstore/transactions'
 import { AccountCopy } from '../dbstore/accounts'
-
+import { robustQuery } from '../Utils'
 export let socketServer: SocketIO.Server
 export const socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
 // let socketConnectionsTracker: Map<string, string> = new Map()
@@ -554,24 +554,58 @@ interface configConsensusResponse {
 async function getConsensusRadius(): Promise<number> {
   // If there is no node, return existing currentConsensusRadius
   if (NodeList.getList().length === 0) return currentConsensusRadius
-  const randomNode =
-    NodeList.getActiveNodeCount() > 0
-      ? NodeList.getRandomActiveNodes(1)[0]
-      : NodeList.getList().slice(0, 1)[0]
-  Logger.mainLogger.debug(`Checking network configs from random node ${randomNode.ip}:${randomNode.port}`)
-  // TODO: Should try to get the network config from multiple nodes and use the consensusRadius that has the majority
-  const REQUEST_NETCONFIG_TIMEOUT_SECOND = 2 // 2s timeout
-  const response = (await P2P.getJson(
-    `http://${randomNode.ip}:${randomNode.port}/netconfig`,
-    REQUEST_NETCONFIG_TIMEOUT_SECOND
-  )) as configConsensusResponse
 
-  if (response && response.config) {
-    nodesPerConsensusGroup = response.config.sharding.nodesPerConsensusGroup
-    nodesPerEdge = response.config.sharding.nodesPerEdge
-    // Upgrading consensus size to odd number
+  // Define the query function to get the network config from a node
+  const queryFn = async (node) => {
+    const REQUEST_NETCONFIG_TIMEOUT_SECOND = 2 // 2s timeout
+    try {
+      const response = await P2P.getJson(
+        `http://${node.ip}:${node.port}/netconfig`,
+        REQUEST_NETCONFIG_TIMEOUT_SECOND
+      )
+      return response
+    } catch (error) {
+      Logger.mainLogger.error(`Error querying node ${node.ip}:${node.port}: ${error}`)
+      return null
+    }
+  }
+
+  // Define the equality function to compare two responses
+  const equalityFn = (responseA, responseB) => {
+    return (
+      responseA.config.sharding.nodesPerConsensusGroup === responseB.config.sharding.nodesPerConsensusGroup
+    )
+  }
+
+  // Get the list of active nodes or the first node if no active nodes are available
+  const nodes =
+    NodeList.getActiveNodeCount() > 0
+      ? NodeList.getRandomActiveNodes(NodeList.getActiveNodeCount())
+      : NodeList.getList().slice(0, 1)
+
+  // Use robustQuery to get the consensusRadius from multiple nodes
+  const tallyItem = await robustQuery(
+    nodes,
+    queryFn,
+    equalityFn,
+    3, // Redundancy
+    true, // Shuffle nodes
+    0, // No delay
+    false // Disable fail log
+  )
+
+  // Check if a consensus was reached
+  if (tallyItem && tallyItem.value && tallyItem.value.config) {
+    nodesPerConsensusGroup = tallyItem.value.config.sharding.nodesPerConsensusGroup
+    nodesPerEdge = tallyItem.value.config.sharding.nodesPerEdge
+    // Upgrading consensus size to an odd number
     if (nodesPerConsensusGroup % 2 === 0) nodesPerConsensusGroup++
     const consensusRadius = Math.floor((nodesPerConsensusGroup - 1) / 2)
+    // Validation: Ensure consensusRadius is a number and greater than zero
+    if (typeof consensusRadius !== 'number' || isNaN(consensusRadius) || consensusRadius <= 0) {
+      Logger.mainLogger.error('Invalid consensusRadius:', consensusRadius)
+      return currentConsensusRadius // Return the existing currentConsensusRadius in case of invalid consensusRadius
+    }
     Logger.mainLogger.debug(
       'consensusRadius',
       consensusRadius,
@@ -583,6 +617,8 @@ async function getConsensusRadius(): Promise<number> {
     if (config.VERBOSE) console.log('consensusRadius', consensusRadius)
     return consensusRadius
   }
+
+  // If no consensus was reached, return the existing currentConsensusRadius
   return currentConsensusRadius
 }
 
@@ -613,6 +649,10 @@ export async function createDataTransferConnection(
 
 export async function createNodesGroupByConsensusRadius(): Promise<void> {
   const consensusRadius = await getConsensusRadius()
+  if (consensusRadius === 0) {
+    Logger.mainLogger.error('Consensus radius is 0, unable to create nodes group.')
+    return // Early return to prevent further execution
+  }
   currentConsensusRadius = consensusRadius
   const activeList = [...NodeList.activeListByIdSorted]
   if (config.VERBOSE) Logger.mainLogger.debug('activeList', activeList.length, activeList)
