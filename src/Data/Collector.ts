@@ -460,9 +460,10 @@ export const storeReceiptData = async (
       (processedReceiptsMap.has(txId) && processedReceiptsMap.get(txId) === timestamp) ||
       (receiptsInValidationMap.has(txId) && receiptsInValidationMap.get(txId) === timestamp)
     ) {
-      // console.log('RECEIPT', 'Skip', tx.txId, senderInfo)
+      if (config.VERBOSE) console.log('RECEIPT', 'Skip', txId, timestamp, senderInfo)
       continue
     }
+    if (config.VERBOSE) console.log('RECEIPT', 'Validate', txId, timestamp, senderInfo)
     receiptsInValidationMap.set(txId, timestamp)
     if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Validate_receipt')
     if (!validateReceiptData(receipt)) {
@@ -530,7 +531,7 @@ export const storeReceiptData = async (
     //   timestamp: tx.timestamp,
     // })
     const { accounts, cycle, tx, appReceiptData } = receipt
-    if (config.VERBOSE) console.log('RECEIPT', tx.txId, senderInfo)
+    if (config.VERBOSE) console.log('RECEIPT', 'Save', txId, timestamp, senderInfo)
     processedReceiptsMap.set(tx.txId, tx.timestamp)
     receiptsInValidationMap.delete(tx.txId)
     if (missingReceiptsMap.has(tx.txId)) missingReceiptsMap.delete(tx.txId)
@@ -799,9 +800,10 @@ export const storeOriginalTxData = async (
       (processedOriginalTxsMap.has(txId) && processedOriginalTxsMap.get(txId) === timestamp) ||
       (originalTxsInValidationMap.has(txId) && originalTxsInValidationMap.get(txId) === timestamp)
     ) {
-      // console.log('ORIGINAL_TX_DATA', 'Skip', txId, senderInfo)
+      if (config.VERBOSE) console.log('ORIGINAL_TX_DATA', 'Skip', txId, timestamp, senderInfo)
       continue
     }
+    if (config.VERBOSE) console.log('ORIGINAL_TX_DATA', 'Validate', txId, timestamp, senderInfo)
     if (validateOriginalTxData(originalTxData) === false) {
       Logger.mainLogger.error('Invalid originalTxData: Validation failed', txId)
       originalTxsInValidationMap.delete(txId)
@@ -815,7 +817,7 @@ export const storeOriginalTxData = async (
       OriginalTxDataLogWriter.writeToLog(`${JSON.stringify(originalTxData)}\n`)
     combineOriginalTxsData.push(originalTxData)
     txDataList.push({ txId, timestamp })
-    if (config.VERBOSE) console.log('ORIGINAL_TX_DATA', txId, senderInfo)
+    if (config.VERBOSE) console.log('ORIGINAL_TX_DATA', txId, timestamp, senderInfo)
     if (combineOriginalTxsData.length >= bucketSize) {
       await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
       if (State.isActive) sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txDataList)
