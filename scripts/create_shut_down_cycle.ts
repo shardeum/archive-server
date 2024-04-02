@@ -9,6 +9,7 @@ import { startSaving } from '../src/saveConsoleOutput'
 import * as Logger from '../src/Logger'
 import { P2P } from '@shardus/types'
 import { addSigListeners } from '../src/State'
+import { computeCycleMarker } from '../src/Data/Cycles'
 
 const archiversAtShutdown = [
   {
@@ -68,6 +69,9 @@ const runProgram = async (): Promise<void> => {
     standbyAdd: [],
     standbyRemove: [],
   }
+  delete newCycleRecord.marker
+  const marker = computeCycleMarker(newCycleRecord)
+  newCycleRecord.marker = marker
   // console.log('newCycleRecord', newCycleRecord)
   await CycleDB.insertCycle({
     counter: newCycleRecord.counter,
