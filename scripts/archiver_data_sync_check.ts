@@ -28,19 +28,18 @@ const devAccount = {
   secretKey: '',
 }
 
-const startCycle = 30000
-const endCycle = 31415
+const startCycle = 0
+const endCycle = 0
 
 // const URL = 'originalTx'
 const URL = 'receipt'
 
 const runProgram = async (): Promise<void> => {
-  const limit = 100
   for (const archiver of archivers) {
     const archiverInfo = archiver.ip + ':' + archiver.port
     const responses = {}
     for (let i = startCycle; i < endCycle; ) {
-      const nextEnd = i + limit
+      const nextEnd = i + config.REQUEST_LIMIT.MAX_BETWEEN_CYCLES_PER_REQUEST
       console.log(i, nextEnd)
 
       const data: any = {
