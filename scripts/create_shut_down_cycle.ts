@@ -35,6 +35,9 @@ const runProgram = async (): Promise<void> => {
   overrideDefaultConfig(file)
   // Set crypto hash keys from config
   const hashKey = config.ARCHIVER_HASH_KEY
+  if (!hashKey) {
+    throw new Error('ARCHIVER_HASH_KEY is required')
+  }
   Crypto.setCryptoHashKey(hashKey)
   let logsConfig
   try {
@@ -63,6 +66,7 @@ const runProgram = async (): Promise<void> => {
     archiversAtShutdown: archiversAtShutdown.map((archiver) => {
       return { ...archiver, curvePk: Crypto.getOrCreateCurvePk(archiver.publicKey) }
     }),
+    previous: latestCycleRecord.marker,
     lostArchivers: [],
     refutedArchivers: [],
     removedArchivers: [],
