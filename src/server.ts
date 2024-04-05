@@ -521,7 +521,7 @@ async function startServer(): Promise<SocketIO.Server> {
       }
       Logger.mainLogger.debug('Archive-server has started.')
       State.setActive()
-      State.addSigListeners()
+      State.addSigListeners(io)
       Collector.scheduleMissingTxsDataQuery()
     }
   )
