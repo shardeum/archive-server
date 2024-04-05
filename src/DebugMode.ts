@@ -8,14 +8,14 @@ export function isDebugMode(): boolean {
 }
 
 function getHashedDevKey(): string {
-  if (config && config.DEBUG && config.DEBUG.hashedDevAuth) {
-    return config.DEBUG.hashedDevAuth
+  if (config && config.ARCH_DEBUG && config.ARCH_DEBUG.hashedDevAuth) {
+    return config.ARCH_DEBUG.hashedDevAuth
   }
   return ''
 }
 function getDevPublicKey(): string {
-  if (config && config.DEBUG && config.DEBUG.devPublicKey) {
-    return config.DEBUG.devPublicKey
+  if (config && config.ARCH_DEBUG && config.ARCH_DEBUG.devPublicKey) {
+    return config.ARCH_DEBUG.devPublicKey
   }
   return ''
 }

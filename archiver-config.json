@@ -58,7 +58,7 @@
   ],
   "MODE": "debug",
   "EXISTING_ARCHIVER_DB_PATH": "",
-  "DEBUG": {
+  "ARCH_DEBUG": {
     "hashedDevAuth": "",
     "devPublicKey": ""
   }

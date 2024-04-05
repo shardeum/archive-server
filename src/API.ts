@@ -1192,7 +1192,7 @@ export const validateRequestData = (
       // Check if the sender is in the archiver list or is the devPublicKey
       const approvedSender =
         State.activeArchivers.some((archiver) => archiver.publicKey === data.sender) ||
-        config.DEBUG.devPublicKey === data.sender
+        config.ARCH_DEBUG.devPublicKey === data.sender
       if (!approvedSender) {
         return { success: false, error: 'Data request sender is not an archiver' }
       }
