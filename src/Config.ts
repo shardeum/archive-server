@@ -23,11 +23,8 @@ export interface Config {
     save: boolean
     interval: number
   }
-  MODE: string
-  ARCH_DEBUG: {
-    hashedDevAuth?: string
-    devPublicKey?: string
-  }
+  ARCHIVER_MODE: string
+  DevPublicKey: string
   dataLogWrite: boolean
   dataLogWriter: {
     dirName: string
@@ -75,11 +72,8 @@ let config: Config = {
     save: true,
     interval: 1,
   },
-  MODE: 'debug', // 'debug'/'release'
-  ARCH_DEBUG: {
-    hashedDevAuth: '',
-    devPublicKey: '',
-  },
+  ARCHIVER_MODE: 'debug', // 'debug'/'release'
+  DevPublicKey: '',
   dataLogWrite: true,
   dataLogWriter: {
     dirName: 'data-logs',
@@ -216,10 +210,10 @@ export async function overrideDefaultConfig(file: string): Promise<void> {
     // pragma: allowlist nextline secret
     config.ARCHIVER_HASH_KEY = '69fa4195670576c0160d660c3be36556ff8d504725be8a59b5a96509e0c994bc'
   }
-  if (config.ARCH_DEBUG.devPublicKey === '') {
+  if (config.DevPublicKey === '') {
     // Use default dev public key if none provided
     // pragma: allowlist nextline secret
-    config.ARCH_DEBUG.devPublicKey = '774491f80f47fedb119bb861601490f42bc3ea3b57fc63906c0d08e6d777a592'
+    config.DevPublicKey = '774491f80f47fedb119bb861601490f42bc3ea3b57fc63906c0d08e6d777a592'
   }
 }
 

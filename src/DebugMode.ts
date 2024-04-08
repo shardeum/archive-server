@@ -4,18 +4,12 @@ import * as Crypto from './Crypto'
 let lastCounter = 0
 
 export function isDebugMode(): boolean {
-  return !!(config && config.MODE && config.MODE === 'debug')
+  return !!(config && config.ARCHIVER_MODE && config.ARCHIVER_MODE === 'debug')
 }
 
-function getHashedDevKey(): string {
-  if (config && config.ARCH_DEBUG && config.ARCH_DEBUG.hashedDevAuth) {
-    return config.ARCH_DEBUG.hashedDevAuth
-  }
-  return ''
-}
 function getDevPublicKey(): string {
-  if (config && config.ARCH_DEBUG && config.ARCH_DEBUG.devPublicKey) {
-    return config.ARCH_DEBUG.devPublicKey
+  if (config && config.DevPublicKey) {
+    return config.DevPublicKey
   }
   return ''
 }

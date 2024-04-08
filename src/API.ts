@@ -169,28 +169,20 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     }
   }>
 
-  server.get(
-    '/full-nodelist',
-    {
-      preHandler: async (_request, reply) => {
-        isDebugMiddleware(_request, reply)
-      },
-    },
-    (_request: FullNodeListRequest, reply) => {
-      profilerInstance.profileSectionStart('FULL_nodelist')
-      nestedCountersInstance.countEvent('consensor', 'FULL_nodelist')
-      const query = _request.query
-      let activeOnly = false
-      let syncingOnly = false
-      let standbyOnly = false
-      if (query.activeOnly === 'true') activeOnly = true
-      if (query.syncingOnly === 'true') syncingOnly = true
-      if (query.standbyOnly === 'true') standbyOnly = true
-      const res = NodeList.getCachedFullNodeList(activeOnly, syncingOnly, standbyOnly)
-      reply.send(res)
-      profilerInstance.profileSectionEnd('FULL_nodelist')
-    }
-  )
+  server.get('/full-nodelist', (_request: FullNodeListRequest, reply) => {
+    profilerInstance.profileSectionStart('FULL_nodelist')
+    nestedCountersInstance.countEvent('consensor', 'FULL_nodelist')
+    const query = _request.query
+    let activeOnly = false
+    let syncingOnly = false
+    let standbyOnly = false
+    if (query.activeOnly === 'true') activeOnly = true
+    if (query.syncingOnly === 'true') syncingOnly = true
+    if (query.standbyOnly === 'true') standbyOnly = true
+    const res = NodeList.getCachedFullNodeList(activeOnly, syncingOnly, standbyOnly)
+    reply.send(res)
+    profilerInstance.profileSectionEnd('FULL_nodelist')
+  })
 
   server.get(
     '/removed',
@@ -294,9 +286,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const cycleCount = to - from
       if (cycleCount > MAX_CYCLES_PER_REQUEST) {
         Logger.mainLogger.error(`Exceed maximum limit of ${MAX_CYCLES_PER_REQUEST} cycles`)
-        reply.send(
-          { success: false, error: `Exceed maximum limit of ${MAX_CYCLES_PER_REQUEST} cycles` }
-        )
+        reply.send({ success: false, error: `Exceed maximum limit of ${MAX_CYCLES_PER_REQUEST} cycles` })
         return
       }
       cycleInfo = await CycleDB.queryCycleRecordsBetween(from, to)
@@ -395,12 +385,10 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       originalTxs = await OriginalTxDB.queryLatestOriginalTxs(count)
     } else if (txId) {
       if (txId.length !== TXID_LENGTH) {
-        reply.send(
-          {
-            success: false,
-            error: `Invalid txId ${txId}`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Invalid txId ${txId}`,
+        })
         return
       }
       const originalTx = await OriginalTxDB.queryOriginalTxDataByTxId(txId)
@@ -408,12 +396,10 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     } else if (txIdList) {
       for (const [txId, txTimestamp] of txIdList) {
         if (typeof txId !== 'string' || txId.length !== TXID_LENGTH || typeof txTimestamp !== 'number') {
-          reply.send(
-            {
-              success: false,
-              error: `Invalid txId ${txId} in the List`,
-            }
-          )
+          reply.send({
+            success: false,
+            error: `Invalid txId ${txId} in the List`,
+          })
           return
         }
 
@@ -424,22 +410,18 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const from = start ? start : 0
       const to = end ? end : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
-          {
-            success: false,
-            error: `Invalid start and end counters`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Invalid start and end counters`,
+        })
         return
       }
       const count = to - from
       if (count > MAX_ORIGINAL_TXS_PER_REQUEST) {
-        reply.send(
-          {
-            success: false,
-            error: `Exceed maximum limit of ${MAX_ORIGINAL_TXS_PER_REQUEST} original transactions`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Exceed maximum limit of ${MAX_ORIGINAL_TXS_PER_REQUEST} original transactions`,
+        })
         return
       }
       originalTxs = await OriginalTxDB.queryOriginalTxsData(from, count + 1)
@@ -447,22 +429,18 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const from = startCycle ? startCycle : 0
       const to = endCycle ? endCycle : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
-          {
-            success: false,
-            error: `Invalid startCycle and endCycle counters`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Invalid startCycle and endCycle counters`,
+        })
         return
       }
       const count = to - from
       if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
-        reply.send(
-          {
-            success: false,
-            error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles`,
+        })
         return
       }
       if (type === 'tally') {
@@ -522,12 +500,10 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       receipts = await ReceiptDB.queryLatestReceipts(count)
     } else if (txId) {
       if (txId.length !== TXID_LENGTH) {
-        reply.send(
-          {
-            success: false,
-            error: `Invalid txId ${txId}`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Invalid txId ${txId}`,
+        })
         return
       }
       const receipt = await ReceiptDB.queryReceiptByReceiptId(txId)
@@ -535,12 +511,10 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     } else if (txIdList) {
       for (const [txId, txTimestamp] of txIdList) {
         if (typeof txId !== 'string' || txId.length !== TXID_LENGTH || typeof txTimestamp !== 'number') {
-          reply.send(
-            {
-              success: false,
-              error: `Invalid txId ${txId} in the List`,
-            }
-          )
+          reply.send({
+            success: false,
+            error: `Invalid txId ${txId} in the List`,
+          })
           return
         }
         const receipt = await ReceiptDB.queryReceiptByReceiptId(txId, txTimestamp)
@@ -550,22 +524,18 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const from = start ? start : 0
       const to = end ? end : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
-          {
-            success: false,
-            error: `Invalid start and end counters`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Invalid start and end counters`,
+        })
         return
       }
       const count = to - from
       if (count > MAX_RECEIPTS_PER_REQUEST) {
-        reply.send(
-          {
-            success: false,
-            error: `Exceed maximum limit of ${MAX_RECEIPTS_PER_REQUEST} receipts`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Exceed maximum limit of ${MAX_RECEIPTS_PER_REQUEST} receipts`,
+        })
         return
       }
       receipts = await ReceiptDB.queryReceipts(from, count + 1)
@@ -573,22 +543,18 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const from = startCycle ? startCycle : 0
       const to = endCycle ? endCycle : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
-          {
-            success: false,
-            error: `Invalid startCycle and endCycle counters`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Invalid startCycle and endCycle counters`,
+        })
         return
       }
       const count = to - from
       if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
-        reply.send(
-          {
-            success: false,
-            error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles`,
+        })
         return
       }
       if (type === 'tally') {
@@ -663,22 +629,18 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const from = start ? start : 0
       const to = end ? end : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
-          {
-            success: false,
-            error: `Invalid start and end counters`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Invalid start and end counters`,
+        })
         return
       }
       const count = to - from
       if (count > MAX_ACCOUNTS_PER_REQUEST) {
-        reply.send(
-          {
-            success: false,
-            error: `Exceed maximum limit of ${MAX_ACCOUNTS_PER_REQUEST} accounts`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Exceed maximum limit of ${MAX_ACCOUNTS_PER_REQUEST} accounts`,
+        })
         return
       }
       accounts = await AccountDB.queryAccounts(from, count + 1)
@@ -687,22 +649,18 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const from = startCycle ? startCycle : 0
       const to = endCycle ? endCycle : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
-          {
-            success: false,
-            error: `Invalid startCycle and endCycle counters`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Invalid startCycle and endCycle counters`,
+        })
         return
       }
       const count = to - from
       if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
-        reply.send(
-          {
-            success: false,
-            error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles to query accounts Count`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles to query accounts Count`,
+        })
         return
       }
       totalAccounts = await AccountDB.queryAccountCountBetweenCycles(from, to)
@@ -782,22 +740,18 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const from = start ? start : 0
       const to = end ? end : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
-          {
-            success: false,
-            error: `Invalid start and end counters`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Invalid start and end counters`,
+        })
         return
       }
       const count = to - from
       if (count > MAX_ACCOUNTS_PER_REQUEST) {
-        reply.send(
-          {
-            success: false,
-            error: `Exceed maximum limit of ${MAX_ACCOUNTS_PER_REQUEST} transactions`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Exceed maximum limit of ${MAX_ACCOUNTS_PER_REQUEST} transactions`,
+        })
         return
       }
       transactions = await TransactionDB.queryTransactions(from, count + 1)
@@ -806,22 +760,18 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const from = startCycle ? startCycle : 0
       const to = endCycle ? endCycle : from
       if (!(from >= 0 && to >= from) || Number.isNaN(from) || Number.isNaN(to)) {
-        reply.send(
-          {
-            success: false,
-            error: `Invalid startCycle and endCycle counters`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Invalid startCycle and endCycle counters`,
+        })
         return
       }
       const count = to - from
       if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
-        reply.send(
-          {
-            success: false,
-            error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles to query transactions Count`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles to query transactions Count`,
+        })
         return
       }
       totalTransactions = await TransactionDB.queryTransactionCountBetweenCycles(from, to)
@@ -1089,12 +1039,10 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       }
       const count = to - from
       if (count > MAX_BETWEEN_CYCLES_PER_REQUEST) {
-        reply.send(
-          {
-            success: false,
-            error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles`,
-          }
-        )
+        reply.send({
+          success: false,
+          error: `Exceed maximum limit of ${MAX_BETWEEN_CYCLES_PER_REQUEST} cycles`,
+        })
         return
       }
       let archivedCycles = []
@@ -1192,7 +1140,7 @@ export const validateRequestData = (
       // Check if the sender is in the archiver list or is the devPublicKey
       const approvedSender =
         State.activeArchivers.some((archiver) => archiver.publicKey === data.sender) ||
-        config.ARCH_DEBUG.devPublicKey === data.sender
+        config.DevPublicKey === data.sender
       if (!approvedSender) {
         return { success: false, error: 'Data request sender is not an archiver' }
       }
