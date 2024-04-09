@@ -49,9 +49,11 @@ const runProgram = async (): Promise<void> => {
         sender: devAccount.publicKey,
       }
       crypto.signObj(data, devAccount.secretKey, devAccount.publicKey)
-      const response: any = await postJson(`http://${archiverInfo}/${URL}`, data, 5000)
-      if (!response) {
-        console.log(`archiver ${archiverInfo} failed to respond`)
+      const response: any = await postJson(`http://${archiverInfo}/${URL}`, data, 100)
+      if (!response || (!response.receipts && !response.originalTxs)) {
+        console.error(`archiver ${archiverInfo} failed to respond for cycles ${i} to ${nextEnd}`)
+        console.log(response)
+        i = nextEnd + 1
         continue
       }
       // console.log(response)
