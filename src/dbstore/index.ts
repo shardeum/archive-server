@@ -35,3 +35,7 @@ export const initializeDB = async (config: Config): Promise<void> => {
   )
   await db.runCreate('CREATE INDEX if not exists `originalTxsData_txId_idx` ON `originalTxsData` (`txId`)')
 }
+
+export const closeDatabase = async (): Promise<void> => {
+  await db.close()
+}

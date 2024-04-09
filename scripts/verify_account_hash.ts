@@ -8,6 +8,7 @@ import * as AccountDB from '../src/dbstore/accounts'
 import { startSaving } from '../src/saveConsoleOutput'
 import * as Logger from '../src/Logger'
 import { AccountType, fixAccountUint8Arrays, accountSpecificHash } from '../src/shardeum/calculateAccountHash'
+import { addSigListeners } from '../src/State'
 
 const updateHash = false
 const runProgram = async (): Promise<void> => {
@@ -31,6 +32,7 @@ const runProgram = async (): Promise<void> => {
     startSaving(join(baseDir, logsConfig.dir))
   }
   await dbstore.initializeDB(config)
+  addSigListeners()
 
   const totalAccounts = await AccountDB.queryAccountCount()
   console.log(totalAccounts)
@@ -78,5 +80,6 @@ const runProgram = async (): Promise<void> => {
     // if (i > 20000) break
   }
   console.log('totalAccounts', totalAccounts, 'validHashAccounts', validHashAccounts)
+  await dbstore.closeDatabase()
 }
 runProgram()

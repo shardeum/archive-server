@@ -40,9 +40,6 @@ import { loadGlobalAccounts, syncGlobalAccount } from './GlobalAccount'
 import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycles'
 import { registerRoutes } from './API'
 
-// Socket modules
-let io: SocketIO.Server
-
 // Types
 export type ReceiptQuery = {
   start: string
@@ -139,6 +136,7 @@ async function start(): Promise<void> {
   } else {
     await Storage.initStorage(config)
   }
+  State.addSigListeners()
 
   const lastStoredCycle = await CycleDB.queryLatestCycleRecords(1)
   if (lastStoredCycle && lastStoredCycle.length > 0) {
@@ -156,7 +154,7 @@ async function start(): Promise<void> {
         State.resetActiveArchivers(cycleRecordWithShutDownMode.archiversAtShutdown)
         // Load global account from db
         await loadGlobalAccounts()
-        io = await startServer()
+        await startServer()
         return
       }
     }
@@ -204,10 +202,10 @@ async function start(): Promise<void> {
        */
 
       Logger.mainLogger.debug('We have successfully joined the network')
-      io = await startServer()
+      await startServer()
       await Data.subscribeNodeForDataTransfer()
     } else {
-      io = await startServer()
+      await startServer()
     }
   } else {
     Logger.mainLogger.debug('We are not first archiver. Syncing and starting archive-server')
@@ -455,7 +453,7 @@ async function syncAndStartServer(): Promise<void> {
   if (!config.experimentalSnapshot) await Utils.sleep(cycleDuration * 1000)
 
   // Start the server
-  io = await startServer()
+  await startServer()
 
   if (!config.sendActiveMessage) {
     await Data.subscribeNodeForDataTransfer()
@@ -496,7 +494,7 @@ async function startServer(): Promise<SocketIO.Server> {
 
   // Socket server instance
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  io = require('socket.io')(server.server)
+  const io = require('socket.io')(server.server)
   Data.initSocketServer(io)
 
   initProfiler(server)
@@ -521,7 +519,6 @@ async function startServer(): Promise<SocketIO.Server> {
       }
       Logger.mainLogger.debug('Archive-server has started.')
       State.setActive()
-      State.addSigListeners(io)
       Collector.scheduleMissingTxsDataQuery()
     }
   )

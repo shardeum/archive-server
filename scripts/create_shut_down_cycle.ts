@@ -8,6 +8,7 @@ import * as CycleDB from '../src/dbstore/cycles'
 import { startSaving } from '../src/saveConsoleOutput'
 import * as Logger from '../src/Logger'
 import { P2P } from '@shardus/types'
+import { addSigListeners } from '../src/State'
 
 const archiversAtShutdown = [
   {
@@ -48,6 +49,7 @@ const runProgram = async (): Promise<void> => {
     startSaving(join(baseDir, logsConfig.dir))
   }
   await dbstore.initializeDB(config)
+  addSigListeners()
 
   let latestCycle = await CycleDB.queryLatestCycleRecords(1)
   let latestCycleRecord = latestCycle[0]
@@ -75,5 +77,6 @@ const runProgram = async (): Promise<void> => {
   latestCycle = await CycleDB.queryLatestCycleRecords(1)
   latestCycleRecord = latestCycle[0]
   console.log('latestCycleRecord after', latestCycleRecord)
+  await dbstore.closeDatabase()
 }
 runProgram()

@@ -10,7 +10,7 @@ import { P2P as P2PTypes } from '@shardus/types'
 import { publicKey, secretKey, curvePublicKey, curveSecretKey } from '@shardus/crypto-utils'
 import fetch from 'node-fetch'
 import { getAdjacentLeftAndRightArchivers } from './Data/GossipData'
-import { closeDatabase } from './dbstore/sqlite3storage'
+import { closeDatabase } from './dbstore'
 
 export interface ArchiverNodeState {
   ip: string
@@ -128,15 +128,13 @@ export async function initFromConfig(config: Config, shutDownMode = false): Prom
   }
 }
 
-export async function exitArchiver(io?: SocketIO.Server): Promise<void> {
+export async function exitArchiver(): Promise<void> {
   try {
     const randomConsensors: NodeList.ConsensusNodeInfo[] = NodeList.getRandomActiveNodes(5)
     if (randomConsensors && randomConsensors.length > 0) {
       // Send a leave request to some random consensus nodes from the nodelist
       await Data.sendLeaveRequest(randomConsensors)
     }
-    io?.close()
-    await closeDatabase()
     Logger.mainLogger.debug('Archiver will exit in 3 seconds.')
     setTimeout(() => {
       process.exit()
@@ -146,17 +144,21 @@ export async function exitArchiver(io?: SocketIO.Server): Promise<void> {
   }
 }
 
-export function addSigListeners(io: SocketIO.Server, sigint = true, sigterm = true): void {
+export function addSigListeners(sigint = true, sigterm = true): void {
   if (sigint) {
     process.on('SIGINT', async () => {
       Logger.mainLogger.debug('Exiting on SIGINT')
-      exitArchiver(io)
+      if (Data.socketServer) Data.socketServer.close()
+      await closeDatabase()
+      if (isActive) exitArchiver()
     })
   }
   if (sigterm) {
     process.on('SIGTERM', async () => {
       Logger.mainLogger.debug('Exiting on SIGTERM')
-      exitArchiver(io)
+      if (Data.socketServer) Data.socketServer.close()
+      await closeDatabase()
+      if (isActive) exitArchiver()
     })
   }
   Logger.mainLogger.debug('Registerd exit signal listeners.')

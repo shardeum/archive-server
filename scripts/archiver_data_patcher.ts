@@ -2,7 +2,7 @@ import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import * as dbstore from '../src/dbstore'
 import { config, overrideDefaultConfig } from '../src/Config'
-import { ArchiverNodeInfo } from '../src/State'
+import { ArchiverNodeInfo, addSigListeners } from '../src/State'
 import { postJson } from '../src/P2P'
 import * as ReceiptDB from '../src/dbstore/receipts'
 import * as OriginalTxDataDB from '../src/dbstore/originalTxsData'
@@ -67,6 +67,7 @@ const runProgram = async (): Promise<void> => {
     startSaving(join(baseDir, logsConfig.dir))
   }
   await dbstore.initializeDB(config)
+  addSigListeners()
 
   for (const archiver of archivers) {
     // Receipts
@@ -171,6 +172,7 @@ const runProgram = async (): Promise<void> => {
     `totalReceipts: ${totalReceipts}`,
     `totalOriginalTxs: ${totalOriginalTxs}`
   )
+  await dbstore.closeDatabase()
 }
 
 const fetchDataCountByCycles = async (

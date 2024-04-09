@@ -28,7 +28,7 @@ export async function init(config: Config): Promise<void> {
 /**
  * Close Database Connections Gracefully
  */
-export async function closeDatabase(): Promise<void> {
+export async function close(): Promise<void> {
   try {
     console.log('Terminating Database/Indexer Connections...')
     await new Promise<void>((resolve, reject) => {
@@ -43,7 +43,7 @@ export async function closeDatabase(): Promise<void> {
       })
     })
   } catch (err) {
-    console.error('Error thrown in closeDatabase() function: ')
+    console.error('Error thrown in db close() function: ')
     console.error(err)
   }
 }

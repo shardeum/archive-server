@@ -8,6 +8,7 @@ import * as AccountDB from '../src/dbstore/accounts'
 import { startSaving } from '../src/saveConsoleOutput'
 import * as Logger from '../src/Logger'
 import { accountSpecificHash } from '../src/shardeum/calculateAccountHash'
+import { addSigListeners } from '../src/State'
 
 const activeVersion = '1.9.0'
 const latestVersion = '1.9.0'
@@ -35,6 +36,7 @@ const runProgram = async (): Promise<void> => {
     startSaving(join(baseDir, logsConfig.dir))
   }
   await dbstore.initializeDB(config)
+  addSigListeners()
 
   const networkAccountId = config.globalNetworkAccount
   const networkAccount = (await AccountDB.queryAccountByAccountId(networkAccountId)) as AccountDB.AccountCopy
@@ -56,5 +58,6 @@ const runProgram = async (): Promise<void> => {
   networkAccount.data.hash = calculatedAccountHash
   await AccountDB.insertAccount(networkAccount)
   console.log('Network account after', networkAccount)
+  await dbstore.closeDatabase()
 }
 runProgram()
