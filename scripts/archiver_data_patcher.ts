@@ -183,8 +183,8 @@ const fetchDataCountByCycles = async (
     dataType === DataType.RECEIPT
       ? 'receipt'
       : dataType === DataType.ORIGINAL_TX_DATA
-        ? 'originalTx'
-        : 'cycleinfo'
+      ? 'originalTx'
+      : 'cycleinfo'
   const data =
     dataType === DataType.CYCLE
       ? {

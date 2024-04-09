@@ -91,8 +91,9 @@ export async function queryAccountByAccountId(accountId: string): Promise<Accoun
 
 export async function queryLatestAccounts(count: number): Promise<AccountCopy[] | null> {
   try {
-    const sql = `SELECT * FROM accounts ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${count ? count : 100
-      }`
+    const sql = `SELECT * FROM accounts ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${
+      count ? count : 100
+    }`
     const dbAccounts = (await db.all(sql)) as DbAccountCopy[]
     const accounts: AccountCopy[] = []
     if (dbAccounts.length > 0) {
