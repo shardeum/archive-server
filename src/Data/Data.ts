@@ -39,6 +39,7 @@ import { queryFromArchivers, RequestDataType } from '../API'
 import ioclient = require('socket.io-client')
 import { Transaction } from '../dbstore/transactions'
 import { AccountCopy } from '../dbstore/accounts'
+import { getJson } from '../P2P'
 import { robustQuery } from '../Utils'
 
 export const socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
@@ -127,6 +128,10 @@ interface IncomingTimes {
   startQ3: number
   startQ4: number
   end: number
+}
+
+interface JoinStatus {
+  isJoined: boolean
 }
 
 export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
@@ -758,7 +763,7 @@ export async function joinNetwork(
   if (!isFirstTime) {
     let isJoined: boolean
     if (checkFromConsensor) isJoined = await checkJoinStatusFromConsensor(nodeList)
-    else isJoined = await checkJoinStatus()
+    else isJoined = await checkJoinStatus(nodeList)
     if (isJoined) {
       return isJoined
     }
@@ -900,30 +905,37 @@ export async function getCycleDuration(): Promise<number> {
   return 0
 }
 
-export async function checkJoinStatus(): Promise<boolean> {
-  Logger.mainLogger.debug('Checking join status')
+/*
+  checkJoinStatus checks if the current archiver node is joined to a network. 
+  It randomly selects up to 5 active nodes to query about the join status, 
+  then queries /joinedArchiver endpoint on those nodes and returns joining status
+  based on majority response
+*/
+export async function checkJoinStatus(activeNodes: NodeList.ConsensusNodeInfo[]): Promise<boolean> {
+  Logger.mainLogger.debug('checkJoinStatus: Checking join status')
   const ourNodeInfo = State.getNodeInfo()
 
-  try {
-    const response = (await queryFromArchivers(RequestDataType.CYCLE, {
-      count: 1,
-    })) as ArchiverCycleResponse
-    if (response && response.cycleInfo && response.cycleInfo[0] && response.cycleInfo[0].joinedArchivers) {
-      const joinedArchivers = response.cycleInfo[0].joinedArchivers
-      const refreshedArchivers = response.cycleInfo[0].refreshedArchivers
-      Logger.mainLogger.debug('cycle counter', response.cycleInfo[0].counter)
-      Logger.mainLogger.debug('Joined archivers', joinedArchivers)
+  // Get 5 random nodes or all activeNodes if activeNodes count is less than 5
+  const selectedNodes = Utils.getRandom(activeNodes, Math.min(activeNodes.length, 5))
 
-      const isJoined = [...joinedArchivers, ...refreshedArchivers].some(
-        (a) => a.publicKey === ourNodeInfo.publicKey
-      )
-      Logger.mainLogger.debug('isJoined', isJoined)
-      return !!isJoined
-    } else {
-      return false
+  Logger.mainLogger.debug('checkJoinStatus: selectedNodes: ', selectedNodes)
+
+  const queryFn = async (node: NodeList.ConsensusNodeInfo): Promise<JoinStatus> => {
+    const url = `http://${node.ip}:${node.port}/joinedArchiver/${ourNodeInfo.publicKey}`;
+    try {
+      return await getJson(url) as JoinStatus;
+    } catch (e) {
+      Logger.mainLogger.error(`Error querying node ${node.ip}:${node.port}: ${e}`);
+      throw e;
     }
+  }
+
+  try {
+    const joinStatus = await robustQuery(selectedNodes, queryFn)
+    Logger.mainLogger.debug(`checkJoinStatus: Join status: ${joinStatus.value.isJoined}`)
+    return joinStatus.value.isJoined
   } catch (e) {
-    Logger.mainLogger.error(e)
+    Logger.mainLogger.error(`Error in checkJoinStatus: ${e}`)
     return false
   }
 }
