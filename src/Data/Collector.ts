@@ -460,11 +460,11 @@ export const storeReceiptData = async (
       (processedReceiptsMap.has(txId) && processedReceiptsMap.get(txId) === timestamp) ||
       (receiptsInValidationMap.has(txId) && receiptsInValidationMap.get(txId) === timestamp)
     ) {
-      if (config.VERBOSE) console.log('RECEIPT', 'Skip', txId, timestamp, senderInfo)
-        continue
+      console.log('RECEIPT', 'Skip', txId, timestamp, senderInfo)
+      continue
     }
-    if (config.VERBOSE) console.log('RECEIPT', 'Validate', txId, timestamp, senderInfo)
-      receiptsInValidationMap.set(txId, timestamp)
+    console.log('RECEIPT', 'Validate', txId, timestamp, senderInfo)
+    receiptsInValidationMap.set(txId, timestamp)
     if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Validate_receipt')
     if (!validateReceiptData(receipt)) {
       Logger.mainLogger.error('Invalid receipt: Validation failed', txId, receipt.cycle, timestamp)
@@ -531,8 +531,8 @@ export const storeReceiptData = async (
     //   timestamp: tx.timestamp,
     // })
     const { accounts, cycle, tx, appReceiptData } = receipt
-    if (config.VERBOSE) console.log('RECEIPT', 'Save', txId, timestamp, senderInfo)
-      processedReceiptsMap.set(tx.txId, tx.timestamp)
+    console.log('RECEIPT', 'Save', txId, timestamp, senderInfo)
+    processedReceiptsMap.set(tx.txId, tx.timestamp)
     receiptsInValidationMap.delete(tx.txId)
     if (missingReceiptsMap.has(tx.txId)) missingReceiptsMap.delete(tx.txId)
     combineReceipts.push({
@@ -800,15 +800,16 @@ export const storeOriginalTxData = async (
       (processedOriginalTxsMap.has(txId) && processedOriginalTxsMap.get(txId) === timestamp) ||
       (originalTxsInValidationMap.has(txId) && originalTxsInValidationMap.get(txId) === timestamp)
     ) {
-      if (config.VERBOSE) console.log('ORIGINAL_TX_DATA', 'Skip', txId, timestamp, senderInfo)
+      console.log('ORIGINAL_TX_DATA', 'Skip', txId, timestamp, senderInfo)
       continue
     }
-    if (config.VERBOSE) console.log('ORIGINAL_TX_DATA', 'Validate', txId, timestamp, senderInfo)
+    console.log('ORIGINAL_TX_DATA', 'Validate', txId, timestamp, senderInfo)
     if (validateOriginalTxData(originalTxData) === false) {
       Logger.mainLogger.error('Invalid originalTxData: Validation failed', txId)
       originalTxsInValidationMap.delete(txId)
       continue
     }
+    console.log('ORIGINAL_TX_DATA', 'Save', txId, timestamp, senderInfo)
     processedOriginalTxsMap.set(txId, timestamp)
     originalTxsInValidationMap.delete(txId)
     if (missingOriginalTxsMap.has(txId)) missingOriginalTxsMap.delete(txId)
@@ -817,7 +818,6 @@ export const storeOriginalTxData = async (
       OriginalTxDataLogWriter.writeToLog(`${JSON.stringify(originalTxData)}\n`)
     combineOriginalTxsData.push(originalTxData)
     txDataList.push({ txId, timestamp })
-    if (config.VERBOSE) console.log('ORIGINAL_TX_DATA', 'Save', txId, timestamp, senderInfo)
     if (combineOriginalTxsData.length >= bucketSize) {
       await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
       if (State.isActive) sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txDataList)
@@ -1156,6 +1156,8 @@ export function cleanOldReceiptsMap(timestamp: number): void {
 export function cleanOldOriginalTxsMap(timestamp: number): void {
   for (const [key, value] of processedOriginalTxsMap) {
     if (value < timestamp) {
+      if (!processedReceiptsMap.has(key))
+        Logger.mainLogger.error('The processed receipt is not found for originalTx', key, value)
       processedOriginalTxsMap.delete(key)
     }
   }
