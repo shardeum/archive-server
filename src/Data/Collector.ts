@@ -461,10 +461,10 @@ export const storeReceiptData = async (
       (receiptsInValidationMap.has(txId) && receiptsInValidationMap.get(txId) === timestamp)
     ) {
       if (config.VERBOSE) console.log('RECEIPT', 'Skip', txId, timestamp, senderInfo)
-      continue
+        continue
     }
     if (config.VERBOSE) console.log('RECEIPT', 'Validate', txId, timestamp, senderInfo)
-    receiptsInValidationMap.set(txId, timestamp)
+      receiptsInValidationMap.set(txId, timestamp)
     if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Validate_receipt')
     if (!validateReceiptData(receipt)) {
       Logger.mainLogger.error('Invalid receipt: Validation failed', txId, receipt.cycle, timestamp)
@@ -532,7 +532,7 @@ export const storeReceiptData = async (
     // })
     const { accounts, cycle, tx, appReceiptData } = receipt
     if (config.VERBOSE) console.log('RECEIPT', 'Save', txId, timestamp, senderInfo)
-    processedReceiptsMap.set(tx.txId, tx.timestamp)
+      processedReceiptsMap.set(tx.txId, tx.timestamp)
     receiptsInValidationMap.delete(tx.txId)
     if (missingReceiptsMap.has(tx.txId)) missingReceiptsMap.delete(tx.txId)
     combineReceipts.push({
@@ -817,7 +817,7 @@ export const storeOriginalTxData = async (
       OriginalTxDataLogWriter.writeToLog(`${JSON.stringify(originalTxData)}\n`)
     combineOriginalTxsData.push(originalTxData)
     txDataList.push({ txId, timestamp })
-    if (config.VERBOSE) console.log('ORIGINAL_TX_DATA', txId, timestamp, senderInfo)
+    if (config.VERBOSE) console.log('ORIGINAL_TX_DATA', 'Save', txId, timestamp, senderInfo)
     if (combineOriginalTxsData.length >= bucketSize) {
       await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
       if (State.isActive) sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txDataList)
