@@ -4,21 +4,21 @@
     "files": { "main": "", "fatal": "", "net": "" },
     "options": {
       "appenders": {
-        "out": { "type": "console", "maxLogSize": 10000000, "backups": 10 },
+        "out": { "type": "console", "maxLogSize": 10000000, "backups": 50 },
         "main": {
           "type": "file",
           "maxLogSize": 10000000,
-          "backups": 10
+          "backups": 50
         },
         "fatal": {
           "type": "file",
           "maxLogSize": 10000000,
-          "backups": 10
+          "backups": 50
         },
         "errorFile": {
           "type": "file",
           "maxLogSize": 10000000,
-          "backups": 10
+          "backups": 50
         },
         "errors": {
           "type": "logLevelFilter",
