@@ -460,10 +460,10 @@ export const storeReceiptData = async (
       (processedReceiptsMap.has(txId) && processedReceiptsMap.get(txId) === timestamp) ||
       (receiptsInValidationMap.has(txId) && receiptsInValidationMap.get(txId) === timestamp)
     ) {
-      console.log('RECEIPT', 'Skip', txId, timestamp, senderInfo)
+      if (config.VERBOSE) console.log('RECEIPT', 'Skip', txId, timestamp, senderInfo)
       continue
     }
-    console.log('RECEIPT', 'Validate', txId, timestamp, senderInfo)
+    if (config.VERBOSE) console.log('RECEIPT', 'Validate', txId, timestamp, senderInfo)
     receiptsInValidationMap.set(txId, timestamp)
     if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Validate_receipt')
     if (!validateReceiptData(receipt)) {
@@ -531,7 +531,7 @@ export const storeReceiptData = async (
     //   timestamp: tx.timestamp,
     // })
     const { accounts, cycle, tx, appReceiptData } = receipt
-    console.log('RECEIPT', 'Save', txId, timestamp, senderInfo)
+    if (config.VERBOSE) console.log('RECEIPT', 'Save', txId, timestamp, senderInfo)
     processedReceiptsMap.set(tx.txId, tx.timestamp)
     receiptsInValidationMap.delete(tx.txId)
     if (missingReceiptsMap.has(tx.txId)) missingReceiptsMap.delete(tx.txId)
@@ -800,16 +800,16 @@ export const storeOriginalTxData = async (
       (processedOriginalTxsMap.has(txId) && processedOriginalTxsMap.get(txId) === timestamp) ||
       (originalTxsInValidationMap.has(txId) && originalTxsInValidationMap.get(txId) === timestamp)
     ) {
-      console.log('ORIGINAL_TX_DATA', 'Skip', txId, timestamp, senderInfo)
+      if (config.VERBOSE) console.log('ORIGINAL_TX_DATA', 'Skip', txId, timestamp, senderInfo)
       continue
     }
-    console.log('ORIGINAL_TX_DATA', 'Validate', txId, timestamp, senderInfo)
+    if (config.VERBOSE) console.log('ORIGINAL_TX_DATA', 'Validate', txId, timestamp, senderInfo)
     if (validateOriginalTxData(originalTxData) === false) {
       Logger.mainLogger.error('Invalid originalTxData: Validation failed', txId)
       originalTxsInValidationMap.delete(txId)
       continue
     }
-    console.log('ORIGINAL_TX_DATA', 'Save', txId, timestamp, senderInfo)
+    if (config.VERBOSE) console.log('ORIGINAL_TX_DATA', 'Save', txId, timestamp, senderInfo)
     processedOriginalTxsMap.set(txId, timestamp)
     originalTxsInValidationMap.delete(txId)
     if (missingOriginalTxsMap.has(txId)) missingOriginalTxsMap.delete(txId)

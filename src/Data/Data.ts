@@ -524,18 +524,18 @@ export async function subscribeNodeForDataTransfer(): Promise<void> {
  */
 export function createContactTimeout(
   publicKey: NodeList.ConsensusNodeInfo['publicKey'],
-  msg = '',
-  ms = 0
+  msg = ''
 ): NodeJS.Timeout {
-  if (!ms) ms = 15 * 1000 // Change contact timeout to 15s for now
-  if (config.VERBOSE) Logger.mainLogger.debug('Created contact timeout: ' + ms, `for ${publicKey}`)
+  const CONTACT_TIMEOUT_MS = 10 * 1000 // Change contact timeout to 10s
+  if (config.VERBOSE)
+    Logger.mainLogger.debug('Created contact timeout: ' + CONTACT_TIMEOUT_MS, `for ${publicKey}`)
   nestedCountersInstance.countEvent('archiver', 'contact_timeout_created')
   return setTimeout(() => {
     // Logger.mainLogger.debug('nestedCountersInstance', nestedCountersInstance)
     if (nestedCountersInstance) nestedCountersInstance.countEvent('archiver', 'contact_timeout')
     Logger.mainLogger.debug('REPLACING sender due to CONTACT timeout', msg, publicKey)
     replaceDataSender(publicKey)
-  }, ms)
+  }, CONTACT_TIMEOUT_MS)
 }
 
 export function addDataSender(sender: DataSender): void {
