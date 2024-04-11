@@ -40,8 +40,6 @@ import { queryFromArchivers, RequestDataType } from '../API'
 import ioclient = require('socket.io-client')
 import { Transaction } from '../dbstore/transactions'
 import { AccountCopy } from '../dbstore/accounts'
-
-export let socketServer: SocketIO.Server
 export const socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
 // let socketConnectionsTracker: Map<string, string> = new Map()
 export let combineAccountsData = {
@@ -143,13 +141,6 @@ export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
     },
     recipientPk
   )
-}
-
-export function initSocketServer(io: SocketIO.Server): void {
-  socketServer = io
-  socketServer.on('connection', () => {
-    Logger.mainLogger.debug('Explorer has connected')
-  })
 }
 
 export async function unsubscribeDataSender(

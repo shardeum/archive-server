@@ -8,7 +8,6 @@ import * as Crypto from '../Crypto'
 import {
   clearCombinedAccountsData,
   combineAccountsData,
-  socketServer,
   collectCycleData,
   nodesPerConsensusGroup,
 } from './Data'
@@ -732,12 +731,6 @@ export const storeAccountData = async (restoreData: StoreAccountParam = {}): Pro
   if (profilerInstance) profilerInstance.profileSectionStart('store_account_data')
   storingAccountData = true
   if (!accounts && !receipts) return
-  if (socketServer && accounts) {
-    const signedDataToSend = Crypto.sign({
-      accounts: accounts,
-    })
-    socketServer.emit('RECEIPT', signedDataToSend)
-  }
   Logger.mainLogger.debug('Received Accounts Size', accounts ? accounts.length : 0)
   Logger.mainLogger.debug('Received Transactions Size', receipts ? receipts.length : 0)
   // for (let i = 0; i < accounts.length; i++) {

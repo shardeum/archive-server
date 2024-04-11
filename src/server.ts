@@ -479,7 +479,7 @@ async function syncAndStartServer(): Promise<void> {
 }
 
 // Define all endpoints, all requests, and start REST server
-async function startServer(): Promise<SocketIO.Server> {
+async function startServer(): Promise<void> {
   const server: FastifyInstance<Server, IncomingMessage, ServerResponse> = fastify({
     logger: false,
   })
@@ -491,11 +491,6 @@ async function startServer(): Promise<SocketIO.Server> {
     timeWindow: 10,
     allowList: ['127.0.0.1', '0.0.0.0'], // Excludes local IPs from rate limits
   })
-
-  // Socket server instance
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const io = require('socket.io')(server.server)
-  Data.initSocketServer(io)
 
   initProfiler(server)
 
@@ -522,7 +517,6 @@ async function startServer(): Promise<SocketIO.Server> {
       Collector.scheduleMissingTxsDataQuery()
     }
   )
-  return io
 }
 
 start()

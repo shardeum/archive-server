@@ -148,7 +148,6 @@ export function addSigListeners(sigint = true, sigterm = true): void {
   if (sigint) {
     process.on('SIGINT', async () => {
       Logger.mainLogger.debug('Exiting on SIGINT')
-      if (Data.socketServer) Data.socketServer.close()
       await closeDatabase()
       if (isActive) exitArchiver()
     })
@@ -156,7 +155,6 @@ export function addSigListeners(sigint = true, sigterm = true): void {
   if (sigterm) {
     process.on('SIGTERM', async () => {
       Logger.mainLogger.debug('Exiting on SIGTERM')
-      if (Data.socketServer) Data.socketServer.close()
       await closeDatabase()
       if (isActive) exitArchiver()
     })
