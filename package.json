@@ -8,6 +8,7 @@
   "main": "./build/server.js",
   "types": "./build/server.d.ts",
   "files": [
+    "build/**/*",
     "archiver-log.json"
   ],
   "bin": {
