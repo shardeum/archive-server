@@ -161,7 +161,9 @@ const isReceiptRobust = async (
   const sameReceipt = isReceiptEqual(receipt.appliedReceipt, robustQueryReceipt)
 
   if (!sameReceipt) {
-    Logger.mainLogger.debug('Found different receipt in robustQuery', receipt.tx.txId)
+    Logger.mainLogger.debug(
+      `Found different receipt in robustQuery ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+    )
     if (nestedCountersInstance)
       nestedCountersInstance.countEvent('receipt', 'Found_different_receipt_in_robustQuery')
     if (config.VERBOSE) Logger.mainLogger.debug(receipt.appliedReceipt)
@@ -170,7 +172,11 @@ const isReceiptRobust = async (
     signedData = Crypto.sign({ txId: receipt.tx.txId, full_receipt: true })
     for (const node of robustQuery.nodes) {
       const fullReceiptResult: GET_TX_RECEIPT_RESPONSE = await queryReceipt(node)
-      if (config.VERBOSE) Logger.mainLogger.debug('fullReceiptResult', receipt.tx.txId, fullReceiptResult)
+      if (config.VERBOSE)
+        Logger.mainLogger.debug(
+          `'fullReceiptResult ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`,
+          fullReceiptResult
+        )
       if (!fullReceiptResult || !fullReceiptResult.receipt) continue
       const fullReceipt = fullReceiptResult.receipt as Receipt.ArchiverReceipt
       if (
@@ -178,13 +184,17 @@ const isReceiptRobust = async (
         validateReceiptData(fullReceipt)
       ) {
         if (config.verifyAccountData && !verifyAccountHash(fullReceipt)) continue
-        Logger.mainLogger.debug('Found valid full receipt in robustQuery', receipt.tx.txId)
+        Logger.mainLogger.debug(
+          `Found valid full receipt in robustQuery ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+        )
         if (nestedCountersInstance)
           nestedCountersInstance.countEvent('receipt', 'Found_valid_full_receipt_in_robustQuery')
         return { success: true, newReceipt: fullReceipt }
       }
     }
-    Logger.mainLogger.error('No valid full receipt found in robustQuery', receipt.tx.txId)
+    Logger.mainLogger.error(
+      `No valid full receipt found in robustQuery ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+    )
     if (nestedCountersInstance)
       nestedCountersInstance.countEvent('receipt', 'No_valid_full_receipt_found_in_robustQuery')
     return { success: false }
@@ -940,6 +950,7 @@ export const collectMissingReceipts = async (): Promise<void> => {
       missingReceiptsMap.delete(txId)
     }
   }
+  if (cloneMissingReceiptsMap.size === 0) return
   Logger.mainLogger.debug(
     'Collecting missing receipts',
     cloneMissingReceiptsMap.size,
@@ -1004,24 +1015,26 @@ export const collectMissingReceipts = async (): Promise<void> => {
 
 export const getArchiversToUse = (): State.ArchiverNodeInfo[] => {
   let archiversToUse: State.ArchiverNodeInfo[] = []
-  // Choosing 3 random archivers from the active archivers list
-  if (State.activeArchivers.length <= 3) {
+  const MAX_ARCHIVERS_TO_SELECT = 3
+  // Choosing MAX_ARCHIVERS_TO_SELECT random archivers from the active archivers list
+  if (State.activeArchivers.length <= MAX_ARCHIVERS_TO_SELECT) {
     State.activeArchivers.forEach(
       (archiver) => archiver.publicKey !== State.getNodeInfo().publicKey && archiversToUse.push(archiver)
     )
   } else {
+    // Filter out the adjacent archivers and self archiver from the active archivers list
     const activeArchivers = [...State.activeArchivers].filter(
       (archiver) =>
         adjacentArchivers.has(archiver.publicKey) || archiver.publicKey === State.getNodeInfo().publicKey
     )
-    archiversToUse = Utils.getRandomItemFromArr(activeArchivers, 0, 3)
-    while (archiversToUse.length < 3) {
-      let adjacentArchiversToUse = [...adjacentArchivers.values()]
-      adjacentArchiversToUse = adjacentArchiversToUse.filter(
-        (archiver) => !archiversToUse.find((archiverToUse) => archiverToUse.publicKey === archiver.publicKey)
-      )
-      if (adjacentArchiversToUse.length <= 0) break
-      archiversToUse.push(Utils.getRandomItemFromArr(adjacentArchiversToUse)[0])
+    archiversToUse = Utils.getRandomItemFromArr(activeArchivers, 0, MAX_ARCHIVERS_TO_SELECT)
+    if (archiversToUse.length < MAX_ARCHIVERS_TO_SELECT) {
+      const requiredArchivers = MAX_ARCHIVERS_TO_SELECT - archiversToUse.length
+      // If the required archivers are not selected, then get it from the adjacent archivers
+      archiversToUse = [
+        ...archiversToUse,
+        ...Utils.getRandomItemFromArr([...adjacentArchivers.values()], requiredArchivers),
+      ]
     }
   }
   return archiversToUse
@@ -1078,6 +1091,7 @@ export const collectMissingOriginalTxsData = async (): Promise<void> => {
       missingOriginalTxsMap.delete(txId)
     }
   }
+  if (cloneMissingOriginalTxsMap.size === 0) return
   Logger.mainLogger.debug(
     'Collecting missing originalTxsData',
     cloneMissingOriginalTxsMap.size,

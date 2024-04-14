@@ -8,14 +8,13 @@
   "main": "./build/server.js",
   "types": "./build/server.d.ts",
   "files": [
-    "build/**/*",
     "archiver-log.json"
   ],
   "bin": {
     "archive-server": "./build/server.js"
   },
   "scripts": {
-    "release": "np --no-cleanup --no-tests --no-yarn --any-branch",
+    "release": "npm run prepare && np --no-cleanup --no-tests --no-yarn --any-branch",
     "test": "echo \"Error: no test specified\" && exit 1",
     "check": "gts check",
     "clean": "npm-run-all clean:*",

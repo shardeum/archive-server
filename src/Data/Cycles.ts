@@ -555,7 +555,7 @@ function updateShardValues(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
 
   // console.log('cycleShardData', cycleShardData.cycleNumber)
   // console.dir(cycleShardData, { depth: null })
-  const list = cycleShardData.nodes.map((n) => n['ip'] + ':' + n['port'] + ':' + n.publicKey)
+  const list = cycleShardData.nodes.map((n) => n['ip'] + ':' + n['port'])
   Logger.mainLogger.debug('cycleShardData', cycleShardData.cycleNumber, list.length, stringifyReduce(list))
   shardValuesByCycle.set(cycleShardData.cycleNumber, cycleShardData)
   if (shardValuesByCycle.size > CYCLE_SHARD_STORAGE_LIMIT) {

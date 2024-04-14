@@ -5,7 +5,7 @@ console.log(_startingMessage)
 console.error(_startingMessage)
 
 import { join } from 'path'
-import fastify, { FastifyInstance, FastifyRequest } from 'fastify'
+import fastify, { FastifyInstance } from 'fastify'
 import fastifyCors from '@fastify/cors'
 import fastifyRateLimit from '@fastify/rate-limit'
 import { Server, IncomingMessage, ServerResponse } from 'http'
@@ -39,59 +39,6 @@ import * as Collector from './Data/Collector'
 import { loadGlobalAccounts, syncGlobalAccount } from './GlobalAccount'
 import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycles'
 import { registerRoutes } from './API'
-
-// Types
-export type ReceiptQuery = {
-  start: string
-  end: string
-  startCycle: string
-  endCycle: string
-  type: string
-  page: string
-  txId: string
-  txIdList: string
-}
-
-export type ReceiptRequest = FastifyRequest<{
-  Querystring: ReceiptQuery
-}>
-
-export type AccountQuery = {
-  start: string
-  end: string
-  startCycle: string
-  endCycle: string
-  type: string
-  page: string
-  accountId: string
-}
-
-export type AccountRequest = FastifyRequest<{
-  Querystring: AccountQuery
-}>
-
-export type TransactionQuery = {
-  start: string
-  end: string
-  startCycle: string
-  endCycle: string
-  txId: string
-  page: string
-  accountId: string
-}
-
-export type TransactionRequest = FastifyRequest<{
-  Querystring: TransactionQuery
-}>
-
-export type FullArchiveQuery = {
-  start: string
-  end: string
-}
-
-export type FullArchiveRequest = FastifyRequest<{
-  Querystring: FullArchiveQuery
-}>
 
 const configFile = join(process.cwd(), 'archiver-config.json')
 let logDir: string
