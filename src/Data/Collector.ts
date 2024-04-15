@@ -183,13 +183,41 @@ const isReceiptRobust = async (
         isReceiptEqual(fullReceipt.appliedReceipt, robustQueryReceipt) &&
         validateReceiptData(fullReceipt)
       ) {
-        if (config.verifyAccountData && !verifyAccountHash(fullReceipt)) continue
+        if (config.verifyAppReceiptData) {
+          const { valid, needToSave } = await verifyAppReceiptData(receipt)
+          if (!valid) {
+            Logger.mainLogger.error(
+              `The app receipt verification failed from robustQuery nodes ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+            )
+            continue
+          }
+          if (!needToSave) {
+            Logger.mainLogger.debug(
+              `Found valid full receipt in robustQuery ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+            )
+            Logger.mainLogger.error(
+              `Found valid receipt from robustQuery: but no need to save ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+            )
+            return { success: false }
+          }
+        }
+        if (config.verifyAccountData && !verifyAccountHash(fullReceipt)) {
+          Logger.mainLogger.error(
+            `The account verification failed from robustQuery nodes ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+          )
+          continue
+        }
         Logger.mainLogger.debug(
           `Found valid full receipt in robustQuery ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
         )
         if (nestedCountersInstance)
           nestedCountersInstance.countEvent('receipt', 'Found_valid_full_receipt_in_robustQuery')
         return { success: true, newReceipt: fullReceipt }
+      } else {
+        Logger.mainLogger.error(
+          `The receipt validation failed from robustQuery nodes ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+        )
+        Logger.mainLogger.error(JSON.stringify(robustQueryReceipt), JSON.stringify(fullReceipt))
       }
     }
     Logger.mainLogger.error(
