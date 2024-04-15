@@ -5,7 +5,7 @@ import * as Receipt from '../dbstore/receipts'
 
 import { ArchiverReceipt } from '../dbstore/receipts'
 
-type ShardeumReceipt = object & {
+export type ShardeumReceipt = object & {
   amountSpent: string
   readableReceipt: { status: number }
 }

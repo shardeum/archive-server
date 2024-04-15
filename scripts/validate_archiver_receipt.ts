@@ -4,13 +4,10 @@ import * as Crypto from '../src/Crypto'
 import * as Utils from '../src/Utils'
 import * as Receipt from '../src/dbstore/receipts'
 import { AccountType, accountSpecificHash, fixAccountUint8Arrays } from '../src/shardeum/calculateAccountHash'
+import { ShardeumReceipt } from '../src/shardeum/verifyAppReceiptData'
 
+// Add the full receipt data here
 const receipt: any = {}
-
-type ShardeumReceipt = object & {
-  amountSpent: string
-  readableReceipt: { status: number }
-}
 
 const runProgram = async (): Promise<void> => {
   // Override default config params from config file, env vars, and cli args
@@ -20,17 +17,29 @@ const runProgram = async (): Promise<void> => {
   const hashKey = config.ARCHIVER_HASH_KEY
   Crypto.setCryptoHashKey(hashKey)
 
-  // validate appReceiptData 
-  validateReceiptData(receipt)
+  // validate appReceiptData
+  let result = validateReceiptData(receipt)
+  if (!result) {
+    console.error('Invalid receipt data')
+    return
+  }
 
   // verifyAppReceiptData
-  verifyAppReceiptData(receipt)
+  result = verifyAppReceiptData(receipt)
+  if (!result) {
+    console.error('Invalid app receipt data')
+    return
+  }
 
   // verifyAccountHash
-  verifyAccountHash(receipt)
+  result = verifyAccountHash(receipt)
+  if (!result) {
+    console.error('Invalid accounts data')
+    return
+  }
 }
 
-// validating appReceiptData 
+// validating appReceiptData
 const validateReceiptData = (receipt: Receipt.ArchiverReceipt): boolean => {
   // Add type and field existence check
   let err = Utils.validateTypes(receipt, {
@@ -195,89 +204,39 @@ const calculateAppReceiptDataHash = (appReceiptData: any): string => {
   }
 }
 
-export const verifyAppReceiptData = async (
-  receipt: Receipt.ArchiverReceipt
-): Promise<{ valid: boolean; needToSave: boolean }> => {
-  let result = { valid: false, needToSave: false }
-  const { appReceiptData, tx, globalModification } = receipt
+export const verifyAppReceiptData = (receipt: Receipt.ArchiverReceipt): boolean => {
+  const { appReceiptData, globalModification } = receipt
   const newShardeumReceipt = appReceiptData.data as ShardeumReceipt
   if (!newShardeumReceipt.amountSpent || !newShardeumReceipt.readableReceipt) {
-   console.error(`appReceiptData missing amountSpent or readableReceipt`)
-    return result
+    console.error(`appReceiptData missing amountSpent or readableReceipt`)
+    return false
   }
   if (
     newShardeumReceipt.amountSpent === '0x0' &&
     newShardeumReceipt.readableReceipt.status === 0 &&
     receipt.accounts.length > 0
   ) {
-   console.error(
+    console.error(
       `The receipt has 0 amountSpent and status 0 but has state updated accounts!`,
       receipt.tx.txId,
       receipt.cycle,
       receipt.tx.timestamp
     )
   }
-  result = { valid: true, needToSave: false }
-  const receiptExist = await Receipt.queryReceiptByReceiptId(tx.txId)
-  if (receiptExist && receiptExist.timestamp !== receipt.tx.timestamp) {
-    const existingShardeumReceipt = receiptExist.appReceiptData.data as ShardeumReceipt
-    /**
-     * E: existing receipt, N: new receipt, X: any value
-     * E: status = 0, N: status = 1, E: amountSpent = 0, N: amountSpent = X, needToSave = true
-     * E: status = 0, N: status = 1, E: amountSpent > 0, N: amountSpent > 0, needToSave = false (success and failed receipts with gas charged)
-     * E: status = 0, N: status = 0, E: amountSpent = 0, N: amountSpent = 0, needToSave = false
-     * E: status = 0, N: status = 0, E: amountSpent = 0, N: amountSpent > 0, needToSave = true
-     * E: status = 0, N: status = 0, E: amountSpent > 0, N: amountSpent = 0, needToSave = false
-     * E: status = 0, N: status = 0, E: amountSpent > 0, N: amountSpent > 0, needToSave = false (both failed receipts with gas charged)
-     * E: status = 1, N: status = 0, E: amountSpent = X, N: amountSpent = X, needToSave = false
-     * E: status = 1, N: status = 1, E: amountSpent = X, N: amountSpent = X, needToSave = false (duplicate success receipt)
-     *
-     **/
-    // Added only logging of unexpected cases and needToSave = true cases ( check `else` condition )
-    if (existingShardeumReceipt.readableReceipt.status === 0) {
-      if (newShardeumReceipt.readableReceipt.status === 1) {
-        if (existingShardeumReceipt.amountSpent !== '0x0') {
-         console.error(
-            `Success and failed receipts with gas charged`,
-            JSON.stringify(receiptExist),
-            JSON.stringify(receipt)
-          )
-        } else result = { valid: true, needToSave: true } // Success receipt
-      } else {
-        if (existingShardeumReceipt.amountSpent !== '0x0' && newShardeumReceipt.amountSpent !== '0x0') {
-         console.error(
-            `Both failed receipts with gas charged`,
-            JSON.stringify(receiptExist),
-            JSON.stringify(receipt)
-          )
-        } else if (newShardeumReceipt.amountSpent !== '0x0') {
-          // Failed receipt with gas charged
-          result = { valid: true, needToSave: true }
-        }
-      }
-    } else if (newShardeumReceipt.readableReceipt.status === 1) {
-     console.error(
-        `Duplicate success receipt`,
-        JSON.stringify(receiptExist),
-        JSON.stringify(receipt)
-      )
-    }
-  } else result = { valid: true, needToSave: true }
-  if (globalModification && config.skipGlobalTxReceiptVerification) return { valid: true, needToSave: true }
+  if (globalModification && config.skipGlobalTxReceiptVerification) return true
   // Finally verify appReceiptData hash
   const appReceiptDataCopy = { ...appReceiptData }
   const calculatedAppReceiptDataHash = calculateAppReceiptDataHash(appReceiptDataCopy)
   if (calculatedAppReceiptDataHash !== receipt.appliedReceipt.app_data_hash) {
-   console.error(
+    console.error(
       `appReceiptData hash mismatch: ${Crypto.hashObj(appReceiptData)} != ${
         receipt.appliedReceipt.app_data_hash
       }`
     )
-    result = { valid: false, needToSave: false }
+    return false
   }
-  return result
+  return true
 }
-
 
 // Verify account hash
 export const verifyAccountHash = (receipt: Receipt.ArchiverReceipt): boolean => {
