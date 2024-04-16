@@ -36,6 +36,10 @@ export const verifyAppReceiptData = async (
     // If the existing receipt is challenged and the new receipt is confirmed, overwrite the existing receipt
     let skipAppReceiptCheck = false
     if (
+      existingReceipt.appliedReceipt &&
+      existingReceipt.appliedReceipt.confirmOrChallenge &&
+      receipt.appliedReceipt &&
+      receipt.appliedReceipt.confirmOrChallenge &&
       existingReceipt.appliedReceipt.confirmOrChallenge.message === 'challenge' &&
       receipt.appliedReceipt.confirmOrChallenge.message === 'confirm'
     ) {

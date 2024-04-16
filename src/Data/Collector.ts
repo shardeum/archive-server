@@ -518,8 +518,13 @@ export const storeReceiptData = async (
 
     if (verifyData) {
       const existingReceipt = await Receipt.queryReceiptByReceiptId(txId)
-      if (existingReceipt && receipt.appliedReceipt.confirmOrChallenge.message === 'challenge') {
-        // If the existing receipt is confirmed, but the new receipt is challenged, then skip the new receipt
+      if (
+        existingReceipt &&
+        receipt.appliedReceipt &&
+        receipt.appliedReceipt.confirmOrChallenge &&
+        receipt.appliedReceipt.confirmOrChallenge.message === 'challenge'
+      ) {
+        // If the existing receipt is confirmed, and the new receipt is challenged, then skip saving the new receipt
         if (existingReceipt.appliedReceipt.confirmOrChallenge.message === 'confirm') {
           Logger.mainLogger.error(
             `Existing receipt is confirmed, but new receipt is challenged ${txId}, ${receipt.cycle}, ${timestamp}`
@@ -608,7 +613,12 @@ export const storeReceiptData = async (
       )
     txDataList.push({ txId, timestamp })
     // If the receipt is a challenge, then skip updating its accounts data or transaction data
-    if (appliedReceipt.confirmOrChallenge.message === 'challenge') continue
+    if (
+      appliedReceipt &&
+      appliedReceipt.confirmOrChallenge &&
+      appliedReceipt.confirmOrChallenge.message === 'challenge'
+    )
+      continue
     for (const account of accounts) {
       const accObj: Account.AccountCopy = {
         accountId: account.accountId,
