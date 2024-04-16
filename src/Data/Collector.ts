@@ -603,7 +603,7 @@ export const storeReceiptData = async (
         })}\n`
       )
     txDataList.push({ txId, timestamp })
-    // If the receipt is a challenge, then skip updating the accounts data or transaction data
+    // If the receipt is a challenge, then skip updating its accounts data or transaction data
     if (appliedReceipt.confirmOrChallenge.message === 'challenge') continue
     for (const account of accounts) {
       const accObj: Account.AccountCopy = {
