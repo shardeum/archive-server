@@ -69,7 +69,11 @@ const isReceiptRobust = async (
 ): Promise<{ success: boolean; newReceipt?: Receipt.ArchiverReceipt }> => {
   const result = { success: false }
   // Created signedData with full_receipt = false outside of queryReceipt to avoid signing the same data multiple times
-  let signedData = Crypto.sign({ txId: receipt.tx.txId, full_receipt: false })
+  let signedData = Crypto.sign({
+    txId: receipt.tx.txId,
+    timestamp: receipt.tx.timestamp,
+    full_receipt: false,
+  })
   const queryReceipt = async (node: ConsensusNodeInfo): Promise<GET_TX_RECEIPT_RESPONSE | null> => {
     const QUERY_RECEIPT_TIMEOUT_SECOND = 2
     try {
@@ -169,7 +173,7 @@ const isReceiptRobust = async (
     if (config.VERBOSE) Logger.mainLogger.debug(receipt.appliedReceipt)
     if (config.VERBOSE) Logger.mainLogger.debug(robustQueryReceipt)
     // update signedData with full_receipt = true
-    signedData = Crypto.sign({ txId: receipt.tx.txId, full_receipt: true })
+    signedData = Crypto.sign({ txId: receipt.tx.txId, timestamp: receipt.tx.timestamp, full_receipt: true })
     for (const node of robustQuery.nodes) {
       const fullReceiptResult: GET_TX_RECEIPT_RESPONSE = await queryReceipt(node)
       if (config.VERBOSE)
