@@ -50,6 +50,14 @@ export function verifyStandbyList(
   return verify(standbyList, expectedHash, 'standby list')
 }
 
+/** Verifies that the hash of the archiver list matches the expected hash. */
+export function verifyArchiverList(
+  archiverList: P2P.ArchiversTypes.JoinedArchiver[],
+  expectedHash: hexstring
+): Result<boolean, Error> {
+  return verify(archiverList, expectedHash, 'archiver list')
+}
+
 /** Verifies that the hash of the cycle record matches the expected hash. */
 export function verifyCycleRecord(
   cycleRecord: P2P.CycleCreatorTypes.CycleRecord,
