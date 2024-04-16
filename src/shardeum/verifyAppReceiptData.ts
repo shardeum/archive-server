@@ -1,9 +1,7 @@
 import { config } from '../Config'
 import * as crypto from '../Crypto'
 import * as Logger from '../Logger'
-import * as Receipt from '../dbstore/receipts'
-
-import { ArchiverReceipt } from '../dbstore/receipts'
+import { ArchiverReceipt, Receipt } from '../dbstore/receipts'
 
 export type ShardeumReceipt = object & {
   amountSpent: string
@@ -11,10 +9,11 @@ export type ShardeumReceipt = object & {
 }
 
 export const verifyAppReceiptData = async (
-  receipt: ArchiverReceipt
+  receipt: ArchiverReceipt,
+  existingReceipt?: Receipt | null
 ): Promise<{ valid: boolean; needToSave: boolean }> => {
   let result = { valid: false, needToSave: false }
-  const { appReceiptData, tx, globalModification } = receipt
+  const { appReceiptData, globalModification } = receipt
   const newShardeumReceipt = appReceiptData.data as ShardeumReceipt
   if (!newShardeumReceipt.amountSpent || !newShardeumReceipt.readableReceipt) {
     Logger.mainLogger.error(`appReceiptData missing amountSpent or readableReceipt`)
@@ -33,9 +32,8 @@ export const verifyAppReceiptData = async (
     )
   }
   result = { valid: true, needToSave: false }
-  const receiptExist = await Receipt.queryReceiptByReceiptId(tx.txId)
-  if (receiptExist && receiptExist.timestamp !== receipt.tx.timestamp) {
-    const existingShardeumReceipt = receiptExist.appReceiptData.data as ShardeumReceipt
+  if (existingReceipt && existingReceipt.timestamp !== receipt.tx.timestamp) {
+    const existingShardeumReceipt = existingReceipt.appReceiptData.data as ShardeumReceipt
     /**
      * E: existing receipt, N: new receipt, X: any value
      * E: status = 0, N: status = 1, E: amountSpent = 0, N: amountSpent = X, needToSave = true
@@ -54,7 +52,7 @@ export const verifyAppReceiptData = async (
         if (existingShardeumReceipt.amountSpent !== '0x0') {
           Logger.mainLogger.error(
             `Success and failed receipts with gas charged`,
-            JSON.stringify(receiptExist),
+            JSON.stringify(existingReceipt),
             JSON.stringify(receipt)
           )
         } else result = { valid: true, needToSave: true } // Success receipt
@@ -62,7 +60,7 @@ export const verifyAppReceiptData = async (
         if (existingShardeumReceipt.amountSpent !== '0x0' && newShardeumReceipt.amountSpent !== '0x0') {
           Logger.mainLogger.error(
             `Both failed receipts with gas charged`,
-            JSON.stringify(receiptExist),
+            JSON.stringify(existingReceipt),
             JSON.stringify(receipt)
           )
         } else if (newShardeumReceipt.amountSpent !== '0x0') {
@@ -73,7 +71,7 @@ export const verifyAppReceiptData = async (
     } else if (newShardeumReceipt.readableReceipt.status === 1) {
       Logger.mainLogger.error(
         `Duplicate success receipt`,
-        JSON.stringify(receiptExist),
+        JSON.stringify(existingReceipt),
         JSON.stringify(receipt)
       )
     }

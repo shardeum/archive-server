@@ -513,8 +513,25 @@ export const storeReceiptData = async (
     }
 
     if (verifyData) {
+      const existingReceipt = await Receipt.queryReceiptByReceiptId(txId)
+      if (existingReceipt && receipt.appliedReceipt.confirmOrChallenge.message === 'challenge') {
+        // If the existing receipt is confirmed, but the new receipt is challenged, then skip the new receipt
+        if (existingReceipt.appliedReceipt.confirmOrChallenge.message === 'confirm') {
+          Logger.mainLogger.error(
+            `Existing receipt is confirmed, but new receipt is challenged ${txId}, ${receipt.cycle}, ${timestamp}`
+          )
+          receiptsInValidationMap.delete(txId)
+          if (nestedCountersInstance)
+            nestedCountersInstance.countEvent(
+              'receipt',
+              'Existing_receipt_is_confirmed_but_new_receipt_is_challenged'
+            )
+          if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
+          continue
+        }
+      }
       if (config.verifyAppReceiptData) {
-        const { valid, needToSave } = await verifyAppReceiptData(receipt)
+        const { valid, needToSave } = await verifyAppReceiptData(receipt, existingReceipt)
         if (!valid) {
           Logger.mainLogger.error(
             'Invalid receipt: App Receipt Verification failed',
@@ -567,7 +584,7 @@ export const storeReceiptData = async (
     //   receiptId: tx.txId,
     //   timestamp: tx.timestamp,
     // })
-    const { accounts, cycle, tx, appReceiptData } = receipt
+    const { accounts, cycle, tx, appReceiptData, appliedReceipt } = receipt
     if (config.VERBOSE) console.log('RECEIPT', 'Save', txId, timestamp, senderInfo)
     processedReceiptsMap.set(tx.txId, tx.timestamp)
     receiptsInValidationMap.delete(tx.txId)
@@ -586,6 +603,8 @@ export const storeReceiptData = async (
         })}\n`
       )
     txDataList.push({ txId, timestamp })
+    // If the receipt is a challenge, then skip updating the accounts data or transaction data
+    if (appliedReceipt.confirmOrChallenge.message === 'challenge') continue
     for (const account of accounts) {
       const accObj: Account.AccountCopy = {
         accountId: account.accountId,
