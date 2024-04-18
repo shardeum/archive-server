@@ -36,7 +36,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://gitlab.com/shardus/archive/archive-server.git"
+    "url": "git+https://github.com/shardeum/archive-server.git"
   },
   "publishConfig": {
     "access": "public"
