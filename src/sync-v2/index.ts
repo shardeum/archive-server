@@ -15,12 +15,11 @@ import {
   robustQueryForArchiverListHash,
   getArchiverListFromNode,
 } from './queries'
-import { ArchiverNodeInfo, activeArchiversByPublicKeySorted } from '../State'
+import { ArchiverNodeInfo, resetActiveArchivers } from '../State'
 import { getActiveNodeListFromArchiver } from '../NodeList'
 import * as NodeList from '../NodeList'
 import { verifyArchiverList, verifyCycleRecord, verifyValidatorList } from './verify'
 import * as Logger from '../Logger'
-import * as Utils from '../Utils'
 
 /**
  * Given a list of archivers, queries each one until one returns an active node list.
@@ -114,18 +113,9 @@ export function syncV2(
               NodeList.addNodes(NodeList.NodeStatus.SYNCING, syncingNodeList)
               NodeList.addNodes(NodeList.NodeStatus.ACTIVE, activeNodeList)
               NodeList.addStandbyNodes(standbyNodeList)
-              
-              // add archivers
-              for (const archiver of archiverList) {
-                if (!activeArchivers.find(obj => obj.publicKey === archiver.publicKey)) {
-                  activeArchivers.push(archiver)
-                  Utils.insertSorted(
-                    activeArchiversByPublicKeySorted,
-                    archiver,
-                    NodeList.byAscendingPublicKey
-                  )
-                }
-              }
+
+              // reset the active archivers list with the new list
+              resetActiveArchivers(archiverList)
 
               // return a cycle that we'll store in the database
               return okAsync({
@@ -134,8 +124,8 @@ export function syncV2(
               })
             })
           )
+        )
       )
-    )
   )
 }
 
