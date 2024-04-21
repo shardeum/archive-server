@@ -100,16 +100,7 @@ export async function initFromConfig(config: Config, shutDownMode = false): Prom
         continue
       }
       if (response && response.nodeList && response.nodeList.length > 0) {
-        activeArchivers.push(existingArchivers[i])
-        Utils.insertSorted(
-          activeArchiversByPublicKeySorted,
-          existingArchivers[i],
-          NodeList.byAscendingPublicKey
-        )
-        Logger.mainLogger.debug(
-          'activeArchiversByPublicKeySorted',
-          activeArchiversByPublicKeySorted.map((archiver) => archiver.publicKey)
-        )
+        addArchiver(existingArchivers[i])
       }
     }
     /* eslint-enable security/detect-object-injection */
@@ -162,11 +153,27 @@ export function addSigListeners(sigint = true, sigterm = true): void {
   Logger.mainLogger.debug('Registerd exit signal listeners.')
 }
 
+export function addArchiver(archiver: ArchiverNodeInfo): void {
+  const foundArchiver = activeArchivers.find((a) => a.publicKey === archiver.publicKey)
+  if (!foundArchiver) {
+    Logger.mainLogger.debug('Adding archiver', archiver)
+    activeArchivers.push(archiver)
+    Utils.insertSorted(activeArchiversByPublicKeySorted, archiver, NodeList.byAscendingPublicKey)
+    Logger.mainLogger.debug(
+      'activeArchiversByPublicKeySorted',
+      activeArchiversByPublicKeySorted.map((archiver) => archiver.publicKey)
+    )
+    Logger.mainLogger.debug('New archiver added to active list', archiver)
+  }
+  Logger.mainLogger.debug('archivers list', activeArchivers)
+}
+
 export function removeActiveArchiver(publicKey: string): void {
   activeArchivers = activeArchivers.filter((a: ArchiverNodeInfo) => a.publicKey !== publicKey)
   activeArchiversByPublicKeySorted = activeArchiversByPublicKeySorted.filter(
     (a: ArchiverNodeInfo) => a.publicKey !== publicKey
   )
+  archiversReputation.delete(publicKey)
 }
 
 export function resetActiveArchivers(archivers: ArchiverNodeInfo[]): void {

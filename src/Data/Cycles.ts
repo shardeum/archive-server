@@ -328,43 +328,15 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   NodeList.removeNodes(lostAfterSelectionPks)
 
   for (const joinedArchiver of joinedArchivers) {
-    const foundArchiver = State.activeArchivers.find((a) => a.publicKey === joinedArchiver.publicKey)
-    if (!foundArchiver) {
-      State.activeArchivers.push(joinedArchiver)
-      Utils.insertSorted(
-        State.activeArchiversByPublicKeySorted,
-        joinedArchiver,
-        NodeList.byAscendingPublicKey
-      )
-      Logger.mainLogger.debug(
-        'activeArchiversByPublicKeySorted',
-        State.activeArchiversByPublicKeySorted.map((archiver) => archiver.publicKey)
-      )
-      Logger.mainLogger.debug('New archiver added to active list', joinedArchiver)
-    }
-    Logger.mainLogger.debug('active archiver list', State.activeArchivers)
+    State.addArchiver(joinedArchiver)
   }
 
   for (const refreshedArchiver of refreshedArchivers) {
-    const foundArchiver = State.activeArchivers.find((a) => a.publicKey === refreshedArchiver.publicKey)
-    if (!foundArchiver) {
-      State.activeArchivers.push(refreshedArchiver)
-      Utils.insertSorted(
-        State.activeArchiversByPublicKeySorted,
-        refreshedArchiver,
-        NodeList.byAscendingPublicKey
-      )
-      Logger.mainLogger.debug(
-        'activeArchiversByPublicKeySorted',
-        State.activeArchiversByPublicKeySorted.map((archiver) => archiver.publicKey)
-      )
-      Logger.mainLogger.debug('Refreshed archiver added to active list', refreshedArchiver)
-    }
+    State.addArchiver(refreshedArchiver)
   }
 
   for (const leavingArchiver of leavingArchivers) {
     State.removeActiveArchiver(leavingArchiver.publicKey)
-    State.archiversReputation.delete(leavingArchiver.publicKey)
   }
 
   const nodesToUnsubscribed = [...apoptosizedPks, ...removedPks]
