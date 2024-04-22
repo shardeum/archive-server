@@ -17,6 +17,7 @@ const defaultStringifierOptions: stringifierOptions = {
   bufferEncoding: 'base64',
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function stringify(val: any, options: stringifierOptions = defaultStringifierOptions): string {
   const returnVal = stringifier(val, false, options)
   if (returnVal !== undefined) {

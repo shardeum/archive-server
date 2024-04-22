@@ -60,6 +60,7 @@ export const syncGlobalAccount = async (): Promise<void> => {
       )
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const equalFn = (info1: any, info2: any): boolean => {
       const cm1 = deepCopy(info1)
       const cm2 = deepCopy(info2)

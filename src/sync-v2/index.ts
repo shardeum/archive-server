@@ -16,7 +16,7 @@ import {
 import { ArchiverNodeInfo } from '../State'
 import { getActiveNodeListFromArchiver } from '../NodeList'
 import * as NodeList from '../NodeList'
-import { verifyCycleRecord, verifyStandbyList, verifyValidatorList } from './verify'
+import { verifyCycleRecord, verifyValidatorList } from './verify'
 import * as Logger from '../Logger'
 
 /**

@@ -542,21 +542,12 @@ export function addDataSender(sender: DataSender): void {
   dataSenders.set(sender.nodeInfo.publicKey, sender)
 }
 
-interface configConsensusResponse {
-  config?: {
-    sharding?: {
-      nodesPerConsensusGroup?: number
-      nodesPerEdge?: number
-    }
-  }
-}
-
 async function getConsensusRadius(): Promise<number> {
   // If there is no node, return existing currentConsensusRadius
   if (NodeList.getList().length === 0) return currentConsensusRadius
 
   // Define the query function to get the network config from a node
-  const queryFn = async (node) => {
+  const queryFn = async (node): Promise<object> => {
     const REQUEST_NETCONFIG_TIMEOUT_SECOND = 2 // 2s timeout
     try {
       const response = await P2P.getJson(
@@ -571,7 +562,7 @@ async function getConsensusRadius(): Promise<number> {
   }
 
   // Define the equality function to compare two responses
-  const equalityFn = (responseA, responseB) => {
+  const equalityFn = (responseA, responseB): boolean => {
     return (
       responseA.config.sharding.nodesPerConsensusGroup === responseB.config.sharding.nodesPerConsensusGroup
     )
