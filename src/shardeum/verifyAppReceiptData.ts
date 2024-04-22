@@ -108,7 +108,7 @@ export const verifyAppReceiptData = async (
 }
 
 // Converting the correct appReceipt data format to get the correct hash
-const calculateAppReceiptDataHash = (appReceiptData: any): string => {
+const calculateAppReceiptDataHash = (appReceiptData): string => {
   try {
     if (appReceiptData.data && appReceiptData.data.receipt) {
       if (appReceiptData.data.receipt.bitvector)

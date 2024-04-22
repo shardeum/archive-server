@@ -1202,6 +1202,7 @@ export const queryFromArchivers = async (
   const randomArchivers = Utils.getRandomItemFromArr(filteredArchivers, 0, maxNumberofArchiversToRetry)
   let retry = 0
   while (retry < maxNumberofArchiversToRetry) {
+    // eslint-disable-next-line security/detect-object-injection
     let randomArchiver = randomArchivers[retry]
     if (!randomArchiver) randomArchiver = randomArchivers[0]
     try {

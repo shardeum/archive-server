@@ -21,7 +21,7 @@ export enum AccountType {
 }
 
 export const accountSpecificHash = (account: any): string => {
-  let hash
+  let hash: string
   delete account.hash
   if (
     account.accountType === AccountType.NetworkAccount ||
@@ -58,6 +58,7 @@ export const accountSpecificHash = (account: any): string => {
 }
 
 // Converting the correct account data format to get the correct hash
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const fixAccountUint8Arrays = (account: any): void => {
   if (!account) return // if account is null, return
   if (account.storageRoot) account.storageRoot = Uint8Array.from(Object.values(account.storageRoot)) // Account
@@ -93,6 +94,7 @@ export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
         )
         return false
       }
+      // eslint-disable-next-line security/detect-object-injection
       const expectedAccountHash = receipt.appliedReceipt.appliedVote.account_state_hash_after[indexOfAccount]
       if (calculatedAccountHash !== expectedAccountHash) {
         Logger.mainLogger.error(
