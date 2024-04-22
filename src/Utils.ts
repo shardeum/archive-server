@@ -195,7 +195,7 @@ export async function robustQuery<Node = unknown, Response = unknown>(
   queryFn: QueryFunction<Node, Response>,
   equalityFn: EqualityFunction<Response> = util.isDeepStrictEqual,
   redundancy = 3,
-  shuffleNodes = true,
+  shuffleNodes = false, // Set to true if nodes need to be shuffled before querying
   delayTimeInMS = 0, // Add a delay after we have queried half of the nodes
   disableFailLog = false
 ): Promise<TallyItem<Node, Response>> {

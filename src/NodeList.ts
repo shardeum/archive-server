@@ -419,39 +419,6 @@ export async function getActiveNodeListFromArchiver(
   return []
 }
 
-// We can't get the same node list from all archivers; Each archiver would response with its max 30 random nodes
-export async function getActiveListFromArchivers(
-  activeArchivers: State.ArchiverNodeInfo[]
-): Promise<ConsensusNodeInfo> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function isSameCycleInfo(info1: any, info2: any): boolean {
-    const cm1 = Utils.deepCopy(info1)
-    const cm2 = Utils.deepCopy(info2)
-    delete cm1.currentTime
-    delete cm2.currentTime
-    const equivalent = isDeepStrictEqual(cm1, cm2)
-    return equivalent
-  }
-
-  const queryFn = async (node: ConsensusNodeInfo): Promise<ConsensusNodeInfo[]> => {
-    const response = (await P2P.getJson(
-      `http://${node.ip}:${node.port}/nodelist`
-    )) as ConsensusNodeListResponse
-
-    if (response && response.nodeList) {
-      return response.nodeList.sort((a: ConsensusNodeInfo, b: ConsensusNodeInfo) =>
-        a.publicKey > b.publicKey ? 1 : -1
-      )
-    }
-    return null
-  }
-  const nodeList = await Utils.robustQuery(activeArchivers, queryFn, isSameCycleInfo)
-  if (nodeList && nodeList.count > 0) {
-    return nodeList.value[0]
-  }
-  return null
-}
-
 export function getRandomActiveNodes(node_count = 1): ConsensusNodeInfo[] {
   const nodeList = getActiveList()
   if (node_count <= 1 || node_count > nodeList.length)
