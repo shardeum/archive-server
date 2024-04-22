@@ -36,14 +36,12 @@ import * as StateMetaData from '../archivedCycle/StateMetaData'
 import fetch from 'node-fetch'
 import { syncV2 } from '../sync-v2'
 import { queryFromArchivers, RequestDataType } from '../API'
-// Socket modules
 import ioclient = require('socket.io-client')
 import { Transaction } from '../dbstore/transactions'
 import { AccountCopy } from '../dbstore/accounts'
 import { robustQuery } from '../Utils'
-export let socketServer: SocketIO.Server
+
 export const socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
-// let socketConnectionsTracker: Map<string, string> = new Map()
 export let combineAccountsData = {
   accounts: [],
   receipts: [],
@@ -557,25 +555,21 @@ async function getConsensusRadius(): Promise<number> {
   // Define the equality function to compare two responses
   const equalityFn = (responseA, responseB): boolean => {
     return (
-      responseA.config.sharding.nodesPerConsensusGroup === responseB.config.sharding.nodesPerConsensusGroup
+      responseA?.config?.sharding?.nodesPerConsensusGroup ===
+      responseB?.config?.sharding?.nodesPerConsensusGroup
     )
   }
 
-  // Get the list of active nodes or the first node if no active nodes are available
+  // Get the list of 10 max random active nodes or the first node if no active nodes are available
   const nodes =
-    NodeList.getActiveNodeCount() > 0
-      ? NodeList.getRandomActiveNodes(NodeList.getActiveNodeCount())
-      : NodeList.getList().slice(0, 1)
+    NodeList.getActiveNodeCount() > 0 ? NodeList.getRandomActiveNodes(10) : NodeList.getList().slice(0, 1)
 
   // Use robustQuery to get the consensusRadius from multiple nodes
   const tallyItem = await robustQuery(
     nodes,
     queryFn,
     equalityFn,
-    3, // Redundancy
-    true, // Shuffle nodes
-    0, // No delay
-    false // Disable fail log
+    3 // Redundancy (minimum 3 nodes should return the same result to reach consensus)
   )
 
   // Check if a consensus was reached
@@ -598,10 +592,9 @@ async function getConsensusRadius(): Promise<number> {
       'nodesPerEdge',
       nodesPerEdge
     )
-    if (config.VERBOSE) console.log('consensusRadius', consensusRadius)
     return consensusRadius
   }
-
+  Logger.mainLogger.error('Failed to get consensusRadius from the network')
   // If no consensus was reached, return the existing currentConsensusRadius
   return currentConsensusRadius
 }

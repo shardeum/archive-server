@@ -70,7 +70,7 @@ export const syncGlobalAccount = async (): Promise<void> => {
       return equivalent
     }
 
-    const globalAccsResponse = await robustQuery(filteredArchivers, queryFn, equalFn)
+    const globalAccsResponse = await robustQuery(filteredArchivers, queryFn, equalFn, 3, true)
     Logger.mainLogger.debug('syncGlobalAccount() - globalAccsResponse', globalAccsResponse)
     if (!globalAccsResponse) {
       Logger.mainLogger.warn('() - robustResponse is null')
@@ -96,7 +96,7 @@ export const syncGlobalAccount = async (): Promise<void> => {
       const queryFn = async (node: Node): Promise<any> => {
         return await getJson(`http://${node.ip}:${node.port}/get-network-account?hash=false`)
       }
-      const networkAccResponse = await robustQuery(filteredArchivers, queryFn)
+      const networkAccResponse = await robustQuery(filteredArchivers, queryFn, equalFn, 3, true)
       Logger.mainLogger.debug('syncGlobalAccount() - networkAccResponse', networkAccResponse)
       if (!networkAccResponse) {
         Logger.mainLogger.warn('get-network-account() - robustResponse is null')
