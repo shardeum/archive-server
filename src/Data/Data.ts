@@ -145,13 +145,6 @@ export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
   )
 }
 
-export function initSocketServer(io: SocketIO.Server): void {
-  socketServer = io
-  socketServer.on('connection', () => {
-    Logger.mainLogger.debug('Explorer has connected')
-  })
-}
-
 export async function unsubscribeDataSender(
   publicKey: NodeList.ConsensusNodeInfo['publicKey']
 ): Promise<void> {

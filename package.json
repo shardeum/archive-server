@@ -15,7 +15,7 @@
     "archive-server": "./build/server.js"
   },
   "scripts": {
-    "release": "np --no-cleanup --no-tests --no-yarn --any-branch",
+    "release": "npm run prepare && np --no-cleanup --no-tests --no-yarn --any-branch",
     "test": "echo \"Error: no test specified\" && exit 1",
     "check": "gts check",
     "clean": "npm-run-all clean:*",
@@ -36,7 +36,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://gitlab.com/shardus/archive/archive-server.git"
+    "url": "git@github.com:shardeum/archive-server.git"
   },
   "publishConfig": {
     "access": "public"
@@ -86,7 +86,6 @@
     "neverthrow": "^6.0.0",
     "node-fetch": "^2.6.8",
     "rfdc": "^1.3.0",
-    "socket.io": "^4.5.1",
     "socket.io-client": "^2.3.0",
     "sqlite3": "^5.0.0",
     "streamroller": "^3.1.3",

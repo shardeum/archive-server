@@ -8,7 +8,6 @@ import * as Crypto from '../Crypto'
 import {
   clearCombinedAccountsData,
   combineAccountsData,
-  socketServer,
   collectCycleData,
   nodesPerConsensusGroup,
 } from './Data'
@@ -70,7 +69,11 @@ const isReceiptRobust = async (
 ): Promise<{ success: boolean; newReceipt?: Receipt.ArchiverReceipt }> => {
   const result = { success: false }
   // Created signedData with full_receipt = false outside of queryReceipt to avoid signing the same data multiple times
-  let signedData = Crypto.sign({ txId: receipt.tx.txId, full_receipt: false })
+  let signedData = Crypto.sign({
+    txId: receipt.tx.txId,
+    timestamp: receipt.tx.timestamp,
+    full_receipt: false,
+  })
   const queryReceipt = async (node: ConsensusNodeInfo): Promise<GET_TX_RECEIPT_RESPONSE | null> => {
     const QUERY_RECEIPT_TIMEOUT_SECOND = 2
     try {
@@ -162,30 +165,68 @@ const isReceiptRobust = async (
   const sameReceipt = isReceiptEqual(receipt.appliedReceipt, robustQueryReceipt)
 
   if (!sameReceipt) {
-    Logger.mainLogger.debug('Found different receipt in robustQuery', receipt.tx.txId)
+    Logger.mainLogger.debug(
+      `Found different receipt in robustQuery ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+    )
     if (nestedCountersInstance)
       nestedCountersInstance.countEvent('receipt', 'Found_different_receipt_in_robustQuery')
     if (config.VERBOSE) Logger.mainLogger.debug(receipt.appliedReceipt)
     if (config.VERBOSE) Logger.mainLogger.debug(robustQueryReceipt)
     // update signedData with full_receipt = true
-    signedData = Crypto.sign({ txId: receipt.tx.txId, full_receipt: true })
+    signedData = Crypto.sign({ txId: receipt.tx.txId, timestamp: receipt.tx.timestamp, full_receipt: true })
     for (const node of robustQuery.nodes) {
       const fullReceiptResult: GET_TX_RECEIPT_RESPONSE = await queryReceipt(node)
-      if (config.VERBOSE) Logger.mainLogger.debug('fullReceiptResult', receipt.tx.txId, fullReceiptResult)
+      if (config.VERBOSE)
+        Logger.mainLogger.debug(
+          `'fullReceiptResult ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`,
+          fullReceiptResult
+        )
       if (!fullReceiptResult || !fullReceiptResult.receipt) continue
       const fullReceipt = fullReceiptResult.receipt as Receipt.ArchiverReceipt
       if (
         isReceiptEqual(fullReceipt.appliedReceipt, robustQueryReceipt) &&
         validateReceiptData(fullReceipt)
       ) {
-        if (config.verifyAccountData && !verifyAccountHash(fullReceipt)) continue
-        Logger.mainLogger.debug('Found valid full receipt in robustQuery', receipt.tx.txId)
+        if (config.verifyAppReceiptData) {
+          const { valid, needToSave } = await verifyAppReceiptData(receipt)
+          if (!valid) {
+            Logger.mainLogger.error(
+              `The app receipt verification failed from robustQuery nodes ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+            )
+            continue
+          }
+          if (!needToSave) {
+            Logger.mainLogger.debug(
+              `Found valid full receipt in robustQuery ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+            )
+            Logger.mainLogger.error(
+              `Found valid receipt from robustQuery: but no need to save ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+            )
+            return { success: false }
+          }
+        }
+        if (config.verifyAccountData && !verifyAccountHash(fullReceipt)) {
+          Logger.mainLogger.error(
+            `The account verification failed from robustQuery nodes ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+          )
+          continue
+        }
+        Logger.mainLogger.debug(
+          `Found valid full receipt in robustQuery ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+        )
         if (nestedCountersInstance)
           nestedCountersInstance.countEvent('receipt', 'Found_valid_full_receipt_in_robustQuery')
         return { success: true, newReceipt: fullReceipt }
+      } else {
+        Logger.mainLogger.error(
+          `The receipt validation failed from robustQuery nodes ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+        )
+        Logger.mainLogger.error(JSON.stringify(robustQueryReceipt), JSON.stringify(fullReceipt))
       }
     }
-    Logger.mainLogger.error('No valid full receipt found in robustQuery', receipt.tx.txId)
+    Logger.mainLogger.error(
+      `No valid full receipt found in robustQuery ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+    )
     if (nestedCountersInstance)
       nestedCountersInstance.countEvent('receipt', 'No_valid_full_receipt_found_in_robustQuery')
     return { success: false }
@@ -476,8 +517,30 @@ export const storeReceiptData = async (
     }
 
     if (verifyData) {
+      const existingReceipt = await Receipt.queryReceiptByReceiptId(txId)
+      if (
+        existingReceipt &&
+        receipt.appliedReceipt &&
+        receipt.appliedReceipt.confirmOrChallenge &&
+        receipt.appliedReceipt.confirmOrChallenge.message === 'challenge'
+      ) {
+        // If the existing receipt is confirmed, and the new receipt is challenged, then skip saving the new receipt
+        if (existingReceipt.appliedReceipt.confirmOrChallenge.message === 'confirm') {
+          Logger.mainLogger.error(
+            `Existing receipt is confirmed, but new receipt is challenged ${txId}, ${receipt.cycle}, ${timestamp}`
+          )
+          receiptsInValidationMap.delete(txId)
+          if (nestedCountersInstance)
+            nestedCountersInstance.countEvent(
+              'receipt',
+              'Existing_receipt_is_confirmed_but_new_receipt_is_challenged'
+            )
+          if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
+          continue
+        }
+      }
       if (config.verifyAppReceiptData) {
-        const { valid, needToSave } = await verifyAppReceiptData(receipt)
+        const { valid, needToSave } = await verifyAppReceiptData(receipt, existingReceipt)
         if (!valid) {
           Logger.mainLogger.error(
             'Invalid receipt: App Receipt Verification failed',
@@ -530,7 +593,7 @@ export const storeReceiptData = async (
     //   receiptId: tx.txId,
     //   timestamp: tx.timestamp,
     // })
-    const { accounts, cycle, tx, appReceiptData } = receipt
+    const { accounts, cycle, tx, appReceiptData, appliedReceipt } = receipt
     if (config.VERBOSE) console.log('RECEIPT', 'Save', txId, timestamp, senderInfo)
     processedReceiptsMap.set(tx.txId, tx.timestamp)
     receiptsInValidationMap.delete(tx.txId)
@@ -549,6 +612,13 @@ export const storeReceiptData = async (
         })}\n`
       )
     txDataList.push({ txId, timestamp })
+    // If the receipt is a challenge, then skip updating its accounts data or transaction data
+    if (
+      appliedReceipt &&
+      appliedReceipt.confirmOrChallenge &&
+      appliedReceipt.confirmOrChallenge.message === 'challenge'
+    )
+      continue
     for (const account of accounts) {
       const accObj: Account.AccountCopy = {
         accountId: account.accountId,
@@ -732,12 +802,6 @@ export const storeAccountData = async (restoreData: StoreAccountParam = {}): Pro
   if (profilerInstance) profilerInstance.profileSectionStart('store_account_data')
   storingAccountData = true
   if (!accounts && !receipts) return
-  if (socketServer && accounts) {
-    const signedDataToSend = Crypto.sign({
-      accounts: accounts,
-    })
-    socketServer.emit('RECEIPT', signedDataToSend)
-  }
   Logger.mainLogger.debug('Received Accounts Size', accounts ? accounts.length : 0)
   Logger.mainLogger.debug('Received Transactions Size', receipts ? receipts.length : 0)
   // for (let i = 0; i < accounts.length; i++) {
@@ -947,6 +1011,7 @@ export const collectMissingReceipts = async (): Promise<void> => {
       missingReceiptsMap.delete(txId)
     }
   }
+  if (cloneMissingReceiptsMap.size === 0) return
   Logger.mainLogger.debug(
     'Collecting missing receipts',
     cloneMissingReceiptsMap.size,
@@ -1011,24 +1076,26 @@ export const collectMissingReceipts = async (): Promise<void> => {
 
 export const getArchiversToUse = (): State.ArchiverNodeInfo[] => {
   let archiversToUse: State.ArchiverNodeInfo[] = []
-  // Choosing 3 random archivers from the active archivers list
-  if (State.activeArchivers.length <= 3) {
+  const MAX_ARCHIVERS_TO_SELECT = 3
+  // Choosing MAX_ARCHIVERS_TO_SELECT random archivers from the active archivers list
+  if (State.activeArchivers.length <= MAX_ARCHIVERS_TO_SELECT) {
     State.activeArchivers.forEach(
       (archiver) => archiver.publicKey !== State.getNodeInfo().publicKey && archiversToUse.push(archiver)
     )
   } else {
+    // Filter out the adjacent archivers and self archiver from the active archivers list
     const activeArchivers = [...State.activeArchivers].filter(
       (archiver) =>
         adjacentArchivers.has(archiver.publicKey) || archiver.publicKey === State.getNodeInfo().publicKey
     )
-    archiversToUse = Utils.getRandomItemFromArr(activeArchivers, 0, 3)
-    while (archiversToUse.length < 3) {
-      let adjacentArchiversToUse = [...adjacentArchivers.values()]
-      adjacentArchiversToUse = adjacentArchiversToUse.filter(
-        (archiver) => !archiversToUse.find((archiverToUse) => archiverToUse.publicKey === archiver.publicKey)
-      )
-      if (adjacentArchiversToUse.length <= 0) break
-      archiversToUse.push(Utils.getRandomItemFromArr(adjacentArchiversToUse)[0])
+    archiversToUse = Utils.getRandomItemFromArr(activeArchivers, 0, MAX_ARCHIVERS_TO_SELECT)
+    if (archiversToUse.length < MAX_ARCHIVERS_TO_SELECT) {
+      const requiredArchivers = MAX_ARCHIVERS_TO_SELECT - archiversToUse.length
+      // If the required archivers are not selected, then get it from the adjacent archivers
+      archiversToUse = [
+        ...archiversToUse,
+        ...Utils.getRandomItemFromArr([...adjacentArchivers.values()], requiredArchivers),
+      ]
     }
   }
   return archiversToUse
@@ -1085,6 +1152,7 @@ export const collectMissingOriginalTxsData = async (): Promise<void> => {
       missingOriginalTxsMap.delete(txId)
     }
   }
+  if (cloneMissingOriginalTxsMap.size === 0) return
   Logger.mainLogger.debug(
     'Collecting missing originalTxsData',
     cloneMissingOriginalTxsMap.size,
