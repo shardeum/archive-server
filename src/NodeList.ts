@@ -172,7 +172,7 @@ export function addNodes(status: NodeStatus, nodes: Node[]): void {
     }
   }
 }
-export function refreshNodes(status: NodeStatus, nodes: ConsensusNodeInfo[] | JoinedConsensor[]): void {
+export function refreshNodes(status: NodeStatus, nodes: Node[]): void {
   if (nodes.length === 0) return
   Logger.mainLogger.debug('Refreshing nodes', nodes.length, nodes)
   for (const node of nodes) {
@@ -184,6 +184,9 @@ export function refreshNodes(status: NodeStatus, nodes: ConsensusNodeInfo[] | Jo
       Logger.mainLogger.debug('adding new node during refresh', node.publicKey)
       list.push(node)
       switch (status) {
+        case NodeStatus.STANDBY:
+          standbyList.set(node.publicKey, node)
+          break
         case NodeStatus.SYNCING:
           syncingList.set(node.publicKey, node)
           break
