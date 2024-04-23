@@ -266,7 +266,7 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
       ip: joinRequest.nodeInfo.externalIp,
       port: joinRequest.nodeInfo.externalPort,
     }))
-    NodeList.addStandbyNodes(standbyNodeList)
+    NodeList.addNodes(NodeList.NodeStatus.STANDBY, standbyNodeList)
   }
 
   if (standbyRemove.length > 0) {

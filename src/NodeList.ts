@@ -146,6 +146,14 @@ export function addNodes(status: NodeStatus, nodes: Node[]): void {
           //   activeListByIdSorted.map((node) => node.id)
           // )
           break
+        case NodeStatus.STANDBY:
+          if (activeList.has(key)) {
+            activeList.delete(key)
+            activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey === key)
+          }
+          if (syncingList.has(key)) syncingList.delete(key)
+          if (!standbyList.has(key)) standbyList.set(key, node)
+          break
       }
       /* eslint-disable security/detect-object-injection */
       byPublicKey[node.publicKey] = node
@@ -240,15 +248,6 @@ export function removeNodes(publicKeys: string[]): void {
         else if (standbyList.has(key)) standbyList.delete(key)
       }
     }
-  }
-}
-
-export const addStandbyNodes = (nodes: ConsensusNodeInfo[]): void => {
-  if (nodes.length === 0) return
-  Logger.mainLogger.debug('Adding standby nodes to the list', nodes.length, nodes)
-  for (const node of nodes) {
-    if (standbyList.has(node.publicKey)) continue
-    standbyList.set(node.publicKey, node)
   }
 }
 

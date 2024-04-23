@@ -112,7 +112,7 @@ export function syncV2(
               }))
               NodeList.addNodes(NodeList.NodeStatus.SYNCING, syncingNodeList)
               NodeList.addNodes(NodeList.NodeStatus.ACTIVE, activeNodeList)
-              NodeList.addStandbyNodes(standbyNodeList)
+              NodeList.addNodes(NodeList.NodeStatus.STANDBY, standbyNodeList)
 
               // reset the active archivers list with the new list
               resetActiveArchivers(archiverList)
