@@ -47,69 +47,73 @@ export const loadGlobalAccounts = async (): Promise<void> => {
   }
 }
 
-export const syncGlobalAccount = async (): Promise<void> => {
+export const syncGlobalAccount = async (retry = 5): Promise<void> => {
   const filteredArchivers = State.activeArchivers.filter(
     (archiver) => archiver.publicKey !== config.ARCHIVER_PUBLIC_KEY
   )
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const queryFn = async (node: Node): Promise<any> => {
-      return await postJson(
-        `http://${node.ip}:${node.port}/get_globalaccountreport_archiver`,
-        Crypto.sign({})
-      )
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const equalFn = (info1: any, info2: any): boolean => {
-      const cm1 = deepCopy(info1)
-      const cm2 = deepCopy(info2)
-      delete cm1.sign
-      delete cm2.sign
-      const equivalent = isDeepStrictEqual(cm1, cm2)
-      return equivalent
-    }
-
-    const globalAccsResponse = await robustQuery(filteredArchivers, queryFn, equalFn, 3, true)
-    Logger.mainLogger.debug('syncGlobalAccount() - globalAccsResponse', globalAccsResponse)
-    if (!globalAccsResponse) {
-      Logger.mainLogger.warn('() - robustResponse is null')
-      throw new Error('() - robustResponse is null')
-    }
-    const {
-      value: { accounts },
-    } = globalAccsResponse
-    for (const { id, hash, timestamp } of accounts) {
-      globalAccountsMap.set(id, { hash, timestamp })
-    }
-
-    if (globalAccountsMap.has(config.globalNetworkAccount)) {
-      const savedNetworkAccount = await AccountDB.queryAccountByAccountId(config.globalNetworkAccount)
-      if (
-        savedNetworkAccount &&
-        savedNetworkAccount.hash === globalAccountsMap.get(config.globalNetworkAccount).hash
-      ) {
-        setGlobalNetworkAccount(savedNetworkAccount)
-        return
-      }
+  while (retry > 0) {
+    try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const queryFn = async (node: Node): Promise<any> => {
-        return await getJson(`http://${node.ip}:${node.port}/get-network-account?hash=false`)
+        return await postJson(
+          `http://${node.ip}:${node.port}/get_globalaccountreport_archiver`,
+          Crypto.sign({})
+        )
       }
-      const networkAccResponse = await robustQuery(filteredArchivers, queryFn, equalFn, 3, true)
-      Logger.mainLogger.debug('syncGlobalAccount() - networkAccResponse', networkAccResponse)
-      if (!networkAccResponse) {
-        Logger.mainLogger.warn('get-network-account() - robustResponse is null')
-        throw new Error('get-network-account() - robustResponse is null')
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const equalFn = (info1: any, info2: any): boolean => {
+        const cm1 = deepCopy(info1)
+        const cm2 = deepCopy(info2)
+        delete cm1.sign
+        delete cm2.sign
+        const equivalent = isDeepStrictEqual(cm1, cm2)
+        return equivalent
+      }
+
+      const globalAccsResponse = await robustQuery(filteredArchivers, queryFn, equalFn, 3, true)
+      Logger.mainLogger.debug('syncGlobalAccount() - globalAccsResponse', globalAccsResponse)
+      if (!globalAccsResponse) {
+        Logger.mainLogger.warn('() - robustResponse is null')
+        throw new Error('() - robustResponse is null')
       }
       const {
-        value: { networkAccount },
-      } = networkAccResponse
-      if (networkAccount) {
-        setGlobalNetworkAccount(networkAccount)
+        value: { accounts },
+      } = globalAccsResponse
+      for (const { id, hash, timestamp } of accounts) {
+        globalAccountsMap.set(id, { hash, timestamp })
       }
+
+      if (globalAccountsMap.has(config.globalNetworkAccount)) {
+        const savedNetworkAccount = await AccountDB.queryAccountByAccountId(config.globalNetworkAccount)
+        if (
+          savedNetworkAccount &&
+          savedNetworkAccount.hash === globalAccountsMap.get(config.globalNetworkAccount).hash
+        ) {
+          setGlobalNetworkAccount(savedNetworkAccount)
+          return
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const queryFn = async (node: Node): Promise<any> => {
+          return await getJson(`http://${node.ip}:${node.port}/get-network-account?hash=false`)
+        }
+        const networkAccResponse = await robustQuery(filteredArchivers, queryFn, equalFn, 3, true)
+        Logger.mainLogger.debug('syncGlobalAccount() - networkAccResponse', networkAccResponse)
+        if (!networkAccResponse) {
+          Logger.mainLogger.warn('get-network-account() - robustResponse is null')
+          throw new Error('get-network-account() - robustResponse is null')
+        }
+        const {
+          value: { networkAccount },
+        } = networkAccResponse
+        if (networkAccount) {
+          setGlobalNetworkAccount(networkAccount)
+        }
+      }
+      return
+    } catch (e) {
+      Logger.mainLogger.error('Error in syncGlobalAccount()', e)
+      retry--
     }
-  } catch (e) {
-    Logger.mainLogger.error('Error in syncGlobalAccount()', e)
   }
 }
