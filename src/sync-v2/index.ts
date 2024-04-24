@@ -18,7 +18,7 @@ import {
 import { ArchiverNodeInfo, resetActiveArchivers } from '../State'
 import { getActiveNodeListFromArchiver } from '../NodeList'
 import * as NodeList from '../NodeList'
-import { verifyArchiverList, verifyCycleRecord, verifyValidatorList } from './verify'
+import { verifyArchiverList, verifyCycleRecord, verifyStandbyList, verifyValidatorList } from './verify'
 import * as Logger from '../Logger'
 
 /**
@@ -112,7 +112,7 @@ export function syncV2(
               }))
               NodeList.addNodes(NodeList.NodeStatus.SYNCING, syncingNodeList)
               NodeList.addNodes(NodeList.NodeStatus.ACTIVE, activeNodeList)
-              NodeList.addStandbyNodes(standbyNodeList)
+              NodeList.addNodes(NodeList.NodeStatus.STANDBY, standbyNodeList)
 
               // reset the active archivers list with the new list
               resetActiveArchivers(archiverList)
@@ -172,7 +172,9 @@ function syncStandbyNodeList(
   return robustQueryForStandbyNodeListHash(activeNodes).andThen(({ value, winningNodes }) =>
     // get full standby list from one of the winning nodes
     getStandbyNodeListFromNode(winningNodes[0], value.standbyNodeListHash).andThen((standbyList) =>
-      okAsync([standbyList, value.standbyNodeListHash] as [P2PTypes.JoinTypes.JoinRequest[], hexstring])
+      verifyStandbyList(standbyList, value.standbyNodeListHash).map(
+        () => [standbyList, value.standbyNodeListHash] as [P2PTypes.JoinTypes.JoinRequest[], hexstring]
+      )
     )
   )
 }
