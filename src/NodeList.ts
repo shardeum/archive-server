@@ -1,7 +1,6 @@
 import * as State from './State'
 import * as P2P from './P2P'
 import * as Utils from './Utils'
-import { isDeepStrictEqual } from 'util'
 import * as Logger from './Logger'
 import { config } from './Config'
 import * as Crypto from './Crypto'
@@ -25,18 +24,6 @@ export interface ConsensusNodeInfo {
 }
 
 export interface ConsensusNodeListResponse {
-  nodeList: ConsensusNodeInfo[]
-}
-
-export interface ConsensusNodeListResponse {
-  nodeList: ConsensusNodeInfo[]
-}
-
-export interface ConsensusNodeMetadata {
-  cycleMarkerJoined: string
-}
-
-export interface SignedList {
   nodeList: ConsensusNodeInfo[]
 }
 
@@ -259,7 +246,7 @@ export const removeStandbyNodes = (publicKeys: string[]): void => {
   }
 }
 
-export function setStatus(status: NodeStatus, publicKeys: string[]): void {
+export function setStatus(status: Exclude<NodeStatus, NodeStatus.STANDBY>, publicKeys: string[]): void {
   if (publicKeys.length === 0) return
   Logger.mainLogger.debug(`Updating status ${status} for nodes`, publicKeys)
   for (const key of publicKeys) {
@@ -290,14 +277,6 @@ export function setStatus(status: NodeStatus, publicKeys: string[]): void {
         //   activeListByIdSorted.map((node) => node.id)
         // )
         break
-      case NodeStatus.STANDBY:
-        if (activeList.has(key)) {
-          activeList.delete(key)
-          activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey === key)
-        }
-        if (syncingList.has(key)) syncingList.delete(key)
-        if (standbyList.has(key)) break
-        standbyList.set(key, node)
     }
   }
 }
@@ -433,24 +412,6 @@ export function getSyncingList(): ConsensusNodeInfo[] {
 
 export function getStandbyList(): ConsensusNodeInfo[] {
   return [...standbyList.values()]
-}
-
-export function getNodeInfo(node: Partial<ConsensusNodeInfo>): ConsensusNodeInfo | undefined {
-  // Prefer publicKey
-  if (node.publicKey) {
-    return byPublicKey[node.publicKey]
-  }
-  // Then, ipPort
-  else if (node.ip && node.port) {
-    return byIpPort[getIpPort(node as ConsensusNodeInfo)]
-  }
-  // If nothing found, return undefined
-  return undefined
-}
-
-export function getId(publicKey: string): string | undefined {
-  // eslint-disable-next-line security/detect-object-injection
-  return publicKeyToId[publicKey]
 }
 
 export function getNodeInfoById(id: string): ConsensusNodeInfo | undefined {
