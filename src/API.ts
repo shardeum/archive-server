@@ -184,21 +184,6 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     profilerInstance.profileSectionEnd('FULL_nodelist')
   })
 
-  server.get(
-    '/removed',
-    {
-      preHandler: async (_request, reply) => {
-        isDebugMiddleware(_request, reply)
-      },
-    },
-    (_request: FullNodeListRequest, reply) => {
-      profilerInstance.profileSectionStart('removed')
-      nestedCountersInstance.countEvent('consensor', 'removed')
-      reply.send(Crypto.sign({ removedAndApopedNodes: Cycles.removedAndApopedNodes }))
-      profilerInstance.profileSectionEnd('removed')
-    }
-  )
-
   server.get('/archivers', (_request, reply) => {
     profilerInstance.profileSectionStart('GET_archivers')
     nestedCountersInstance.countEvent('consensor', 'GET_archivers')
@@ -909,6 +894,21 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     (_request, reply) => {
       const res = Crypto.sign(config)
       reply.send(res)
+    }
+  )
+  // Removed Endpoint
+  server.get(
+    '/removed',
+    {
+      preHandler: async (_request, reply) => {
+        isDebugMiddleware(_request, reply)
+      },
+    },
+    (_request: FullNodeListRequest, reply) => {
+      profilerInstance.profileSectionStart('removed')
+      nestedCountersInstance.countEvent('consensor', 'removed')
+      reply.send(Crypto.sign({ removedAndApopedNodes: Cycles.removedAndApopedNodes }))
+      profilerInstance.profileSectionEnd('removed')
     }
   )
 
