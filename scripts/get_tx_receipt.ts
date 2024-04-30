@@ -16,6 +16,7 @@ const devAccount = {
 const ARCHIVER_URL = `http://127.0.0.1:4000`
 
 const txId = ''
+const timestamp = 0
 const full_receipt = false
 
 const runProgram = async (): Promise<void> => {
@@ -26,6 +27,7 @@ const runProgram = async (): Promise<void> => {
   for (const node of nodeList) {
     const data: any = {
       txId,
+      timestamp,
       full_receipt,
     }
     crypto.signObj(data, devAccount.secretKey, devAccount.publicKey)

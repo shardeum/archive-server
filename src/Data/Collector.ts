@@ -181,7 +181,12 @@ const isReceiptRobust = async (
           `'fullReceiptResult ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`,
           fullReceiptResult
         )
-      if (!fullReceiptResult || !fullReceiptResult.receipt) continue
+      if (!fullReceiptResult || !fullReceiptResult.receipt) {
+        Logger.mainLogger.error(
+          `Got fullReceiptResult null from robustQuery node for ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+        )
+        continue
+      }
       const fullReceipt = fullReceiptResult.receipt as Receipt.ArchiverReceipt
       if (
         isReceiptEqual(fullReceipt.appliedReceipt, robustQueryReceipt) &&
