@@ -756,14 +756,11 @@ export function calcIncomingTimes(record: P2PTypes.CycleCreatorTypes.CycleRecord
 
 export async function joinNetwork(
   nodeList: NodeList.ConsensusNodeInfo[],
-  isFirstTime: boolean,
-  checkFromConsensor = false
+  isFirstTime: boolean
 ): Promise<boolean> {
   Logger.mainLogger.debug('Is firstTime', isFirstTime)
   if (!isFirstTime) {
-    let isJoined: boolean
-    if (checkFromConsensor) isJoined = await checkJoinStatusFromConsensor(nodeList)
-    else isJoined = await checkJoinStatus(nodeList)
+    const isJoined: boolean = await checkJoinStatus(nodeList)
     if (isJoined) {
       return isJoined
     }
@@ -907,31 +904,24 @@ export async function getCycleDuration(): Promise<number> {
 
 /*
   checkJoinStatus checks if the current archiver node is joined to a network. 
-  It randomly selects up to 5 active nodes to query about the join status, 
-  then queries /joinedArchiver endpoint on those nodes and returns joining status
-  based on majority response
+  This queries by the /joinedArchiver endpoint on the nodes and returns joining status based on majority response.
 */
 export async function checkJoinStatus(activeNodes: NodeList.ConsensusNodeInfo[]): Promise<boolean> {
   Logger.mainLogger.debug('checkJoinStatus: Checking join status')
   const ourNodeInfo = State.getNodeInfo()
 
-  // Get 5 random nodes or all activeNodes if activeNodes count is less than 5
-  const selectedNodes = Utils.getRandom(activeNodes, Math.min(activeNodes.length, 5))
-
-  Logger.mainLogger.debug('checkJoinStatus: selectedNodes: ', selectedNodes)
-
   const queryFn = async (node: NodeList.ConsensusNodeInfo): Promise<JoinStatus> => {
-    const url = `http://${node.ip}:${node.port}/joinedArchiver/${ourNodeInfo.publicKey}`;
+    const url = `http://${node.ip}:${node.port}/joinedArchiver/${ourNodeInfo.publicKey}`
     try {
-      return await getJson(url) as JoinStatus;
+      return (await getJson(url)) as JoinStatus
     } catch (e) {
-      Logger.mainLogger.error(`Error querying node ${node.ip}:${node.port}: ${e}`);
-      throw e;
+      Logger.mainLogger.error(`Error querying node ${node.ip}:${node.port}: ${e}`)
+      throw e
     }
   }
 
   try {
-    const joinStatus = await robustQuery(selectedNodes, queryFn)
+    const joinStatus = await robustQuery(activeNodes, queryFn)
     Logger.mainLogger.debug(`checkJoinStatus: Join status: ${joinStatus.value.isJoined}`)
     return joinStatus.value.isJoined
   } catch (e) {
@@ -972,30 +962,6 @@ export async function getTotalDataFromArchivers(): Promise<ArchiverTotalDataResp
     {},
     QUERY_TIMEOUT_MAX
   )) as ArchiverTotalDataResponse | null
-}
-
-export async function checkJoinStatusFromConsensor(nodeList: NodeList.ConsensusNodeInfo[]): Promise<boolean> {
-  Logger.mainLogger.debug('Checking join status from consenosr')
-  try {
-    const latestCycle = await getNewestCycleFromConsensors(nodeList)
-    if (latestCycle && latestCycle.joinedArchivers && latestCycle.refreshedArchivers) {
-      const joinedArchivers = latestCycle.joinedArchivers
-      const refreshedArchivers = latestCycle.refreshedArchivers
-      Logger.mainLogger.debug('cycle counter', latestCycle.counter)
-      Logger.mainLogger.debug('Joined archivers', joinedArchivers)
-
-      const isJoined: boolean = [...joinedArchivers, ...refreshedArchivers].some(
-        (a) => a.publicKey === State.getNodeInfo().publicKey
-      )
-      Logger.mainLogger.debug('isJoined', isJoined)
-      return !!isJoined
-    } else {
-      return false
-    }
-  } catch (e) {
-    Logger.mainLogger.error(e)
-    return false
-  }
 }
 
 export async function syncGenesisAccountsFromArchiver(): Promise<void> {
@@ -1632,7 +1598,7 @@ export const syncOriginalTxsByCycle = async (
       return
     }
     totalCycles = response.totalCycles
-    totalOriginalTxs = response.totalReceipts
+    totalOriginalTxs = response.totalOriginalTxs
   }
   const complete = false
   let startCycle = lastStoredOriginalTxCycle

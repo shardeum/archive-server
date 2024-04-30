@@ -25,6 +25,7 @@ crypto.signObj(data, devAccount.secretKey, devAccount.publicKey)
 fetch(`${ARCHIVER_URL}/totalData`, {
   // fetch(`${ARCHIVER_URL}/cycleinfo`, {
   // fetch(`${ARCHIVER_URL}/receipt`, {
+  // fetch(`${ARCHIVER_URL}/account`, {
   method: 'post',
   body: JSON.stringify(data),
   headers: { 'Content-Type': 'application/json' },

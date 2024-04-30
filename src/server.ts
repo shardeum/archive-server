@@ -121,14 +121,13 @@ async function start(): Promise<void> {
       let isJoined = false
       let firstTime = true
       const cycleDuration = Cycles.currentCycleDuration
-      const checkFromConsensor = true
       do {
         try {
           // Get active nodes from Archiver
           const nodeList = NodeList.getActiveList()
 
           // try to join the network
-          isJoined = await Data.joinNetwork(nodeList, firstTime, checkFromConsensor)
+          isJoined = await Data.joinNetwork(nodeList, firstTime)
         } catch (err: unknown) {
           Logger.mainLogger.error('Error while joining network:')
           Logger.mainLogger.error(err as Error)
