@@ -51,6 +51,9 @@ export interface Config {
     MAX_CYCLES_PER_REQUEST: number
     MAX_BETWEEN_CYCLES_PER_REQUEST: number
   }
+  cycleRecordsCache: {
+    enabled: boolean
+  }
 }
 
 let config: Config = {
@@ -101,6 +104,9 @@ let config: Config = {
     MAX_CYCLES_PER_REQUEST: 100,
     MAX_BETWEEN_CYCLES_PER_REQUEST: 100,
   },
+  cycleRecordsCache: {
+    enabled: false,
+  }
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {

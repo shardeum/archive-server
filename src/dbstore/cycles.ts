@@ -1,19 +1,10 @@
 import * as db from './sqlite3storage'
 import { extractValues, extractValuesFromArray } from './sqlite3storage'
-import { P2P, StateManager } from '@shardus/types'
+import { P2P } from '@shardus/types'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString, SerializeToJsonString } from '../utils/serialization'
-
-export interface Cycle {
-  counter: P2P.CycleCreatorTypes.CycleData['counter']
-  cycleRecord: P2P.CycleCreatorTypes.CycleData
-  cycleMarker: StateManager.StateMetaDataTypes.CycleMarker
-}
-
-type DbCycle = Cycle & {
-  cycleRecord: string
-}
+import { Cycle, DbCycle } from './types'
 
 export async function insertCycle(cycle: Cycle): Promise<void> {
   try {
