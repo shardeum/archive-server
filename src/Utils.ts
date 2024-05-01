@@ -1,5 +1,6 @@
 import * as util from 'util'
 import * as Logger from './Logger'
+import { config } from './Config'
 
 export interface CountSchema {
   count: string
@@ -276,7 +277,8 @@ export async function robustQuery<Node = unknown, Response = unknown>(
     }
   }
   if (finalResult) {
-    // Logger.mainLogger.debug(`In robustQuery stopping since we got a finalResult:${JSON.stringify(finalResult)}`)
+    if (config.VERBOSE) Logger.mainLogger.debug(`In robustQuery stopping since we got a finalResult:${JSON.stringify(finalResult)}`)
+    console.trace()
     return finalResult
   } else {
     // TODO:  We return the item that had the most nodes reporting it. However, the caller should know
