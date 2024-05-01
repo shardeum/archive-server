@@ -1,6 +1,7 @@
 import * as fastify from 'fastify'
 import { stringifyReduce } from './StringifyReduce'
 import * as core from '@shardus/crypto-utils'
+import { isDebugMiddleware } from '../DebugMode'
 
 type CounterMap = Map<string, CounterNode>
 interface CounterNode {
@@ -35,33 +36,65 @@ class NestedCounters {
   }
 
   registerEndpoints(): void {
-    this.server.get('/counts', (req, res) => {
-      let outputStr = ''
-      const arrayReport = this.arrayitizeAndSort(this.eventCounters)
-      outputStr += `${Date.now()}\n`
-      outputStr = this.printArrayReport(arrayReport, outputStr, 0)
-      res.send(outputStr)
-    })
-    this.server.get('/counts-reset', (req, res) => {
-      this.eventCounters = new Map()
-      res.send(`counts reset ${Date.now()}`)
-    })
-
-    this.server.get('/debug-inf-loop', (req, res) => {
-      res.send('starting inf loop, goodbye')
-      this.infLoopDebug = true
-      while (this.infLoopDebug) {
-        const s = 'asdf'
-        const s2 = stringifyReduce({ test: [s, s, s, s, s, s, s] })
-        const s3 = stringifyReduce({ test: [s2, s2, s2, s2, s2, s2, s2] })
-        core.hash(s3)
+    this.server.get(
+      '/counts',
+      {
+        preHandler: async (_request, reply) => {
+          isDebugMiddleware(_request, reply)
+        },
+      },
+      (req, res) => {
+        let outputStr = ''
+        const arrayReport = this.arrayitizeAndSort(this.eventCounters)
+        outputStr += `${Date.now()}\n`
+        outputStr = this.printArrayReport(arrayReport, outputStr, 0)
+        res.send(outputStr)
       }
-    })
+    )
+    this.server.get(
+      '/counts-reset',
+      {
+        preHandler: async (_request, reply) => {
+          isDebugMiddleware(_request, reply)
+        },
+      },
+      (req, res) => {
+        this.eventCounters = new Map()
+        res.send(`counts reset ${Date.now()}`)
+      }
+    )
 
-    this.server.get('/debug-inf-loop-off', (req, res) => {
-      this.infLoopDebug = false
-      res.send('stopping inf loop, who knows if this is possible')
-    })
+    this.server.get(
+      '/debug-inf-loop',
+      {
+        preHandler: async (_request, reply) => {
+          isDebugMiddleware(_request, reply)
+        },
+      },
+      (req, res) => {
+        res.send('starting inf loop, goodbye')
+        this.infLoopDebug = true
+        while (this.infLoopDebug) {
+          const s = 'asdf'
+          const s2 = stringifyReduce({ test: [s, s, s, s, s, s, s] })
+          const s3 = stringifyReduce({ test: [s2, s2, s2, s2, s2, s2, s2] })
+          core.hash(s3)
+        }
+      }
+    )
+
+    this.server.get(
+      '/debug-inf-loop-off',
+      {
+        preHandler: async (_request, reply) => {
+          isDebugMiddleware(_request, reply)
+        },
+      },
+      (req, res) => {
+        this.infLoopDebug = false
+        res.send('stopping inf loop, who knows if this is possible')
+      }
+    )
   }
 
   countEvent(category1: string, category2: string, count = 1): void {

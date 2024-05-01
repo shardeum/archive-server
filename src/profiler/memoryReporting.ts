@@ -6,6 +6,7 @@ import { resourceUsage } from 'process'
 import { getActiveNodeCount } from '../NodeList'
 import { spawn } from 'child_process'
 import * as process from 'process'
+import { isDebugMiddleware } from '../DebugMode'
 
 type CounterMap = Map<string, CounterNode>
 interface CounterNode {
@@ -38,21 +39,29 @@ class MemoryReporting {
   }
 
   registerEndpoints(): void {
-    this.server.get('/memory', (req, res) => {
-      const toMB = 1 / 1000000
-      const report = process.memoryUsage()
-      let outputStr = ''
-      outputStr += `System Memory Report.  Timestamp: ${Date.now()}\n`
-      outputStr += `rss: ${(report.rss * toMB).toFixed(2)} MB\n`
-      outputStr += `heapTotal: ${(report.heapTotal * toMB).toFixed(2)} MB\n`
-      outputStr += `heapUsed: ${(report.heapUsed * toMB).toFixed(2)} MB\n`
-      outputStr += `external: ${(report.external * toMB).toFixed(2)} MB\n`
-      outputStr += `arrayBuffers: ${(report.arrayBuffers * toMB).toFixed(2)} MB\n\n\n`
+    this.server.get(
+      '/memory',
+      {
+        preHandler: async (_request, reply) => {
+          isDebugMiddleware(_request, reply)
+        },
+      },
+      (req, res) => {
+        const toMB = 1 / 1000000
+        const report = process.memoryUsage()
+        let outputStr = ''
+        outputStr += `System Memory Report.  Timestamp: ${Date.now()}\n`
+        outputStr += `rss: ${(report.rss * toMB).toFixed(2)} MB\n`
+        outputStr += `heapTotal: ${(report.heapTotal * toMB).toFixed(2)} MB\n`
+        outputStr += `heapUsed: ${(report.heapUsed * toMB).toFixed(2)} MB\n`
+        outputStr += `external: ${(report.external * toMB).toFixed(2)} MB\n`
+        outputStr += `arrayBuffers: ${(report.arrayBuffers * toMB).toFixed(2)} MB\n\n\n`
 
-      this.gatherReport()
-      outputStr = this.reportToStream(this.report, outputStr)
-      res.send(outputStr)
-    })
+        this.gatherReport()
+        outputStr = this.reportToStream(this.report, outputStr)
+        res.send(outputStr)
+      }
+    )
 
     // this.server.get('memory-gc', (req, res) => {
     //     res.write(`System Memory Report.  Timestamp: ${Date.now()}\n`)
@@ -69,37 +78,53 @@ class MemoryReporting {
     //     res.end()
     // })
 
-    this.server.get('/top', (req, res) => {
-      const top = spawn('top', ['-n', '10'])
-      top.stdout.on('data', (dataBuffer) => {
-        res.send(dataBuffer.toString())
-        top.kill()
-      })
-      top.on('close', (code) => {
-        console.log(`child process exited with code ${code}`)
-      })
-      top.stderr.on('data', (data) => {
-        console.log('top command error', data)
-        res.send('top command error')
-        top.kill()
-      })
-    })
+    this.server.get(
+      '/top',
+      {
+        preHandler: async (_request, reply) => {
+          isDebugMiddleware(_request, reply)
+        },
+      },
+      (req, res) => {
+        const top = spawn('top', ['-n', '10'])
+        top.stdout.on('data', (dataBuffer) => {
+          res.send(dataBuffer.toString())
+          top.kill()
+        })
+        top.on('close', (code) => {
+          console.log(`child process exited with code ${code}`)
+        })
+        top.stderr.on('data', (data) => {
+          console.log('top command error', data)
+          res.send('top command error')
+          top.kill()
+        })
+      }
+    )
 
-    this.server.get('/df', (req, res) => {
-      const df = spawn('df')
-      df.stdout.on('data', (dataBuffer) => {
-        res.send(dataBuffer.toString())
-        df.kill()
-      })
-      df.on('close', (code) => {
-        console.log(`child process exited with code ${code}`)
-      })
-      df.stderr.on('data', (data) => {
-        console.log('df command error', data)
-        res.send('df command error')
-        df.kill()
-      })
-    })
+    this.server.get(
+      '/df',
+      {
+        preHandler: async (_request, reply) => {
+          isDebugMiddleware(_request, reply)
+        },
+      },
+      (req, res) => {
+        const df = spawn('df')
+        df.stdout.on('data', (dataBuffer) => {
+          res.send(dataBuffer.toString())
+          df.kill()
+        })
+        df.on('close', (code) => {
+          console.log(`child process exited with code ${code}`)
+        })
+        df.stderr.on('data', (data) => {
+          console.log('df command error', data)
+          res.send('df command error')
+          df.kill()
+        })
+      }
+    )
   }
 
   updateCpuPercent(): void {
