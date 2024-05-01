@@ -1,3 +1,4 @@
+import { isDebugMiddleware } from '../DebugMode'
 import { nestedCountersInstance } from './nestedCounters'
 import * as fastify from 'fastify'
 
@@ -35,10 +36,18 @@ class Profiler {
   }
 
   registerEndpoints(): void {
-    this.server.get('/perf', (req, res) => {
-      const result = this.printAndClearReport()
-      res.send(result)
-    })
+    this.server.get(
+      '/perf',
+      {
+        preHandler: async (_request, reply) => {
+          isDebugMiddleware(_request, reply)
+        },
+      },
+      (req, res) => {
+        const result = this.printAndClearReport()
+        res.send(result)
+      }
+    )
   }
 
   profileSectionStart(sectionName: string, internal = false): void {
