@@ -6,6 +6,8 @@ import { P2P as P2PTypes, StateManager } from '@shardus/types'
 import { getJson, postJson } from '../P2P'
 import { profilerInstance } from '../profiler/profiler'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
+import * as cycleDataCache from '../cache/cycleRecordsCache'
+
 import {
   clearDataSenders,
   dataSenders,
@@ -25,6 +27,8 @@ import { handleLostArchivers } from '../LostArchivers'
 import ShardFunctions from '../ShardFunctions'
 import { RequestDataType, queryFromArchivers } from '../API'
 import { stringifyReduce } from '../profiler/StringifyReduce'
+import { addCyclesToCache } from '../cache/cycleRecordsCache'
+import { queryLatestCycleRecords } from '../dbstore/cycles'
 
 interface ArchiverCycleResponse {
   cycleInfo: P2PTypes.CycleCreatorTypes.CycleData[]
@@ -92,6 +96,7 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
       cleanOldOriginalTxsMap(cleanupTimestamp)
       cleanOldReceiptsMap(cleanupTimestamp)
     }
+    await addCyclesToCache(cycles)
   } finally {
     if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
   }
@@ -533,4 +538,12 @@ function updateShardValues(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   if (shardValuesByCycle.size > CYCLE_SHARD_STORAGE_LIMIT) {
     shardValuesByCycle.delete(shardValuesByCycle.keys().next().value)
   }
+}
+
+export async function getLatestCycleRecords(count: number): Promise<P2PTypes.CycleCreatorTypes.CycleData[]> {
+  if (config.cycleRecordsCache.enabled) {
+    return await cycleDataCache.getLatestCycleRecords(count)
+  }
+
+  return await queryLatestCycleRecords(count)
 }

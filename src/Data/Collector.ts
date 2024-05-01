@@ -16,7 +16,7 @@ import * as Logger from '../Logger'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
 import { getCurrentCycleCounter, shardValuesByCycle, computeCycleMarker } from './Cycles'
-import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
+import { bulkInsertCycles, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 import * as State from '../State'
 import * as Utils from '../Utils'
 import { DataType, GossipData, adjacentArchivers, sendDataToAdjacentArchivers, TxData } from './GossipData'
@@ -28,6 +28,7 @@ import ShardFunction from '../ShardFunctions'
 import { ConsensusNodeInfo } from '../NodeList'
 import { verifyAccountHash } from '../shardeum/calculateAccountHash'
 import { verifyAppReceiptData } from '../shardeum/verifyAppReceiptData'
+import { Cycle as DbCycle } from '../dbstore/types'
 
 export let storingAccountData = false
 const processedReceiptsMap: Map<string, number> = new Map()
