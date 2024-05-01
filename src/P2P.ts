@@ -7,6 +7,7 @@ import fetch from 'node-fetch'
 import { P2P as P2PTypes } from '@shardus/types'
 import { RequestInit, Response } from 'node-fetch'
 import { SignedObject } from '@shardus/crypto-utils'
+import { config } from './Config'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { version } = require('../package.json')
 
@@ -93,11 +94,13 @@ export async function postJson(
       console.warn(res.headers)
       console.warn(res.statusText)
       console.warn(await res.text())
+      if (config.VERBOSE) console.trace()
       return null
     }
   } catch (err) {
-    console.warn('postJson failed: could not reach host')
+    console.warn('postJson failed in the catch block: could not reach host')
     console.warn(err)
+    if (config.VERBOSE) console.trace()
     return null
   }
 }
