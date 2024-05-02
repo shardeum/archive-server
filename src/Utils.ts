@@ -278,7 +278,7 @@ export async function robustQuery<Node = unknown, Response = unknown>(
   }
   if (finalResult) {
     if (config.VERBOSE) Logger.mainLogger.debug(`In robustQuery stopping since we got a finalResult:${JSON.stringify(finalResult)}`)
-    console.trace()
+    if (config.VERBOSE) console.trace()
     return finalResult
   } else {
     // TODO:  We return the item that had the most nodes reporting it. However, the caller should know
