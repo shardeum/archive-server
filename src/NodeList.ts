@@ -64,15 +64,19 @@ export const fromP2PTypesNode = (node: P2PTypes.NodeListTypes.Node): JoinedConse
 
 // STATE
 
-const list: ConsensusNodeInfo[] = []
 const standbyList: Map<string, ConsensusNodeInfo> = new Map()
 const syncingList: Map<string, ConsensusNodeInfo> = new Map()
 const activeList: Map<string, ConsensusNodeInfo> = new Map()
+
+// Map to get node public key by node Id
+const byId: Map<string, string> = new Map()
+
+// Map to get node info by public key, stores all nodes
+export const byPublicKey: Map<string, ConsensusNodeInfo> = new Map()
+
+// Array of active nodes sorted by id
 export let activeListByIdSorted: ConsensusNodeInfo[] = []
-export let byPublicKey: { [publicKey: string]: ConsensusNodeInfo } = {}
-let byIpPort: { [ipPort: string]: ConsensusNodeInfo } = {}
-export let byId: { [id: string]: ConsensusNodeInfo } = {}
-let publicKeyToId: { [publicKey: string]: string } = {}
+
 export let foundFirstNode = false
 
 export type SignedNodeList = {
@@ -86,17 +90,8 @@ export const realUpdatedTimes: Map<string, number> = new Map()
 
 // METHODS
 
-function getIpPort(node: Node): string {
-  if (node.ip && node.port) {
-    return node.ip + ':' + node.port
-  } else if (node.externalIp && node.externalPort) {
-    return node.externalIp + ':' + node.externalPort
-  }
-  return ''
-}
-
 export function isEmpty(): boolean {
-  return list.length <= 0
+  return byPublicKey.size === 0
 }
 
 type Node = ConsensusNodeInfo | JoinedConsensor
@@ -104,13 +99,12 @@ type Node = ConsensusNodeInfo | JoinedConsensor
 export function addNodes(status: NodeStatus, nodes: Node[]): void {
   if (nodes.length === 0) return
   Logger.mainLogger.debug(`Adding ${status} nodes to the list`, nodes.length, nodes)
+
   for (const node of nodes) {
-    const ipPort = getIpPort(node)
 
     // If node not in lists, add it
     // eslint-disable-next-line security/detect-object-injection
-    if (byPublicKey[node.publicKey] === undefined && byIpPort[ipPort] === undefined) {
-      list.push(node)
+    if (!byPublicKey.has(node.publicKey)) {
       const key = node.publicKey
       switch (status) {
         case NodeStatus.SYNCING:
@@ -135,18 +129,16 @@ export function addNodes(status: NodeStatus, nodes: Node[]): void {
           break
       }
       /* eslint-disable security/detect-object-injection */
-      byPublicKey[node.publicKey] = node
-      byIpPort[ipPort] = node
+      byPublicKey.set(node.publicKey, node)
       /* eslint-enable security/detect-object-injection */
     }
 
     // If an id is given, update its id
     if (node.id) {
-      const entry = byPublicKey[node.publicKey]
+      const entry = byPublicKey.get(node.publicKey)
       if (entry) {
         entry.id = node.id
-        publicKeyToId[node.publicKey] = node.id
-        byId[node.id] = node
+        byId.set(node.id, node.publicKey)
       }
     }
   }
@@ -155,13 +147,11 @@ export function refreshNodes(status: NodeStatus, nodes: ConsensusNodeInfo[] | Jo
   if (nodes.length === 0) return
   Logger.mainLogger.debug('Refreshing nodes', nodes.length, nodes)
   for (const node of nodes) {
-    const ipPort = getIpPort(node)
 
     // If node not in lists, add it
     // eslint-disable-next-line security/detect-object-injection
-    if (byPublicKey[node.publicKey] === undefined && byIpPort[ipPort] === undefined) {
+    if (!byPublicKey.has(node.publicKey)) {
       Logger.mainLogger.debug('adding new node during refresh', node.publicKey)
-      list.push(node)
       switch (status) {
         case NodeStatus.SYNCING:
           syncingList.set(node.publicKey, node)
@@ -176,18 +166,16 @@ export function refreshNodes(status: NodeStatus, nodes: ConsensusNodeInfo[] | Jo
           break
       }
 
-      byPublicKey[node.publicKey] = node
+      byPublicKey.set(node.publicKey, node)
       // eslint-disable-next-line security/detect-object-injection
-      byIpPort[ipPort] = node
     }
 
     // If an id is given, update its id
     if (node.id) {
-      const entry = byPublicKey[node.publicKey]
+      const entry = byPublicKey.get(node.publicKey)
       if (entry) {
         entry.id = node.id
-        publicKeyToId[node.publicKey] = node.id
-        byId[node.id] = node
+        byId.set(node.id, node.publicKey)
       }
     }
   }
@@ -196,37 +184,22 @@ export function refreshNodes(status: NodeStatus, nodes: ConsensusNodeInfo[] | Jo
 export function removeNodes(publicKeys: string[]): void {
   if (publicKeys.length > 0) Logger.mainLogger.debug('Removing nodes', publicKeys)
   // Efficiently remove nodes from nodelist
-  const keysToDelete: Map<ConsensusNodeInfo['publicKey'], boolean> = new Map()
 
   for (const key of publicKeys) {
     // eslint-disable-next-line security/detect-object-injection
-    if (byPublicKey[key] === undefined) {
+    if (!byPublicKey.has(key)) {
       console.warn(`removeNodes: publicKey ${key} not in nodelist`)
       continue
     }
-    keysToDelete.set(key, true)
     /* eslint-disable security/detect-object-injection */
-    delete byIpPort[getIpPort(byPublicKey[key])]
-    delete byPublicKey[key]
-    const id = publicKeyToId[key]
-    activeListByIdSorted = activeListByIdSorted.filter((node) => node.id !== id)
-    delete byId[id]
-    delete publicKeyToId[key]
+    syncingList.delete(key)
+    activeList.delete(key)
+    standbyList.delete(key)
+    const id = byPublicKey.get(key).id
+    activeListByIdSorted = activeListByIdSorted.filter((node) => node.id !== byPublicKey.get(key).id)
+    byId.delete(id)
+    byPublicKey.delete(key)
     /* eslint-enable security/detect-object-injection */
-  }
-
-  if (keysToDelete.size > 0) {
-    let key: string
-    for (let i = list.length - 1; i > -1; i--) {
-      // eslint-disable-next-line security/detect-object-injection
-      key = list[i].publicKey
-      if (keysToDelete.has(key)) {
-        list.splice(i, 1)
-        if (syncingList.has(key)) syncingList.delete(key)
-        else if (activeList.has(key)) activeList.delete(key)
-        else if (standbyList.has(key)) standbyList.delete(key)
-      }
-    }
   }
 }
 
@@ -251,7 +224,7 @@ export function setStatus(status: Exclude<NodeStatus, NodeStatus.STANDBY>, publi
   Logger.mainLogger.debug(`Updating status ${status} for nodes`, publicKeys)
   for (const key of publicKeys) {
     // eslint-disable-next-line security/detect-object-injection
-    const node = byPublicKey[key]
+    const node = byPublicKey.get(key)
     if (node === undefined) {
       console.warn(`setStatus: publicKey ${key} not in nodelist`)
       continue
@@ -281,8 +254,8 @@ export function setStatus(status: Exclude<NodeStatus, NodeStatus.STANDBY>, publi
   }
 }
 
-export function getList(): ConsensusNodeInfo[] {
-  return list
+export function getFirstNode(): ConsensusNodeInfo | undefined {
+  return byPublicKey.values().next().value;
 }
 
 export function getActiveList(id_sorted = true): ConsensusNodeInfo[] {
@@ -317,7 +290,7 @@ export const getCachedNodeList = (): SignedNodeList => {
 
   for (let index = 0; index < config.N_RANDOM_NODELIST_BUCKETS; index++) {
     // If we dont have any active nodes, send back the first node in our list
-    const nodeList = nodeCount < 1 ? getList().slice(0, 1) : getRandomActiveNodes(nodeCount)
+    const nodeList = nodeCount < 1 ? [getFirstNode()] : getRandomActiveNodes(nodeCount)
     const sortedNodeList = [...nodeList].sort(byAscendingNodeId)
     const signedSortedNodeList = Crypto.sign({
       nodeList: sortedNodeList,
@@ -427,7 +400,7 @@ export function changeNodeListInRestore(): void {
 }
 
 /** Resets/Cleans all the NodeList associated Maps and Array variables/caches */
-export function clearNodeListCache(): void {
+export function clearNodeLists(): void {
   try {
     activeNodescache.clear()
     fullNodesCache.clear()
@@ -436,11 +409,8 @@ export function clearNodeListCache(): void {
     realUpdatedTimes.clear()
     cacheUpdatedTimes.clear()
 
-    list.length = 0
-    byId = {}
-    byIpPort = {}
-    byPublicKey = {}
-    publicKeyToId = {}
+    byId.clear()
+    byPublicKey.clear()
     activeListByIdSorted = []
   } catch (e) {
     Logger.mainLogger.error('Error thrown in clearNodeListCache', e)

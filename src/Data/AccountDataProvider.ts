@@ -93,7 +93,7 @@ export const validateAccountDataRequest = (
     return { success: false, error: 'Invalid sign object attached' }
   }
   const nodePublicKey = sign.owner
-  if (!Object.prototype.hasOwnProperty.call(NodeList.byPublicKey, nodePublicKey)) {
+  if (!NodeList.byPublicKey.has(nodePublicKey)) {
     return { success: false, error: 'This node is not found in the nodelist!' }
   }
   if (!servingValidators.has(nodePublicKey) && servingValidators.size >= config.maxValidatorsToServe) {
@@ -143,7 +143,7 @@ export const validateAccountDataByListRequest = (
     return { success: false, error: 'Invalid sign object attached' }
   }
   const nodePublicKey = sign.owner
-  if (!Object.prototype.hasOwnProperty.call(NodeList.byPublicKey, nodePublicKey)) {
+  if (!NodeList.byPublicKey.has(nodePublicKey)) {
     return { success: false, error: 'This node is not found in the nodelist!' }
   }
   // TODO: Add max limit check for accountIds list query
