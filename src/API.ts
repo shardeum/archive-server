@@ -112,7 +112,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
 
       if (config.experimentalSnapshot) {
         const data = {
-          nodeList: NodeList.getList(),
+          nodeList: [firstNode],
         }
         if (cycleRecordWithShutDownMode) {
           // For restore network to start the network from the 'restart' mode
@@ -127,7 +127,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         res = Crypto.sign<P2P.FirstNodeResponse>(data)
       } else {
         res = Crypto.sign<P2P.FirstNodeResponse>({
-          nodeList: NodeList.getList(),
+          nodeList: [firstNode],
           joinRequest: P2P.createArchiverJoinRequest(),
           dataRequestCycle: Data.createDataRequest<P2PTypes.CycleCreatorTypes.CycleRecord>(
             P2PTypes.SnapshotTypes.TypeNames.CYCLE,
