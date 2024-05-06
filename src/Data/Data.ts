@@ -359,11 +359,7 @@ export function collectCycleData(
           saved: false,
           senderNodes: [senderInfo],
         }
-        // Logger.mainLogger.debug(
-        //   'Different Cycle Record received',
-        //   cycle.counter,
-        //   receivedCycleTracker[cycle.counter]
-        // )
+        if (config.VERBOSE) Logger.mainLogger.debug('Different Cycle Record received', cycle.counter)
       }
     } else {
       if (!validateCycleData(cycle)) continue
@@ -376,7 +372,8 @@ export function collectCycleData(
         },
       }
     }
-    // Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker)
+    if (config.VERBOSE)
+      Logger.mainLogger.debug('Cycle received', cycle.counter, receivedCycleTracker[cycle.counter])
     const minCycleConfirmations =
       Math.min(Math.ceil(NodeList.getActiveNodeCount() / currentConsensusRadius), 5) || 1
 
