@@ -838,6 +838,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     }
     const res = Crypto.sign({
       success: true,
+      timestamp: Date.now(),
     })
     reply.send(res)
     Collector.processGossipData(gossipPayload)
@@ -907,6 +908,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       },
     },
     (_request, reply) => {
+      config.timestamp = Date.now()
       const res = Crypto.sign(config)
       reply.send(res)
     }
@@ -949,7 +951,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       if (enableLoseYourself) {
         Logger.mainLogger.debug('/lose-yourself: exit(1)')
 
-        reply.send(Crypto.sign({ status: 'success', message: 'will exit' }))
+        reply.send(Crypto.sign({ status: 'success', message: 'will exit', timestamp: Date.now() }))
 
         // We don't call exitArchiver() here because that awaits Data.sendLeaveRequest(...),
         // but we're simulating a lost node.
@@ -1094,6 +1096,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       addHashesGossip(gossipMessage.sender, gossipMessage.data)
       const res = Crypto.sign({
         success: true,
+        timestamp: Date.now(),
       })
       reply.send(res)
     })

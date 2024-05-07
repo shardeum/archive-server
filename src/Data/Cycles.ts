@@ -396,6 +396,7 @@ export async function getNewestCycleFromArchivers(): Promise<P2PTypes.CycleCreat
   const data = {
     count: 1,
     sender: config.ARCHIVER_PUBLIC_KEY,
+    timestamp: Date.now(),
   }
   Crypto.sign(data)
 
