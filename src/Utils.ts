@@ -454,6 +454,15 @@ export function validateTypes(inp: object, def: Record<string, unknown> = {}): s
   if (inp === undefined) return 'input is undefined'
   if (inp === null) return 'input is null'
   if (typeof inp !== 'object') return 'input must be object, not ' + typeof inp
+  
+  const inputFields = Object.keys(inp)
+  for (const name of inputFields) {
+    // eslint-disable-next-line security/detect-object-injection
+    if (!def[name]) {
+      return 'input has extra field:' + name
+    }
+  }
+
   const map: Record<string, string> = {
     string: 's',
     number: 'n',
