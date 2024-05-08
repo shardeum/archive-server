@@ -449,4 +449,5 @@ export function clearNodeListCache(): void {
 
 export function toggleFirstNode(): void {
   foundFirstNode = !foundFirstNode
+  Logger.mainLogger.debug('foundFirstNode', foundFirstNode)
 }

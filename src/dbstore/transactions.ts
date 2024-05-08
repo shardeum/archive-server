@@ -53,7 +53,7 @@ export async function bulkInsertTransactions(transactions: Transaction[]): Promi
       sql = sql + ', (' + placeholders + ')'
     }
     await db.run(sql, values)
-    Logger.mainLogger.debug('Successfully inserted Transactions', transactions.length)
+    if (config.VERBOSE) Logger.mainLogger.debug('Successfully inserted Transactions', transactions.length)
   } catch (e) {
     Logger.mainLogger.error(e)
     Logger.mainLogger.error('Unable to bulk insert Transactions', transactions.length)
