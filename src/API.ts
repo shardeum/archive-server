@@ -77,10 +77,18 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
         if (!isSignatureValid) {
           Logger.mainLogger.error('Invalid signature', signedFirstNodeInfo)
+          reply.send({ success: false, error: 'Invalid signature' })
           return
         }
       } catch (e) {
         Logger.mainLogger.error(e)
+        reply.send({ success: false, error: 'Signature verification failed' })
+        return
+      }
+      if (NodeList.foundFirstNode) {
+        const res = NodeList.getCachedNodeList()
+        reply.send(res)
+        return
       }
       NodeList.toggleFirstNode()
       const ip = signedFirstNodeInfo.nodeInfo.externalIp
@@ -97,7 +105,9 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
 
       // Add first node to NodeList
       NodeList.addNodes(NodeList.NodeStatus.SYNCING, [firstNode])
-
+      // Setting current time for realUpdatedTimes to refresh the nodelist and full-nodelist cache
+      NodeList.realUpdatedTimes.set('/nodelist', Date.now())
+      NodeList.realUpdatedTimes.set('/full-nodelist', Date.now())
       // Set first node as dataSender
       const firstDataSender: Data.DataSender = {
         nodeInfo: firstNode,
@@ -123,7 +133,6 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
           data['joinRequest'] = P2P.createArchiverJoinRequest()
           data['dataRequestCycle'] = Cycles.getCurrentCycleCounter()
         }
-
         res = Crypto.sign<P2P.FirstNodeResponse>(data)
       } else {
         res = Crypto.sign<P2P.FirstNodeResponse>({

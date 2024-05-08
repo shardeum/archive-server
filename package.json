@@ -15,6 +15,7 @@
     "archive-server": "./build/server.js"
   },
   "scripts": {
+    "start": "npm run prepare && node build/server.js",
     "release": "npm run prepare && np --no-cleanup --no-tests --no-yarn --any-branch",
     "test": "echo \"Error: no test specified\" && exit 1",
     "check": "gts check",
