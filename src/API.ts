@@ -340,10 +340,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     }
     if (count > MAX_CYCLES_PER_REQUEST) count = MAX_CYCLES_PER_REQUEST
     const cycleInfo = await Cycles.getLatestCycleRecords(count)
-    const res = Crypto.sign({
-      cycleInfo,
-    })
-    reply.send(res)
+    reply.send({ cycleInfo })
   })
 
   type ReceiptRequest = FastifyRequest<{

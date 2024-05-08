@@ -22,19 +22,14 @@ async function updateCacheFromDB(): Promise<void> {
 }
 
 export async function addCyclesToCache(cycles: P2P.CycleCreatorTypes.CycleData[]): Promise<void> {
-  cycles.sort((a, b) => a.counter - b.counter);
-  
   if (cachedCycleRecords.length === 0) {
     await updateCacheFromDB()
   }
 
   for (const cycle of cycles) {
-    if(cycle.counter < cachedCycleRecords[0].counter) {
-      continue
-    }
-
     cachedCycleRecords.unshift(cycle)
   }
+  cycles.sort((a, b) => a.counter - b.counter)
 
   if (cachedCycleRecords.length > config.REQUEST_LIMIT.MAX_CYCLES_PER_REQUEST) {
     cachedCycleRecords.splice(config.REQUEST_LIMIT.MAX_CYCLES_PER_REQUEST)

@@ -71,17 +71,18 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
       updateNodeList(cycle)
       updateShardValues(cycle)
       changeNetworkMode(cycle.mode)
+      getAdjacentLeftAndRightArchivers()
       handleLostArchivers(cycle)
 
+      await addCyclesToCache(cycles)
       await storeCycleData([cycle])
-      getAdjacentLeftAndRightArchivers()
 
       Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
 
       if (State.isActive) {
         sendDataToAdjacentArchivers(DataType.CYCLE, [cycle])
         // Check the archivers reputaion in every new cycle & record the status
-        if (State.isActive) recordArchiversReputation()
+        recordArchiversReputation()
       }
       if (currentNetworkMode === 'shutdown') {
         Logger.mainLogger.debug(Date.now(), `❌ Shutdown Cycle Record received at Cycle #: ${cycle.counter}`)
@@ -96,7 +97,6 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
       cleanOldOriginalTxsMap(cleanupTimestamp)
       cleanOldReceiptsMap(cleanupTimestamp)
     }
-    await addCyclesToCache(cycles)
   } finally {
     if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
   }
@@ -289,27 +289,6 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
     return keys
   }, [])
   NodeList.removeNodes(removedPks)
-
-  // TODO: add a more scalable lostNodes collector (maybe removed nodes collector)
-  // add lost nodes to lostNodes collector
-  // lost.forEach((id: string) => {
-  //   const nodeInfo = NodeList.getNodeInfoById(id)
-  //   lostNodes.push({
-  //     counter: cycle.counter,
-  //     timestamp: Date.now(),
-  //     nodeInfo,
-  //   })
-  // })
-
-  // The archiver doesn't need to consider lost nodes; They will be in `apop` or `refuted` list in next cycle
-  // const lostPks = lost.reduce((keys: string[], id) => {
-  //   const nodeInfo = NodeList.getNodeInfoById(id)
-  //   if (nodeInfo) {
-  //     keys.push(nodeInfo.publicKey)
-  //   }
-  //   return keys
-  // }, [])
-  // NodeList.removeNodes(lostPks)
 
   const apoptosizedConsensusNodes: NodeList.ConsensusNodeInfo[] = []
 
