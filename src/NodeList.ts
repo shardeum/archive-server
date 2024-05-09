@@ -117,7 +117,7 @@ export function addNodes(status: NodeStatus, nodes: Node[]): void {
           if (standbyList.has(key)) standbyList.delete(key)
           if (activeList.has(key)) {
             activeList.delete(key)
-            activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey === key)
+            activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey !== key)
           }
           if (syncingList.has(key)) break
           syncingList.set(node.publicKey, node)
@@ -261,7 +261,7 @@ export function setStatus(status: Exclude<NodeStatus, NodeStatus.STANDBY>, publi
         if (standbyList.has(key)) standbyList.delete(key)
         if (activeList.has(key)) {
           activeList.delete(key)
-          activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey === key)
+          activeListByIdSorted = activeListByIdSorted.filter((node) => node.publicKey !== key)
         }
         if (syncingList.has(key)) break
         syncingList.set(key, node)
