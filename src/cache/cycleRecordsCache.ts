@@ -1,8 +1,11 @@
 import { P2P } from '@shardus/types'
 import { config } from '../Config'
 import { queryLatestCycleRecords } from '../dbstore/cycles'
+import * as Crypto from '../Crypto'
+import { ArchiverCycleResponse } from '../Data/Cycles'
 
 let cachedCycleRecords: P2P.CycleCreatorTypes.CycleData[] = []
+const signedCacheCycleRecords: Map<number, ArchiverCycleResponse> = new Map()
 let lastCacheUpdateFromDBRunning = false
 
 async function updateCacheFromDB(): Promise<void> {
@@ -34,12 +37,17 @@ export async function addCyclesToCache(cycles: P2P.CycleCreatorTypes.CycleData[]
   if (cachedCycleRecords.length > config.REQUEST_LIMIT.MAX_CYCLES_PER_REQUEST) {
     cachedCycleRecords.splice(config.REQUEST_LIMIT.MAX_CYCLES_PER_REQUEST)
   }
+  signedCacheCycleRecords.clear()
 }
 
-export async function getLatestCycleRecords(count: number): Promise<P2P.CycleCreatorTypes.CycleData[]> {
+export async function getLatestCycleRecordsFromCache(count: number): Promise<ArchiverCycleResponse> {
   if (cachedCycleRecords.length === 0) {
     await updateCacheFromDB()
   }
+  if (signedCacheCycleRecords.has(count)) return signedCacheCycleRecords.get(count)
 
-  return cachedCycleRecords.slice(0, count)
+  const cycleInfo = cachedCycleRecords.slice(0, count)
+  const signedCycleRecords = Crypto.sign({ cycleInfo })
+  signedCacheCycleRecords.set(count, signedCycleRecords)
+  return signedCycleRecords
 }

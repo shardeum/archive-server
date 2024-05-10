@@ -22,7 +22,7 @@ import fetch from 'node-fetch'
 import { getAdjacentLeftAndRightArchivers, sendDataToAdjacentArchivers, DataType } from './GossipData'
 import { cleanOldOriginalTxsMap, cleanOldReceiptsMap, storeCycleData } from './Collector'
 import { clearServingValidatorsInterval, initServingValidatorsInterval } from './AccountDataProvider'
-import { hexstring } from '@shardus/crypto-utils'
+import { Signature, hexstring } from '@shardus/crypto-utils'
 import { handleLostArchivers } from '../LostArchivers'
 import ShardFunctions from '../ShardFunctions'
 import { RequestDataType, queryFromArchivers } from '../API'
@@ -30,8 +30,9 @@ import { stringifyReduce } from '../profiler/StringifyReduce'
 import { addCyclesToCache } from '../cache/cycleRecordsCache'
 import { queryLatestCycleRecords } from '../dbstore/cycles'
 
-interface ArchiverCycleResponse {
+export interface ArchiverCycleResponse {
   cycleInfo: P2PTypes.CycleCreatorTypes.CycleData[]
+  sign: Signature
 }
 
 interface ConsensorCycleResponse {
@@ -519,10 +520,10 @@ function updateShardValues(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   }
 }
 
-export async function getLatestCycleRecords(count: number): Promise<P2PTypes.CycleCreatorTypes.CycleData[]> {
+export async function getLatestCycleRecords(count: number): Promise<ArchiverCycleResponse> {
   if (config.cycleRecordsCache.enabled) {
-    return await cycleDataCache.getLatestCycleRecords(count)
+    return await cycleDataCache.getLatestCycleRecordsFromCache(count)
   }
-
-  return await queryLatestCycleRecords(count)
+  const cycleInfo = await queryLatestCycleRecords(count)
+  return Crypto.sign({ cycleInfo })
 }
