@@ -203,7 +203,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     (_request: FullNodeListRequest, reply) => {
       profilerInstance.profileSectionStart('removed')
       nestedCountersInstance.countEvent('consensor', 'removed')
-      reply.send(Crypto.sign({ removedAndApopedNodes: Cycles.removedAndApopedNodes }))
+      reply.send({ removedAndApopedNodes: Cycles.removedAndApopedNodes })
       profilerInstance.profileSectionEnd('removed')
     }
   )
@@ -913,8 +913,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       },
     },
     (_request, reply) => {
-      const res = Crypto.sign(config)
-      reply.send(res)
+      reply.send({ ...config, ARCHIVER_SECRET_KEY: '' }) // send the config without the secret key
     }
   )
 
@@ -935,8 +934,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         data['dataSendersList'] = Array.from(Data.dataSenders.values()).map(
           (item) => item.nodeInfo.ip + ':' + item.nodeInfo.port
         )
-      const res = Crypto.sign(data)
-      reply.send(res)
+      reply.send(data)
     }
   )
 
@@ -955,7 +953,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       if (enableLoseYourself) {
         Logger.mainLogger.debug('/lose-yourself: exit(1)')
 
-        reply.send(Crypto.sign({ status: 'success', message: 'will exit' }))
+        reply.send({ status: 'success', message: 'will exit' })
 
         // We don't call exitArchiver() here because that awaits Data.sendLeaveRequest(...),
         // but we're simulating a lost node.
