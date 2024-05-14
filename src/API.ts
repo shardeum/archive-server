@@ -844,6 +844,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     }
     const res = Crypto.sign({
       success: true,
+      timestamp: Date.now(),
     })
     reply.send(res)
     Collector.processGossipData(gossipPayload)
@@ -1098,6 +1099,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       addHashesGossip(gossipMessage.sender, gossipMessage.data)
       const res = Crypto.sign({
         success: true,
+        timestamp: Date.now(),
       })
       reply.send(res)
     })

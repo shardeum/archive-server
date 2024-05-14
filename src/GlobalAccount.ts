@@ -57,7 +57,7 @@ export const syncGlobalAccount = async (retry = 5): Promise<void> => {
       const queryFn = async (node: Node): Promise<any> => {
         return await postJson(
           `http://${node.ip}:${node.port}/get_globalaccountreport_archiver`,
-          Crypto.sign({})
+          Crypto.sign({ timestamp: Date.now() })
         )
       }
 
