@@ -290,7 +290,7 @@ export const getCachedNodeList = (): SignedNodeList => {
 
   for (let index = 0; index < config.N_RANDOM_NODELIST_BUCKETS; index++) {
     // If we dont have any active nodes, send back the first node in our list
-    const nodeList = nodeCount < 1 ? [getFirstNode()] : getRandomActiveNodes(nodeCount)
+    const nodeList = nodeCount < 1 ? (isEmpty() ? [] : [getFirstNode()]) : getRandomActiveNodes(nodeCount);
     const sortedNodeList = [...nodeList].sort(byAscendingNodeId)
     const signedSortedNodeList = Crypto.sign({
       nodeList: sortedNodeList,
