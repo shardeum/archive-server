@@ -6,6 +6,8 @@ import { P2P as P2PTypes, StateManager } from '@shardus/types'
 import { getJson, postJson } from '../P2P'
 import { profilerInstance } from '../profiler/profiler'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
+import * as cycleDataCache from '../cache/cycleRecordsCache'
+
 import {
   clearDataSenders,
   dataSenders,
@@ -20,14 +22,17 @@ import fetch from 'node-fetch'
 import { getAdjacentLeftAndRightArchivers, sendDataToAdjacentArchivers, DataType } from './GossipData'
 import { cleanOldOriginalTxsMap, cleanOldReceiptsMap, storeCycleData } from './Collector'
 import { clearServingValidatorsInterval, initServingValidatorsInterval } from './AccountDataProvider'
-import { hexstring } from '@shardus/crypto-utils'
+import { Signature, hexstring } from '@shardus/crypto-utils'
 import { handleLostArchivers } from '../LostArchivers'
 import ShardFunctions from '../ShardFunctions'
 import { RequestDataType, queryFromArchivers } from '../API'
 import { stringifyReduce } from '../profiler/StringifyReduce'
+import { addCyclesToCache } from '../cache/cycleRecordsCache'
+import { queryLatestCycleRecords } from '../dbstore/cycles'
 
-interface ArchiverCycleResponse {
+export interface ArchiverCycleResponse {
   cycleInfo: P2PTypes.CycleCreatorTypes.CycleData[]
+  sign: Signature
 }
 
 interface ConsensorCycleResponse {
@@ -67,17 +72,18 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
       updateNodeList(cycle)
       updateShardValues(cycle)
       changeNetworkMode(cycle.mode)
+      getAdjacentLeftAndRightArchivers()
       handleLostArchivers(cycle)
 
+      await addCyclesToCache(cycles)
       await storeCycleData([cycle])
-      getAdjacentLeftAndRightArchivers()
 
       Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
 
       if (State.isActive) {
         sendDataToAdjacentArchivers(DataType.CYCLE, [cycle])
         // Check the archivers reputaion in every new cycle & record the status
-        if (State.isActive) recordArchiversReputation()
+        recordArchiversReputation()
       }
       if (currentNetworkMode === 'shutdown') {
         Logger.mainLogger.debug(Date.now(), `❌ Shutdown Cycle Record received at Cycle #: ${cycle.counter}`)
@@ -284,27 +290,6 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
     return keys
   }, [])
   NodeList.removeNodes(removedPks)
-
-  // TODO: add a more scalable lostNodes collector (maybe removed nodes collector)
-  // add lost nodes to lostNodes collector
-  // lost.forEach((id: string) => {
-  //   const nodeInfo = NodeList.getNodeInfoById(id)
-  //   lostNodes.push({
-  //     counter: cycle.counter,
-  //     timestamp: Date.now(),
-  //     nodeInfo,
-  //   })
-  // })
-
-  // The archiver doesn't need to consider lost nodes; They will be in `apop` or `refuted` list in next cycle
-  // const lostPks = lost.reduce((keys: string[], id) => {
-  //   const nodeInfo = NodeList.getNodeInfoById(id)
-  //   if (nodeInfo) {
-  //     keys.push(nodeInfo.publicKey)
-  //   }
-  //   return keys
-  // }, [])
-  // NodeList.removeNodes(lostPks)
 
   const apoptosizedConsensusNodes: NodeList.ConsensusNodeInfo[] = []
 
@@ -534,4 +519,12 @@ function updateShardValues(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   if (shardValuesByCycle.size > CYCLE_SHARD_STORAGE_LIMIT) {
     shardValuesByCycle.delete(shardValuesByCycle.keys().next().value)
   }
+}
+
+export async function getLatestCycleRecords(count: number): Promise<ArchiverCycleResponse> {
+  if (config.cycleRecordsCache.enabled) {
+    return await cycleDataCache.getLatestCycleRecordsFromCache(count)
+  }
+  const cycleInfo = await queryLatestCycleRecords(count)
+  return Crypto.sign({ cycleInfo })
 }

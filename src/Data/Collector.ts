@@ -16,7 +16,7 @@ import * as Logger from '../Logger'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
 import { getCurrentCycleCounter, shardValuesByCycle, computeCycleMarker } from './Cycles'
-import { bulkInsertCycles, Cycle as DbCycle, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
+import { bulkInsertCycles, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 import * as State from '../State'
 import * as Utils from '../Utils'
 import { DataType, GossipData, adjacentArchivers, sendDataToAdjacentArchivers, TxData } from './GossipData'
@@ -28,6 +28,7 @@ import ShardFunction from '../ShardFunctions'
 import { ConsensusNodeInfo } from '../NodeList'
 import { verifyAccountHash } from '../shardeum/calculateAccountHash'
 import { verifyAppReceiptData } from '../shardeum/verifyAppReceiptData'
+import { Cycle as DbCycle } from '../dbstore/types'
 
 export let storingAccountData = false
 const processedReceiptsMap: Map<string, number> = new Map()
@@ -1218,23 +1219,31 @@ export const collectMissingOriginalTxsData = async (): Promise<void> => {
 }
 
 export function cleanOldReceiptsMap(timestamp: number): void {
+  let savedReceiptsCount = 0
   for (const [key, value] of processedReceiptsMap) {
     if (value < timestamp) {
       processedReceiptsMap.delete(key)
+      savedReceiptsCount++
     }
   }
-  if (config.VERBOSE) console.log('Clean old receipts map!', getCurrentCycleCounter())
+  Logger.mainLogger.debug(
+    `Clean ${savedReceiptsCount} old receipts from the processed receipts cache on cycle ${getCurrentCycleCounter()}`
+  )
 }
 
 export function cleanOldOriginalTxsMap(timestamp: number): void {
+  let savedOriginalTxsCount = 0
   for (const [key, value] of processedOriginalTxsMap) {
     if (value < timestamp) {
       if (!processedReceiptsMap.has(key))
         Logger.mainLogger.error('The processed receipt is not found for originalTx', key, value)
       processedOriginalTxsMap.delete(key)
+      savedOriginalTxsCount++
     }
   }
-  if (config.VERBOSE) console.log('Clean old originalTxs map!', getCurrentCycleCounter())
+  Logger.mainLogger.debug(
+    `Clean ${savedOriginalTxsCount} old originalTxsData from the processed originalTxsData cache on cycle ${getCurrentCycleCounter()}`
+  )
 }
 
 export const scheduleMissingTxsDataQuery = (): void => {

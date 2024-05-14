@@ -56,7 +56,8 @@ export async function bulkInsertOriginalTxsData(originalTxsData: OriginalTxData[
       sql = sql + ', (' + placeholders + ')'
     }
     await db.run(sql, values)
-    Logger.mainLogger.debug('Successfully inserted OriginalTxsData', originalTxsData.length)
+    if (config.VERBOSE)
+      Logger.mainLogger.debug('Successfully inserted OriginalTxsData', originalTxsData.length)
   } catch (e) {
     Logger.mainLogger.error(e)
     Logger.mainLogger.error('Unable to bulk insert OriginalTxsData', originalTxsData.length)

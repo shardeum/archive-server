@@ -77,10 +77,18 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
         if (!isSignatureValid) {
           Logger.mainLogger.error('Invalid signature', signedFirstNodeInfo)
+          reply.send({ success: false, error: 'Invalid signature' })
           return
         }
       } catch (e) {
         Logger.mainLogger.error(e)
+        reply.send({ success: false, error: 'Signature verification failed' })
+        return
+      }
+      if (NodeList.foundFirstNode) {
+        const res = NodeList.getCachedNodeList()
+        reply.send(res)
+        return
       }
       NodeList.toggleFirstNode()
       const ip = signedFirstNodeInfo.nodeInfo.externalIp
@@ -97,7 +105,9 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
 
       // Add first node to NodeList
       NodeList.addNodes(NodeList.NodeStatus.SYNCING, [firstNode])
-
+      // Setting current time for realUpdatedTimes to refresh the nodelist and full-nodelist cache
+      NodeList.realUpdatedTimes.set('/nodelist', Date.now())
+      NodeList.realUpdatedTimes.set('/full-nodelist', Date.now())
       // Set first node as dataSender
       const firstDataSender: Data.DataSender = {
         nodeInfo: firstNode,
@@ -123,7 +133,6 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
           data['joinRequest'] = P2P.createArchiverJoinRequest()
           data['dataRequestCycle'] = Cycles.getCurrentCycleCounter()
         }
-
         res = Crypto.sign<P2P.FirstNodeResponse>(data)
       } else {
         res = Crypto.sign<P2P.FirstNodeResponse>({
@@ -194,7 +203,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     (_request: FullNodeListRequest, reply) => {
       profilerInstance.profileSectionStart('removed')
       nestedCountersInstance.countEvent('consensor', 'removed')
-      reply.send(Crypto.sign({ removedAndApopedNodes: Cycles.removedAndApopedNodes }))
+      reply.send({ removedAndApopedNodes: Cycles.removedAndApopedNodes })
       profilerInstance.profileSectionEnd('removed')
     }
   )
@@ -330,10 +339,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       return
     }
     if (count > MAX_CYCLES_PER_REQUEST) count = MAX_CYCLES_PER_REQUEST
-    const cycleInfo = await CycleDB.queryLatestCycleRecords(count)
-    const res = Crypto.sign({
-      cycleInfo,
-    })
+    const res = await Cycles.getLatestCycleRecords(count)
     reply.send(res)
   })
 
@@ -908,9 +914,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       },
     },
     (_request, reply) => {
-      config.timestamp = Date.now()
-      const res = Crypto.sign(config)
-      reply.send(res)
+      reply.send({ ...config, ARCHIVER_SECRET_KEY: '' }) // send the config without the secret key
     }
   )
 
@@ -931,8 +935,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         data['dataSendersList'] = Array.from(Data.dataSenders.values()).map(
           (item) => item.nodeInfo.ip + ':' + item.nodeInfo.port
         )
-      const res = Crypto.sign(data)
-      reply.send(res)
+      reply.send(data)
     }
   )
 
@@ -951,7 +954,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       if (enableLoseYourself) {
         Logger.mainLogger.debug('/lose-yourself: exit(1)')
 
-        reply.send(Crypto.sign({ status: 'success', message: 'will exit', timestamp: Date.now() }))
+        reply.send({ status: 'success', message: 'will exit' })
 
         // We don't call exitArchiver() here because that awaits Data.sendLeaveRequest(...),
         // but we're simulating a lost node.

@@ -47,7 +47,7 @@ export async function bulkInsertAccounts(accounts: AccountCopy[]): Promise<void>
       sql = sql + ', (' + placeholders + ')'
     }
     await db.run(sql, values)
-    Logger.mainLogger.debug('Successfully inserted Accounts', accounts.length)
+    if (config.VERBOSE) Logger.mainLogger.debug('Successfully inserted Accounts', accounts.length)
   } catch (e) {
     Logger.mainLogger.error(e)
     Logger.mainLogger.error('Unable to bulk insert Accounts', accounts.length)
