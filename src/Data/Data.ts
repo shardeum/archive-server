@@ -467,7 +467,7 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
   }
   unsubscribeDataSender(publicKey)
   // eslint-disable-next-line security/detect-object-injection
-  const node = NodeList.byPublicKey.get(publicKey)
+  const node = NodeList.byPublicKey[publicKey]
   if (node) {
     const nodeIndex = NodeList.activeListByIdSorted.findIndex((node) => node.publicKey === publicKey)
     if (nodeIndex > -1) {
@@ -537,7 +537,7 @@ export function addDataSender(sender: DataSender): void {
 
 async function getConsensusRadius(): Promise<number> {
   // If there is no node, return existing currentConsensusRadius
-  if (NodeList.isEmpty()) return currentConsensusRadius
+  if (NodeList.getList().length === 0) return currentConsensusRadius
 
   // Define the query function to get the network config from a node
   const queryFn = async (node): Promise<object> => {
@@ -564,7 +564,7 @@ async function getConsensusRadius(): Promise<number> {
 
   // Get the list of 10 max random active nodes or the first node if no active nodes are available
   const nodes =
-    NodeList.getActiveNodeCount() > 0 ? NodeList.getRandomActiveNodes(10) : [NodeList.getFirstNode()]
+    NodeList.getActiveNodeCount() > 0 ? NodeList.getRandomActiveNodes(10) : NodeList.getList().slice(0, 1)
 
   // Use robustQuery to get the consensusRadius from multiple nodes
   const tallyItem = await robustQuery(

@@ -88,7 +88,7 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
       if (currentNetworkMode === 'shutdown') {
         Logger.mainLogger.debug(Date.now(), `❌ Shutdown Cycle Record received at Cycle #: ${cycle.counter}`)
         await Utils.sleep(currentCycleDuration)
-        NodeList.clearNodeLists()
+        NodeList.clearNodeListCache()
         await clearDataSenders()
         setShutdownCycleRecord(cycle)
         NodeList.toggleFirstNode()
