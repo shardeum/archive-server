@@ -67,13 +67,10 @@ export const fromP2PTypesNode = (node: P2PTypes.NodeListTypes.Node): JoinedConse
 const standbyList: Map<string, ConsensusNodeInfo> = new Map()
 const syncingList: Map<string, ConsensusNodeInfo> = new Map()
 const activeList: Map<string, ConsensusNodeInfo> = new Map()
-
 // Map to get node public key by node Id
 const byId: Map<string, string> = new Map()
-
-// Map to get node info by public key, stores all nodes
+// Map to get node info by public key, stores syncing and active nodes
 export const byPublicKey: Map<string, ConsensusNodeInfo> = new Map()
-
 // Array of active nodes sorted by id
 export let activeListByIdSorted: ConsensusNodeInfo[] = []
 
@@ -101,7 +98,6 @@ export function addNodes(status: NodeStatus, nodes: Node[]): void {
   Logger.mainLogger.debug(`Adding ${status} nodes to the list`, nodes.length, nodes)
 
   for (const node of nodes) {
-
     // If node not in lists, add it
     // eslint-disable-next-line security/detect-object-injection
     if (!byPublicKey.has(node.publicKey)) {
@@ -147,7 +143,6 @@ export function refreshNodes(status: NodeStatus, nodes: ConsensusNodeInfo[] | Jo
   if (nodes.length === 0) return
   Logger.mainLogger.debug('Refreshing nodes', nodes.length, nodes)
   for (const node of nodes) {
-
     // If node not in lists, add it
     // eslint-disable-next-line security/detect-object-injection
     if (!byPublicKey.has(node.publicKey)) {
@@ -255,7 +250,7 @@ export function setStatus(status: Exclude<NodeStatus, NodeStatus.STANDBY>, publi
 }
 
 export function getFirstNode(): ConsensusNodeInfo | undefined {
-  return byPublicKey.values().next().value;
+  return byPublicKey?.values()?.next()?.value
 }
 
 export function getActiveList(id_sorted = true): ConsensusNodeInfo[] {
@@ -290,7 +285,7 @@ export const getCachedNodeList = (): SignedNodeList => {
 
   for (let index = 0; index < config.N_RANDOM_NODELIST_BUCKETS; index++) {
     // If we dont have any active nodes, send back the first node in our list
-    const nodeList = nodeCount < 1 ? (isEmpty() ? [] : [getFirstNode()]) : getRandomActiveNodes(nodeCount);
+    const nodeList = nodeCount < 1 ? (isEmpty() ? [] : [getFirstNode()]) : getRandomActiveNodes(nodeCount)
     const sortedNodeList = [...nodeList].sort(byAscendingNodeId)
     const signedSortedNodeList = Crypto.sign({
       nodeList: sortedNodeList,
@@ -388,8 +383,8 @@ export function getStandbyList(): ConsensusNodeInfo[] {
 }
 
 export function getNodeInfoById(id: string): ConsensusNodeInfo | undefined {
-  // eslint-disable-next-line security/detect-object-injection
-  return byId[id]
+  const pk = byId.get(id)
+  return pk ? byPublicKey.get(pk) : undefined
 }
 
 export function changeNodeListInRestore(): void {

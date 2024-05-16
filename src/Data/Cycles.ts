@@ -303,9 +303,11 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   }, [])
   NodeList.removeNodes(apoptosizedPks)
 
+  const lostAfterSelectionConsensusNodes: NodeList.ConsensusNodeInfo[] = []
   const lostAfterSelectionPks = lostAfterSelection.reduce((keys: string[], id) => {
     const nodeInfo = NodeList.getNodeInfoById(id)
     if (nodeInfo) {
+      lostAfterSelectionConsensusNodes.push(nodeInfo)
       keys.push(nodeInfo.publicKey)
     }
     return keys
@@ -335,6 +337,7 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
       cycle: cycle.counter,
       removed: removedConsensusNodes,
       apoptosized: apoptosizedConsensusNodes,
+      lostAfterSelection: lostAfterSelectionConsensusNodes,
     })
     while (removedAndApopedNodes.length > 10) {
       removedAndApopedNodes.shift()
