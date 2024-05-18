@@ -1,3 +1,5 @@
+import { safeStringify } from "@shardus/types/build/src/utils/functions/stringify"
+
 export const makeShortHash = (x: string, n = 4): string => {
   if (!x) {
     return x
@@ -85,13 +87,13 @@ export const stringifyReduce = (val: unknown, isArrayProp?: boolean): string => 
               if (str) {
                 str += ','
               }
-              str += JSON.stringify(key) + ':' + propVal
+              str += safeStringify(key) + ':' + propVal
             }
             i++
           }
           return '{' + str + '}'
         } else {
-          return JSON.stringify(val)
+          return safeStringify(val)
         }
       }
     case 'function':
@@ -99,7 +101,7 @@ export const stringifyReduce = (val: unknown, isArrayProp?: boolean): string => 
       return isArrayProp ? null : undefined
     case 'string': {
       const reduced = makeShortHash(val)
-      return JSON.stringify(reduced)
+      return safeStringify(reduced)
     }
     default: {
       const n = Number(val)

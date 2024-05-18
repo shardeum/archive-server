@@ -7,6 +7,7 @@ import fetch from 'node-fetch'
 import { P2P as P2PTypes } from '@shardus/types'
 import { RequestInit, Response } from 'node-fetch'
 import { SignedObject } from '@shardus/crypto-utils'
+import { safeStringify } from '@shardus/types/build/src/utils/functions/stringify'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { version } = require('../package.json')
 
@@ -82,7 +83,7 @@ export async function postJson(
   try {
     const res = await fetch(url, {
       method: 'post',
-      body: JSON.stringify(body),
+      body: safeStringify(body),
       headers: { 'Content-Type': 'application/json' },
       timeout: timeoutInSecond * 1000,
     })
