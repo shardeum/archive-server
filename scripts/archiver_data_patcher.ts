@@ -15,7 +15,7 @@ import * as Crypto from '../src/Crypto'
 import { join } from 'path'
 import * as Logger from '../src/Logger'
 import { startSaving } from '../src/saveConsoleOutput'
-import { safeStringify } from '@shardus/types/build/src/utils/functions/stringify'
+import { Utils as StringUtils } from '@shardus/types'
 const {
   MAX_RECEIPTS_PER_REQUEST,
   MAX_BETWEEN_CYCLES_PER_REQUEST,
@@ -94,7 +94,7 @@ const runProgram = async (): Promise<void> => {
         const downloadedReceipts = downloadedReceiptCountByCycles.receipts.filter((d) => d.cycle === j)
         const existingReceipts = receiptsCountByCycles.filter((d) => d.cycle === j)
         // console.log(j, downloadedReceipts, existingReceipts)
-        if (safeStringify(downloadedReceipts) !== safeStringify(existingReceipts)) {
+        if (StringUtils.safeStringify(downloadedReceipts) !== StringUtils.safeStringify(existingReceipts)) {
           console.log('Unmatched', j, downloadedReceipts, existingReceipts)
           const receipts = await fetchDataForCycle(archiver, DataType.RECEIPT, j)
           console.log('Downloaded receipts for cycle', j, ' -> ', receipts.length)
@@ -130,7 +130,7 @@ const runProgram = async (): Promise<void> => {
         )
         const existingOriginalTxsData = originalTxsDataCountByCycles.filter((d) => d.cycle === j)
         // console.log(j, downloadedOriginalTxsData, existingOriginalTxsData)
-        if (safeStringify(downloadedOriginalTxsData) !== safeStringify(existingOriginalTxsData)) {
+        if (StringUtils.safeStringify(downloadedOriginalTxsData) !== StringUtils.safeStringify(existingOriginalTxsData)) {
           console.log('Unmatched', j, downloadedOriginalTxsData, existingOriginalTxsData)
           const originalTxsData = await fetchDataForCycle(archiver, DataType.ORIGINAL_TX_DATA, j)
           if (originalTxsData) {

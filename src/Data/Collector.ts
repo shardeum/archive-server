@@ -29,7 +29,7 @@ import { ConsensusNodeInfo } from '../NodeList'
 import { verifyAccountHash } from '../shardeum/calculateAccountHash'
 import { verifyAppReceiptData } from '../shardeum/verifyAppReceiptData'
 import { Cycle as DbCycle } from '../dbstore/types'
-import { safeStringify } from '@shardus/types/build/src/utils/functions/stringify'
+import { Utils as StringUtils } from '@shardus/types'
 
 export let storingAccountData = false
 const processedReceiptsMap: Map<string, number> = new Map()
@@ -228,7 +228,7 @@ const isReceiptRobust = async (
         Logger.mainLogger.error(
           `The receipt validation failed from robustQuery nodes ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
         )
-        Logger.mainLogger.error(safeStringify(robustQueryReceipt), safeStringify(fullReceipt))
+        Logger.mainLogger.error(StringUtils.safeStringify(robustQueryReceipt), StringUtils.safeStringify(fullReceipt))
       }
     }
     Logger.mainLogger.error(
@@ -612,7 +612,7 @@ export const storeReceiptData = async (
     })
     if (config.dataLogWrite && ReceiptLogWriter)
       ReceiptLogWriter.writeToLog(
-        `${safeStringify({
+        `${StringUtils.safeStringify({
           ...receipt,
           receiptId: tx.txId,
           timestamp: tx.timestamp,
@@ -776,10 +776,10 @@ export const storeCycleData = async (cycles: P2PTypes.CycleCreatorTypes.CycleDat
       cycleMarker: cycleRecord.marker,
       cycleRecord,
     }
-    if (config.dataLogWrite && CycleLogWriter) CycleLogWriter.writeToLog(`${safeStringify(cycleObj)}\n`)
+    if (config.dataLogWrite && CycleLogWriter) CycleLogWriter.writeToLog(`${StringUtils.safeStringify(cycleObj)}\n`)
     const cycleExist = await queryCycleByMarker(cycleObj.cycleMarker)
     if (cycleExist) {
-      if (safeStringify(cycleObj) !== safeStringify(cycleExist))
+      if (StringUtils.safeStringify(cycleObj) !== StringUtils.safeStringify(cycleExist))
         await updateCycle(cycleObj.cycleMarker, cycleObj)
     } else {
       // await Cycle.insertCycle(cycleObj)
@@ -886,7 +886,7 @@ export const storeOriginalTxData = async (
     if (missingOriginalTxsMap.has(txId)) missingOriginalTxsMap.delete(txId)
 
     if (config.dataLogWrite && OriginalTxDataLogWriter)
-      OriginalTxDataLogWriter.writeToLog(`${safeStringify(originalTxData)}\n`)
+      OriginalTxDataLogWriter.writeToLog(`${StringUtils.safeStringify(originalTxData)}\n`)
     combineOriginalTxsData.push(originalTxData)
     txDataList.push({ txId, timestamp })
     if (combineOriginalTxsData.length >= bucketSize) {

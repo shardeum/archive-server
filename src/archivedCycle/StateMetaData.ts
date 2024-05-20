@@ -35,7 +35,7 @@ import { profilerInstance } from '../profiler/profiler'
 // Socket modules
 export let socketServer: SocketIO.Server
 import * as ioclient from 'socket.io-client'
-import { safeStringify } from '@shardus/types/build/src/utils/functions/stringify'
+import { Utils as StringUtils } from '@shardus/types'
 let socketClient: SocketIOClientStatic['Socket']
 export const socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
 const socketConnectionsTracker: Map<string, string> = new Map()
@@ -1190,7 +1190,7 @@ export async function compareWithOldCyclesData(
     // eslint-disable-next-line security/detect-object-injection
     const oldCycle = oldCycles[i]
     console.log(downloadedCycle, oldCycle)
-    if (safeStringify(downloadedCycle) !== safeStringify(oldCycle)) {
+    if (StringUtils.safeStringify(downloadedCycle) !== StringUtils.safeStringify(oldCycle)) {
       return {
         success,
         cycle,

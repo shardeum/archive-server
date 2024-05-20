@@ -1,10 +1,10 @@
 import { stringify } from './stringify'
 import { config } from '../Config'
-import { safeJsonParse, safeStringify } from '@shardus/types/build/src/utils/functions/stringify'
+import { Utils as StringUtils } from '@shardus/types'
 
 export function SerializeToJsonString(obj: object): string {
   try {
-    if (config.useSerialization) return safeStringify(obj, { bufferEncoding: 'base64' })
+    if (config.useSerialization) return StringUtils.safeStringify(obj, { bufferEncoding: 'base64' })
     else return JSON.stringify(obj)
   } catch (e) {
     console.log('Error serializing object', e)
@@ -15,7 +15,7 @@ export function SerializeToJsonString(obj: object): string {
 
 export function DeSerializeFromJsonString<T>(jsonString: string): T {
   try {
-    if (config.useSerialization) return <T>safeJsonParse(jsonString)
+    if (config.useSerialization) return <T>StringUtils.safeJsonParse(jsonString)
     else return JSON.parse(jsonString)
   } catch (e) {
     console.log('Error deserializing object', e)
