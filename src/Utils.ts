@@ -1,4 +1,4 @@
-import { safeJsonParse, safeStringify } from '@shardus/types/build/src/utils/functions/stringify'
+import { Utils as StringUtils } from '@shardus/types'
 import * as util from 'util'
 import * as Logger from './Logger'
 
@@ -334,7 +334,7 @@ export const deepCopy = <T>(obj: T): T => {
   if (typeof obj !== 'object') {
     throw Error('Given element is not of type object.')
   }
-  return safeJsonParse(safeStringify(obj))
+  return StringUtils.safeJsonParse(StringUtils.safeStringify(obj))
 }
 
 export const insertSorted = function <T>(arr: T[], item: T, comparator?: (a: T, b: T) => number): void {

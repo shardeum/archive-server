@@ -41,7 +41,7 @@ import { Transaction } from '../dbstore/transactions'
 import { AccountCopy } from '../dbstore/accounts'
 import { getJson } from '../P2P'
 import { robustQuery } from '../Utils'
-import { safeStringify } from '@shardus/types/build/src/utils/functions/stringify'
+import { Utils as StringUtils } from '@shardus/types'
 
 export const socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
 export let combineAccountsData = {
@@ -414,7 +414,7 @@ export function collectCycleData(
             key, // marker
             /* eslint-disable security/detect-object-injection */
             receivedCycleTracker[counter][key]['receivedTimes'],
-            logCycle ? safeStringify(receivedCycleTracker[counter][key]['senderNodes']) : '',
+            logCycle ? StringUtils.safeStringify(receivedCycleTracker[counter][key]['senderNodes']) : '',
             logCycle ? receivedCycleTracker[counter][key] : ''
             /* eslint-enable security/detect-object-injection */
           )
@@ -811,7 +811,7 @@ export async function sendLeaveRequest(nodes: NodeList.ConsensusNodeInfo[]): Pro
   const promises = nodes.map((node) =>
     fetch(`http://${node.ip}:${node.port}/leavingarchivers`, {
       method: 'post',
-      body: safeStringify(leaveRequest),
+      body: StringUtils.safeStringify(leaveRequest),
       headers: { 'Content-Type': 'application/json' },
       timeout: 2 * 1000, // 2s timeout
     }).then((res) => res.json())
@@ -863,7 +863,7 @@ export async function sendActiveRequest(): Promise<void> {
   const promises = nodes.map((node) =>
     fetch(`http://${node.ip}:${node.port}/activearchiver`, {
       method: 'post',
-      body: safeStringify(activeRequest),
+      body: StringUtils.safeStringify(activeRequest),
       headers: { 'Content-Type': 'application/json' },
       timeout: 2 * 1000, // 2s timeout
     }).then((res) => res.json())
@@ -2068,7 +2068,7 @@ export async function compareWithOldCyclesData(lastCycleCounter = 0): Promise<Co
     const downloadedCycle = downloadedCycles[i]
     // eslint-disable-next-line security/detect-object-injection
     const oldCycle = oldCycles[i]
-    if (!downloadedCycle || !oldCycle || safeStringify(downloadedCycle) !== safeStringify(oldCycle)) {
+    if (!downloadedCycle || !oldCycle || StringUtils.safeStringify(downloadedCycle) !== StringUtils.safeStringify(oldCycle)) {
       console.log('Mismatched cycle Number', downloadedCycle.counter, oldCycle.counter)
       return {
         success,

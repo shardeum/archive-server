@@ -27,7 +27,7 @@ import * as AccountDataProvider from './Data/AccountDataProvider'
 import { getGlobalNetworkAccount } from './GlobalAccount'
 import { cycleRecordWithShutDownMode } from './Data/Cycles'
 import { isDebugMiddleware } from './DebugMode'
-import { safeStringify } from '@shardus/types/build/src/utils/functions/stringify'
+import { Utils as StringUtils } from '@shardus/types'
 const { version } = require('../package.json') // eslint-disable-line @typescript-eslint/no-var-requires
 
 const TXID_LENGTH = 64
@@ -300,7 +300,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       }
       cycleInfo = await CycleDB.queryCycleRecordsBetween(from, to)
       if (isDownload) {
-        const dataInBuffer = Buffer.from(safeStringify(cycleInfo), 'utf-8')
+        const dataInBuffer = Buffer.from(StringUtils.safeStringify(cycleInfo), 'utf-8')
         const dataInStream = Readable.from(dataInBuffer)
         const filename = `cycle_records_from_${from}_to_${to}`
 
