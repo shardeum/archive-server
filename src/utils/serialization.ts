@@ -14,8 +14,7 @@ export function SerializeToJsonString(obj: object): string {
 
 export function DeSerializeFromJsonString<T>(jsonString: string): T {
   try {
-    if (config.useSerialization) return <T>StringUtils.safeJsonParse(jsonString)
-    else return StringUtils.safeJsonParse(jsonString)
+    return <T>StringUtils.safeJsonParse(jsonString)
   } catch (e) {
     console.log('Error deserializing object', e)
     console.log(jsonString)
