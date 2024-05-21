@@ -1,4 +1,5 @@
 import { getJson } from '../../P2P'
+import { Utils as StringUtils } from '@shardus/types'
 
 interface ReceiptResponse {
   receipts: Array<{ cycle: number; receipts: unknown[] }>
@@ -76,11 +77,11 @@ export async function checkCyclesDataBetweenArchivers(ip, numberOfArchivers): Pr
     for (let i = 0; i < expectedCycles.length; i++) {
       // eslint-disable-next-line security/detect-object-injection
       const cycleInfo = expectedCycles[i]
-      const cycleInfoToMatch = JSON.stringify(cycleInfo)
+      const cycleInfoToMatch = StringUtils.safeStringify(cycleInfo)
       for (let j = 1; j < archiverInfos.length; j++) {
         // console.log(cycleInfo.counter, dataInfos[archiverInfos[j]][i].counter)
         // eslint-disable-next-line security/detect-object-injection
-        if (cycleInfoToMatch !== JSON.stringify(dataInfos[archiverInfos[j]][i])) {
+        if (cycleInfoToMatch !== StringUtils.safeStringify(dataInfos[archiverInfos[j]][i])) {
           allCyclesAreMatched = false
           console.log(`Cycle ${cycleInfo.counter} is not matched between archivers!`)
         }

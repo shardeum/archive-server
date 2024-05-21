@@ -67,7 +67,10 @@ const runProgram = async (): Promise<void> => {
     }
     // console.dir(responses, { depth: null })
     // save to file
-    writeFileSync(`archiver_${archiverInfo}_${startCycle}_${endCycle}_${URL}.json`, JSON.stringify(responses))
+    writeFileSync(
+      `archiver_${archiverInfo}_${startCycle}_${endCycle}_${URL}.json`,
+      StringUtils.safeStringify(responses)
+    )
   }
 }
 

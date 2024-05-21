@@ -2,6 +2,7 @@ import { config } from '../Config'
 import * as crypto from '../Crypto'
 import * as Logger from '../Logger'
 import { ArchiverReceipt, Receipt } from '../dbstore/receipts'
+import { Utils as StringUtils } from '@shardus/types'
 
 export type ShardeumReceipt = object & {
   amountSpent: string
@@ -67,16 +68,16 @@ export const verifyAppReceiptData = async (
           if (existingShardeumReceipt.amountSpent !== '0x0') {
             Logger.mainLogger.error(
               `Success and failed receipts with gas charged`,
-              JSON.stringify(existingReceipt),
-              JSON.stringify(receipt)
+              StringUtils.safeStringify(existingReceipt),
+              StringUtils.safeStringify(receipt)
             )
           } else result = { valid: true, needToSave: true } // Success receipt
         } else {
           if (existingShardeumReceipt.amountSpent !== '0x0' && newShardeumReceipt.amountSpent !== '0x0') {
             Logger.mainLogger.error(
               `Both failed receipts with gas charged`,
-              JSON.stringify(existingReceipt),
-              JSON.stringify(receipt)
+              StringUtils.safeStringify(existingReceipt),
+              StringUtils.safeStringify(receipt)
             )
           } else if (newShardeumReceipt.amountSpent !== '0x0') {
             // Failed receipt with gas charged
@@ -86,8 +87,8 @@ export const verifyAppReceiptData = async (
       } else if (newShardeumReceipt.readableReceipt.status === 1) {
         Logger.mainLogger.error(
           `Duplicate success receipt`,
-          JSON.stringify(existingReceipt),
-          JSON.stringify(receipt)
+          StringUtils.safeStringify(existingReceipt),
+          StringUtils.safeStringify(receipt)
         )
       }
     }

@@ -2,6 +2,7 @@ import * as crypto from '@shardus/crypto-utils'
 import fetch from 'node-fetch'
 import { join } from 'path'
 import { config, overrideDefaultConfig } from '../src/Config'
+import { Utils as StringUtils } from '@shardus/types'
 
 const configFile = join(process.cwd(), 'archiver-config.json')
 overrideDefaultConfig(configFile)
@@ -27,7 +28,7 @@ fetch(`${ARCHIVER_URL}/totalData`, {
   // fetch(`${ARCHIVER_URL}/receipt`, {
   // fetch(`${ARCHIVER_URL}/account`, {
   method: 'post',
-  body: JSON.stringify(data),
+  body: StringUtils.safeStringify(data),
   headers: { 'Content-Type': 'application/json' },
   timeout: 2000,
 })

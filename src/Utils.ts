@@ -6,18 +6,6 @@ export interface CountSchema {
   count: string
 }
 
-export function safeParse<Type>(fallback: Type, json: string, msg?: string): Type {
-  if (typeof json === 'object' && json !== null) {
-    return json
-  }
-  try {
-    return JSON.parse(json)
-  } catch (err) {
-    console.warn(msg ? msg : err)
-    return fallback
-  }
-}
-
 // From: https://stackoverflow.com/a/19270021
 export function getRandom<T>(arr: T[], n: number): T[] {
   let len = arr.length
@@ -277,7 +265,7 @@ export async function robustQuery<Node = unknown, Response = unknown>(
     }
   }
   if (finalResult) {
-    // Logger.mainLogger.debug(`In robustQuery stopping since we got a finalResult:${JSON.stringify(finalResult)}`)
+    // Logger.mainLogger.debug(`In robustQuery stopping since we got a finalResult:${StringUtils.safeStringify(finalResult)}`)
     return finalResult
   } else {
     // TODO:  We return the item that had the most nodes reporting it. However, the caller should know

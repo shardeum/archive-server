@@ -39,6 +39,7 @@ import * as Collector from './Data/Collector'
 import { loadGlobalAccounts, syncGlobalAccount } from './GlobalAccount'
 import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycles'
 import { registerRoutes } from './API'
+import { Utils as StringUtils } from '@shardus/types'
 
 const configFile = join(process.cwd(), 'archiver-config.json')
 let logDir: string
@@ -66,7 +67,7 @@ async function start(): Promise<void> {
   }
   let logsConfig
   try {
-    logsConfig = JSON.parse(readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8'))
+    logsConfig = StringUtils.safeJsonParse(readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8'))
   } catch (err) {
     console.log('Failed to parse archiver log file:', err)
   }

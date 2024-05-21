@@ -194,7 +194,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
       for (const type of newDataTypes as (keyof typeof P2PTypes.SnapshotTypes.TypeNames)[]) {
         if (sender.types.includes(type) === false) {
           Logger.mainLogger.debug(
-            `NEW DATA type ${type} not included in sender's types: ${JSON.stringify(sender.types)}`
+            `NEW DATA type ${type} not included in sender's types: ${StringUtils.safeStringify(sender.types)}`
           )
           return
         }

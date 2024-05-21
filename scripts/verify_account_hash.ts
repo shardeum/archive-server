@@ -20,7 +20,7 @@ const runProgram = async (): Promise<void> => {
   Crypto.setCryptoHashKey(hashKey)
   let logsConfig
   try {
-    logsConfig = JSON.parse(readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8'))
+    logsConfig = StringUtils.safeJsonParse(readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8'))
   } catch (err) {
     console.log('Failed to parse archiver log file:', err)
   }
