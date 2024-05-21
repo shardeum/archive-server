@@ -2,7 +2,6 @@ import * as core from '@shardus/crypto-utils'
 import { SignedObject, TaggedObject, publicKey, curvePublicKey, sharedKey } from '@shardus/crypto-utils'
 import { Utils as StringUtils } from '@shardus/types'
 import * as State from './State'
-import { cryptoStringify } from './utils/stringify'
 
 // Crypto initialization fns
 

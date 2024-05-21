@@ -4,6 +4,7 @@ import * as State from '../State'
 import * as P2P from '../P2P'
 import { config } from '../Config'
 import * as Logger from '../Logger'
+import { Utils as StringUtils } from '@shardus/types'
 
 interface HashItem {
   counter: number
@@ -63,7 +64,7 @@ export async function sendGossip(type: string, payload: Record<string, unknown>)
 
   try {
     Logger.mainLogger.debug(
-      `GossipingIn ${type} request to these nodes: ${JSON.stringify(
+      `GossipingIn ${type} request to these nodes: ${StringUtils.safeStringify(
         recipients.map((node) => node.ip + ':' + node.port + `/gossip-${type}`)
       )}`
     )

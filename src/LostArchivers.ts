@@ -24,7 +24,7 @@ export function handleLostArchivers<R extends Record>(record: R): void {
   const debug = (message: any, ...args: any[]): void => Logger.mainLogger.debug(message, ...args)
   debug('>> handleLostArchivers()')
   debug('  config.ARCHIVER_PUBLIC_KEY: ' + config.ARCHIVER_PUBLIC_KEY)
-  // debug('  record: ' + JSON.stringify(record, null, 2))
+  // debug('  record: ' + StringUtils.safeStringify(record, null, 2))
 
   if (record && record.refutedArchivers && record.lostArchivers && record.removedArchivers) {
     if (record.refutedArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
