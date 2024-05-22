@@ -5,7 +5,7 @@ console.log(_startingMessage)
 console.error(_startingMessage)
 
 import { join } from 'path'
-import fastify, { FastifyInstance } from 'fastify'
+import fastify, {FastifyInstance, FastifyPluginOptions} from 'fastify'
 import fastifyCors from '@fastify/cors'
 import fastifyRateLimit from '@fastify/rate-limit'
 import { Server, IncomingMessage, ServerResponse } from 'http'
@@ -40,6 +40,7 @@ import { loadGlobalAccounts, syncGlobalAccount } from './GlobalAccount'
 import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycles'
 import { registerRoutes } from './API'
 import { Utils as StringUtils } from '@shardus/types'
+import fp from 'fastify-plugin'
 
 const configFile = join(process.cwd(), 'archiver-config.json')
 let logDir: string
@@ -425,6 +426,16 @@ async function syncAndStartServer(): Promise<void> {
   await Data.syncCyclesAndTxsDataBetweenCycles(beforeCycle - 1, latestCycle.counter + 1)
 }
 
+async function customSerializerPlugin(fastify: FastifyInstance, options: FastifyPluginOptions) {
+  fastify.decorateReply('send', function (payload) {
+    if (typeof payload === 'object') {
+      this.header('content-type', 'application/json; charset=utf-8');
+      payload = StringUtils.safeStringify(payload);
+    }
+    return this.raw.end(payload);
+  });
+}
+
 // Define all endpoints, all requests, and start REST server
 async function startServer(): Promise<void> {
   const server: FastifyInstance<Server, IncomingMessage, ServerResponse> = fastify({
@@ -438,6 +449,17 @@ async function startServer(): Promise<void> {
     timeWindow: 10,
     allowList: ['127.0.0.1', '0.0.0.0'], // Excludes local IPs from rate limits
   })
+
+  server.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+    try {
+      const jsonString = typeof body === 'string' ? body : body.toString('utf8');
+      done(null, StringUtils.safeJsonParse(jsonString));
+    } catch (err) {
+      done(err, undefined);
+    }
+  });
+
+  server.register(fp(customSerializerPlugin));
 
   initProfiler(server)
 
