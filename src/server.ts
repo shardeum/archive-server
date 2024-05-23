@@ -429,8 +429,11 @@ async function syncAndStartServer(): Promise<void> {
 async function customSerializerPlugin(fastify: FastifyInstance, options: FastifyPluginOptions) {
   fastify.decorateReply('send', function (payload) {
     if (typeof payload === 'object') {
-      this.header('content-type', 'application/json; charset=utf-8');
       payload = StringUtils.safeStringify(payload);
+      this.raw.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      });
     }
     return this.raw.end(payload);
   });
