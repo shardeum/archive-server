@@ -13,7 +13,7 @@ export const verifyAppReceiptData = async (
   existingReceipt?: Receipt | null
 ): Promise<{ valid: boolean; needToSave: boolean }> => {
   let result = { valid: false, needToSave: false }
-  const { appReceiptData, globalModification } = receipt
+  const { appReceiptData, globalModification, appliedReceipt } = receipt
   const newShardeumReceipt = appReceiptData.data as ShardeumReceipt
   if (!newShardeumReceipt.amountSpent || !newShardeumReceipt.readableReceipt) {
     Logger.mainLogger.error(`appReceiptData missing amountSpent or readableReceipt`)
@@ -22,14 +22,21 @@ export const verifyAppReceiptData = async (
   if (
     newShardeumReceipt.amountSpent === '0x0' &&
     newShardeumReceipt.readableReceipt.status === 0 &&
-    receipt.accounts.length > 0
+    appliedReceipt.appliedVote.account_state_hash_after.length > 0
   ) {
-    Logger.mainLogger.error(
-      `The receipt has 0 amountSpent and status 0 but has state updated accounts!`,
-      receipt.tx.txId,
-      receipt.cycle,
-      receipt.tx.timestamp
-    )
+    for (let i = 0; i < appliedReceipt.appliedVote.account_id.length; i++) {
+      if (
+        // eslint-disable-next-line security/detect-object-injection
+        appliedReceipt.appliedVote.account_state_hash_before[i] !==
+        // eslint-disable-next-line security/detect-object-injection
+        appliedReceipt.appliedVote.account_state_hash_after[i]
+      ) {
+        Logger.mainLogger.error(
+          `The receipt has 0 amountSpent and status 0 but has state updated accounts! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
+        )
+        break
+      }
+    }
   }
   result = { valid: true, needToSave: false }
   if (existingReceipt && existingReceipt.timestamp !== receipt.tx.timestamp) {

@@ -71,6 +71,12 @@ export const fixAccountUint8Arrays = (account: any): void => {
 export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
   try {
     if (receipt.globalModification && config.skipGlobalTxReceiptVerification) return true // return true if global modification
+    if (receipt.accounts.length !== receipt.appliedReceipt.appliedVote.account_state_hash_after.length) {
+      Logger.mainLogger.error(
+        `Modified account count specified in the receipt and the actual updated account count does not match! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
+      )
+      return false
+    }
     for (const account of receipt.accounts) {
       if (account.data.accountType === AccountType.Account) {
         fixAccountUint8Arrays(account.data.account)
@@ -86,11 +92,7 @@ export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
       const indexOfAccount = receipt.appliedReceipt.appliedVote.account_id.indexOf(account.accountId)
       if (indexOfAccount === -1) {
         Logger.mainLogger.error(
-          'Account not found',
-          account.accountId,
-          receipt.tx.txId,
-          receipt.cycle,
-          receipt.tx.timestamp
+          `Account not found in the receipt ${account.accountId} , ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
         )
         return false
       }
@@ -98,11 +100,7 @@ export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
       const expectedAccountHash = receipt.appliedReceipt.appliedVote.account_state_hash_after[indexOfAccount]
       if (calculatedAccountHash !== expectedAccountHash) {
         Logger.mainLogger.error(
-          'Account hash does not match',
-          account.accountId,
-          receipt.tx.txId,
-          receipt.cycle,
-          receipt.tx.timestamp
+          `Account hash does not match ${account.accountId} , ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
         )
         return false
       }
