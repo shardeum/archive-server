@@ -5,7 +5,7 @@ console.log(_startingMessage)
 console.error(_startingMessage)
 
 import { join } from 'path'
-import fastify, {FastifyInstance, FastifyPluginOptions} from 'fastify'
+import fastify, { FastifyInstance } from 'fastify'
 import fastifyCors from '@fastify/cors'
 import fastifyRateLimit from '@fastify/rate-limit'
 import { Server, IncomingMessage, ServerResponse } from 'http'
@@ -40,7 +40,6 @@ import { loadGlobalAccounts, syncGlobalAccount } from './GlobalAccount'
 import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycles'
 import { registerRoutes } from './API'
 import { Utils as StringUtils } from '@shardus/types'
-import fp from 'fastify-plugin'
 
 const configFile = join(process.cwd(), 'archiver-config.json')
 let logDir: string
@@ -426,19 +425,6 @@ async function syncAndStartServer(): Promise<void> {
   await Data.syncCyclesAndTxsDataBetweenCycles(beforeCycle - 1, latestCycle.counter + 1)
 }
 
-async function customSerializerPlugin(fastify: FastifyInstance, options: FastifyPluginOptions) {
-  fastify.decorateReply('send', function (payload) {
-    if (typeof payload === 'object') {
-      payload = StringUtils.safeStringify(payload);
-      this.raw.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
-      });
-    }
-    return this.raw.end(payload);
-  });
-}
-
 // Define all endpoints, all requests, and start REST server
 async function startServer(): Promise<void> {
   const server: FastifyInstance<Server, IncomingMessage, ServerResponse> = fastify({
@@ -455,14 +441,20 @@ async function startServer(): Promise<void> {
 
   server.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
     try {
-      const jsonString = typeof body === 'string' ? body : body.toString('utf8');
-      done(null, StringUtils.safeJsonParse(jsonString));
+      console.log('[gold] addContentTypeParser body: ', body)
+      const jsonString = typeof body === 'string' ? body : body.toString('utf8')
+      done(null, StringUtils.safeJsonParse(jsonString))
     } catch (err) {
-      done(err, undefined);
+      console.log('[gold] addContentTypeParser err: ', err)
+      err.statusCode = 400
+      done(err, undefined)
     }
-  });
+  })
 
-  server.register(fp(customSerializerPlugin));
+  server.setReplySerializer((payload) => {
+    console.log('[gold] setReplySerializer payload: ', payload)
+    return StringUtils.safeStringify(payload)
+  })
 
   initProfiler(server)
 
