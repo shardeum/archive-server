@@ -441,18 +441,15 @@ async function startServer(): Promise<void> {
 
   server.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
     try {
-      console.log('[gold] addContentTypeParser body: ', body)
       const jsonString = typeof body === 'string' ? body : body.toString('utf8')
       done(null, StringUtils.safeJsonParse(jsonString))
     } catch (err) {
-      console.log('[gold] addContentTypeParser err: ', err)
       err.statusCode = 400
       done(err, undefined)
     }
   })
 
   server.setReplySerializer((payload) => {
-    console.log('[gold] setReplySerializer payload: ', payload)
     return StringUtils.safeStringify(payload)
   })
 

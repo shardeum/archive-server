@@ -88,14 +88,12 @@ export async function postJson(
       timeout: timeoutInSecond * 1000,
     })
     if (res.ok) {
-      const text = await res.text();
+      const text = await res.text()
       try {
-        return StringUtils.safeJsonParse(text);
+        return StringUtils.safeJsonParse(text)
       } catch (parseError) {
-        console.warn('getJson failed: invalid JSON response');
-        console.warn(url);
-        console.warn(parseError);
-        return null;
+        console.warn(`getJson failed: invalid JSON response url: ${url} parseError: ${parseError}`)
+        return null
       }
     } else {
       console.warn('postJson failed: got bad response')
@@ -117,14 +115,12 @@ export async function getJson(url: string, timeoutInSecond = 5): Promise<object 
       headers: { 'Content-Type': 'application/json' },
     })
     if (res.ok) {
-      const text = await res.text();
+      const text = await res.text()
       try {
-        return StringUtils.safeJsonParse(text);
+        return StringUtils.safeJsonParse(text)
       } catch (parseError) {
-        console.warn('getJson failed: invalid JSON response');
-        console.warn(url);
-        console.warn(parseError);
-        return null;
+        console.warn(`getJson failed: invalid JSON response url: ${url} parseError: ${parseError}`)
+        return null
       }
     } else {
       console.warn('getJson failed: got bad response')
