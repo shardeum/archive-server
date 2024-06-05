@@ -7,7 +7,7 @@ import * as State from './State'
 
 export function setCryptoHashKey(hashkey: string): void {
   core.init(hashkey)
-  core.setCustomStringifier(StringUtils.safeStringify, 'shardus_types_StringUtils.safeStringify')
+  core.setCustomStringifier(StringUtils.safeStringify, 'shardus_safeStringify')
 }
 
 export const hashObj = core.hashObj
