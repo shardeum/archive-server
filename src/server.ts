@@ -39,6 +39,7 @@ import * as Collector from './Data/Collector'
 import { loadGlobalAccounts, syncGlobalAccount } from './GlobalAccount'
 import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycles'
 import { registerRoutes } from './API'
+import { Utils as StringUtils } from '@shardus/types'
 
 const configFile = join(process.cwd(), 'archiver-config.json')
 let logDir: string
@@ -66,7 +67,7 @@ async function start(): Promise<void> {
   }
   let logsConfig
   try {
-    logsConfig = JSON.parse(readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8'))
+    logsConfig = StringUtils.safeJsonParse(readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8'))
   } catch (err) {
     console.log('Failed to parse archiver log file:', err)
   }
@@ -436,6 +437,20 @@ async function startServer(): Promise<void> {
     max: config.RATE_LIMIT,
     timeWindow: 10,
     allowList: ['127.0.0.1', '0.0.0.0'], // Excludes local IPs from rate limits
+  })
+
+  server.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+    try {
+      const jsonString = typeof body === 'string' ? body : body.toString('utf8')
+      done(null, StringUtils.safeJsonParse(jsonString))
+    } catch (err) {
+      err.statusCode = 400
+      done(err, undefined)
+    }
+  })
+
+  server.setReplySerializer((payload) => {
+    return StringUtils.safeStringify(payload)
   })
 
   initProfiler(server)

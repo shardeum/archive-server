@@ -1,13 +1,13 @@
 import * as core from '@shardus/crypto-utils'
 import { SignedObject, TaggedObject, publicKey, curvePublicKey, sharedKey } from '@shardus/crypto-utils'
+import { Utils as StringUtils } from '@shardus/types'
 import * as State from './State'
-import { cryptoStringify } from './utils/stringify'
 
 // Crypto initialization fns
 
 export function setCryptoHashKey(hashkey: string): void {
   core.init(hashkey)
-  core.setCustomStringifier(cryptoStringify, 'shardus_crypto_stringify')
+  core.setCustomStringifier(StringUtils.safeStringify, 'shardus_safeStringify')
 }
 
 export const hashObj = core.hashObj
@@ -16,7 +16,7 @@ export const hashObj = core.hashObj
 export type SignedMessage = SignedObject
 
 export function sign<T>(obj: T): T & SignedObject {
-  const objCopy = JSON.parse(core.stringify(obj))
+  const objCopy = StringUtils.safeJsonParse(core.stringify(obj))
   core.signObj(objCopy, State.getSecretKey(), State.getNodeInfo().publicKey)
   return objCopy
 }
@@ -55,7 +55,7 @@ export function getOrCreateSharedKey(pk: publicKey): sharedKey {
 
 export function tag<T>(obj: T, recipientPk: publicKey): T & TaggedMessage {
   const sharedKey = getOrCreateSharedKey(recipientPk)
-  const objCopy = JSON.parse(core.stringify(obj))
+  const objCopy = StringUtils.safeJsonParse(core.stringify(obj))
   objCopy.publicKey = State.getNodeInfo().publicKey
   core.tagObj(objCopy, sharedKey)
   return objCopy

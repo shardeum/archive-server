@@ -3,6 +3,7 @@ import * as Logger from './Logger'
 import * as merge from 'deepmerge'
 import * as minimist from 'minimist'
 import { join } from 'path'
+import { Utils as StringUtils } from '@shardus/types'
 
 export interface Config {
   [index: string]: object | string | number | boolean
@@ -106,7 +107,7 @@ let config: Config = {
   },
   cycleRecordsCache: {
     enabled: false,
-  }
+  },
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {
@@ -116,7 +117,7 @@ export async function overrideDefaultConfig(file: string): Promise<void> {
   // Override config from config file
   try {
     // eslint-disable-next-line security/detect-non-literal-fs-filename
-    const fileConfig = JSON.parse(fs.readFileSync(file, { encoding: 'utf8' }))
+    const fileConfig = StringUtils.safeJsonParse(fs.readFileSync(file, { encoding: 'utf8' }))
     const overwriteMerge = (target: [], source: []): [] => source
     config = merge(config, fileConfig, { arrayMerge: overwriteMerge })
   } catch (err) {
@@ -142,7 +143,7 @@ export async function overrideDefaultConfig(file: string): Promise<void> {
           try {
             const parameterStr = env[param]
             if (parameterStr) {
-              const parameterObj = JSON.parse(parameterStr)
+              const parameterObj = StringUtils.safeJsonParse(parameterStr)
               config[param] = parameterObj
             }
           } catch (e) {

@@ -7,6 +7,7 @@ import { getActiveNodeCount } from '../NodeList'
 import { spawn } from 'child_process'
 import * as process from 'process'
 import { isDebugMiddleware } from '../DebugMode'
+import { Utils as StringUtils } from '@shardus/types'
 
 type CounterMap = Map<string, CounterNode>
 interface CounterNode {
@@ -232,7 +233,7 @@ class MemoryReporting {
     multiStats.max = this.roundTo3decimals(multiStats.max * 100)
     multiStats.avg = this.roundTo3decimals(multiStats.avg * 100)
 
-    this.addToReport('Process', 'CPU', `cpu: ${JSON.stringify(multiStats)}`, 1)
+    this.addToReport('Process', 'CPU', `cpu: ${StringUtils.safeStringify(multiStats)}`, 1)
 
     const report = resourceUsage()
     for (const [key, value] of Object.entries(report)) {

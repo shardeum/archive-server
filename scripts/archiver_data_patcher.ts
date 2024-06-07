@@ -15,6 +15,7 @@ import * as Crypto from '../src/Crypto'
 import { join } from 'path'
 import * as Logger from '../src/Logger'
 import { startSaving } from '../src/saveConsoleOutput'
+import { Utils as StringUtils } from '@shardus/types'
 const {
   MAX_RECEIPTS_PER_REQUEST,
   MAX_BETWEEN_CYCLES_PER_REQUEST,
@@ -55,7 +56,7 @@ const runProgram = async (): Promise<void> => {
   Crypto.setCryptoHashKey(hashKey)
   let logsConfig
   try {
-    logsConfig = JSON.parse(readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8'))
+    logsConfig = StringUtils.safeJsonParse(readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8'))
   } catch (err) {
     console.log('Failed to parse archiver log file:', err)
   }
@@ -93,7 +94,7 @@ const runProgram = async (): Promise<void> => {
         const downloadedReceipts = downloadedReceiptCountByCycles.receipts.filter((d) => d.cycle === j)
         const existingReceipts = receiptsCountByCycles.filter((d) => d.cycle === j)
         // console.log(j, downloadedReceipts, existingReceipts)
-        if (JSON.stringify(downloadedReceipts) !== JSON.stringify(existingReceipts)) {
+        if (StringUtils.safeStringify(downloadedReceipts) !== StringUtils.safeStringify(existingReceipts)) {
           console.log('Unmatched', j, downloadedReceipts, existingReceipts)
           const receipts = await fetchDataForCycle(archiver, DataType.RECEIPT, j)
           console.log('Downloaded receipts for cycle', j, ' -> ', receipts.length)
@@ -129,7 +130,7 @@ const runProgram = async (): Promise<void> => {
         )
         const existingOriginalTxsData = originalTxsDataCountByCycles.filter((d) => d.cycle === j)
         // console.log(j, downloadedOriginalTxsData, existingOriginalTxsData)
-        if (JSON.stringify(downloadedOriginalTxsData) !== JSON.stringify(existingOriginalTxsData)) {
+        if (StringUtils.safeStringify(downloadedOriginalTxsData) !== StringUtils.safeStringify(existingOriginalTxsData)) {
           console.log('Unmatched', j, downloadedOriginalTxsData, existingOriginalTxsData)
           const originalTxsData = await fetchDataForCycle(archiver, DataType.ORIGINAL_TX_DATA, j)
           if (originalTxsData) {

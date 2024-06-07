@@ -35,6 +35,7 @@ import { profilerInstance } from '../profiler/profiler'
 // Socket modules
 export let socketServer: SocketIO.Server
 import * as ioclient from 'socket.io-client'
+import { Utils as StringUtils } from '@shardus/types'
 let socketClient: SocketIOClientStatic['Socket']
 export const socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
 const socketConnectionsTracker: Map<string, string> = new Map()
@@ -150,57 +151,56 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
     socketConnectionsTracker.set(node.publicKey, 'disconnected')
   })
 
-  socketClient.on(
-    'DATA',
-    (newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage) => {
-      if (!newData || !newData.responses) return
-      if (newData.recipient !== State.getNodeInfo().publicKey) {
-        Logger.mainLogger.debug('This data is not meant for this archiver')
-        return
-      }
-
-      // If tag is invalid, dont keepAlive, END
-      if (Crypto.authenticate(newData) === false) {
-        Logger.mainLogger.debug('This data cannot be authenticated')
-        console.log('Unsubscribe 1', node.publicKey)
-        unsubscribeDataSender(node.publicKey)
-        return
-      }
-
-      if (newData.responses.STATE_METADATA.length > 0) Logger.mainLogger.debug('New DATA', newData.responses)
-      else Logger.mainLogger.debug('State metadata is empty')
-
-      currentDataSender = newData.publicKey
-      if (newData.responses && newData.responses.STATE_METADATA) {
-        // Logger.mainLogger.debug('New DATA from consensor STATE_METADATA', newData.publicKey, newData.responses.STATE_METADATA)
-        // let hashArray: any = Gossip.convertStateMetadataToHashArray(newData.responses.STATE_METADATA[0])
-        for (const stateMetadata of newData.responses.STATE_METADATA) {
-          StateMetaDataMap.set(stateMetadata.counter, stateMetadata)
-          Gossip.sendGossip('hashes', stateMetadata)
-        }
-      }
-
-      socketServer.emit('DATA', newData)
-      const sender = dataSenders.get(newData.publicKey)
-      // If publicKey is not in dataSenders, dont keepAlive, END
-      if (!sender) {
-        Logger.mainLogger.debug('NO SENDER')
-        return
-      }
-
-      // If unexpected data type from sender, dont keepAlive, END
-      const newDataTypes = Object.keys(newData.responses)
-      for (const type of newDataTypes as (keyof typeof P2PTypes.SnapshotTypes.TypeNames)[]) {
-        if (sender.types.includes(type) === false) {
-          Logger.mainLogger.debug(
-            `NEW DATA type ${type} not included in sender's types: ${JSON.stringify(sender.types)}`
-          )
-          return
-        }
-      }
-      setImmediate(processData, newData)
+  socketClient.on('DATA', (data: string) => {
+    const newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage =
+      StringUtils.safeJsonParse(data)
+    if (!newData || !newData.responses) return
+    if (newData.recipient !== State.getNodeInfo().publicKey) {
+      Logger.mainLogger.debug('This data is not meant for this archiver')
+      return
     }
-  )
+
+    // If tag is invalid, dont keepAlive, END
+    if (Crypto.authenticate(newData) === false) {
+      Logger.mainLogger.debug('This data cannot be authenticated')
+      console.log('Unsubscribe 1', node.publicKey)
+      unsubscribeDataSender(node.publicKey)
+      return
+    }
+
+    if (newData.responses.STATE_METADATA.length > 0) Logger.mainLogger.debug('New DATA', newData.responses)
+    else Logger.mainLogger.debug('State metadata is empty')
+
+    currentDataSender = newData.publicKey
+    if (newData.responses && newData.responses.STATE_METADATA) {
+      // Logger.mainLogger.debug('New DATA from consensor STATE_METADATA', newData.publicKey, newData.responses.STATE_METADATA)
+      // let hashArray: any = Gossip.convertStateMetadataToHashArray(newData.responses.STATE_METADATA[0])
+      for (const stateMetadata of newData.responses.STATE_METADATA) {
+        StateMetaDataMap.set(stateMetadata.counter, stateMetadata)
+        Gossip.sendGossip('hashes', stateMetadata)
+      }
+    }
+
+    socketServer.emit('DATA', newData)
+    const sender = dataSenders.get(newData.publicKey)
+    // If publicKey is not in dataSenders, dont keepAlive, END
+    if (!sender) {
+      Logger.mainLogger.debug('NO SENDER')
+      return
+    }
+
+    // If unexpected data type from sender, dont keepAlive, END
+    const newDataTypes = Object.keys(newData.responses)
+    for (const type of newDataTypes as (keyof typeof P2PTypes.SnapshotTypes.TypeNames)[]) {
+      if (sender.types.includes(type) === false) {
+        Logger.mainLogger.debug(
+          `NEW DATA type ${type} not included in sender's types: ${StringUtils.safeStringify(sender.types)}`
+        )
+        return
+      }
+    }
+    setImmediate(processData, newData)
+  })
 }
 
 export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
@@ -1189,7 +1189,7 @@ export async function compareWithOldCyclesData(
     // eslint-disable-next-line security/detect-object-injection
     const oldCycle = oldCycles[i]
     console.log(downloadedCycle, oldCycle)
-    if (JSON.stringify(downloadedCycle) !== JSON.stringify(oldCycle)) {
+    if (StringUtils.safeStringify(downloadedCycle) !== StringUtils.safeStringify(oldCycle)) {
       return {
         success,
         cycle,

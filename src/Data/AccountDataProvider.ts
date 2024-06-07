@@ -231,7 +231,7 @@ export const provideAccountDataRequest = async (
       }
     }
     delta = tsEnd - highestTs
-    // Logger.mainLogger.debug('Account Data received', JSON.stringify(payload))
+    // Logger.mainLogger.debug('Account Data received', StringUtils.safeStringify(payload))
     // Logger.mainLogger.debug(
     //   'delta ' + delta,
     //   'tsEnd ' + tsEnd,

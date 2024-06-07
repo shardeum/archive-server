@@ -7,6 +7,7 @@ import fetch from 'node-fetch'
 import { P2P as P2PTypes } from '@shardus/types'
 import { RequestInit, Response } from 'node-fetch'
 import { SignedObject } from '@shardus/crypto-utils'
+import { Utils as StringUtils } from '@shardus/types'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { version } = require('../package.json')
 
@@ -82,12 +83,18 @@ export async function postJson(
   try {
     const res = await fetch(url, {
       method: 'post',
-      body: JSON.stringify(body),
+      body: StringUtils.safeStringify(body),
       headers: { 'Content-Type': 'application/json' },
       timeout: timeoutInSecond * 1000,
     })
     if (res.ok) {
-      return await res.json()
+      const text = await res.text()
+      try {
+        return StringUtils.safeJsonParse(text)
+      } catch (parseError) {
+        console.warn(`getJson failed: invalid JSON response url: ${url} parseError: ${parseError}`)
+        return null
+      }
     } else {
       console.warn('postJson failed: got bad response')
       console.warn(res.headers)
@@ -108,9 +115,16 @@ export async function getJson(url: string, timeoutInSecond = 5): Promise<object 
       headers: { 'Content-Type': 'application/json' },
     })
     if (res.ok) {
-      return await res.json()
+      const text = await res.text()
+      try {
+        return StringUtils.safeJsonParse(text)
+      } catch (parseError) {
+        console.warn(`getJson failed: invalid JSON response url: ${url} parseError: ${parseError}`)
+        return null
+      }
     } else {
       console.warn('getJson failed: got bad response')
+      console.warn(url)
       console.warn(res.headers)
       console.warn(res.statusText)
       console.warn(await res.text())
