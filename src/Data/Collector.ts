@@ -218,6 +218,13 @@ const isReceiptRobust = async (
           )
           continue
         }
+        const { success } = await verifyReceiptData(fullReceipt, false)
+        if (!success) {
+          Logger.mainLogger.error(
+            `The receipt validation failed from robustQuery nodes ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+          )
+          continue
+        }
         Logger.mainLogger.debug(
           `Found valid full receipt in robustQuery ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
         )
@@ -301,19 +308,21 @@ export const validateReceiptData = (receipt: Receipt.ArchiverReceipt): boolean =
   }
   if (receipt.globalModification) return true
   // Global Modification Tx does not have appliedReceipt
-  err = Utils.validateTypes(receipt.appliedReceipt, {
+  const appliedReceiptToValidate = {
     txid: 's',
     result: 'b',
     appliedVote: 'o',
     confirmOrChallenge: 'o',
     signatures: 'a',
     app_data_hash: 's',
-  })
+  }
+  if (config.newPOQReceipt === false) delete appliedReceiptToValidate.confirmOrChallenge
+  err = Utils.validateTypes(receipt.appliedReceipt, appliedReceiptToValidate)
   if (err) {
     Logger.mainLogger.error('Invalid receipt appliedReceipt data', err)
     return false
   }
-  err = Utils.validateTypes(receipt.appliedReceipt.appliedVote, {
+  const appliedVoteToValidate = {
     txid: 's',
     transaction_result: 'b',
     account_id: 'a',
@@ -323,11 +332,27 @@ export const validateReceiptData = (receipt: Receipt.ArchiverReceipt): boolean =
     node_id: 's',
     sign: 'o',
     app_data_hash: 's',
-  })
+  }
+  if (config.newPOQReceipt === false) {
+    delete appliedVoteToValidate.node_id
+    delete appliedVoteToValidate.sign
+  }
+  err = Utils.validateTypes(receipt.appliedReceipt.appliedVote, appliedVoteToValidate)
   if (err) {
     Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote data', err)
     return false
   }
+  for (const signature of receipt.appliedReceipt.signatures) {
+    err = Utils.validateTypes(signature, {
+      owner: 's',
+      sig: 's',
+    })
+    if (err) {
+      Logger.mainLogger.error('Invalid receipt appliedReceipt signatures data', err)
+      return false
+    }
+  }
+  if (config.newPOQReceipt === false) return true
   err = Utils.validateTypes(receipt.appliedReceipt.appliedVote.sign, {
     owner: 's',
     sig: 's',
@@ -354,20 +379,14 @@ export const validateReceiptData = (receipt: Receipt.ArchiverReceipt): boolean =
     Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge signature data', err)
     return false
   }
-  err = Utils.validateTypes(receipt.appliedReceipt.signatures[0], {
-    owner: 's',
-    sig: 's',
-  })
-  if (err) {
-    Logger.mainLogger.error('Invalid receipt appliedReceipt signatures data', err)
-    return false
-  }
   return true
 }
 
 export const verifyReceiptData = async (
-  receipt: Receipt.ArchiverReceipt
+  receipt: Receipt.ArchiverReceipt,
+  checkReceiptRobust: boolean = true
 ): Promise<{ success: boolean; newReceipt?: Receipt.ArchiverReceipt }> => {
+  if (config.newPOQReceipt === false) return { success: true }
   const result = { success: false }
   // Check the signed nodes are part of the execution group nodes of the tx
   const { executionShardKey, cycle, appliedReceipt, globalModification } = receipt
@@ -467,6 +486,7 @@ export const verifyReceiptData = async (
     return result
   }
 
+  if (!checkReceiptRobust) return { success: true }
   // List the execution group nodes of the tx, Use them to robustQuery to verify the receipt
   const executionGroupNodes = Object.values(
     cycleShardData.parititionShardDataMap.get(homePartition).coveredBy

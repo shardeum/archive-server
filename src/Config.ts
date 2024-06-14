@@ -55,6 +55,7 @@ export interface Config {
   cycleRecordsCache: {
     enabled: boolean
   }
+  newPOQReceipt: boolean
 }
 
 let config: Config = {
@@ -108,6 +109,7 @@ let config: Config = {
   cycleRecordsCache: {
     enabled: false,
   },
+  newPOQReceipt: true,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {
