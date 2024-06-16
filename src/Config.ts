@@ -109,7 +109,7 @@ let config: Config = {
   cycleRecordsCache: {
     enabled: false,
   },
-  newPOQReceipt: true,
+  newPOQReceipt: false,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {
