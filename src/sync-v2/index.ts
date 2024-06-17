@@ -192,11 +192,11 @@ function syncLatestCycleRecordAndMarker(
   activeNodes: P2PTypes.SyncTypes.ActiveNode[]
 ): ResultAsync<[P2PTypes.CycleCreatorTypes.CycleData, hexstring], Error> {
   // run a robust query for the latest cycle record hash
-  return robustQueryForCycleRecordHash(activeNodes).andThen(({ value: cycleRecordHash, winningNodes }) =>
+  return robustQueryForCycleRecordHash(activeNodes).andThen(({ value, winningNodes }) =>
     // get current cycle record from node
-    getCurrentCycleDataFromNode(winningNodes[0], cycleRecordHash).andThen((cycleRecord) =>
-      verifyCycleRecord(cycleRecord, cycleRecordHash).map(
-        () => [cycleRecord, cycleRecordHash] as [P2PTypes.CycleCreatorTypes.CycleData, hexstring]
+    getCurrentCycleDataFromNode(winningNodes[0], value.currentCycleHash).andThen((cycleRecord) =>
+      verifyCycleRecord(cycleRecord, value.currentCycleHash).map(
+        () => [cycleRecord, value.currentCycleHash] as [P2PTypes.CycleCreatorTypes.CycleData, hexstring]
       )
     )
   )
