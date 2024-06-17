@@ -123,7 +123,7 @@ const isReceiptRobust = async (
   if (config.VERBOSE) Logger.mainLogger.debug('robustQuery', receipt.tx.txId, robustQuery)
   if (!robustQuery || !robustQuery.value || !(robustQuery.value as any).receipt) {
     Logger.mainLogger.error(
-      `❌ 'null' response from all nodes in receipt-validation for txId: ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp})
+      `❌ 'null' response from all nodes in receipt-validation for txId: ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}
       }`
     )
     if (nestedCountersInstance)
@@ -235,7 +235,10 @@ const isReceiptRobust = async (
         Logger.mainLogger.error(
           `The receipt validation failed from robustQuery nodes ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
         )
-        Logger.mainLogger.error(StringUtils.safeStringify(robustQueryReceipt), StringUtils.safeStringify(fullReceipt))
+        Logger.mainLogger.error(
+          StringUtils.safeStringify(robustQueryReceipt),
+          StringUtils.safeStringify(fullReceipt)
+        )
       }
     }
     Logger.mainLogger.error(
@@ -384,7 +387,7 @@ export const validateReceiptData = (receipt: Receipt.ArchiverReceipt): boolean =
 
 export const verifyReceiptData = async (
   receipt: Receipt.ArchiverReceipt,
-  checkReceiptRobust: boolean = true
+  checkReceiptRobust = true
 ): Promise<{ success: boolean; newReceipt?: Receipt.ArchiverReceipt }> => {
   if (config.newPOQReceipt === false) return { success: true }
   const result = { success: false }
@@ -641,6 +644,7 @@ export const storeReceiptData = async (
     txDataList.push({ txId, timestamp })
     // If the receipt is a challenge, then skip updating its accounts data or transaction data
     if (
+      config.newPOQReceipt === true &&
       appliedReceipt &&
       appliedReceipt.confirmOrChallenge &&
       appliedReceipt.confirmOrChallenge.message === 'challenge'
@@ -796,7 +800,8 @@ export const storeCycleData = async (cycles: P2PTypes.CycleCreatorTypes.CycleDat
       cycleMarker: cycleRecord.marker,
       cycleRecord,
     }
-    if (config.dataLogWrite && CycleLogWriter) CycleLogWriter.writeToLog(`${StringUtils.safeStringify(cycleObj)}\n`)
+    if (config.dataLogWrite && CycleLogWriter)
+      CycleLogWriter.writeToLog(`${StringUtils.safeStringify(cycleObj)}\n`)
     const cycleExist = await queryCycleByMarker(cycleObj.cycleMarker)
     if (cycleExist) {
       if (StringUtils.safeStringify(cycleObj) !== StringUtils.safeStringify(cycleExist))
@@ -1247,9 +1252,10 @@ export function cleanOldReceiptsMap(timestamp: number): void {
       savedReceiptsCount++
     }
   }
-  Logger.mainLogger.debug(
-    `Clean ${savedReceiptsCount} old receipts from the processed receipts cache on cycle ${getCurrentCycleCounter()}`
-  )
+  if (savedReceiptsCount > 0)
+    Logger.mainLogger.debug(
+      `Clean ${savedReceiptsCount} old receipts from the processed receipts cache on cycle ${getCurrentCycleCounter()}`
+    )
 }
 
 export function cleanOldOriginalTxsMap(timestamp: number): void {
@@ -1262,9 +1268,10 @@ export function cleanOldOriginalTxsMap(timestamp: number): void {
       savedOriginalTxsCount++
     }
   }
-  Logger.mainLogger.debug(
-    `Clean ${savedOriginalTxsCount} old originalTxsData from the processed originalTxsData cache on cycle ${getCurrentCycleCounter()}`
-  )
+  if (savedOriginalTxsCount > 0)
+    Logger.mainLogger.debug(
+      `Clean ${savedOriginalTxsCount} old originalTxsData from the processed originalTxsData cache on cycle ${getCurrentCycleCounter()}`
+    )
 }
 
 export const scheduleMissingTxsDataQuery = (): void => {

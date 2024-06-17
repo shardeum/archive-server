@@ -77,6 +77,15 @@ export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
       )
       return false
     }
+    if (
+      receipt.appliedReceipt.appliedVote.account_state_hash_before.length !==
+      receipt.appliedReceipt.appliedVote.account_state_hash_after.length
+    ) {
+      Logger.mainLogger.error(
+        `Account state hash before and after count does not match! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
+      )
+      return false
+    }
     for (const account of receipt.accounts) {
       if (account.data.accountType === AccountType.Account) {
         fixAccountUint8Arrays(account.data.account)

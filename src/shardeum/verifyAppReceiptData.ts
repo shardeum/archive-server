@@ -27,7 +27,9 @@ export const verifyAppReceiptData = async (
   ) {
     for (let i = 0; i < appliedReceipt.appliedVote.account_id.length; i++) {
       if (
+        // eslint-disable-next-line security/detect-object-injection
         !appliedReceipt.appliedVote.account_state_hash_before[i] ||
+        // eslint-disable-next-line security/detect-object-injection
         !appliedReceipt.appliedVote.account_state_hash_after[i]
       ) {
         Logger.mainLogger.error(
@@ -52,6 +54,7 @@ export const verifyAppReceiptData = async (
     // If the existing receipt is challenged and the new receipt is confirmed, overwrite the existing receipt
     let skipAppReceiptCheck = false
     if (
+      config.newPOQReceipt === true &&
       existingReceipt.appliedReceipt &&
       existingReceipt.appliedReceipt.confirmOrChallenge &&
       receipt.appliedReceipt &&
