@@ -27,6 +27,14 @@ export const verifyAppReceiptData = async (
   ) {
     for (let i = 0; i < appliedReceipt.appliedVote.account_id.length; i++) {
       if (
+        !appliedReceipt.appliedVote.account_state_hash_before[i] ||
+        !appliedReceipt.appliedVote.account_state_hash_after[i]
+      ) {
+        Logger.mainLogger.error(
+          `The account state hash before or after is missing in the receipt! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
+        )
+      }
+      if (
         // eslint-disable-next-line security/detect-object-injection
         appliedReceipt.appliedVote.account_state_hash_before[i] !==
         // eslint-disable-next-line security/detect-object-injection
