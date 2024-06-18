@@ -558,9 +558,9 @@ async function getConsensusRadius(): Promise<number> {
   if (tallyItem && tallyItem.value && tallyItem.value.config) {
     nodesPerConsensusGroup = tallyItem.value.config.sharding.nodesPerConsensusGroup
     nodesPerEdge = tallyItem.value.config.sharding.nodesPerEdge
-    const devPublicKeys = tallyItem.value.config.debug.devPublicKeys
+    const devPublicKeys = tallyItem.value.config.devPublicKeys
     const updateConfigProps = {
-      newPOQReceipt: tallyItem.value.config.stateManager.useNewPOQ,
+      newPOQReceipt: tallyItem.value.config.useNewPOQ,
       DevPublicKey: Object.keys(devPublicKeys).find((key) => devPublicKeys[key] === 3),
     }
     updateConfig(updateConfigProps)
