@@ -1,7 +1,7 @@
 import { Signature } from '@shardus/crypto-utils'
 import { FastifyInstance, FastifyRequest } from 'fastify'
 import { Server, IncomingMessage, ServerResponse } from 'http'
-import { config } from './Config'
+import { config, updateConfig, Config as ConfigInterface } from './Config'
 import * as Crypto from './Crypto'
 import * as State from './State'
 import * as NodeList from './NodeList'
@@ -868,6 +868,9 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
   type AccountDataRequest = FastifyRequest<{
     Body: AccountDataProvider.AccountDataRequestSchema | AccountDataProvider.AccountDataByListRequestSchema
   }>
+  type ConfigPatchRequest = FastifyRequest<{
+    Body: Partial<ConfigInterface>
+  }>
 
   server.post('/get_account_data_archiver', async (_request: AccountDataRequest, reply) => {
     const payload = _request.body as AccountDataProvider.AccountDataRequestSchema
@@ -921,6 +924,34 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     const res = Crypto.sign(report)
     reply.send(res)
   })
+
+  server.patch(
+    '/set-config',
+    {
+      preHandler: async (_request, reply) => {
+        isDebugMiddleware(_request, reply)
+      },
+    },
+    async (_request: ConfigPatchRequest, reply) => {
+      try {
+        const { sign, ...newConfig } = _request.body
+        const validKeys = new Set(Object.keys(config))
+        const payloadKeys = Object.keys(newConfig)
+        const invalidKeys = payloadKeys.filter((key) => !validKeys.has(key))
+
+        if (invalidKeys.length > 0)
+          throw new Error(`Invalid config properties provided: ${invalidKeys.join(', ')}`)
+
+        if (config.VERBOSE)
+          Logger.mainLogger.debug('Archiver config update executed: ', JSON.stringify(newConfig))
+
+        const updatedConfig = updateConfig(newConfig)
+        reply.send({ success: true, updatedConfig })
+      } catch (error) {
+        reply.status(400).send({ success: false, reason: error.message })
+      }
+    }
+  )
 
   // Config Endpoint
   server.get(

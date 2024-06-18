@@ -242,4 +242,14 @@ export async function overrideDefaultConfig(file: string): Promise<void> {
   }
 }
 
+export function updateConfig(newConfig: Partial<Config>): Config {
+  for (const key in newConfig) {
+    if (newConfig[key] === 'true') newConfig[key] = true
+    if (newConfig[key] === 'false') newConfig[key] = false
+    if (!Number.isNaN(Number(newConfig[key]))) newConfig[key] = Number(newConfig[key])
+  }
+  config = merge(config, newConfig)
+  return config
+}
+
 export { config }
