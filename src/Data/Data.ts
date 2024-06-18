@@ -17,7 +17,7 @@ import { ChangeSquasher, parse, totalNodeCount, activeNodeCount, applyNodeListCh
 import * as State from '../State'
 import * as P2P from '../P2P'
 import * as Utils from '../Utils'
-import { config } from '../Config'
+import { config, updateConfig } from '../Config'
 import { P2P as P2PTypes } from '@shardus/types'
 import * as Logger from '../Logger'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
@@ -558,6 +558,12 @@ async function getConsensusRadius(): Promise<number> {
   if (tallyItem && tallyItem.value && tallyItem.value.config) {
     nodesPerConsensusGroup = tallyItem.value.config.sharding.nodesPerConsensusGroup
     nodesPerEdge = tallyItem.value.config.sharding.nodesPerEdge
+    const devPublicKeys = tallyItem.value.config.debug.devPublicKeys
+    const updateConfigProps = {
+      newPOQReceipt: tallyItem.value.config.stateManager.useNewPOQ,
+      DevPublicKey: Object.keys(devPublicKeys).find((key) => devPublicKeys[key] === 3),
+    }
+    updateConfig(updateConfigProps)
     // Upgrading consensus size to an odd number
     if (nodesPerConsensusGroup % 2 === 0) nodesPerConsensusGroup++
     const consensusRadius = Math.floor((nodesPerConsensusGroup - 1) / 2)
