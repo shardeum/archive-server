@@ -515,10 +515,7 @@ export function addDataSender(sender: DataSender): void {
   dataSenders.set(sender.nodeInfo.publicKey, sender)
 }
 
-async function getConsensusRadius(): Promise<number> {
-  // If there is no node, return existing currentConsensusRadius
-  if (NodeList.isEmpty()) return currentConsensusRadius
-
+async function syncFromNetworkConfig(): Promise<any> {
   // Define the query function to get the network config from a node
   const queryFn = async (node): Promise<object> => {
     const REQUEST_NETCONFIG_TIMEOUT_SECOND = 2 // 2s timeout
@@ -533,7 +530,6 @@ async function getConsensusRadius(): Promise<number> {
       return null
     }
   }
-
   // Define the equality function to compare two responses
   const equalityFn = (responseA, responseB): boolean => {
     return (
@@ -541,11 +537,9 @@ async function getConsensusRadius(): Promise<number> {
       responseB?.config?.sharding?.nodesPerConsensusGroup
     )
   }
-
   // Get the list of 10 max random active nodes or the first node if no active nodes are available
   const nodes =
     NodeList.getActiveNodeCount() > 0 ? NodeList.getRandomActiveNodes(10) : [NodeList.getFirstNode()]
-
   // Use robustQuery to get the consensusRadius from multiple nodes
   const tallyItem = await robustQuery(
     nodes,
@@ -554,16 +548,28 @@ async function getConsensusRadius(): Promise<number> {
     3 // Redundancy (minimum 3 nodes should return the same result to reach consensus)
   )
 
-  // Check if a consensus was reached
-  if (tallyItem && tallyItem.value && tallyItem.value.config) {
-    nodesPerConsensusGroup = tallyItem.value.config.sharding.nodesPerConsensusGroup
-    nodesPerEdge = tallyItem.value.config.sharding.nodesPerEdge
+  if (tallyItem?.value?.config) {
+    // Updating the Archiver Config as per the latest Network Config
     const devPublicKeys = tallyItem.value.config.devPublicKeys
     const updateConfigProps = {
       newPOQReceipt: tallyItem.value.config.useNewPOQ,
       DevPublicKey: Object.keys(devPublicKeys).find((key) => devPublicKeys[key] === 3),
     }
     updateConfig(updateConfigProps)
+    return tallyItem
+  }
+  return null
+}
+
+async function getConsensusRadius(): Promise<number> {
+  // If there is no node, return existing currentConsensusRadius
+  if (NodeList.isEmpty()) return currentConsensusRadius
+
+  const tallyItem = await syncFromNetworkConfig()
+  // Check if a consensus was reached
+  if (tallyItem?.value?.config) {
+    nodesPerEdge = tallyItem.value.config.sharding.nodesPerEdge
+    nodesPerConsensusGroup = tallyItem.value.config.sharding.nodesPerConsensusGroup
     // Upgrading consensus size to an odd number
     if (nodesPerConsensusGroup % 2 === 0) nodesPerConsensusGroup++
     const consensusRadius = Math.floor((nodesPerConsensusGroup - 1) / 2)
