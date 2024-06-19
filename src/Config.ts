@@ -247,8 +247,8 @@ export function updateConfig(newConfig: Partial<Config>): Config {
     if (newConfig[key] === 'true') newConfig[key] = true
     else if (newConfig[key] === 'false') newConfig[key] = false
     else if (typeof newConfig[key] !== 'boolean' && !Number.isNaN(Number(newConfig[key])))
-      newConfig[key] = Number(newConfig[key])}
-  
+      newConfig[key] = Number(newConfig[key])
+  }
   config = merge(config, newConfig)
   return config
 }
