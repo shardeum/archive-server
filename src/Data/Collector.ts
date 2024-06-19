@@ -389,12 +389,11 @@ export const verifyReceiptData = async (
   receipt: Receipt.ArchiverReceipt,
   checkReceiptRobust = true
 ): Promise<{ success: boolean; newReceipt?: Receipt.ArchiverReceipt }> => {
-  if (config.newPOQReceipt === false) return { success: true }
   const result = { success: false }
   // Check the signed nodes are part of the execution group nodes of the tx
   const { executionShardKey, cycle, appliedReceipt, globalModification } = receipt
   if (globalModification && config.skipGlobalTxReceiptVerification) return { success: true }
-  const { appliedVote, confirmOrChallenge } = appliedReceipt
+  const { appliedVote, signatures } = appliedReceipt
   const cycleShardData = shardValuesByCycle.get(cycle)
   if (!cycleShardData) {
     Logger.mainLogger.error('Cycle shard data not found')
@@ -403,6 +402,67 @@ export const verifyReceiptData = async (
   }
   // Determine the home partition index of the primary account (executionShardKey)
   const { homePartition } = ShardFunction.addressToPartition(cycleShardData.shardGlobals, executionShardKey)
+  if (config.newPOQReceipt === false) {
+    // Refer to https://github.com/shardeum/shardus-core/blob/f7000c36faa0cd1e0832aa1e5e3b1414d32dcf66/src/state-manager/TransactionConsensus.ts#L1406
+    const requiredSignatures = Math.round(nodesPerConsensusGroup * (2 / 3.0))
+    if (signatures.length < requiredSignatures) {
+      Logger.mainLogger.error(
+        'Invalid receipt appliedReceipt signatures count is less than requiredSignatures'
+      )
+      if (nestedCountersInstance)
+        nestedCountersInstance.countEvent(
+          'receipt',
+          'Invalid_receipt_appliedReceipt_signatures_count_less_than_requiredSignatures'
+        )
+      return result
+    }
+    // Using a map to store the good signatures to avoid duplicates
+    const goodSignatures = new Map()
+    for (const signature of signatures) {
+      const { owner: nodePubKey } = signature
+      // Get the node id from the public key
+      const node = cycleShardData.nodes.find((node) => node.publicKey === nodePubKey)
+      if (node == null) {
+        Logger.mainLogger.error(
+          `The node with public key ${nodePubKey} of the receipt ${receipt.tx.txId}} is not in the active nodesList of cycle ${cycle}`
+        )
+        if (nestedCountersInstance)
+          nestedCountersInstance.countEvent(
+            'receipt',
+            'appliedReceipt_signature_owner_not_in_active_nodesList'
+          )
+        continue
+      }
+      // Check if the node is in the execution group
+      if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[node.id]) {
+        Logger.mainLogger.error(
+          `The node with public key ${nodePubKey} of the receipt ${receipt.tx.txId}} is not in the execution group of the tx`
+        )
+        if (nestedCountersInstance)
+          nestedCountersInstance.countEvent(
+            'receipt',
+            'IappliedReceipt_signature_node_not_in_execution_group_of_tx'
+          )
+        continue
+      }
+      if (Crypto.verify({ appliedVote, node_id: node.id, sign: signature })) {
+        goodSignatures.set(signature.owner, signature)
+      }
+    }
+    if (goodSignatures.size < requiredSignatures) {
+      Logger.mainLogger.error(
+        'Invalid receipt appliedReceipt valid signatures count is less than requiredSignatures'
+      )
+      if (nestedCountersInstance)
+        nestedCountersInstance.countEvent(
+          'receipt',
+          'Invalid_receipt_appliedReceipt_valid_signatures_count_less_than_requiredSignatures'
+        )
+      return result
+    }
+    return { success: true }
+  }
+  const { confirmOrChallenge } = appliedReceipt
   // Check if the appliedVote node is in the execution group
   if (!cycleShardData.nodeShardDataMap.has(appliedVote.node_id)) {
     Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote node is not in the active nodesList')
