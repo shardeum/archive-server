@@ -48,9 +48,6 @@ export const loadGlobalAccounts = async (): Promise<void> => {
 }
 
 export const syncGlobalAccount = async (retry = 5): Promise<void> => {
-  const filteredArchivers = State.activeArchivers.filter(
-    (archiver) => archiver.publicKey !== config.ARCHIVER_PUBLIC_KEY
-  )
   while (retry > 0) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,7 +68,7 @@ export const syncGlobalAccount = async (retry = 5): Promise<void> => {
         return equivalent
       }
 
-      const globalAccsResponse = await robustQuery(filteredArchivers, queryFn, equalFn, 3, true)
+      const globalAccsResponse = await robustQuery(State.otherArchivers, queryFn, equalFn, 3, true)
       Logger.mainLogger.debug('syncGlobalAccount() - globalAccsResponse', globalAccsResponse)
       if (!globalAccsResponse) {
         Logger.mainLogger.warn('() - robustResponse is null')
@@ -97,7 +94,7 @@ export const syncGlobalAccount = async (retry = 5): Promise<void> => {
         const queryFn = async (node: Node): Promise<any> => {
           return await getJson(`http://${node.ip}:${node.port}/get-network-account?hash=false`)
         }
-        const networkAccResponse = await robustQuery(filteredArchivers, queryFn, equalFn, 3, true)
+        const networkAccResponse = await robustQuery(State.otherArchivers, queryFn, equalFn, 3, true)
         Logger.mainLogger.debug('syncGlobalAccount() - networkAccResponse', networkAccResponse)
         if (!networkAccResponse) {
           Logger.mainLogger.warn('get-network-account() - robustResponse is null')

@@ -34,6 +34,8 @@ const nodeState: ArchiverNodeState = {
 export const joinedArchivers: ArchiverNodeInfo[] = [] // Add joined archivers to this list first and move to activeArchivers when they are active
 export let activeArchivers: ArchiverNodeInfo[] = []
 export let activeArchiversByPublicKeySorted: ArchiverNodeInfo[] = []
+// archivers list without the current archiver
+export let otherArchivers: ArchiverNodeInfo[] = []
 export let isFirst = false
 export let isActive = false
 export const archiversReputation: Map<string, string> = new Map()
@@ -163,6 +165,9 @@ export function addArchiver(archiver: ArchiverNodeInfo): void {
       'activeArchiversByPublicKeySorted',
       activeArchiversByPublicKeySorted.map((archiver) => archiver.publicKey)
     )
+    if (archiver.publicKey !== config.ARCHIVER_PUBLIC_KEY) {
+      otherArchivers.push(archiver)
+    }
     Logger.mainLogger.debug('New archiver added to active list', archiver)
   }
   Logger.mainLogger.debug('archivers list', activeArchivers)
@@ -173,6 +178,7 @@ export function removeActiveArchiver(publicKey: string): void {
   activeArchiversByPublicKeySorted = activeArchiversByPublicKeySorted.filter(
     (a: ArchiverNodeInfo) => a.publicKey !== publicKey
   )
+  otherArchivers = otherArchivers.filter((a: ArchiverNodeInfo) => a.publicKey !== publicKey)
   archiversReputation.delete(publicKey)
 }
 
@@ -180,6 +186,7 @@ export function resetActiveArchivers(archivers: ArchiverNodeInfo[]): void {
   Logger.mainLogger.debug('Resetting active archivers.', archivers)
   activeArchivers = archivers
   activeArchiversByPublicKeySorted = [...archivers.sort(NodeList.byAscendingPublicKey)]
+  otherArchivers = activeArchivers.filter((a) => a.publicKey !== config.ARCHIVER_PUBLIC_KEY)
   archiversReputation.clear()
   for (const archiver of activeArchivers) {
     archiversReputation.set(archiver.publicKey, 'up')
@@ -252,9 +259,6 @@ export function setActive(): void {
 }
 
 export function getRandomArchiver(): ArchiverNodeInfo {
-  const filteredArchivers = activeArchivers.filter(
-    (archiver) => archiver.publicKey !== config.ARCHIVER_PUBLIC_KEY
-  )
-  const randomArchiver = Utils.getRandomItemFromArr(filteredArchivers)[0]
+  const randomArchiver = Utils.getRandomItemFromArr(otherArchivers)[0]
   return randomArchiver
 }
