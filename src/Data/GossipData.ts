@@ -4,7 +4,6 @@ import * as Crypto from '../Crypto'
 import { postJson } from '../P2P'
 import { Signature } from '@shardus/crypto-utils'
 import { P2P as P2PTypes } from '@shardus/types'
-import { getRandomActiveNodes } from '../NodeList'
 import * as Utils from '../Utils'
 
 // adjacentArchivers are one archiver from left and one archiver from right of the current archiver
@@ -21,15 +20,14 @@ export type TxData = { txId: string; timestamp: number }
 export interface GossipData {
   dataType: DataType
   data: TxData[] | P2PTypes.CycleCreatorTypes.CycleData[]
-  sender: string
   sign: Signature
 }
 
 // For debugging purpose, set this to true to stop gossiping tx data
 const stopGossipTxData = false
 
-const gossipToRandomArchivers = true // To gossip to random archivers in addition to adjacent archivers
-const randomGossipArchiverCount = 2 // Number of random archivers to gossip to
+const gossipToMoreArchivers = true // To gossip to more archivers in addition to adjacent archivers
+const randomGossipArchiversCount = 2 // Number of random archivers to gossip to
 
 // List of archivers that are not adjacent to the current archiver
 const remainingArchivers = []
@@ -62,8 +60,8 @@ export const getAdjacentLeftAndRightArchivers = (): void => {
   if (leftArchiver) adjacentArchivers.set(leftArchiver.publicKey, leftArchiver)
   if (rightArchiver) adjacentArchivers.set(rightArchiver.publicKey, rightArchiver)
   remainingArchivers.length = 0
-  for (const archiver of State.activeArchivers) {
-    if (!adjacentArchivers.has(archiver.publicKey) || archiver.publicKey !== State.getNodeInfo().publicKey) {
+  for (const archiver of State.otherArchivers) {
+    if (!adjacentArchivers.has(archiver.publicKey)) {
       remainingArchivers.push(archiver)
     }
   }
@@ -78,7 +76,6 @@ export async function sendDataToAdjacentArchivers(
   const gossipPayload = {
     dataType,
     data,
-    sender: State.getNodeInfo().publicKey,
   } as GossipData
   const signedDataToSend = Crypto.sign(gossipPayload)
   try {
@@ -88,7 +85,13 @@ export async function sendDataToAdjacentArchivers(
       )}`
     )
     const promises = []
-    for (const [, archiver] of adjacentArchivers) {
+    const archiversToSend = [...adjacentArchivers.values()]
+    if (gossipToMoreArchivers && remainingArchivers.length > 0) {
+      const randomArchivers = Utils.getRandomItemFromArr(remainingArchivers, 0, randomGossipArchiversCount)
+      if (randomArchivers.length > 0) archiversToSend.push(...randomArchivers)
+    }
+    console.log('archiversToSend 2', archiversToSend)
+    for (const archiver of archiversToSend) {
       const url = `http://${archiver.ip}:${archiver.port}/gossip-data`
       try {
         const GOSSIP_DATA_TIMEOUT_SECOND = 10 // 10 seconds
@@ -101,11 +104,8 @@ export async function sendDataToAdjacentArchivers(
         Logger.mainLogger.error('Error', e)
       }
     }
-    if (gossipToRandomArchivers) {
-      const randomArchivers = getRandomActiveNodes
-    }
     try {
-      await Promise.all(promises)
+      await Promise.allSettled(promises)
     } catch (err) {
       Logger.mainLogger.error('Network: ' + err)
     }
