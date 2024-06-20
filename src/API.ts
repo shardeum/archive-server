@@ -1201,11 +1201,8 @@ export const queryFromArchivers = async (
       url = `/totalData`
       break
   }
-  const filteredArchivers = State.activeArchivers.filter(
-    (archiver) => archiver.publicKey !== config.ARCHIVER_PUBLIC_KEY
-  )
   const maxNumberofArchiversToRetry = 3
-  const randomArchivers = Utils.getRandomItemFromArr(filteredArchivers, 0, maxNumberofArchiversToRetry)
+  const randomArchivers = Utils.getRandomItemFromArr(State.otherArchivers, 0, maxNumberofArchiversToRetry)
   let retry = 0
   while (retry < maxNumberofArchiversToRetry) {
     // eslint-disable-next-line security/detect-object-injection

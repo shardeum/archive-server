@@ -19,7 +19,14 @@ import { getCurrentCycleCounter, shardValuesByCycle, computeCycleMarker } from '
 import { bulkInsertCycles, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 import * as State from '../State'
 import * as Utils from '../Utils'
-import { DataType, GossipData, adjacentArchivers, sendDataToAdjacentArchivers, TxData } from './GossipData'
+import {
+  DataType,
+  GossipData,
+  adjacentArchivers,
+  sendDataToAdjacentArchivers,
+  TxData,
+  getArchiversToUse,
+} from './GossipData'
 import { postJson } from '../P2P'
 import { globalAccountsMap, setGlobalNetworkAccount } from '../GlobalAccount'
 import { CycleLogWriter, ReceiptLogWriter, OriginalTxDataLogWriter } from '../Data/DataLogWriter'
@@ -1178,33 +1185,6 @@ export const collectMissingReceipts = async (): Promise<void> => {
       collectingMissingReceiptsMap.delete(txId)
     }
   }
-}
-
-export const getArchiversToUse = (): State.ArchiverNodeInfo[] => {
-  let archiversToUse: State.ArchiverNodeInfo[] = []
-  const MAX_ARCHIVERS_TO_SELECT = 3
-  // Choosing MAX_ARCHIVERS_TO_SELECT random archivers from the active archivers list
-  if (State.activeArchivers.length <= MAX_ARCHIVERS_TO_SELECT) {
-    State.activeArchivers.forEach(
-      (archiver) => archiver.publicKey !== State.getNodeInfo().publicKey && archiversToUse.push(archiver)
-    )
-  } else {
-    // Filter out the adjacent archivers and self archiver from the active archivers list
-    const activeArchivers = [...State.activeArchivers].filter(
-      (archiver) =>
-        adjacentArchivers.has(archiver.publicKey) || archiver.publicKey === State.getNodeInfo().publicKey
-    )
-    archiversToUse = Utils.getRandomItemFromArr(activeArchivers, 0, MAX_ARCHIVERS_TO_SELECT)
-    if (archiversToUse.length < MAX_ARCHIVERS_TO_SELECT) {
-      const requiredArchivers = MAX_ARCHIVERS_TO_SELECT - archiversToUse.length
-      // If the required archivers are not selected, then get it from the adjacent archivers
-      archiversToUse = [
-        ...archiversToUse,
-        ...Utils.getRandomItemFromArr([...adjacentArchivers.values()], requiredArchivers),
-      ]
-    }
-  }
-  return archiversToUse
 }
 
 type TxDataFromArchiversResponse = {
