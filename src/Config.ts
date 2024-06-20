@@ -66,6 +66,7 @@ export interface Config {
     enabled: boolean
   }
   newPOQReceipt: boolean
+  storeReceiptBeforeStates: boolean
   waitingTimeForMissingTxData: number // Wait time in ms for missing tx data before collecting from other archivers
   gossipToMoreArchivers: true // To gossip to more archivers in addition to adjacent archivers
   randomGossipArchiversCount: 2 // Number of random archivers to gossip to
@@ -158,6 +159,7 @@ let config: Config = {
     enabled: false,
   },
   newPOQReceipt: false,
+  storeReceiptBeforeStates: false,
   waitingTimeForMissingTxData: 2000, // in ms
   gossipToMoreArchivers: true,
   randomGossipArchiversCount: 2,
