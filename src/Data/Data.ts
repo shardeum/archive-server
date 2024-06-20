@@ -56,6 +56,7 @@ let subsetNodesMapByConsensusRadius: Map<number, NodeList.ConsensusNodeInfo[]> =
 const maxCyclesInCycleTracker = 5
 const receivedCycleTracker = {}
 const QUERY_TIMEOUT_MAX = 30 // 30seconds
+const subscribedToMoreConsensors = true
 
 const {
   MAX_ACCOUNTS_PER_REQUEST,
@@ -479,25 +480,7 @@ export async function replaceDataSender(publicKey: NodeList.ConsensusNodeInfo['p
         )
         return
       }
-
-      // Check if there is any subscribed node from this subset
-      let foundSubscribedNodeFromThisSubset = false
-      for (const node of Object.values(subsetNodesList)) {
-        if (dataSenders.has(node.publicKey)) {
-          if (config.VERBOSE) Logger.mainLogger.debug('This node from the subset is in the subscribed list!')
-          if (foundSubscribedNodeFromThisSubset) {
-            // Unsubscribe the extra nodes from this subset
-            unsubscribeDataSender(node.publicKey)
-          }
-          foundSubscribedNodeFromThisSubset = true
-        }
-      }
-
-      if (!foundSubscribedNodeFromThisSubset) {
-        Logger.mainLogger.debug('There is no subscribed node from this subset!')
-        // Pick a new dataSender from this subset
-        subscribeNodeFromThisSubset(subsetNodesList)
-      }
+      subscribeNodeFromThisSubset(subsetNodesList)
     }
   }
 }
@@ -652,45 +635,56 @@ export async function subscribeConsensorsByConsensusRadius(): Promise<void> {
   await createNodesGroupByConsensusRadius()
   for (const [i, subsetList] of subsetNodesMapByConsensusRadius) {
     if (config.VERBOSE) Logger.mainLogger.debug('Round', i, 'subsetList', subsetList, dataSenders.keys())
-    let foundSubscribedNodeFromThisSubset = false
-    for (const node of Object.values(subsetList)) {
-      if (dataSenders.has(node.publicKey)) {
-        if (config.VERBOSE) Logger.mainLogger.debug('This node from the subset is in the subscribed list!')
-        if (foundSubscribedNodeFromThisSubset) {
-          // Unsubscribe the extra nodes from this subset
-          unsubscribeDataSender(node.publicKey)
-        }
-        foundSubscribedNodeFromThisSubset = true
-      }
-    }
-
-    if (!foundSubscribedNodeFromThisSubset) {
-      Logger.mainLogger.debug('There is no subscribed node from this subset!')
-      // Pick a new dataSender from this subset
-      subscribeNodeFromThisSubset(subsetList)
-    }
+    subscribeNodeFromThisSubset(subsetList)
   }
 }
 
 export async function subscribeNodeFromThisSubset(nodeList: NodeList.ConsensusNodeInfo[]): Promise<void> {
+  // First check if there is any subscribed node from this subset
+  const subscribedNodesFromThisSubset = []
+  for (const node of nodeList) {
+    if (dataSenders.has(node.publicKey)) {
+      if (config.VERBOSE)
+        Logger.mainLogger.debug('This node from the subset is in the subscribed list!', node.publicKey)
+      subscribedNodesFromThisSubset.push(node.publicKey)
+    }
+  }
+  let numberOfNodesToSubsribe = 1
+  // Only if there are less than 4 activeArchivers and the currentConsensusRadius is greater than 5
+  if (subscribedToMoreConsensors && State.activeArchivers.length < 4 && currentConsensusRadius > 5) {
+    numberOfNodesToSubsribe = 2
+  }
+  if (subscribedNodesFromThisSubset.length > numberOfNodesToSubsribe) {
+    // If there is more than one subscribed node from this subset, unsubscribe the extra ones
+    for (const publicKey of subscribedNodesFromThisSubset.splice(numberOfNodesToSubsribe)) {
+      unsubscribeDataSender(publicKey)
+    }
+  }
+  if (config.VERBOSE)
+    Logger.mainLogger.debug('Subscribed nodes from this subset', subscribedNodesFromThisSubset)
+  if (subscribedNodesFromThisSubset.length === numberOfNodesToSubsribe) return
+  Logger.mainLogger.debug('There is no subscribed node from this subset!')
+  // Pick a new dataSender from this subset
   let subsetList = [...nodeList]
   // Pick a random dataSender
   let newSenderInfo = nodeList[Math.floor(Math.random() * nodeList.length)]
   let connectionStatus = false
   let retry = 0
-  const MAX_RETRY_SUBSCRIPTION = 3
-  while (retry < MAX_RETRY_SUBSCRIPTION) {
+  const MAX_RETRY_SUBSCRIPTION = 3 * numberOfNodesToSubsribe
+  while (retry < MAX_RETRY_SUBSCRIPTION && subscribedNodesFromThisSubset.length < numberOfNodesToSubsribe) {
     if (!dataSenders.has(newSenderInfo.publicKey)) {
       connectionStatus = await createDataTransferConnection(newSenderInfo)
       if (connectionStatus) {
-        break
-      } else {
-        subsetList = subsetList.filter((node) => node.publicKey !== newSenderInfo.publicKey)
+        // Check if the newSender is in the subscribed nodes of this subset
+        if (!subscribedNodesFromThisSubset.includes(newSenderInfo.publicKey))
+          subscribedNodesFromThisSubset.push(newSenderInfo.publicKey)
       }
     } else {
-      // This means there is already a subscribed node from this subset
-      break
+      // Add the newSender to the subscribed nodes of this subset
+      if (!subscribedNodesFromThisSubset.includes(newSenderInfo.publicKey))
+        subscribedNodesFromThisSubset.push(newSenderInfo.publicKey)
     }
+    subsetList = subsetList.filter((node) => node.publicKey !== newSenderInfo.publicKey)
     if (subsetList.length > 0) {
       newSenderInfo = subsetList[Math.floor(Math.random() * subsetList.length)]
     } else {
