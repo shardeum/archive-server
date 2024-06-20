@@ -19,14 +19,7 @@ import { getCurrentCycleCounter, shardValuesByCycle, computeCycleMarker } from '
 import { bulkInsertCycles, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 import * as State from '../State'
 import * as Utils from '../Utils'
-import {
-  DataType,
-  GossipData,
-  adjacentArchivers,
-  sendDataToAdjacentArchivers,
-  TxData,
-  getArchiversToUse,
-} from './GossipData'
+import { DataType, GossipData, sendDataToAdjacentArchivers, TxData, getArchiversToUse } from './GossipData'
 import { postJson } from '../P2P'
 import { globalAccountsMap, setGlobalNetworkAccount } from '../GlobalAccount'
 import { CycleLogWriter, ReceiptLogWriter, OriginalTxDataLogWriter } from '../Data/DataLogWriter'
@@ -57,7 +50,7 @@ interface MissingTx {
 const WAIT_TIME_FOR_MISSING_TX_DATA = 2000 // in ms
 
 // For debugging gossip data, set this to true. This will save only the gossip data received from the adjacent archivers.
-export const saveOnlyGossipData = true
+export const saveOnlyGossipData = false
 
 type GET_TX_RECEIPT_RESPONSE = {
   success: boolean
@@ -1295,7 +1288,9 @@ const collectMissingTxDataFromSenderArchivers = async (
     if (foundTxData) break
   }
   if (!foundTxData) {
-    Logger.mainLogger.error(`Failed to get missing ${dataType}`, txId, txTimestamp)
+    Logger.mainLogger.error(
+      `Failed to collect ${dataType} data for txId ${txId} with timestamp ${txTimestamp} from archivers ${senders}`
+    )
   }
   collectingMissingReceiptsMap.delete(txId)
 }
