@@ -400,6 +400,13 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const originalTx = await OriginalTxDB.queryOriginalTxDataByTxId(txId)
       if (originalTx) originalTxs.push(originalTx)
     } else if (txIdList) {
+      if (txIdList.length > MAX_ORIGINAL_TXS_PER_REQUEST) {
+        reply.send({
+          success: false,
+          error: `Exceed maximum limit of ${MAX_ORIGINAL_TXS_PER_REQUEST} original transactions`,
+        })
+        return
+      }
       for (const [txId, txTimestamp] of txIdList) {
         if (typeof txId !== 'string' || txId.length !== TXID_LENGTH || typeof txTimestamp !== 'number') {
           reply.send({
@@ -515,6 +522,13 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const receipt = await ReceiptDB.queryReceiptByReceiptId(txId)
       if (receipt) receipts.push(receipt)
     } else if (txIdList) {
+      if (txIdList.length > MAX_RECEIPTS_PER_REQUEST) {
+        reply.send({
+          success: false,
+          error: `Exceed maximum limit of ${MAX_RECEIPTS_PER_REQUEST} receipts`,
+        })
+        return
+      }
       for (const [txId, txTimestamp] of txIdList) {
         if (typeof txId !== 'string' || txId.length !== TXID_LENGTH || typeof txTimestamp !== 'number') {
           reply.send({
@@ -875,7 +889,8 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
 
   server.post('/get_account_data_by_list_archiver', async (_request: AccountDataRequest, reply) => {
     const payload = _request.body as AccountDataProvider.AccountDataByListRequestSchema
-    if (config.VERBOSE) Logger.mainLogger.debug('Account Data By List received', StringUtils.safeStringify(payload))
+    if (config.VERBOSE)
+      Logger.mainLogger.debug('Account Data By List received', StringUtils.safeStringify(payload))
     const result = AccountDataProvider.validateAccountDataByListRequest(payload)
     // Logger.mainLogger.debug('Account Data By List validation result', result)
     if (!result.success) {
@@ -893,7 +908,8 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
 
   server.post('/get_globalaccountreport_archiver', async (_request: AccountDataRequest, reply) => {
     const payload = _request.body as AccountDataProvider.GlobalAccountReportRequestSchema
-    if (config.VERBOSE) Logger.mainLogger.debug('Global Account Report received', StringUtils.safeStringify(payload))
+    if (config.VERBOSE)
+      Logger.mainLogger.debug('Global Account Report received', StringUtils.safeStringify(payload))
     const result = AccountDataProvider.validateGlobalAccountReportRequest(payload)
     // Logger.mainLogger.debug('Global Account Report validation result', result)
     if (!result.success) {
