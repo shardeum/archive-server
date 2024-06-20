@@ -394,6 +394,7 @@ export const verifyReceiptData = async (
   const { executionShardKey, cycle, appliedReceipt, globalModification } = receipt
   if (globalModification && config.skipGlobalTxReceiptVerification) return { success: true }
   const { appliedVote, signatures } = appliedReceipt
+  const txId = receipt.tx.txId
   const cycleShardData = shardValuesByCycle.get(cycle)
   if (!cycleShardData) {
     Logger.mainLogger.error('Cycle shard data not found')
@@ -416,6 +417,13 @@ export const verifyReceiptData = async (
         )
       return result
     }
+    // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2799
+    const voteHash = calculateVoteHash(appliedVote)
+    // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2663
+    const appliedVoteHash = {
+      txid: txId,
+      voteHash,
+    }
     // Using a map to store the good signatures to avoid duplicates
     const goodSignatures = new Map()
     for (const signature of signatures) {
@@ -424,7 +432,7 @@ export const verifyReceiptData = async (
       const node = cycleShardData.nodes.find((node) => node.publicKey === nodePubKey)
       if (node == null) {
         Logger.mainLogger.error(
-          `The node with public key ${nodePubKey} of the receipt ${receipt.tx.txId}} is not in the active nodesList of cycle ${cycle}`
+          `The node with public key ${nodePubKey} of the receipt ${txId}} is not in the active nodesList of cycle ${cycle}`
         )
         if (nestedCountersInstance)
           nestedCountersInstance.countEvent(
@@ -436,17 +444,19 @@ export const verifyReceiptData = async (
       // Check if the node is in the execution group
       if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[node.id]) {
         Logger.mainLogger.error(
-          `The node with public key ${nodePubKey} of the receipt ${receipt.tx.txId}} is not in the execution group of the tx`
+          `The node with public key ${nodePubKey} of the receipt ${txId}} is not in the execution group of the tx`
         )
         if (nestedCountersInstance)
           nestedCountersInstance.countEvent(
             'receipt',
-            'IappliedReceipt_signature_node_not_in_execution_group_of_tx'
+            'appliedReceipt_signature_node_not_in_execution_group_of_tx'
           )
         continue
       }
-      if (Crypto.verify({ appliedVote, node_id: node.id, sign: signature })) {
+      if (Crypto.verify({ ...appliedVoteHash, sign: signature })) {
         goodSignatures.set(signature.owner, signature)
+        // Break the loop if the required number of good signatures are found
+        if (goodSignatures.size >= requiredSignatures) break
       }
     }
     if (goodSignatures.size < requiredSignatures) {
@@ -568,6 +578,10 @@ export const verifyReceiptData = async (
   }
   if (newReceipt) return { success: true, newReceipt }
   return { success: true }
+}
+
+const calculateVoteHash = (vote: Receipt.AppliedVote): string => {
+  return Crypto.hashObj({ ...vote, node_id: '' })
 }
 
 export const storeReceiptData = async (
