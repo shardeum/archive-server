@@ -632,6 +632,7 @@ export const storeReceiptData = async (
       ...receipt,
       receiptId: tx.txId,
       timestamp: tx.timestamp,
+      ...(config.storeReceiptBeforeStates ? { beforeStateAccounts: receipt.beforeStateAccounts } : {}),
     })
     if (config.dataLogWrite && ReceiptLogWriter)
       ReceiptLogWriter.writeToLog(
@@ -639,6 +640,7 @@ export const storeReceiptData = async (
           ...receipt,
           receiptId: tx.txId,
           timestamp: tx.timestamp,
+          ...(config.storeReceiptBeforeStates ? { beforeStateAccounts: receipt.beforeStateAccounts } : {}),
         })}\n`
       )
     txDataList.push({ txId, timestamp })
