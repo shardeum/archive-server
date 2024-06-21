@@ -5,9 +5,10 @@ import { postJson } from '../P2P'
 import { Signature } from '@shardus/crypto-utils'
 import { P2P as P2PTypes } from '@shardus/types'
 import * as Utils from '../Utils'
+import { config } from '../Config'
 
 // adjacentArchivers are one archiver from left and one archiver from right of the current archiver
-export let adjacentArchivers: Map<string, State.ArchiverNodeInfo> = new Map()
+export let adjacentArchivers: State.ArchiverNodeInfo[] = []
 
 export enum DataType {
   RECEIPT = 'RECEIPT',
@@ -26,15 +27,12 @@ export interface GossipData {
 // For debugging purpose, set this to true to stop gossiping tx data
 const stopGossipTxData = false
 
-const gossipToMoreArchivers = true // To gossip to more archivers in addition to adjacent archivers
-const randomGossipArchiversCount = 2 // Number of random archivers to gossip to
-
 // List of archivers that are not adjacent to the current archiver
 const remainingArchivers = []
 
 export const getAdjacentLeftAndRightArchivers = (): void => {
   if (State.activeArchivers.length <= 1) {
-    adjacentArchivers = new Map()
+    adjacentArchivers = []
     return
   }
   // Treat the archivers list as a circular list and get one left and one right archivers of the current archiver
@@ -56,12 +54,12 @@ export const getAdjacentLeftAndRightArchivers = (): void => {
     rightArchiver = State.activeArchiversByPublicKeySorted[rightArchiverIndex]
     /* eslint-enable security/detect-object-injection */
   }
-  adjacentArchivers = new Map()
-  if (leftArchiver) adjacentArchivers.set(leftArchiver.publicKey, leftArchiver)
-  if (rightArchiver) adjacentArchivers.set(rightArchiver.publicKey, rightArchiver)
+  adjacentArchivers.length = 0
+  if (leftArchiver) adjacentArchivers.push(leftArchiver)
+  if (rightArchiver) adjacentArchivers.push(rightArchiver)
   remainingArchivers.length = 0
   for (const archiver of State.otherArchivers) {
-    if (!adjacentArchivers.has(archiver.publicKey)) {
+    if (!adjacentArchivers.some((a) => a.publicKey === archiver.publicKey)) {
       remainingArchivers.push(archiver)
     }
   }
@@ -72,25 +70,27 @@ export async function sendDataToAdjacentArchivers(
   data: GossipData['data']
 ): Promise<void> {
   if (stopGossipTxData) return
-  if (adjacentArchivers.size === 0) return
+  if (State.otherArchivers.length === 0) return
   const gossipPayload = {
     dataType,
     data,
   } as GossipData
   const signedDataToSend = Crypto.sign(gossipPayload)
   try {
-    Logger.mainLogger.debug(
-      `Sending ${dataType} data to the archivers: ${Array.from(adjacentArchivers.values()).map(
-        (n) => `${n.ip}:${n.port}`
-      )}`
-    )
     const promises = []
-    const archiversToSend = [...adjacentArchivers.values()]
-    if (gossipToMoreArchivers && remainingArchivers.length > 0) {
-      const randomArchivers = Utils.getRandomItemFromArr(remainingArchivers, 0, randomGossipArchiversCount)
+    const archiversToSend = [...adjacentArchivers]
+    if (config.gossipToMoreArchivers && remainingArchivers.length > 0) {
+      const randomArchivers = Utils.getRandomItemFromArr(
+        remainingArchivers,
+        0,
+        config.randomGossipArchiversCount
+      )
       if (randomArchivers.length > 0) archiversToSend.push(...randomArchivers)
     }
-    console.log('archiversToSend 2', archiversToSend)
+    if (config.VERBOSE)
+      Logger.mainLogger.debug(
+        `Sending ${dataType} data to the archivers: ${archiversToSend.map((n) => `${n.ip}:${n.port}`)}`
+      )
     for (const archiver of archiversToSend) {
       const url = `http://${archiver.ip}:${archiver.port}/gossip-data`
       try {

@@ -47,9 +47,7 @@ interface MissingTx {
   senders: string[]
 }
 
-const WAIT_TIME_FOR_MISSING_TX_DATA = 2000 // in ms
-
-// For debugging gossip data, set this to true. This will save only the gossip data received from the adjacent archivers.
+// For debugging gossip data, set this to true. This will save only the gossip data received from the gossip archivers.
 export const saveOnlyGossipData = false
 
 type GET_TX_RECEIPT_RESPONSE = {
@@ -1075,7 +1073,7 @@ export const processGossipData = (gossipdata: GossipData): void => {
         (receiptsInValidationMap.has(txId) && receiptsInValidationMap.get(txId) === timestamp) ||
         (collectingMissingReceiptsMap.has(txId) && collectingMissingReceiptsMap.get(txId) === timestamp)
       ) {
-        console.log('GOSSIP', 'RECEIPT', 'SKIP', txId, 'sender', sign.owner)
+        // console.log('GOSSIP', 'RECEIPT', 'SKIP', txId, 'sender', sign.owner)
         continue
       } else {
         if (missingReceiptsMap.has(txId)) {
@@ -1097,7 +1095,7 @@ export const processGossipData = (gossipdata: GossipData): void => {
           }
         } else
           missingReceiptsMap.set(txId, { txTimestamp: timestamp, receivedTimestamp, senders: [sign.owner] })
-        console.log('GOSSIP', 'RECEIPT', 'MISS', txId, 'sender', sign.owner)
+        // console.log('GOSSIP', 'RECEIPT', 'MISS', txId, 'sender', sign.owner)
       }
     }
   }
@@ -1108,7 +1106,7 @@ export const processGossipData = (gossipdata: GossipData): void => {
         (originalTxsInValidationMap.has(txId) && originalTxsInValidationMap.get(txId) === timestamp) ||
         (collectingMissingOriginalTxsMap.has(txId) && collectingMissingOriginalTxsMap.get(txId) === timestamp)
       ) {
-        console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'SKIP', txId, 'sender', sign.owner)
+        // console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'SKIP', txId, 'sender', sign.owner)
         continue
       } else {
         if (missingOriginalTxsMap.has(txId)) {
@@ -1134,7 +1132,7 @@ export const processGossipData = (gossipdata: GossipData): void => {
             receivedTimestamp,
             senders: [sign.owner],
           })
-        console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'MISS', txId, 'sender', sign.owner)
+        // console.log('GOSSIP', 'ORIGINAL_TX_DATA', 'MISS', txId, 'sender', sign.owner)
       }
     }
   }
@@ -1151,7 +1149,7 @@ export const collectMissingReceipts = async (): Promise<void> => {
   const currentTimestamp = Date.now()
   const cloneMissingReceiptsMap: Map<string, Omit<MissingTx, 'receivedTimestamp'>> = new Map()
   for (const [txId, { txTimestamp, receivedTimestamp, senders }] of missingReceiptsMap) {
-    if (currentTimestamp - receivedTimestamp > WAIT_TIME_FOR_MISSING_TX_DATA) {
+    if (currentTimestamp - receivedTimestamp > config.waitingTimeForMissingTxData) {
       cloneMissingReceiptsMap.set(txId, { txTimestamp, senders })
       collectingMissingReceiptsMap.set(txId, txTimestamp)
       missingReceiptsMap.delete(txId)
@@ -1339,7 +1337,7 @@ export const collectMissingOriginalTxsData = async (): Promise<void> => {
   const currentTimestamp = Date.now()
   const cloneMissingOriginalTxsMap: Map<string, Omit<MissingTx, 'receivedTimestamp'>> = new Map()
   for (const [txId, { txTimestamp, receivedTimestamp, senders }] of missingOriginalTxsMap) {
-    if (currentTimestamp - receivedTimestamp > WAIT_TIME_FOR_MISSING_TX_DATA) {
+    if (currentTimestamp - receivedTimestamp > config.waitingTimeForMissingTxData) {
       cloneMissingOriginalTxsMap.set(txId, { txTimestamp, senders })
       collectingMissingOriginalTxsMap.set(txId, txTimestamp)
       missingOriginalTxsMap.delete(txId)
