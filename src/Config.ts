@@ -56,6 +56,11 @@ export interface Config {
     enabled: boolean
   }
   newPOQReceipt: boolean
+  waitingTimeForMissingTxData: number // Wait time in ms for missing tx data before collecting from other archivers
+  gossipToMoreArchivers: true // To gossip to more archivers in addition to adjacent archivers
+  randomGossipArchiversCount: 2 // Number of random archivers to gossip to
+  subscribeToMoreConsensors: boolean // To subscribe to more consensors when the number of active archivers is less than 4
+  extraConsensorsToSubscribe: 1 // Number of extra consensors to subscribe to
 }
 
 let config: Config = {
@@ -110,6 +115,11 @@ let config: Config = {
     enabled: false,
   },
   newPOQReceipt: false,
+  gossipToMoreArchivers: true,
+  randomGossipArchiversCount: 2,
+  subscribeToMoreConsensors: true,
+  extraConsensorsToSubscribe: 1,
+  waitingTimeForMissingTxData: 2000, // in ms
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {

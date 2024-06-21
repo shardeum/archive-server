@@ -56,8 +56,6 @@ let subsetNodesMapByConsensusRadius: Map<number, NodeList.ConsensusNodeInfo[]> =
 const maxCyclesInCycleTracker = 5
 const receivedCycleTracker = {}
 const QUERY_TIMEOUT_MAX = 30 // 30seconds
-const subscribedToMoreConsensors = true
-
 const {
   MAX_ACCOUNTS_PER_REQUEST,
   MAX_RECEIPTS_PER_REQUEST,
@@ -618,7 +616,11 @@ export async function createNodesGroupByConsensusRadius(): Promise<void> {
   currentConsensusRadius = consensusRadius
   const activeList = [...NodeList.activeListByIdSorted]
   if (config.VERBOSE) Logger.mainLogger.debug('activeList', activeList.length, activeList)
-  const totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
+  let totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
+  // Only if there are less than 4 activeArchivers and if the consensusRadius is greater than 5
+  if (config.subscribeToMoreConsensors && State.activeArchivers.length < 4 && currentConsensusRadius > 5) {
+    totalNumberOfNodesToSubscribe += totalNumberOfNodesToSubscribe * config.extraConsensorsToSubscribe
+  }
   Logger.mainLogger.debug('totalNumberOfNodesToSubscribe', totalNumberOfNodesToSubscribe)
   subsetNodesMapByConsensusRadius = new Map()
   let round = 0
@@ -650,20 +652,21 @@ export async function subscribeNodeFromThisSubset(nodeList: NodeList.ConsensusNo
     }
   }
   let numberOfNodesToSubsribe = 1
-  // Only if there are less than 4 activeArchivers and the currentConsensusRadius is greater than 5
-  if (subscribedToMoreConsensors && State.activeArchivers.length < 4 && currentConsensusRadius > 5) {
-    numberOfNodesToSubsribe = 2
+  // Only if there are less than 4 activeArchivers and if the consensusRadius is greater than 5
+  if (config.subscribeToMoreConsensors && State.activeArchivers.length < 4 && currentConsensusRadius > 5) {
+    numberOfNodesToSubsribe += config.extraConsensorsToSubscribe
   }
   if (subscribedNodesFromThisSubset.length > numberOfNodesToSubsribe) {
     // If there is more than one subscribed node from this subset, unsubscribe the extra ones
     for (const publicKey of subscribedNodesFromThisSubset.splice(numberOfNodesToSubsribe)) {
+      Logger.mainLogger.debug('Unsubscribing extra node from this subset', publicKey)
       unsubscribeDataSender(publicKey)
     }
   }
   if (config.VERBOSE)
     Logger.mainLogger.debug('Subscribed nodes from this subset', subscribedNodesFromThisSubset)
   if (subscribedNodesFromThisSubset.length === numberOfNodesToSubsribe) return
-  Logger.mainLogger.debug('There is no subscribed node from this subset!')
+  Logger.mainLogger.debug('Subscribing node from this subset!')
   // Pick a new dataSender from this subset
   let subsetList = [...nodeList]
   // Pick a random dataSender
