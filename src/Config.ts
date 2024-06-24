@@ -244,10 +244,12 @@ export async function overrideDefaultConfig(file: string): Promise<void> {
 
 export function updateConfig(newConfig: Partial<Config>): Config {
   for (const key in newConfig) {
-    if (newConfig[key] === 'true') newConfig[key] = true
-    else if (newConfig[key] === 'false') newConfig[key] = false
-    else if (typeof newConfig[key] !== 'boolean' && !Number.isNaN(Number(newConfig[key])))
-      newConfig[key] = Number(newConfig[key])
+    if (typeof newConfig[key] !== typeof config[key])
+      throw new Error(
+        `Value with incorrect type passed to update the Archiver Config: ${key}:${
+          newConfig[key]
+        } of type ${typeof newConfig[key]}`
+      )
   }
   config = merge(config, newConfig)
   return config

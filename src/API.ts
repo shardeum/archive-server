@@ -933,20 +933,29 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       },
     },
     async (_request: ConfigPatchRequest, reply) => {
+      const RESTRICTED_PARAMS = [
+        'ARCHIVER_IP',
+        'ARCHIVER_PORT',
+        'ARCHIVER_HASH_KEY',
+        'ARCHIVER_SECRET_KEY',
+        'ARCHIVER_PUBLIC_KEY',
+      ]
       try {
         const { sign, ...newConfig } = _request.body
         const validKeys = new Set(Object.keys(config))
         const payloadKeys = Object.keys(newConfig)
-        const invalidKeys = payloadKeys.filter((key) => !validKeys.has(key))
+        const invalidKeys = payloadKeys.filter(
+          (key) => !validKeys.has(key) || RESTRICTED_PARAMS.includes(key)
+        )
 
         if (invalidKeys.length > 0)
-          throw new Error(`Invalid config properties provided: ${invalidKeys.join(', ')}`)
+          throw new Error(`Invalid/Unauthorised config properties provided: ${invalidKeys.join(', ')}`)
 
         if (config.VERBOSE)
           Logger.mainLogger.debug('Archiver config update executed: ', JSON.stringify(newConfig))
 
         const updatedConfig = updateConfig(newConfig)
-        reply.send({ success: true, updatedConfig })
+        reply.send({ success: true, ...updatedConfig, ARCHIVER_SECRET_KEY: '' })
       } catch (error) {
         reply.status(400).send({ success: false, reason: error.message })
       }
