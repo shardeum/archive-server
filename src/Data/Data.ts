@@ -516,49 +516,57 @@ export function addDataSender(sender: DataSender): void {
 }
 
 async function syncFromNetworkConfig(): Promise<any> {
-  // Define the query function to get the network config from a node
-  const queryFn = async (node): Promise<object> => {
-    const REQUEST_NETCONFIG_TIMEOUT_SECOND = 2 // 2s timeout
-    try {
-      const response = await P2P.getJson(
-        `http://${node.ip}:${node.port}/netconfig`,
-        REQUEST_NETCONFIG_TIMEOUT_SECOND
+  try {
+    // Define the query function to get the network config from a node
+    const queryFn = async (node): Promise<object> => {
+      const REQUEST_NETCONFIG_TIMEOUT_SECOND = 2 // 2s timeout
+      try {
+        const response = await P2P.getJson(
+          `http://${node.ip}:${node.port}/netconfig`,
+          REQUEST_NETCONFIG_TIMEOUT_SECOND
+        )
+        return response
+      } catch (error) {
+        Logger.mainLogger.error(`Error querying node ${node.ip}:${node.port}: ${error}`)
+        return null
+      }
+    }
+    // Define the equality function to compare two responses
+    const equalityFn = (responseA, responseB): boolean => {
+      return (
+        responseA?.config?.sharding?.nodesPerConsensusGroup ===
+        responseB?.config?.sharding?.nodesPerConsensusGroup
       )
-      return response
-    } catch (error) {
-      Logger.mainLogger.error(`Error querying node ${node.ip}:${node.port}: ${error}`)
-      return null
     }
-  }
-  // Define the equality function to compare two responses
-  const equalityFn = (responseA, responseB): boolean => {
-    return (
-      responseA?.config?.sharding?.nodesPerConsensusGroup ===
-      responseB?.config?.sharding?.nodesPerConsensusGroup
+    // Get the list of 10 max random active nodes or the first node if no active nodes are available
+    const nodes =
+      NodeList.getActiveNodeCount() > 0 ? NodeList.getRandomActiveNodes(10) : [NodeList.getFirstNode()]
+    // Use robustQuery to get the consensusRadius from multiple nodes
+    const tallyItem = await robustQuery(
+      nodes,
+      queryFn,
+      equalityFn,
+      3 // Redundancy (minimum 3 nodes should return the same result to reach consensus)
     )
-  }
-  // Get the list of 10 max random active nodes or the first node if no active nodes are available
-  const nodes =
-    NodeList.getActiveNodeCount() > 0 ? NodeList.getRandomActiveNodes(10) : [NodeList.getFirstNode()]
-  // Use robustQuery to get the consensusRadius from multiple nodes
-  const tallyItem = await robustQuery(
-    nodes,
-    queryFn,
-    equalityFn,
-    3 // Redundancy (minimum 3 nodes should return the same result to reach consensus)
-  )
 
-  if (tallyItem?.value?.config) {
-    // Updating the Archiver Config as per the latest Network Config
-    const devPublicKeys = tallyItem.value.config.devPublicKeys
-    const updateConfigProps = {
-      newPOQReceipt: tallyItem.value.config.useNewPOQ,
-      DevPublicKey: Object.keys(devPublicKeys).find((key) => devPublicKeys[key] === 3),
+    if (tallyItem?.value?.config) {
+      // Updating the Archiver Config as per the latest Network Config
+      const devPublicKeys = tallyItem.value.config?.devPublicKeys
+      const updateConfigProps = {
+        newPOQReceipt: tallyItem.value.config?.useNewPOQ,
+        DevPublicKey:
+          devPublicKeys && Object.keys(devPublicKeys).length >= 3
+            ? Object.keys(devPublicKeys).find((key) => devPublicKeys[key] === 3)
+            : '',
+      }
+      updateConfig(updateConfigProps)
+      return tallyItem
     }
-    updateConfig(updateConfigProps)
-    return tallyItem
+    return null
+  } catch (error) {
+    Logger.mainLogger.error('❌ Error in syncFromNetworkConfig: ', error)
+    return null
   }
-  return null
 }
 
 async function getConsensusRadius(): Promise<number> {
@@ -570,6 +578,16 @@ async function getConsensusRadius(): Promise<number> {
   if (tallyItem?.value?.config) {
     nodesPerEdge = tallyItem.value.config.sharding.nodesPerEdge
     nodesPerConsensusGroup = tallyItem.value.config.sharding.nodesPerConsensusGroup
+
+    if (!Number.isInteger(nodesPerConsensusGroup) || nodesPerConsensusGroup <= 0) {
+      Logger.mainLogger.error('nodesPerConsensusGroup is not a valid number:', nodesPerConsensusGroup)
+      return currentConsensusRadius
+    }
+
+    if (!Number.isInteger(nodesPerEdge) || nodesPerEdge <= 0) {
+      Logger.mainLogger.error('nodesPerEdge is not a valid number:', nodesPerEdge)
+      return currentConsensusRadius
+    }
     // Upgrading consensus size to an odd number
     if (nodesPerConsensusGroup % 2 === 0) nodesPerConsensusGroup++
     const consensusRadius = Math.floor((nodesPerConsensusGroup - 1) / 2)

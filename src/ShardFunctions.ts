@@ -52,7 +52,7 @@ class ShardFunctions {
 
     //make sure nodesPerConsenusGroup is an odd number >= 3
     if (nodesPerConsenusGroup % 2 === 0 || nodesPerConsenusGroup < 3) {
-      throw new Error(`nodesPerConsenusGroup:${nodesPerConsenusGroup} must be odd and >= 3`)
+      throw new Error(`nodesPerConsenusGroup: ${nodesPerConsenusGroup} must be odd and >= 3`)
     }
 
     shardGlobals.consensusRadius = Math.floor((nodesPerConsenusGroup - 1) / 2)
