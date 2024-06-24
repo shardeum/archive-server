@@ -925,6 +925,10 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     reply.send(res)
   })
 
+  /**
+   * This endpoint is used to update the archiver config.
+   * @script A test script to hit this endpoint is available at `scripts/update_config.ts`
+   */
   server.patch(
     '/set-config',
     {
