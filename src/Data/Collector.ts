@@ -47,9 +47,6 @@ interface MissingTx {
   senders: string[]
 }
 
-// For debugging gossip data, set this to true. This will save only the gossip data received from the gossip archivers.
-export const saveOnlyGossipData = false
-
 type GET_TX_RECEIPT_RESPONSE = {
   success: boolean
   receipt?: Receipt.ArchiverReceipt | Receipt.AppliedReceipt2

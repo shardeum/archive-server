@@ -24,9 +24,6 @@ export interface GossipData {
   sign: Signature
 }
 
-// For debugging purpose, set this to true to stop gossiping tx data
-const stopGossipTxData = false
-
 // List of archivers that are not adjacent to the current archiver
 const remainingArchivers = []
 
@@ -69,7 +66,7 @@ export async function sendDataToAdjacentArchivers(
   dataType: DataType,
   data: GossipData['data']
 ): Promise<void> {
-  if (stopGossipTxData) return
+  if (config.stopGossipTxData) return
   if (State.otherArchivers.length === 0) return
   const gossipPayload = {
     dataType,

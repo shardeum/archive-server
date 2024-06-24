@@ -27,7 +27,6 @@ import {
   storeAccountData,
   storingAccountData,
   storeOriginalTxData,
-  saveOnlyGossipData,
 } from './Collector'
 import * as CycleDB from '../dbstore/cycles'
 import * as ReceiptDB from '../dbstore/receipts'
@@ -258,7 +257,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
         storeOriginalTxData(
           newData.responses.ORIGINAL_TX_DATA,
           sender.nodeInfo.ip + ':' + sender.nodeInfo.port,
-          saveOnlyGossipData
+          config.saveOnlyGossipData
         )
       }
       if (newData.responses && newData.responses.RECEIPT) {
@@ -274,7 +273,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
           newData.responses.RECEIPT,
           sender.nodeInfo.ip + ':' + sender.nodeInfo.port,
           true,
-          saveOnlyGossipData
+          config.saveOnlyGossipData
         )
       }
       if (newData.responses && newData.responses.CYCLE) {
