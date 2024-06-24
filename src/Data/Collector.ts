@@ -404,10 +404,14 @@ export const verifyReceiptData = async (
   const { homePartition } = ShardFunction.addressToPartition(cycleShardData.shardGlobals, executionShardKey)
   if (config.newPOQReceipt === false) {
     // Refer to https://github.com/shardeum/shardus-core/blob/f7000c36faa0cd1e0832aa1e5e3b1414d32dcf66/src/state-manager/TransactionConsensus.ts#L1406
-    const requiredSignatures = Math.round(nodesPerConsensusGroup * (2 / 3.0))
+    let votingGroupCount = cycleShardData.shardGlobals.nodesPerConsenusGroup
+    if (votingGroupCount > cycleShardData.nodes.length) {
+      votingGroupCount = nodesPerConsensusGroup
+    }
+    const requiredSignatures = Math.round(votingGroupCount * (2 / 3))
     if (signatures.length < requiredSignatures) {
       Logger.mainLogger.error(
-        'Invalid receipt appliedReceipt signatures count is less than requiredSignatures'
+        `Invalid receipt appliedReceipt signatures count is less than requiredSignatures, ${signatures.length}, ${requiredSignatures}`
       )
       if (nestedCountersInstance)
         nestedCountersInstance.countEvent(
@@ -460,7 +464,7 @@ export const verifyReceiptData = async (
     }
     if (goodSignatures.size < requiredSignatures) {
       Logger.mainLogger.error(
-        'Invalid receipt appliedReceipt valid signatures count is less than requiredSignatures'
+        `Invalid receipt appliedReceipt valid signatures count is less than requiredSignatures ${goodSignatures.size}, ${requiredSignatures}`
       )
       if (nestedCountersInstance)
         nestedCountersInstance.countEvent(
