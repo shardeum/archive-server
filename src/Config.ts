@@ -61,6 +61,10 @@ export interface Config {
   randomGossipArchiversCount: 2 // Number of random archivers to gossip to
   subscribeToMoreConsensors: boolean // To subscribe to more consensors when the number of active archivers is less than 4
   extraConsensorsToSubscribe: 1 // Number of extra consensors to subscribe to
+  // For debugging gossip data, set this to true. This will save only the gossip data received from the gossip archivers.
+  saveOnlyGossipData: boolean
+  // For debugging purpose, set this to true to stop gossiping tx data
+  stopGossipTxData: boolean
 }
 
 let config: Config = {
@@ -120,6 +124,8 @@ let config: Config = {
   randomGossipArchiversCount: 2,
   subscribeToMoreConsensors: true,
   extraConsensorsToSubscribe: 1,
+  saveOnlyGossipData: false,
+  stopGossipTxData: false,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {
