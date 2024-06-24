@@ -115,11 +115,11 @@ let config: Config = {
     enabled: false,
   },
   newPOQReceipt: false,
+  waitingTimeForMissingTxData: 2000, // in ms
   gossipToMoreArchivers: true,
   randomGossipArchiversCount: 2,
   subscribeToMoreConsensors: true,
   extraConsensorsToSubscribe: 1,
-  waitingTimeForMissingTxData: 2000, // in ms
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {

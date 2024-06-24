@@ -19,7 +19,7 @@ import { getCurrentCycleCounter, shardValuesByCycle, computeCycleMarker } from '
 import { bulkInsertCycles, queryCycleByMarker, updateCycle } from '../dbstore/cycles'
 import * as State from '../State'
 import * as Utils from '../Utils'
-import { DataType, GossipData, sendDataToAdjacentArchivers, TxData, getArchiversToUse } from './GossipData'
+import { DataType, GossipData, sendDataToAdjacentArchivers, TxData } from './GossipData'
 import { postJson } from '../P2P'
 import { globalAccountsMap, setGlobalNetworkAccount } from '../GlobalAccount'
 import { CycleLogWriter, ReceiptLogWriter, OriginalTxDataLogWriter } from '../Data/DataLogWriter'
@@ -1144,91 +1144,51 @@ export const processGossipData = (gossipdata: GossipData): void => {
   }
 }
 
-export const collectMissingReceipts = async (): Promise<void> => {
-  if (missingReceiptsMap.size === 0) return
+export const collectMissingTxDataFromArchivers = async (): Promise<void> => {
   const currentTimestamp = Date.now()
-  const cloneMissingReceiptsMap: Map<string, Omit<MissingTx, 'receivedTimestamp'>> = new Map()
-  for (const [txId, { txTimestamp, receivedTimestamp, senders }] of missingReceiptsMap) {
-    if (currentTimestamp - receivedTimestamp > config.waitingTimeForMissingTxData) {
-      cloneMissingReceiptsMap.set(txId, { txTimestamp, senders })
-      collectingMissingReceiptsMap.set(txId, txTimestamp)
-      missingReceiptsMap.delete(txId)
-    }
-  }
-  if (cloneMissingReceiptsMap.size === 0) return
-  Logger.mainLogger.debug(
-    'Collecting missing receipts',
-    cloneMissingReceiptsMap.size,
-    cloneMissingReceiptsMap
-  )
-  const collectFromSenderArchivers = true
-  if (collectFromSenderArchivers) {
-    for (const [txId, { txTimestamp, senders }] of cloneMissingReceiptsMap) {
-      collectMissingTxDataFromSenderArchivers(DataType.RECEIPT, senders, txId, txTimestamp)
-    }
-    cloneMissingReceiptsMap.clear()
-    return
-  }
-  // Try to get missing receipts from 3 different archivers if one archiver fails to return some receipts
-  const maxRetry = 3
-  let retry = 0
-  const bucketSize = config.REQUEST_LIMIT.MAX_RECEIPTS_PER_REQUEST
-  const archiversToUse: State.ArchiverNodeInfo[] = getArchiversToUse()
-  while (cloneMissingReceiptsMap.size > 0 && retry < maxRetry) {
-    // eslint-disable-next-line security/detect-object-injection
-    let archiver = archiversToUse[retry]
-    if (!archiver) archiver = archiversToUse[0]
-    const txIdList: [string, number][] = []
-    let totalEntries = cloneMissingReceiptsMap.size
-    for (const [txId, { txTimestamp }] of cloneMissingReceiptsMap) {
-      totalEntries--
-      if (
-        (processedReceiptsMap.has(txId) && processedReceiptsMap.get(txId) === txTimestamp) ||
-        (receiptsInValidationMap.has(txId) && receiptsInValidationMap.get(txId) === txTimestamp)
-      ) {
-        cloneMissingReceiptsMap.delete(txId)
-        collectingMissingReceiptsMap.delete(txId)
-        if (totalEntries !== 0) continue
-      } else txIdList.push([txId, txTimestamp])
-      if (txIdList.length !== bucketSize && totalEntries !== 0) continue
-      if (txIdList.length === 0) continue
-      const receipts = (await queryTxDataFromArchivers(
-        archiver,
-        DataType.RECEIPT,
-        txIdList
-      )) as Receipt.Receipt[]
-      if (receipts && receipts.length > 0) {
-        const receiptsToSave = []
-        for (const receipt of receipts) {
-          const { receiptId, timestamp } = receipt
-          if (
-            cloneMissingReceiptsMap.has(receiptId) &&
-            cloneMissingReceiptsMap.get(receiptId).txTimestamp === timestamp
-          ) {
-            cloneMissingReceiptsMap.delete(receiptId)
-            collectingMissingReceiptsMap.delete(txId)
-            receiptsToSave.push(receipt)
-          }
-        }
-        storeReceiptData(receiptsToSave, archiver.ip + ':' + archiver.port, true)
+  if (missingReceiptsMap.size > 0) {
+    const cloneMissingReceiptsMap: Map<string, Omit<MissingTx, 'receivedTimestamp'>> = new Map()
+    for (const [txId, { txTimestamp, receivedTimestamp, senders }] of missingReceiptsMap) {
+      if (currentTimestamp - receivedTimestamp > config.waitingTimeForMissingTxData) {
+        cloneMissingReceiptsMap.set(txId, { txTimestamp, senders })
+        collectingMissingReceiptsMap.set(txId, txTimestamp)
+        missingReceiptsMap.delete(txId)
       }
     }
-    retry++
-  }
-  if (cloneMissingReceiptsMap.size > 0) {
-    Logger.mainLogger.debug(
-      'Receipts TxId that are failed to get from other archivers',
-      cloneMissingReceiptsMap
-    )
-    // Clear the failed txIds from the collectingMissingReceiptsMap
-    for (const [txId] of cloneMissingReceiptsMap) {
-      collectingMissingReceiptsMap.delete(txId)
+    if (cloneMissingReceiptsMap.size > 0)
+      Logger.mainLogger.debug(
+        'Collecting missing receipts',
+        cloneMissingReceiptsMap.size,
+        cloneMissingReceiptsMap
+      )
+    for (const [txId, { txTimestamp, senders }] of cloneMissingReceiptsMap) {
+      collectMissingReceipts(senders, txId, txTimestamp)
     }
+    cloneMissingReceiptsMap.clear()
+  }
+  if (missingOriginalTxsMap.size > 0) {
+    const cloneMissingOriginalTxsMap: Map<string, Omit<MissingTx, 'receivedTimestamp'>> = new Map()
+    for (const [txId, { txTimestamp, receivedTimestamp, senders }] of missingOriginalTxsMap) {
+      if (currentTimestamp - receivedTimestamp > config.waitingTimeForMissingTxData) {
+        cloneMissingOriginalTxsMap.set(txId, { txTimestamp, senders })
+        collectingMissingOriginalTxsMap.set(txId, txTimestamp)
+        missingOriginalTxsMap.delete(txId)
+      }
+    }
+    if (cloneMissingOriginalTxsMap.size > 0)
+      Logger.mainLogger.debug(
+        'Collecting missing originalTxsData',
+        cloneMissingOriginalTxsMap.size,
+        cloneMissingOriginalTxsMap
+      )
+    for (const [txId, { txTimestamp, senders }] of cloneMissingOriginalTxsMap) {
+      collectMissingOriginalTxsData(senders, txId, txTimestamp)
+    }
+    cloneMissingOriginalTxsMap.clear()
   }
 }
 
-const collectMissingTxDataFromSenderArchivers = async (
-  dataType: DataType,
+export const collectMissingReceipts = async (
   senders: string[],
   txId: string,
   txTimestamp: number
@@ -1236,58 +1196,73 @@ const collectMissingTxDataFromSenderArchivers = async (
   const txIdList: [string, number][] = [[txId, txTimestamp]]
   let foundTxData = false
   for (const sender of senders) {
-    if (dataType === DataType.ORIGINAL_TX_DATA) {
-      if (
-        (processedOriginalTxsMap.has(txId) && processedOriginalTxsMap.get(txId) === txTimestamp) ||
-        (originalTxsInValidationMap.has(txId) && originalTxsInValidationMap.get(txId) === txTimestamp)
-      ) {
-        foundTxData = true
-        break
-      }
-    }
-    if (dataType === DataType.RECEIPT) {
-      if (
-        (processedReceiptsMap.has(txId) && processedReceiptsMap.get(txId) === txTimestamp) ||
-        (receiptsInValidationMap.has(txId) && receiptsInValidationMap.get(txId) === txTimestamp)
-      ) {
-        foundTxData = true
-        break
-      }
+    if (
+      (processedReceiptsMap.has(txId) && processedReceiptsMap.get(txId) === txTimestamp) ||
+      (receiptsInValidationMap.has(txId) && receiptsInValidationMap.get(txId) === txTimestamp)
+    ) {
+      foundTxData = true
+      break
     }
     const senderArchiver = State.activeArchivers.find((archiver) => archiver.publicKey === sender)
     if (!senderArchiver) continue
-    const response = (await queryTxDataFromArchivers(
+    const receipts = (await queryTxDataFromArchivers(
       senderArchiver,
-      dataType,
+      DataType.RECEIPT,
       txIdList
-    )) as QueryTxDataFromArchiversResponse
-    if (dataType === DataType.RECEIPT) {
-      const receipts = response as Receipt.Receipt[]
-      if (receipts && receipts.length > 0) {
-        for (const receipt of receipts) {
-          const { receiptId, timestamp } = receipt
-          if (txId === receiptId && txTimestamp === timestamp) {
-            storeReceiptData([receipt], senderArchiver.ip + ':' + senderArchiver.port, true)
-            foundTxData = true
-          }
+    )) as Receipt.Receipt[]
+    if (receipts && receipts.length > 0) {
+      for (const receipt of receipts) {
+        const { receiptId, timestamp } = receipt
+        if (txId === receiptId && txTimestamp === timestamp) {
+          storeReceiptData([receipt], senderArchiver.ip + ':' + senderArchiver.port, true)
+          foundTxData = true
         }
-      }
-    }
-    if (dataType === DataType.ORIGINAL_TX_DATA) {
-      const originalTxs = response as OriginalTxDB.OriginalTxData[]
-      if (originalTxs && originalTxs.length > 0) {
-        for (const originalTx of originalTxs)
-          if (txId === originalTx.txId && txTimestamp === originalTx.timestamp) {
-            storeOriginalTxData([originalTx], senderArchiver.ip + ':' + senderArchiver.port)
-            foundTxData = true
-          }
       }
     }
     if (foundTxData) break
   }
   if (!foundTxData) {
     Logger.mainLogger.error(
-      `Failed to collect ${dataType} data for txId ${txId} with timestamp ${txTimestamp} from archivers ${senders}`
+      `Failed to collect receipt for txId ${txId} with timestamp ${txTimestamp} from archivers ${senders}`
+    )
+  }
+  collectingMissingOriginalTxsMap.delete(txId)
+}
+
+const collectMissingOriginalTxsData = async (
+  senders: string[],
+  txId: string,
+  txTimestamp: number
+): Promise<void> => {
+  const txIdList: [string, number][] = [[txId, txTimestamp]]
+  let foundTxData = false
+  for (const sender of senders) {
+    if (
+      (processedOriginalTxsMap.has(txId) && processedOriginalTxsMap.get(txId) === txTimestamp) ||
+      (originalTxsInValidationMap.has(txId) && originalTxsInValidationMap.get(txId) === txTimestamp)
+    ) {
+      foundTxData = true
+      break
+    }
+    const senderArchiver = State.activeArchivers.find((archiver) => archiver.publicKey === sender)
+    if (!senderArchiver) continue
+    const originalTxs = (await queryTxDataFromArchivers(
+      senderArchiver,
+      DataType.ORIGINAL_TX_DATA,
+      txIdList
+    )) as OriginalTxDB.OriginalTxData[]
+    if (originalTxs && originalTxs.length > 0) {
+      for (const originalTx of originalTxs)
+        if (txId === originalTx.txId && txTimestamp === originalTx.timestamp) {
+          storeOriginalTxData([originalTx], senderArchiver.ip + ':' + senderArchiver.port)
+          foundTxData = true
+        }
+    }
+    if (foundTxData) break
+  }
+  if (!foundTxData) {
+    Logger.mainLogger.error(
+      `Failed to collect originalTxData for txId ${txId} with timestamp ${txTimestamp} from archivers ${senders}`
     )
   }
   collectingMissingReceiptsMap.delete(txId)
@@ -1332,89 +1307,6 @@ export const queryTxDataFromArchivers = async (
   return null
 }
 
-export const collectMissingOriginalTxsData = async (): Promise<void> => {
-  if (missingOriginalTxsMap.size === 0) return
-  const currentTimestamp = Date.now()
-  const cloneMissingOriginalTxsMap: Map<string, Omit<MissingTx, 'receivedTimestamp'>> = new Map()
-  for (const [txId, { txTimestamp, receivedTimestamp, senders }] of missingOriginalTxsMap) {
-    if (currentTimestamp - receivedTimestamp > config.waitingTimeForMissingTxData) {
-      cloneMissingOriginalTxsMap.set(txId, { txTimestamp, senders })
-      collectingMissingOriginalTxsMap.set(txId, txTimestamp)
-      missingOriginalTxsMap.delete(txId)
-    }
-  }
-  if (cloneMissingOriginalTxsMap.size === 0) return
-  Logger.mainLogger.debug(
-    'Collecting missing originalTxsData',
-    cloneMissingOriginalTxsMap.size,
-    cloneMissingOriginalTxsMap
-  )
-  const collectFromSenderArchivers = true
-  if (collectFromSenderArchivers) {
-    for (const [txId, { txTimestamp, senders }] of cloneMissingOriginalTxsMap) {
-      collectMissingTxDataFromSenderArchivers(DataType.ORIGINAL_TX_DATA, senders, txId, txTimestamp)
-    }
-    cloneMissingOriginalTxsMap.clear()
-    return
-  }
-  // Try to get missing originalTxs from 3 different archivers if one archiver fails to return some receipts
-  const maxRetry = 3
-  let retry = 0
-  const bucketSize = config.REQUEST_LIMIT.MAX_ORIGINAL_TXS_PER_REQUEST
-  const archiversToUse: State.ArchiverNodeInfo[] = getArchiversToUse()
-  while (cloneMissingOriginalTxsMap.size > 0 && retry < maxRetry) {
-    // eslint-disable-next-line security/detect-object-injection
-    let archiver = archiversToUse[retry]
-    if (!archiver) archiver = archiversToUse[0]
-    const txIdList: [string, number][] = []
-    let totalEntries = cloneMissingOriginalTxsMap.size
-    for (const [txId, { txTimestamp }] of cloneMissingOriginalTxsMap) {
-      totalEntries--
-      if (
-        (processedOriginalTxsMap.has(txId) && processedOriginalTxsMap.get(txId) === txTimestamp) ||
-        (originalTxsInValidationMap.has(txId) && originalTxsInValidationMap.get(txId) === txTimestamp)
-      ) {
-        cloneMissingOriginalTxsMap.delete(txId)
-        collectingMissingOriginalTxsMap.delete(txId)
-        if (totalEntries !== 0) continue
-      } else txIdList.push([txId, txTimestamp])
-      if (txIdList.length !== bucketSize && totalEntries !== 0) continue
-      if (txIdList.length === 0) continue
-      const originalTxs = (await queryTxDataFromArchivers(
-        archiver,
-        DataType.ORIGINAL_TX_DATA,
-        txIdList
-      )) as OriginalTxDB.OriginalTxData[]
-      if (originalTxs && originalTxs.length > 0) {
-        const originalTxsDataToSave = []
-        for (const originalTx of originalTxs) {
-          const { txId, timestamp } = originalTx
-          if (
-            cloneMissingOriginalTxsMap.has(txId) &&
-            cloneMissingOriginalTxsMap.get(txId).txTimestamp === timestamp
-          ) {
-            cloneMissingOriginalTxsMap.delete(txId)
-            collectingMissingOriginalTxsMap.delete(txId)
-            originalTxsDataToSave.push(originalTx)
-          }
-        }
-        await storeOriginalTxData(originalTxsDataToSave, archiver.ip + ':' + archiver.port)
-      }
-    }
-    retry++
-  }
-  if (cloneMissingOriginalTxsMap.size > 0) {
-    Logger.mainLogger.debug(
-      'OriginalTxsData TxId that are failed to get from other archivers',
-      cloneMissingOriginalTxsMap
-    )
-    // Clear the failed txIds from the collectingMissingOriginalTxsMap
-    for (const [txId] of cloneMissingOriginalTxsMap) {
-      collectingMissingOriginalTxsMap.delete(txId)
-    }
-  }
-}
-
 export function cleanOldReceiptsMap(timestamp: number): void {
   let savedReceiptsCount = 0
   for (const [key, value] of processedReceiptsMap) {
@@ -1448,7 +1340,6 @@ export function cleanOldOriginalTxsMap(timestamp: number): void {
 export const scheduleMissingTxsDataQuery = (): void => {
   // Set to collect missing txs data in every 1 second
   setInterval(() => {
-    collectMissingReceipts()
-    collectMissingOriginalTxsData()
+    collectMissingTxDataFromArchivers()
   }, 1000)
 }
