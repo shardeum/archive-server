@@ -1164,11 +1164,7 @@ export const collectMissingTxDataFromArchivers = async (): Promise<void> => {
       }
     }
     if (cloneMissingReceiptsMap.size > 0)
-      Logger.mainLogger.debug(
-        'Collecting missing receipts',
-        cloneMissingReceiptsMap.size,
-        cloneMissingReceiptsMap
-      )
+      Logger.mainLogger.debug('Collecting missing receipts', cloneMissingReceiptsMap.size)
     for (const [txId, { txTimestamp, senders }] of cloneMissingReceiptsMap) {
       collectMissingReceipts(senders, txId, txTimestamp)
     }
@@ -1184,11 +1180,7 @@ export const collectMissingTxDataFromArchivers = async (): Promise<void> => {
       }
     }
     if (cloneMissingOriginalTxsMap.size > 0)
-      Logger.mainLogger.debug(
-        'Collecting missing originalTxsData',
-        cloneMissingOriginalTxsMap.size,
-        cloneMissingOriginalTxsMap
-      )
+      Logger.mainLogger.debug('Collecting missing originalTxsData', cloneMissingOriginalTxsMap.size)
     for (const [txId, { txTimestamp, senders }] of cloneMissingOriginalTxsMap) {
       collectMissingOriginalTxsData(senders, txId, txTimestamp)
     }
@@ -1203,7 +1195,12 @@ export const collectMissingReceipts = async (
 ): Promise<void> => {
   const txIdList: [string, number][] = [[txId, txTimestamp]]
   let foundTxData = false
-  for (const sender of senders) {
+  const senderArchivers = State.activeArchivers.filter((archiver) => senders.includes(archiver.publicKey))
+  Logger.mainLogger.debug(
+    `Collecting missing receipt for txId ${txId} with timestamp ${txTimestamp} from archivers`,
+    senderArchivers.map((a) => a.ip + ':' + a.port)
+  )
+  for (const senderArchiver of senderArchivers) {
     if (
       (processedReceiptsMap.has(txId) && processedReceiptsMap.get(txId) === txTimestamp) ||
       (receiptsInValidationMap.has(txId) && receiptsInValidationMap.get(txId) === txTimestamp)
@@ -1211,8 +1208,6 @@ export const collectMissingReceipts = async (
       foundTxData = true
       break
     }
-    const senderArchiver = State.activeArchivers.find((archiver) => archiver.publicKey === sender)
-    if (!senderArchiver) continue
     const receipts = (await queryTxDataFromArchivers(
       senderArchiver,
       DataType.RECEIPT,
@@ -1244,7 +1239,12 @@ const collectMissingOriginalTxsData = async (
 ): Promise<void> => {
   const txIdList: [string, number][] = [[txId, txTimestamp]]
   let foundTxData = false
-  for (const sender of senders) {
+  const senderArchivers = State.activeArchivers.filter((archiver) => senders.includes(archiver.publicKey))
+  Logger.mainLogger.debug(
+    `Collecting missing originalTxData for txId ${txId} with timestamp ${txTimestamp} from archivers`,
+    senderArchivers.map((a) => a.ip + ':' + a.port)
+  )
+  for (const senderArchiver of senderArchivers) {
     if (
       (processedOriginalTxsMap.has(txId) && processedOriginalTxsMap.get(txId) === txTimestamp) ||
       (originalTxsInValidationMap.has(txId) && originalTxsInValidationMap.get(txId) === txTimestamp)
@@ -1252,8 +1252,6 @@ const collectMissingOriginalTxsData = async (
       foundTxData = true
       break
     }
-    const senderArchiver = State.activeArchivers.find((archiver) => archiver.publicKey === sender)
-    if (!senderArchiver) continue
     const originalTxs = (await queryTxDataFromArchivers(
       senderArchiver,
       DataType.ORIGINAL_TX_DATA,
