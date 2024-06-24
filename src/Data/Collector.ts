@@ -406,7 +406,7 @@ export const verifyReceiptData = async (
     // Refer to https://github.com/shardeum/shardus-core/blob/f7000c36faa0cd1e0832aa1e5e3b1414d32dcf66/src/state-manager/TransactionConsensus.ts#L1406
     let votingGroupCount = cycleShardData.shardGlobals.nodesPerConsenusGroup
     if (votingGroupCount > cycleShardData.nodes.length) {
-      votingGroupCount = nodesPerConsensusGroup
+      votingGroupCount = cycleShardData.nodes.length
     }
     const requiredSignatures = Math.round(votingGroupCount * (2 / 3))
     if (signatures.length < requiredSignatures) {
@@ -812,6 +812,8 @@ export const storeReceiptData = async (
   }
   if (combineAccounts.length > 0) await Account.bulkInsertAccounts(combineAccounts)
   if (combineTransactions.length > 0) await Transaction.bulkInsertTransactions(combineTransactions)
+  // If the archiver is not active, good to clean up the processed receipts map if it exceeds 2000
+  if (!State.isActive && processedReceiptsMap.size > 2000) processedReceiptsMap.clear()
 }
 
 export const validateCycleData = (cycleRecord: P2PTypes.CycleCreatorTypes.CycleData): boolean => {
@@ -1002,6 +1004,8 @@ export const storeOriginalTxData = async (
     await OriginalTxsData.bulkInsertOriginalTxsData(combineOriginalTxsData)
     if (State.isActive) sendDataToAdjacentArchivers(DataType.ORIGINAL_TX_DATA, txDataList)
   }
+  // If the archiver is not active yet, good to clean up the processed originalTxs map if it exceeds 2000
+  if (!State.isActive && processedOriginalTxsMap.size > 2000) processedOriginalTxsMap.clear()
 }
 interface validateResponse {
   success: boolean
