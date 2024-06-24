@@ -114,23 +114,3 @@ export async function sendDataToAdjacentArchivers(
     Logger.mainLogger.debug('Fail to gossip')
   }
 }
-
-export const getArchiversToUse = (): State.ArchiverNodeInfo[] => {
-  let archiversToUse: State.ArchiverNodeInfo[] = []
-  const MAX_ARCHIVERS_TO_SELECT = 3
-  // Choosing MAX_ARCHIVERS_TO_SELECT random archivers from the remaining archivers list
-  if (State.otherArchivers.length <= MAX_ARCHIVERS_TO_SELECT) {
-    archiversToUse = [...State.otherArchivers]
-  } else {
-    archiversToUse = Utils.getRandomItemFromArr(remainingArchivers, 0, MAX_ARCHIVERS_TO_SELECT)
-    if (archiversToUse.length < MAX_ARCHIVERS_TO_SELECT) {
-      const requiredArchivers = MAX_ARCHIVERS_TO_SELECT - archiversToUse.length
-      // If the required archivers are not selected, then get it from the adjacent archivers
-      archiversToUse = [
-        ...archiversToUse,
-        ...Utils.getRandomItemFromArr([...adjacentArchivers.values()], requiredArchivers),
-      ]
-    }
-  }
-  return archiversToUse
-}
