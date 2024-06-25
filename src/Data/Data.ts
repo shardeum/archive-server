@@ -552,7 +552,10 @@ async function syncFromNetworkConfig(): Promise<any> {
     if (tallyItem?.value?.config) {
       // Updating the Archiver Config as per the latest Network Config
       const devPublicKeys = tallyItem.value.config?.devPublicKeys
-      const devPublicKey = devPublicKeys && Object.keys(devPublicKeys).length >= 3 && devPublicKeys[3]
+      const devPublicKey =
+        devPublicKeys &&
+        Object.keys(devPublicKeys).length >= 3 &&
+        Object.keys(devPublicKeys).find((key) => devPublicKeys[key] === 3)
       const newPOQReceipt = tallyItem.value.config?.useNewPOQ
       if (
         devPublicKey &&
@@ -561,7 +564,7 @@ async function syncFromNetworkConfig(): Promise<any> {
       )
         updateConfig({ DevPublicKey: devPublicKey })
       if (
-        newPOQReceipt !== null &&
+        !Utils.isUndefined(newPOQReceipt) &&
         typeof newPOQReceipt === typeof config.newPOQReceipt &&
         newPOQReceipt !== config.newPOQReceipt
       )
