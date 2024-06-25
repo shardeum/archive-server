@@ -252,6 +252,7 @@ export function updateConfig(newConfig: Partial<Config>): Config {
       )
   }
   config = merge(config, newConfig)
+  Logger.mainLogger.info('Updated Archiver Config:', config)
   return config
 }
 

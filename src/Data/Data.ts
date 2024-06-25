@@ -552,14 +552,20 @@ async function syncFromNetworkConfig(): Promise<any> {
     if (tallyItem?.value?.config) {
       // Updating the Archiver Config as per the latest Network Config
       const devPublicKeys = tallyItem.value.config?.devPublicKeys
-      const updateConfigProps = {
-        newPOQReceipt: tallyItem.value.config?.useNewPOQ,
-        DevPublicKey:
-          devPublicKeys && Object.keys(devPublicKeys).length >= 3
-            ? Object.keys(devPublicKeys).find((key) => devPublicKeys[key] === 3)
-            : '',
-      }
-      updateConfig(updateConfigProps)
+      const devPublicKey = devPublicKeys && Object.keys(devPublicKeys).length >= 3 && devPublicKeys[3]
+      const newPOQReceipt = tallyItem.value.config?.useNewPOQ
+      if (
+        devPublicKey &&
+        typeof devPublicKey === typeof config.DevPublicKey &&
+        devPublicKey !== config.DevPublicKey
+      )
+        updateConfig({ DevPublicKey: devPublicKey })
+      if (
+        newPOQReceipt !== null &&
+        typeof newPOQReceipt === typeof config.newPOQReceipt &&
+        newPOQReceipt !== config.newPOQReceipt
+      )
+        updateConfig({ newPOQReceipt })
       return tallyItem
     }
     return null
@@ -576,8 +582,8 @@ async function getConsensusRadius(): Promise<number> {
   const tallyItem = await syncFromNetworkConfig()
   // Check if a consensus was reached
   if (tallyItem?.value?.config) {
-    nodesPerEdge = tallyItem.value.config.sharding.nodesPerEdge
-    nodesPerConsensusGroup = tallyItem.value.config.sharding.nodesPerConsensusGroup
+    nodesPerEdge = tallyItem.value.config.sharding?.nodesPerEdge
+    nodesPerConsensusGroup = tallyItem.value.config?.sharding.nodesPerConsensusGroup
 
     if (!Number.isInteger(nodesPerConsensusGroup) || nodesPerConsensusGroup <= 0) {
       Logger.mainLogger.error('nodesPerConsensusGroup is not a valid number:', nodesPerConsensusGroup)
