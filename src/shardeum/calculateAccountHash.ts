@@ -57,17 +57,6 @@ export const accountSpecificHash = (account: any): string => {
   return hash
 }
 
-// Converting the correct account data format to get the correct hash
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const fixAccountUint8Arrays = (account: any): void => {
-  if (!account) return // if account is null, return
-  if (account.storageRoot) account.storageRoot = Uint8Array.from(Object.values(account.storageRoot)) // Account
-  if (account.codeHash) account.codeHash = Uint8Array.from(Object.values(account.codeHash)) //
-  //Account and ContractCode
-  if (account.codeByte) account.codeByte = Uint8Array.from(Object.values(account.codeByte)) // ContractCode
-  if (account.value) account.value = Uint8Array.from(Object.values(account.value)) // ContractByte
-}
-
 export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
   try {
     if (receipt.globalModification && config.skipGlobalTxReceiptVerification) return true // return true if global modification
@@ -87,16 +76,6 @@ export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
       return false
     }
     for (const account of receipt.accounts) {
-      if (account.data.accountType === AccountType.Account) {
-        fixAccountUint8Arrays(account.data.account)
-        // console.dir(acc, { depth: null })
-      } else if (
-        account.data.accountType === AccountType.ContractCode ||
-        account.data.accountType === AccountType.ContractStorage
-      ) {
-        fixAccountUint8Arrays(account.data)
-        // console.dir(acc, { depth: null })
-      }
       const calculatedAccountHash = accountSpecificHash(account.data)
       const indexOfAccount = receipt.appliedReceipt.appliedVote.account_id.indexOf(account.accountId)
       if (indexOfAccount === -1) {
