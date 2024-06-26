@@ -63,6 +63,11 @@ const {
   MAX_BETWEEN_CYCLES_PER_REQUEST,
 } = config.REQUEST_LIMIT
 
+const GENESIS_ACCOUNTS_CYCLE_RANGE = {
+  startCycle: 0,
+  endCycle: 5,
+}
+
 export enum DataRequestTypes {
   SUBSCRIBE = 'SUBSCRIBE',
   UNSUBSCRIBE = 'UNSUBSCRIBE',
@@ -280,26 +285,30 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
         collectCycleData(newData.responses.CYCLE, sender.nodeInfo.ip + ':' + sender.nodeInfo.port)
       }
       if (newData.responses && newData.responses.ACCOUNT) {
-        console.log(
-          'RECEIVED ACCOUNTS DATA',
-          sender.nodeInfo.publicKey,
-          sender.nodeInfo.ip,
-          sender.nodeInfo.port
-        )
-        Logger.mainLogger.debug(
-          'RECEIVED ACCOUNTS DATA',
-          sender.nodeInfo.publicKey,
-          sender.nodeInfo.ip,
-          sender.nodeInfo.port
-        )
+        if (getCurrentCycleCounter() > GENESIS_ACCOUNTS_CYCLE_RANGE.endCycle) {
+          Logger.mainLogger.error(
+            'Account data is not meant to be received after the genesis cycle',
+            getCurrentCycleCounter()
+          )
+          unsubscribeDataSender(sender.nodeInfo.publicKey)
+          return
+        }
+        if (NodeList.byPublicKey.size > 1 || !NodeList.byPublicKey.has(sender.nodeInfo.publicKey)) {
+          Logger.mainLogger.error(
+            'Account data is not meant to be received by the first validator',
+            `Number of nodes in the network ${NodeList.byPublicKey.size}`
+          )
+          unsubscribeDataSender(sender.nodeInfo.publicKey)
+          return
+        }
+        Logger.mainLogger.debug(`RECEIVED ACCOUNTS DATA FROM ${sender.nodeInfo.ip}:${sender.nodeInfo.port}`)
         nestedCountersInstance.countEvent('genesis', 'accounts', 1)
         if (!forwardGenesisAccounts) {
-          console.log('Genesis Accounts To Sycn', newData.responses.ACCOUNT)
           Logger.mainLogger.debug('Genesis Accounts To Sycn', newData.responses.ACCOUNT)
           syncGenesisAccountsFromConsensor(newData.responses.ACCOUNT, sender.nodeInfo)
         } else {
           if (storingAccountData) {
-            console.log('Storing Data')
+            Logger.mainLogger.debug('Storing Account Data')
             let newCombineAccountsData = { ...combineAccountsData }
             if (newData.responses.ACCOUNT.accounts)
               newCombineAccountsData.accounts = [
@@ -321,17 +330,14 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
       }
 
       // Set new contactTimeout for sender. Postpone sender removal because data is still received from consensor
-      if (currentCycleDuration > 0) {
-        nestedCountersInstance.countEvent('archiver', 'postpone_contact_timeout')
-        // To make sure that the sender is still in the subscribed list
-        sender = dataSenders.get(newData.publicKey)
-        if (sender)
-          sender.contactTimeout = createContactTimeout(
-            sender.nodeInfo.publicKey,
-            'This timeout is created after processing data'
-          )
-      }
-      return
+      nestedCountersInstance.countEvent('archiver', 'postpone_contact_timeout')
+      // To make sure that the sender is still in the subscribed list
+      sender = dataSenders.get(newData.publicKey)
+      if (sender)
+        sender.contactTimeout = createContactTimeout(
+          sender.nodeInfo.publicKey,
+          'This timeout is created after processing data'
+        )
     }
   })
 }
@@ -1009,7 +1015,7 @@ export async function syncGenesisAccountsFromArchiver(): Promise<void> {
   // }
   const res = (await queryFromArchivers(
     RequestDataType.ACCOUNT,
-    { startCycle: 0, endCycle: 5 },
+    { startCycle: GENESIS_ACCOUNTS_CYCLE_RANGE.startCycle, endCycle: GENESIS_ACCOUNTS_CYCLE_RANGE.endCycle },
     QUERY_TIMEOUT_MAX
   )) as ArchiverAccountResponse
   if (res && (res.totalAccounts || res.totalAccounts === 0)) {
@@ -1026,8 +1032,8 @@ export async function syncGenesisAccountsFromArchiver(): Promise<void> {
     const response = (await queryFromArchivers(
       RequestDataType.ACCOUNT,
       {
-        startCycle: 0,
-        endCycle: 5,
+        startCycle: GENESIS_ACCOUNTS_CYCLE_RANGE.startCycle,
+        endCycle: GENESIS_ACCOUNTS_CYCLE_RANGE.endCycle,
         page,
       },
       QUERY_TIMEOUT_MAX
@@ -1059,8 +1065,8 @@ export async function syncGenesisTransactionsFromArchiver(): Promise<void> {
   const res = (await queryFromArchivers(
     RequestDataType.TRANSACTION,
     {
-      startCycle: 0,
-      endCycle: 5,
+      startCycle: GENESIS_ACCOUNTS_CYCLE_RANGE.startCycle,
+      endCycle: GENESIS_ACCOUNTS_CYCLE_RANGE.endCycle,
     },
     QUERY_TIMEOUT_MAX
   )) as ArchiverTransactionResponse
@@ -1078,8 +1084,8 @@ export async function syncGenesisTransactionsFromArchiver(): Promise<void> {
     const response = (await queryFromArchivers(
       RequestDataType.TRANSACTION,
       {
-        startCycle: 0,
-        endCycle: 5,
+        startCycle: GENESIS_ACCOUNTS_CYCLE_RANGE.startCycle,
+        endCycle: GENESIS_ACCOUNTS_CYCLE_RANGE.endCycle,
         page,
       },
       QUERY_TIMEOUT_MAX

@@ -26,7 +26,7 @@ import { CycleLogWriter, ReceiptLogWriter, OriginalTxDataLogWriter } from '../Da
 import * as OriginalTxDB from '../dbstore/originalTxsData'
 import ShardFunction from '../ShardFunctions'
 import { ConsensusNodeInfo } from '../NodeList'
-import { verifyAccountHash } from '../shardeum/calculateAccountHash'
+import { accountSpecificHash, verifyAccountHash } from '../shardeum/calculateAccountHash'
 import { verifyAppReceiptData } from '../shardeum/verifyAppReceiptData'
 import { Cycle as DbCycle } from '../dbstore/types'
 import { Utils as StringUtils } from '@shardus/types'
@@ -927,12 +927,11 @@ interface StoreAccountParam {
 }
 
 export const storeAccountData = async (restoreData: StoreAccountParam = {}): Promise<void> => {
-  console.log(
-    'RestoreData',
-    'accounts',
-    restoreData.accounts ? restoreData.accounts.length : 0,
-    'receipts',
-    restoreData.receipts ? restoreData.receipts.length : 0
+  Logger.mainLogger.debug(
+    `storeAccountData: ${restoreData.accounts ? restoreData.accounts.length : 0} accounts`
+  )
+  Logger.mainLogger.debug(
+    `storeAccountData: ${restoreData.receipts ? restoreData.receipts.length : 0} receipts`
   )
   const { accounts, receipts } = restoreData
   if (profilerInstance) profilerInstance.profileSectionStart('store_account_data')
@@ -953,7 +952,28 @@ export const storeAccountData = async (restoreData: StoreAccountParam = {}): Pro
   //   //   await Account.insertAccount(account)
   //   // }
   // }
-  if (accounts && accounts.length > 0) await Account.bulkInsertAccounts(accounts)
+  //
+  if (accounts && accounts.length > 0) {
+    const combineAccounts = []
+    for (const account of accounts) {
+      try {
+        const calculatedAccountHash = accountSpecificHash(account.data)
+        if (calculatedAccountHash !== account.hash) {
+          Logger.mainLogger.error(
+            'Invalid account hash',
+            account.accountId,
+            account.hash,
+            calculatedAccountHash
+          )
+          continue
+        }
+        combineAccounts.push(account)
+      } catch (error) {
+        Logger.mainLogger.error('Error in calculating genesis account hash', error)
+      }
+    }
+    if (combineAccounts.length > 0) await Account.bulkInsertAccounts(accounts)
+  }
   if (receipts && receipts.length > 0) {
     Logger.mainLogger.debug('Received receipts Size', receipts.length)
     const combineTransactions = []
@@ -971,10 +991,9 @@ export const storeAccountData = async (restoreData: StoreAccountParam = {}): Pro
     await Transaction.bulkInsertTransactions(combineTransactions)
   }
   if (profilerInstance) profilerInstance.profileSectionEnd('store_account_data')
-  console.log('Combined Accounts Data', combineAccountsData.accounts.length)
   Logger.mainLogger.debug('Combined Accounts Data', combineAccountsData.accounts.length)
   if (combineAccountsData.accounts.length > 0 || combineAccountsData.receipts.length > 0) {
-    console.log('Found combine accountsData')
+    Logger.mainLogger.debug('Found combine accountsData', combineAccountsData.accounts.length)
     const accountData = { ...combineAccountsData }
     clearCombinedAccountsData()
     storeAccountData(accountData)
