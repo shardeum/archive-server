@@ -70,6 +70,10 @@ export interface Config {
   requiredVotesPercentage: number
   // number of recent cycles of shard data to keep
   CYCLE_SHARD_STORAGE_LIMIT: number
+  // the number of cycles within which we want to keep \changes to a config*/
+  configChangeMaxCyclesToKeep: number
+  // the number of config changes to keep*/
+  configChangeMaxChangesToKeep: number
 }
 
 let config: Config = {
@@ -134,6 +138,8 @@ let config: Config = {
   usePOQo: true,
   requiredVotesPercentage: 2 / 3,
   CYCLE_SHARD_STORAGE_LIMIT: 10,
+  configChangeMaxCyclesToKeep: 5,
+  configChangeMaxChangesToKeep: 1000,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {

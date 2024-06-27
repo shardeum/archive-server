@@ -7,8 +7,9 @@ import { config } from './Config'
 import { postJson, getJson } from './P2P'
 import { robustQuery, deepCopy } from './Utils'
 import { isDeepStrictEqual } from 'util'
+import { accountSpecificHash } from './shardeum/calculateAccountHash'
 
-let cachedGlobalNetworkAccount: object
+let cachedGlobalNetworkAccount: AccountDB.AccountCopy
 let cachedGlobalNetworkAccountHash: string
 
 interface Node {
@@ -21,6 +22,7 @@ export interface GlobalAccountsHashAndTimestamp {
   timestamp: number
 }
 export const globalAccountsMap = new Map<string, GlobalAccountsHashAndTimestamp>()
+const appliedConfigChanges = new Set()
 
 export function getGlobalNetworkAccount(hash: boolean): object | string {
   if (hash) {
@@ -33,6 +35,138 @@ export function getGlobalNetworkAccount(hash: boolean): object | string {
 export function setGlobalNetworkAccount(account: AccountDB.AccountCopy): void {
   cachedGlobalNetworkAccount = rfdc()(account)
   cachedGlobalNetworkAccountHash = account.hash
+}
+
+interface NetworkConfigChanges {
+  cycle: number
+  change: any
+  appData: any
+}
+
+export const updateGlobalNetworkAccount = async (cycleNumber: number): Promise<void> => {
+  if (!cachedGlobalNetworkAccountHash) return
+  const networkAccount = rfdc()(cachedGlobalNetworkAccount)
+  const changes = networkAccount.data.listOfChanges as NetworkConfigChanges[]
+  if (!changes || !Array.isArray(changes)) {
+    return
+  }
+  for (const change of changes) {
+    // skip future changes
+    if (change.cycle > cycleNumber) {
+      continue
+    }
+    const changeHash = Crypto.hashObj(change)
+    // skip handled changes
+    if (appliedConfigChanges.has(changeHash)) {
+      continue
+    }
+    // apply this change
+    appliedConfigChanges.add(changeHash)
+    const changeObj = change.change
+    const appData = change.appData
+
+    // If there is initShutdown change, if the latest cycle is greater than the cycle of the change, then skip it
+    if (changeObj['p2p'] && changeObj['p2p']['initShutdown'] && change.cycle !== cycleNumber) continue
+
+    const newChanges = pruneNetworkChangeQueue(changes, cycleNumber)
+    networkAccount.data.listOfChanges = newChanges
+    // Increase the timestamp by 1 second
+    networkAccount.data.timestamp += 1000
+
+    if (appData) {
+      updateNetworkChangeQueue(networkAccount.data, appData)
+      console.dir(networkAccount.data, { depth: null })
+      networkAccount.data.timestamp += 1000
+    }
+
+    // Increase the timestamp by 1 second
+    networkAccount.hash = accountSpecificHash(networkAccount.data)
+    networkAccount.timestamp = networkAccount.data.timestamp
+    Logger.mainLogger.debug('updateGlobalNetworkAccount', networkAccount)
+    await AccountDB.updateAccount(networkAccount)
+    setGlobalNetworkAccount(networkAccount)
+  }
+}
+
+const generatePathKeys = (obj: any, prefix = ''): string[] => {
+  /* eslint-disable security/detect-object-injection */
+  let paths: string[] = []
+
+  // Loop over each key in the object
+  for (const key of Object.keys(obj)) {
+    // If the value corresponding to this key is an object (and not an array or null),
+    // then recurse into it.
+    if (obj[key] !== null && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+      paths = paths.concat(generatePathKeys(obj[key], prefix + key + '.'))
+    } else {
+      // Otherwise, just append this key to the path.
+      paths.push(prefix + key)
+    }
+  }
+  return paths
+  /* eslint-enable security/detect-object-injection */
+}
+
+const pruneNetworkChangeQueue = (
+  changes: NetworkConfigChanges[],
+  currentCycle: number
+): NetworkConfigChanges[] => {
+  const configsMap = new Map()
+  const keepAliveCount = config.configChangeMaxChangesToKeep
+  console.log('pruneNetworkChangeQueue', changes.length, keepAliveCount)
+  for (let i = changes.length - 1; i >= 0; i--) {
+    const thisChange = changes[i]
+    let keepAlive = false
+
+    let appConfigs = []
+    if (thisChange.appData) {
+      appConfigs = generatePathKeys(thisChange.appData, 'appdata.')
+      console.log('pruneNetworkChangeQueue appConfigs', appConfigs)
+    }
+    const shardusConfigs: string[] = generatePathKeys(thisChange.change)
+    console.log('pruneNetworkChangeQueue shardusConfigs', shardusConfigs)
+
+    const allConfigs = appConfigs.concat(shardusConfigs)
+    console.log('pruneNetworkChangeQueue allConfigs', allConfigs)
+
+    for (const config of allConfigs) {
+      if (!configsMap.has(config)) {
+        configsMap.set(config, 1)
+        keepAlive = true
+      } else if (configsMap.get(config) < keepAliveCount) {
+        configsMap.set(config, configsMap.get(config) + 1)
+        keepAlive = true
+      }
+    }
+
+    if (currentCycle - thisChange.cycle <= config.configChangeMaxCyclesToKeep) {
+      keepAlive = true
+    }
+    console.log('pruneNetworkChangeQueue keepAlive', keepAlive, thisChange, configsMap)
+
+    if (keepAlive == false) {
+      changes.splice(i, 1)
+    }
+  }
+  return changes
+}
+
+const updateNetworkChangeQueue = (data: object, appData: object): void => {
+  if ('current' in data) patchAndUpdate(data?.current, appData)
+  console.log('updateNetworkChangeQueue', data)
+}
+
+const patchAndUpdate = (existingObject: any, changeObj: any, parentPath = ''): void => {
+  /* eslint-disable security/detect-object-injection */
+  for (const [key, value] of Object.entries(changeObj)) {
+    if (existingObject[key] != null) {
+      if (typeof value === 'object') {
+        patchAndUpdate(existingObject[key], value, parentPath === '' ? key : parentPath + '.' + key)
+      } else {
+        existingObject[key] = value
+      }
+    }
+  }
 }
 
 export const loadGlobalAccounts = async (): Promise<void> => {

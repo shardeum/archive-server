@@ -29,6 +29,7 @@ import { RequestDataType, queryFromArchivers } from '../API'
 import { stringifyReduce } from '../profiler/StringifyReduce'
 import { addCyclesToCache } from '../cache/cycleRecordsCache'
 import { queryLatestCycleRecords } from '../dbstore/cycles'
+import { updateGlobalNetworkAccount } from '../GlobalAccount'
 
 export interface ArchiverCycleResponse {
   cycleInfo: P2PTypes.CycleCreatorTypes.CycleData[]
@@ -83,6 +84,8 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
         // Check the archivers reputaion in every new cycle & record the status
         recordArchiversReputation()
       }
+      await updateGlobalNetworkAccount(cycle.counter)
+
       if (currentNetworkMode === 'shutdown') {
         Logger.mainLogger.debug(Date.now(), `❌ Shutdown Cycle Record received at Cycle #: ${cycle.counter}`)
         await Utils.sleep(currentCycleDuration)
