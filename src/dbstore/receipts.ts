@@ -28,7 +28,7 @@ export interface ArchiverReceipt {
 /* Archiver receipt for POQo */
 export interface ArchiverReceipt2 {
   signedReceipt: StateManager.StateManagerTypes.SignedReceipt
-  appReceiptData: object & { accountId?: string; data: object }
+  appData: object & { accountId?: string; data: object }
   beforeStates?: Account.AccountCopy[]
   afterStates: Account.AccountCopy[]
 }
