@@ -22,7 +22,7 @@ export interface GlobalAccountsHashAndTimestamp {
   timestamp: number
 }
 export const globalAccountsMap = new Map<string, GlobalAccountsHashAndTimestamp>()
-const appliedConfigChanges = new Set()
+const appliedConfigChanges = new Set<string>()
 
 export function getGlobalNetworkAccount(hash: boolean): object | string {
   if (hash) {
@@ -50,6 +50,7 @@ export const updateGlobalNetworkAccount = async (cycleNumber: number): Promise<v
   if (!changes || !Array.isArray(changes)) {
     return
   }
+  const activeConfigChanges = new Set<string>()
   for (const change of changes) {
     // skip future changes
     if (change.cycle > cycleNumber) {
@@ -58,10 +59,12 @@ export const updateGlobalNetworkAccount = async (cycleNumber: number): Promise<v
     const changeHash = Crypto.hashObj(change)
     // skip handled changes
     if (appliedConfigChanges.has(changeHash)) {
+      activeConfigChanges.add(changeHash)
       continue
     }
     // apply this change
     appliedConfigChanges.add(changeHash)
+    activeConfigChanges.add(changeHash)
     const changeObj = change.change
     const appData = change.appData
 
@@ -85,6 +88,14 @@ export const updateGlobalNetworkAccount = async (cycleNumber: number): Promise<v
     Logger.mainLogger.debug('updateGlobalNetworkAccount', networkAccount)
     await AccountDB.updateAccount(networkAccount)
     setGlobalNetworkAccount(networkAccount)
+  }
+  if (activeConfigChanges.size > 0) {
+    // clear the entries from appliedConfigChanges that are no longer in the changes list
+    for (const changeHash of appliedConfigChanges) {
+      if (!activeConfigChanges.has(changeHash)) {
+        appliedConfigChanges.delete(changeHash)
+      }
+    }
   }
 }
 

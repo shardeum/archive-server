@@ -558,15 +558,18 @@ async function syncFromNetworkConfig(): Promise<any> {
       equalityFn,
       3 // Redundancy (minimum 3 nodes should return the same result to reach consensus)
     )
-
-    if (tallyItem?.value?.config) {
+    if (tallyItem?.value?.config?.stateManager) {
       // Updating the Archiver Config as per the latest Network Config
-      const devPublicKeys = tallyItem.value.config?.devPublicKeys
+      const {
+        devPublicKeys,
+        useNewPOQ: newPOQReceipt,
+        configChangeMaxChangesToKeep,
+        configChangeMaxCyclesToKeep,
+      } = tallyItem.value.config.stateManager
       const devPublicKey =
         devPublicKeys &&
         Object.keys(devPublicKeys).length >= 3 &&
         Object.keys(devPublicKeys).find((key) => devPublicKeys[key] === 3)
-      const newPOQReceipt = tallyItem.value.config?.useNewPOQ
       if (
         devPublicKey &&
         typeof devPublicKey === typeof config.DevPublicKey &&
@@ -579,6 +582,18 @@ async function syncFromNetworkConfig(): Promise<any> {
         newPOQReceipt !== config.newPOQReceipt
       )
         updateConfig({ newPOQReceipt })
+      if (
+        !Utils.isUndefined(configChangeMaxChangesToKeep) &&
+        typeof configChangeMaxChangesToKeep === typeof config.configChangeMaxChangesToKeep &&
+        configChangeMaxChangesToKeep !== config.configChangeMaxChangesToKeep
+      )
+        updateConfig({ configChangeMaxChangesToKeep })
+      if (
+        !Utils.isUndefined(configChangeMaxCyclesToKeep) &&
+        typeof configChangeMaxCyclesToKeep === typeof config.configChangeMaxCyclesToKeep &&
+        configChangeMaxCyclesToKeep !== config.configChangeMaxCyclesToKeep
+      )
+        updateConfig({ configChangeMaxCyclesToKeep })
       return tallyItem
     }
     return null
@@ -593,20 +608,29 @@ async function getConsensusRadius(): Promise<number> {
   if (NodeList.isEmpty()) return currentConsensusRadius
 
   const tallyItem = await syncFromNetworkConfig()
-  // Check if a consensus was reached
   if (tallyItem?.value?.config) {
-    nodesPerEdge = tallyItem.value.config.sharding?.nodesPerEdge
-    nodesPerConsensusGroup = tallyItem.value.config?.sharding.nodesPerConsensusGroup
+    const nodesPerEdgeFromConfig = tallyItem.value.config.sharding?.nodesPerEdge
+    const nodesPerConsensusGroupFromConfig = tallyItem.value.config.sharding?.nodesPerConsensusGroup
 
-    if (!Number.isInteger(nodesPerConsensusGroup) || nodesPerConsensusGroup <= 0) {
-      Logger.mainLogger.error('nodesPerConsensusGroup is not a valid number:', nodesPerConsensusGroup)
+    if (!Number.isInteger(nodesPerConsensusGroupFromConfig) || nodesPerConsensusGroupFromConfig <= 0) {
+      Logger.mainLogger.error(
+        'nodesPerConsensusGroup is not a valid number:',
+        nodesPerConsensusGroupFromConfig
+      )
       return currentConsensusRadius
     }
 
-    if (!Number.isInteger(nodesPerEdge) || nodesPerEdge <= 0) {
-      Logger.mainLogger.error('nodesPerEdge is not a valid number:', nodesPerEdge)
+    if (!Number.isInteger(nodesPerEdgeFromConfig) || nodesPerEdgeFromConfig <= 0) {
+      Logger.mainLogger.error('nodesPerEdge is not a valid number:', nodesPerEdgeFromConfig)
       return currentConsensusRadius
     }
+    if (
+      nodesPerConsensusGroup === nodesPerConsensusGroupFromConfig &&
+      nodesPerEdge === nodesPerEdgeFromConfig
+    )
+      return currentConsensusRadius
+    nodesPerConsensusGroup = nodesPerConsensusGroupFromConfig
+    nodesPerEdge = nodesPerEdgeFromConfig
     // Upgrading consensus size to an odd number
     if (nodesPerConsensusGroup % 2 === 0) nodesPerConsensusGroup++
     const consensusRadius = Math.floor((nodesPerConsensusGroup - 1) / 2)
