@@ -65,6 +65,10 @@ export interface Config {
   saveOnlyGossipData: boolean
   // For debugging purpose, set this to true to stop gossiping tx data
   stopGossipTxData: boolean
+  // the number of cycles within which we want to keep \changes to a config*/
+  configChangeMaxCyclesToKeep: number
+  // the number of config changes to keep*/
+  configChangeMaxChangesToKeep: number
 }
 
 let config: Config = {
@@ -126,6 +130,8 @@ let config: Config = {
   extraConsensorsToSubscribe: 1,
   saveOnlyGossipData: false,
   stopGossipTxData: false,
+  configChangeMaxCyclesToKeep: 5,
+  configChangeMaxChangesToKeep: 1000,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {
