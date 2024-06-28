@@ -5,6 +5,7 @@ import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString } from '../utils/serialization'
 import * as Account from '../dbstore/accounts'
+import { StateManager } from '@shardus/types'
 
 /**
  * ArchiverReceipt is the full data (shardusReceipt + appReceiptData + accounts ) of a tx that is sent to the archiver
@@ -22,6 +23,14 @@ export interface ArchiverReceipt {
   appliedReceipt: AppliedReceipt2
   executionShardKey: string
   globalModification: boolean
+}
+
+/* Archiver receipt for POQo */
+export interface ArchiverReceipt2 {
+  signedReceipt: StateManager.StateManagerTypes.SignedReceipt
+  appReceiptData: object & { accountId?: string; data: object }
+  beforeStates?: Account.AccountCopy[]
+  afterStates: Account.AccountCopy[]
 }
 
 export type AppliedVote = {
