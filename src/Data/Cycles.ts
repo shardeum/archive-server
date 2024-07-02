@@ -52,8 +52,6 @@ export let cycleRecordWithShutDownMode = null as P2PTypes.CycleCreatorTypes.Cycl
 export let currentNetworkMode: P2PTypes.ModesTypes.Record['mode'] = 'forming'
 export const shardValuesByCycle = new Map<number, StateManager.shardFunctionTypes.CycleShardData>()
 
-const CYCLE_SHARD_STORAGE_LIMIT = 20
-
 export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData[]): Promise<void> {
   if (profilerInstance) profilerInstance.profileSectionStart('process_cycle', false)
   try {
@@ -518,7 +516,7 @@ function updateShardValues(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   const list = cycleShardData.nodes.map((n) => n['ip'] + ':' + n['port'])
   Logger.mainLogger.debug('cycleShardData', cycleShardData.cycleNumber, list.length, stringifyReduce(list))
   shardValuesByCycle.set(cycleShardData.cycleNumber, cycleShardData)
-  if (shardValuesByCycle.size > CYCLE_SHARD_STORAGE_LIMIT) {
+  if (shardValuesByCycle.size > config.CYCLE_SHARD_STORAGE_LIMIT) {
     shardValuesByCycle.delete(shardValuesByCycle.keys().next().value)
   }
 }

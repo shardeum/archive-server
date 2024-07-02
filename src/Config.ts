@@ -68,6 +68,8 @@ export interface Config {
   usePOQo: boolean
   // The percentage of votes required to confirm transaction
   requiredVotesPercentage: number
+  // number of recent cycles of shard data to keep
+  CYCLE_SHARD_STORAGE_LIMIT: number
 }
 
 let config: Config = {
@@ -131,6 +133,7 @@ let config: Config = {
   stopGossipTxData: false,
   usePOQo: true,
   requiredVotesPercentage: 2 / 3,
+  CYCLE_SHARD_STORAGE_LIMIT: 3,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {
