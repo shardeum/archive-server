@@ -390,7 +390,18 @@ export const verifyReceiptData = async (
   const { executionShardKey, cycle, appliedReceipt, globalModification } = receipt
   if (globalModification && config.skipGlobalTxReceiptVerification) return { success: true }
   const { appliedVote, signatures } = appliedReceipt
-  const txId = receipt.tx.txId
+  const { txId, timestamp } = receipt.tx
+  const currentTimestamp = Date.now()
+  // Console log the timetaken between the receipt timestamp and the current time ( both in ms and s)
+  console.log(
+    `Time taken between receipt timestamp and current time: ${txId}`,
+    `${currentTimestamp - timestamp} ms`,
+    `${currentTimestamp - timestamp / 1000} s`
+  )
+  if (getCurrentCycleCounter() - cycle > 2) {
+    Logger.mainLogger.error(`Found receipt with cycle older than 2 cycles ${txId}, ${cycle}, ${timestamp}`)
+    console.dir(receipt, { depth: null })
+  }
   const cycleShardData = shardValuesByCycle.get(cycle)
   if (!cycleShardData) {
     Logger.mainLogger.error('Cycle shard data not found')
@@ -435,7 +446,7 @@ export const verifyReceiptData = async (
       const node = cycleShardData.nodes.find((node) => node.publicKey === nodePubKey)
       if (node == null) {
         Logger.mainLogger.error(
-          `The node with public key ${nodePubKey} of the receipt ${txId}} is not in the active nodesList of cycle ${cycle}`
+          `The node with public key ${nodePubKey} of the receipt ${txId}} with ${timestamp} is not in the active nodesList of cycle ${cycle}`
         )
         if (nestedCountersInstance)
           nestedCountersInstance.countEvent(
@@ -447,7 +458,7 @@ export const verifyReceiptData = async (
       // Check if the node is in the execution group
       if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[node.id]) {
         Logger.mainLogger.error(
-          `The node with public key ${nodePubKey} of the receipt ${txId} is not in the execution group of the tx`
+          `The node with public key ${nodePubKey} of the receipt ${txId} with ${timestamp} is not in the execution group of the tx`
         )
         if (nestedCountersInstance)
           nestedCountersInstance.countEvent(

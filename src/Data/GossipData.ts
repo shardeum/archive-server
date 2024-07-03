@@ -98,13 +98,13 @@ export async function sendDataToAdjacentArchivers(
         })
         promises.push(promise)
       } catch (e) {
-        Logger.mainLogger.error('Error', e)
+        Logger.mainLogger.error(`Gossip Error to archiver ${archiver.ip}: ${archiver.port}`, e)
       }
     }
     try {
       await Promise.allSettled(promises)
     } catch (err) {
-      Logger.mainLogger.error('Network: ' + err)
+      Logger.mainLogger.error('Gossip Error: ' + err)
     }
   } catch (ex) {
     Logger.mainLogger.debug(ex)
