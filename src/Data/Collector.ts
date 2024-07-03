@@ -396,10 +396,13 @@ export const verifyReceiptData = async (
   console.log(
     `Time taken between receipt timestamp and current time: ${txId}`,
     `${currentTimestamp - timestamp} ms`,
-    `${currentTimestamp - timestamp / 1000} s`
+    `${(currentTimestamp - timestamp) / 1000} s`
   )
-  if (getCurrentCycleCounter() - cycle > 2) {
-    Logger.mainLogger.error(`Found receipt with cycle older than 2 cycles ${txId}, ${cycle}, ${timestamp}`)
+  const currentCycle = getCurrentCycleCounter()
+  if (currentCycle - cycle > 2) {
+    Logger.mainLogger.error(
+      `Found receipt with cycle older than 2 cycles ${txId}, ${cycle}, ${timestamp}, ${currentCycle}`
+    )
     console.dir(receipt, { depth: null })
   }
   const cycleShardData = shardValuesByCycle.get(cycle)

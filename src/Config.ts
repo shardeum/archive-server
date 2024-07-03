@@ -133,7 +133,7 @@ let config: Config = {
   stopGossipTxData: false,
   usePOQo: true,
   requiredVotesPercentage: 2 / 3,
-  CYCLE_SHARD_STORAGE_LIMIT: 3,
+  CYCLE_SHARD_STORAGE_LIMIT: 10,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {
