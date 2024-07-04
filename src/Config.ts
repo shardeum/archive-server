@@ -65,6 +65,7 @@ export interface Config {
   saveOnlyGossipData: boolean
   // For debugging purpose, set this to true to stop gossiping tx data
   stopGossipTxData: boolean
+  usePOQo: boolean
 }
 
 let config: Config = {
@@ -126,6 +127,7 @@ let config: Config = {
   extraConsensorsToSubscribe: 1,
   saveOnlyGossipData: false,
   stopGossipTxData: false,
+  usePOQo: true,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {

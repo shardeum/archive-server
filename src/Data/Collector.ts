@@ -581,7 +581,32 @@ export const verifyReceiptData = async (
 }
 
 const calculateVoteHash = (vote: Receipt.AppliedVote): string => {
-  return Crypto.hashObj({ ...vote, node_id: '' })
+  try {
+    if (config.usePOQo === true) {
+      const appliedHash = {
+        applied: vote.transaction_result,
+        cantApply: vote.cant_apply,
+      }
+      const stateHash = {
+        account_id: vote.account_id,
+        account_state_hash_after: vote.account_state_hash_after,
+        account_state_hash_before: vote.account_state_hash_before,
+      }
+      const appDataHash = {
+        app_data_hash: vote.app_data_hash,
+      }
+      const voteToHash = {
+        appliedHash: Crypto.hashObj(appliedHash),
+        stateHash: Crypto.hashObj(stateHash),
+        appDataHash: Crypto.hashObj(appDataHash),
+      }
+      return Crypto.hashObj(voteToHash)
+    }
+    return Crypto.hashObj({ ...vote, node_id: '' })
+  } catch {
+    Logger.mainLogger.error('Error in calculateVoteHash', vote)
+    return ''
+  }
 }
 
 export const storeReceiptData = async (

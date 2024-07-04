@@ -52,7 +52,7 @@ export let cycleRecordWithShutDownMode = null as P2PTypes.CycleCreatorTypes.Cycl
 export let currentNetworkMode: P2PTypes.ModesTypes.Record['mode'] = 'forming'
 export const shardValuesByCycle = new Map<number, StateManager.shardFunctionTypes.CycleShardData>()
 
-const CYCLE_SHARD_STORAGE_LIMIT = 3
+const CYCLE_SHARD_STORAGE_LIMIT = 20
 
 export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData[]): Promise<void> {
   if (profilerInstance) profilerInstance.profileSectionStart('process_cycle', false)
@@ -93,8 +93,8 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
         setShutdownCycleRecord(cycle)
         NodeList.toggleFirstNode()
       }
-      // Clean receipts/originalTxs cache that are older than 5 minutes
-      const cleanupTimestamp = Date.now() - 5 * 60 * 1000
+      // Clean receipts/originalTxs cache that are older than 20 minutes to match with CYCLE_SHARD_STORAGE_LIMIT ( actual fix is on another branch )
+      const cleanupTimestamp = Date.now() - 20 * 60 * 1000
       cleanOldOriginalTxsMap(cleanupTimestamp)
       cleanOldReceiptsMap(cleanupTimestamp)
     }
