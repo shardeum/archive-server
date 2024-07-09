@@ -12,6 +12,16 @@ on:
     branches:
       - dev
       - main
+  issue_comment:
+    inputs:
+      workflowBranch:
+        description: 'Branch of the reusable workflow. Defaults to main, select dev for testing only.'
+        required: true
+        default: 'main'
+        type: choice
+        options:
+          - dev
+          - main
   workflow_dispatch:
     inputs:
       workflowBranch:
@@ -22,11 +32,6 @@ on:
         options:
           - dev
           - main
-
-permissions:
-  issues: write
-  pull-requests: write
-
 jobs:
   echo-inputs:
     name: Repo Workflow Debugging
@@ -44,6 +49,10 @@ jobs:
   ci-dev:
     if: ${{ github.event.inputs.workflowBranch == 'dev' }}
     uses: shardeum/github-automation/.github/workflows/reusable-node-ci.yml@dev
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
     with:
       node-version: ${{ vars.NODE_VERSION }}
       lint-required: ${{ vars.IS_LINT_REQUIRED == 'true' }}
@@ -55,6 +64,10 @@ jobs:
   ci-main:
     if: ${{ github.event.inputs.workflowBranch == 'main' || !github.event.inputs.workflowBranch }}
     uses: shardeum/github-automation/.github/workflows/reusable-node-ci.yml@main
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
     with:
       node-version: ${{ vars.NODE_VERSION }}
       lint-required: ${{ vars.IS_LINT_REQUIRED == 'true' }}
