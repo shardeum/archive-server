@@ -66,6 +66,8 @@ export interface Config {
   // For debugging purpose, set this to true to stop gossiping tx data
   stopGossipTxData: boolean
   usePOQo: boolean
+  // The percentage of votes required to confirm transaction
+  requiredVotesPercentage: number
 }
 
 let config: Config = {
@@ -128,6 +130,7 @@ let config: Config = {
   saveOnlyGossipData: false,
   stopGossipTxData: false,
   usePOQo: true,
+  requiredVotesPercentage: 2 / 3,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {

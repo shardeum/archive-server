@@ -405,7 +405,10 @@ export const verifyReceiptData = async (
     if (votingGroupCount > cycleShardData.nodes.length) {
       votingGroupCount = cycleShardData.nodes.length
     }
-    const requiredSignatures = Math.round(votingGroupCount * (2 / 3))
+    const requiredSignatures =
+      config.usePOQo === true
+        ? Math.ceil(votingGroupCount * config.requiredVotesPercentage)
+        : Math.round(votingGroupCount * config.requiredVotesPercentage)
     if (signatures.length < requiredSignatures) {
       Logger.mainLogger.error(
         `Invalid receipt appliedReceipt signatures count is less than requiredSignatures, ${signatures.length}, ${requiredSignatures}`
