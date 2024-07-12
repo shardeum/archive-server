@@ -95,7 +95,7 @@ let config: Config = {
     save: true,
     interval: 1,
   },
-  ARCHIVER_MODE: 'debug', // 'debug'/'release'
+  ARCHIVER_MODE: 'release', // 'debug'/'release'
   DevPublicKey: '',
   dataLogWrite: true,
   dataLogWriter: {
