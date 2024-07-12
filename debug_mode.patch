@@ -1,0 +1,27 @@
+diff --git a/archiver-config.json b/archiver-config.json
+index a892baf..ffac25a 100644
+--- a/archiver-config.json
++++ b/archiver-config.json
+@@ -56,7 +56,7 @@
+       "publicKey": "aec5d2b663869d9c22ba99d8de76f3bff0f54fa5e39d2899ec1f3f4543422ec7"
+     }
+   ],
+-  "ARCHIVER_MODE": "release",
++  "ARCHIVER_MODE": "debug",
+   "DevPublicKey": "",
+   "EXISTING_ARCHIVER_DB_PATH": ""
+ }
+\ No newline at end of file
+diff --git a/src/Config.ts b/src/Config.ts
+index 6b41ee4..a812003 100644
+--- a/src/Config.ts
++++ b/src/Config.ts
+@@ -86,7 +86,7 @@ let config: Config = {
+     save: true,
+     interval: 1,
+   },
+-  ARCHIVER_MODE: 'release', // 'debug'/'release'
++  ARCHIVER_MODE: 'debug', // 'debug'/'release'
+   DevPublicKey: '',
+   dataLogWrite: true,
+   dataLogWriter: {
