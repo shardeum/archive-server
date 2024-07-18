@@ -9,6 +9,7 @@ import { startSaving } from '../src/saveConsoleOutput'
 import * as Logger from '../src/Logger'
 import { accountSpecificHash } from '../src/shardeum/calculateAccountHash'
 import { addSigListeners } from '../src/State'
+import { Utils as StringUtils } from '@shardus/types'
 
 const activeVersion = '1.9.0'
 const latestVersion = '1.9.0'

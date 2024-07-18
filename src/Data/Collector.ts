@@ -447,7 +447,7 @@ export const verifyReceiptData = async (
       // Check if the node is in the execution group
       if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[node.id]) {
         Logger.mainLogger.error(
-          `The node with public key ${nodePubKey} of the receipt ${txId}} is not in the execution group of the tx`
+          `The node with public key ${nodePubKey} of the receipt ${txId} is not in the execution group of the tx`
         )
         if (nestedCountersInstance)
           nestedCountersInstance.countEvent(
