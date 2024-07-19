@@ -37,7 +37,7 @@ export const initializeDB = async (config: Config): Promise<void> => {
   await db.runCreate(
     'CREATE INDEX if not exists `originalTxsData_timestamp` ON `originalTxsData` (`timestamp` ASC)'
   )
-  await db.runCreate('CREATE INDEX if not exists `originalTxsData_txId_idx` ON `originalTxsData` (`txId`)')
+  await db.runCreate('CREATE INDEX if not exists `originalTxsData_txId` ON `originalTxsData` (`txId`)')
 }
 
 export const closeDatabase = async (): Promise<void> => {
