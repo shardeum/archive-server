@@ -1,4 +1,4 @@
-import { Utils as StringUtils } from "@shardus/types"
+import { Utils as StringUtils } from '@shardus/types'
 
 export const makeShortHash = (x: string, n = 4): string => {
   if (!x) {
