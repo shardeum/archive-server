@@ -22,6 +22,13 @@ export async function init(config: Config): Promise<void> {
     }
   })
   await run('PRAGMA journal_mode=WAL')
+  db.on('profile', (sql, time) => {
+    if (time > 500 && time < 1000) {
+      console.log('SLOW QUERY', sql, time)
+    } else if (time > 1000) {
+      console.log('VERY SLOW QUERY', sql, time)
+    }
+  })
   console.log('Database initialized.')
 }
 
