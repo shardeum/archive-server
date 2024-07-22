@@ -73,16 +73,18 @@ export const updateGlobalNetworkAccount = async (cycleNumber: number): Promise<v
 
     const newChanges = pruneNetworkChangeQueue(changes, cycleNumber)
     networkAccount.data.listOfChanges = newChanges
+    // https://github.com/shardeum/shardeum/blob/c449ecd21391747c5b7173da3a74415da2acb0be/src/index.ts#L6958
     // Increase the timestamp by 1 second
-    networkAccount.data.timestamp += 1000
+    // networkAccount.data.timestamp += 1000
 
     if (appData) {
       updateNetworkChangeQueue(networkAccount.data, appData)
       console.dir(networkAccount.data, { depth: null })
-      networkAccount.data.timestamp += 1000
+      // https://github.com/shardeum/shardeum/blob/c449ecd21391747c5b7173da3a74415da2acb0be/src/index.ts#L6889
+      // Increase the timestamp by 1 second
+      // networkAccount.data.timestamp += 1000
     }
 
-    // Increase the timestamp by 1 second
     networkAccount.hash = accountSpecificHash(networkAccount.data)
     networkAccount.timestamp = networkAccount.data.timestamp
     Logger.mainLogger.debug('updateGlobalNetworkAccount', networkAccount)
@@ -124,7 +126,6 @@ const pruneNetworkChangeQueue = (
 ): NetworkConfigChanges[] => {
   const configsMap = new Map()
   const keepAliveCount = config.configChangeMaxChangesToKeep
-  console.log('pruneNetworkChangeQueue', changes.length, keepAliveCount)
   for (let i = changes.length - 1; i >= 0; i--) {
     const thisChange = changes[i]
     let keepAlive = false
@@ -132,13 +133,10 @@ const pruneNetworkChangeQueue = (
     let appConfigs = []
     if (thisChange.appData) {
       appConfigs = generatePathKeys(thisChange.appData, 'appdata.')
-      console.log('pruneNetworkChangeQueue appConfigs', appConfigs)
     }
     const shardusConfigs: string[] = generatePathKeys(thisChange.change)
-    console.log('pruneNetworkChangeQueue shardusConfigs', shardusConfigs)
 
     const allConfigs = appConfigs.concat(shardusConfigs)
-    console.log('pruneNetworkChangeQueue allConfigs', allConfigs)
 
     for (const config of allConfigs) {
       if (!configsMap.has(config)) {
@@ -153,7 +151,6 @@ const pruneNetworkChangeQueue = (
     if (currentCycle - thisChange.cycle <= config.configChangeMaxCyclesToKeep) {
       keepAlive = true
     }
-    console.log('pruneNetworkChangeQueue keepAlive', keepAlive, thisChange, configsMap)
 
     if (keepAlive == false) {
       changes.splice(i, 1)
@@ -164,7 +161,6 @@ const pruneNetworkChangeQueue = (
 
 const updateNetworkChangeQueue = (data: object, appData: object): void => {
   if ('current' in data) patchAndUpdate(data?.current, appData)
-  console.log('updateNetworkChangeQueue', data)
 }
 
 const patchAndUpdate = (existingObject: any, changeObj: any, parentPath = ''): void => {
