@@ -1,6 +1,5 @@
 import { readFileSync } from 'fs'
-import { resolve } from 'path'
-import { join } from 'path'
+import { resolve, join } from 'path'
 import { overrideDefaultConfig, config } from '../src/Config'
 import * as Crypto from '../src/Crypto'
 import * as db from '../src/dbstore/sqlite3storage'
@@ -8,6 +7,7 @@ import * as dbstore from '../src/dbstore'
 import * as CycleDB from '../src/dbstore/cycles'
 import { startSaving } from '../src/saveConsoleOutput'
 import * as Logger from '../src/Logger'
+import { Utils as StringUtils } from '@shardus/types'
 
 const patchCycleData = false
 

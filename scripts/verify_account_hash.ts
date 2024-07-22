@@ -9,6 +9,7 @@ import { startSaving } from '../src/saveConsoleOutput'
 import * as Logger from '../src/Logger'
 import { AccountType, fixAccountUint8Arrays, accountSpecificHash } from '../src/shardeum/calculateAccountHash'
 import { addSigListeners } from '../src/State'
+import { Utils as StringUtils } from '@shardus/types'
 
 const updateHash = false
 const runProgram = async (): Promise<void> => {

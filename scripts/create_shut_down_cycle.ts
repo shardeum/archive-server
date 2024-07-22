@@ -10,6 +10,7 @@ import * as Logger from '../src/Logger'
 import { P2P } from '@shardus/types'
 import { addSigListeners } from '../src/State'
 import { computeCycleMarker } from '../src/Data/Cycles'
+import { Utils as StringUtils } from '@shardus/types'
 
 const archiversAtShutdown = [
   {

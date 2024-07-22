@@ -4,6 +4,7 @@ import { join } from 'path'
 import { postJson } from '../src/P2P'
 import { config, overrideDefaultConfig } from '../src/Config'
 import { ArchiverNodeInfo } from '../src/State'
+import { Utils as StringUtils } from '@shardus/types'
 
 const configFile = join(process.cwd(), 'archiver-config.json')
 overrideDefaultConfig(configFile)
