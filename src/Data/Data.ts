@@ -287,13 +287,17 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
       if (newData.responses && newData.responses.ACCOUNT) {
         if (getCurrentCycleCounter() > GENESIS_ACCOUNTS_CYCLE_RANGE.endCycle) {
           Logger.mainLogger.error(
-            'Account data is not meant to be received after the genesis cycle',
+            'Account data is not meant to be received after the genesis accounts cycle range',
             getCurrentCycleCounter()
           )
           unsubscribeDataSender(sender.nodeInfo.publicKey)
           return
         }
-        if (NodeList.byPublicKey.size > 1 || !NodeList.byPublicKey.has(sender.nodeInfo.publicKey)) {
+        if (
+          Cycles.currentNetworkMode !== 'forming' ||
+          NodeList.byPublicKey.size > 1 ||
+          !NodeList.byPublicKey.has(sender.nodeInfo.publicKey)
+        ) {
           Logger.mainLogger.error(
             'Account data is not meant to be received by the first validator',
             `Number of nodes in the network ${NodeList.byPublicKey.size}`

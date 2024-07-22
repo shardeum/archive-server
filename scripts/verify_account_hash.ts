@@ -7,7 +7,7 @@ import * as dbstore from '../src/dbstore'
 import * as AccountDB from '../src/dbstore/accounts'
 import { startSaving } from '../src/saveConsoleOutput'
 import * as Logger from '../src/Logger'
-import { AccountType, fixAccountUint8Arrays, accountSpecificHash } from '../src/shardeum/calculateAccountHash'
+import { AccountType, accountSpecificHash } from '../src/shardeum/calculateAccountHash'
 import { addSigListeners } from '../src/State'
 import { Utils as StringUtils } from '@shardus/types'
 
@@ -47,16 +47,6 @@ const runProgram = async (): Promise<void> => {
       const accountHash2 = account.data.hash
       if (accountHash1 !== accountHash2) {
         console.log(account.accountId, 'accountHash', accountHash1, 'accountHash2', accountHash2)
-      }
-      if (account.data.accountType === AccountType.Account) {
-        fixAccountUint8Arrays(account.data.account)
-        // console.dir(acc, { depth: null })
-      } else if (
-        account.data.accountType === AccountType.ContractCode ||
-        account.data.accountType === AccountType.ContractStorage
-      ) {
-        fixAccountUint8Arrays(account.data)
-        // console.dir(acc, { depth: null })
       }
       const calculatedAccountHash = accountSpecificHash(account.data)
 

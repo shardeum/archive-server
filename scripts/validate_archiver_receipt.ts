@@ -3,7 +3,7 @@ import { overrideDefaultConfig, config } from '../src/Config'
 import * as Crypto from '../src/Crypto'
 import * as Utils from '../src/Utils'
 import * as Receipt from '../src/dbstore/receipts'
-import { AccountType, accountSpecificHash, fixAccountUint8Arrays } from '../src/shardeum/calculateAccountHash'
+import { AccountType, accountSpecificHash } from '../src/shardeum/calculateAccountHash'
 import { ShardeumReceipt } from '../src/shardeum/verifyAppReceiptData'
 
 // Add the full receipt data here
@@ -243,16 +243,6 @@ export const verifyAccountHash = (receipt: Receipt.ArchiverReceipt): boolean => 
   try {
     if (receipt.globalModification && config.skipGlobalTxReceiptVerification) return true // return true if global modification
     for (const account of receipt.accounts) {
-      if (account.data.accountType === AccountType.Account) {
-        fixAccountUint8Arrays(account.data.account)
-        // console.dir(acc, { depth: null })
-      } else if (
-        account.data.accountType === AccountType.ContractCode ||
-        account.data.accountType === AccountType.ContractStorage
-      ) {
-        fixAccountUint8Arrays(account.data)
-        // console.dir(acc, { depth: null })
-      }
       const calculatedAccountHash = accountSpecificHash(account.data)
       const indexOfAccount = receipt.appliedReceipt.appliedVote.account_id.indexOf(account.accountId)
       if (indexOfAccount === -1) {
