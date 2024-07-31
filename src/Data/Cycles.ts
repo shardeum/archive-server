@@ -94,10 +94,11 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
         setShutdownCycleRecord(cycle)
         NodeList.toggleFirstNode()
       }
-      // Clean receipts/originalTxs cache that are older than <CYCLE_SHARD_STORAGE_LIMIT> minutes
-      const cleanupTimestamp = (cycle.start - config.CYCLE_SHARD_STORAGE_LIMIT * 60) * 1000
+      // Clean receipts/originalTxs cache that are older than <maxCyclesShardDataToKeep> minutes
+      const cleanupTimestamp = (cycle.start - config.maxCyclesShardDataToKeep * 60) * 1000
       cleanOldOriginalTxsMap(cleanupTimestamp)
       cleanOldReceiptsMap(cleanupTimestamp)
+      cleanShardCycleData(cycle.counter - config.maxCyclesShardDataToKeep)
     }
   } finally {
     if (profilerInstance) profilerInstance.profileSectionEnd('process_cycle', false)
@@ -519,8 +520,13 @@ function updateShardValues(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   const list = cycleShardData.nodes.map((n) => n['ip'] + ':' + n['port'])
   Logger.mainLogger.debug('cycleShardData', cycleShardData.cycleNumber, list.length, stringifyReduce(list))
   shardValuesByCycle.set(cycleShardData.cycleNumber, cycleShardData)
-  if (shardValuesByCycle.size > config.CYCLE_SHARD_STORAGE_LIMIT) {
-    shardValuesByCycle.delete(shardValuesByCycle.keys().next().value)
+}
+
+const cleanShardCycleData = (cycleNumber: number): void => {
+  for (const [key] of shardValuesByCycle) {
+    if (key < cycleNumber) {
+      shardValuesByCycle.delete(key)
+    }
   }
 }
 

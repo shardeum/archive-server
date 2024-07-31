@@ -68,8 +68,8 @@ export interface Config {
   usePOQo: boolean
   // The percentage of votes required to confirm transaction
   requiredVotesPercentage: number
-  // number of recent cycles of shard data to keep
-  CYCLE_SHARD_STORAGE_LIMIT: number
+  // max number of recent cycle shard data to keep
+  maxCyclesShardDataToKeep: number
   // the number of cycles within which we want to keep \changes to a config*/
   configChangeMaxCyclesToKeep: number
   // the number of config changes to keep*/
@@ -137,7 +137,7 @@ let config: Config = {
   stopGossipTxData: false,
   usePOQo: true,
   requiredVotesPercentage: 2 / 3,
-  CYCLE_SHARD_STORAGE_LIMIT: 10,
+  maxCyclesShardDataToKeep: 10,
   configChangeMaxCyclesToKeep: 5,
   configChangeMaxChangesToKeep: 1000,
 }

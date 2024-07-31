@@ -561,11 +561,12 @@ async function syncFromNetworkConfig(): Promise<any> {
     if (tallyItem?.value?.config?.stateManager) {
       // Updating the Archiver Config as per the latest Network Config
       const {
-        devPublicKeys,
         useNewPOQ: newPOQReceipt,
         configChangeMaxChangesToKeep,
         configChangeMaxCyclesToKeep,
+        maxCyclesShardDataToKeep,
       } = tallyItem.value.config.stateManager
+      const devPublicKeys = tallyItem.value.config.debug.devPublicKeys
       const devPublicKey =
         devPublicKeys &&
         Object.keys(devPublicKeys).length >= 3 &&
@@ -594,6 +595,12 @@ async function syncFromNetworkConfig(): Promise<any> {
         configChangeMaxCyclesToKeep !== config.configChangeMaxCyclesToKeep
       )
         updateConfig({ configChangeMaxCyclesToKeep })
+      if (
+        !Utils.isUndefined(maxCyclesShardDataToKeep) &&
+        typeof maxCyclesShardDataToKeep === typeof config.maxCyclesShardDataToKeep &&
+        maxCyclesShardDataToKeep !== config.maxCyclesShardDataToKeep
+      )
+        updateConfig({ maxCyclesShardDataToKeep })
       return tallyItem
     }
     return null
