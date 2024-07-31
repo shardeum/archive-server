@@ -28,6 +28,7 @@ import { getGlobalNetworkAccount } from './GlobalAccount'
 import { cycleRecordWithShutDownMode } from './Data/Cycles'
 import { isDebugMiddleware } from './DebugMode'
 import { Utils as StringUtils } from '@shardus/types'
+import * as ServiceQueue from './ServiceQueue'
 const { version } = require('../package.json') // eslint-disable-line @typescript-eslint/no-var-requires
 
 const TXID_LENGTH = 64
@@ -169,6 +170,15 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     const res = NodeList.getCachedNodeList()
     reply.send(res)
     profilerInstance.profileSectionEnd('GET_nodelist')
+  })
+
+  server.get('/network-txs-list', (_request, reply) => {
+    profilerInstance.profileSectionStart('network-txs-list')
+    nestedCountersInstance.countEvent('consensor', 'network-txs-list')
+
+    const res = ServiceQueue.getNetworkTxsList()
+    reply.send(res)
+    profilerInstance.profileSectionEnd('network-txs-list')
   })
 
   type FullNodeListRequest = FastifyRequest<{
