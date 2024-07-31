@@ -7,6 +7,7 @@ import { getJson, postJson } from '../P2P'
 import { profilerInstance } from '../profiler/profiler'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import * as cycleDataCache from '../cache/cycleRecordsCache'
+import * as ServiceQueue from '../ServiceQueue'
 
 import {
   clearDataSenders,
@@ -30,6 +31,7 @@ import { stringifyReduce } from '../profiler/StringifyReduce'
 import { addCyclesToCache } from '../cache/cycleRecordsCache'
 import { queryLatestCycleRecords } from '../dbstore/cycles'
 import { updateGlobalNetworkAccount } from '../GlobalAccount'
+import { syncTxList } from '../sync-v2'
 
 export interface ArchiverCycleResponse {
   cycleInfo: P2PTypes.CycleCreatorTypes.CycleData[]
@@ -69,6 +71,7 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
 
       // Update NodeList from cycle info
       updateNodeList(cycle)
+      updateNetworkTxsList(cycle)
       updateShardValues(cycle)
       changeNetworkMode(cycle.mode)
       getAdjacentLeftAndRightArchivers()
@@ -350,6 +353,33 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   // To pick nodes only when the archiver is active
   if (State.isActive) {
     subscribeConsensorsByConsensusRadius()
+  }
+}
+
+async function updateNetworkTxsList(cycle: P2PTypes.CycleCreatorTypes.CycleData): Promise<void> {
+  const {
+    txadd,
+    txremove
+  } = cycle
+
+  ServiceQueue.addTxs(txadd)
+  ServiceQueue.removeTxs(txremove)
+
+  const calculatedTxListHash = ServiceQueue.getNetworkTxsListHash()
+
+  if (calculatedTxListHash !== cycle.txlisthash) {
+    console.error('txList hash from cycle record does not match the calculated txList hash')
+    const syncTxListResult = await syncTxList(NodeList.getActiveList())
+
+    syncTxListResult.match(
+      (txList) => {
+        Logger.mainLogger.debug("Successfully synced txList from validators"), 
+        ServiceQueue.setTxList(txList)
+      },
+      (error) => {
+        Logger.mainLogger.error("Failed to synchronize transaction list:", error.message);
+      }
+    );
   }
 }
 
