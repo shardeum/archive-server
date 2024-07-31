@@ -7,6 +7,7 @@ import { getJson, postJson } from '../P2P'
 import { profilerInstance } from '../profiler/profiler'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import * as cycleDataCache from '../cache/cycleRecordsCache'
+import * as ServiceQueue from '../ServiceQueue'
 
 import {
   clearDataSenders,
@@ -69,6 +70,7 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
 
       // Update NodeList from cycle info
       updateNodeList(cycle)
+      updateNetworkTxsList(cycle)
       updateShardValues(cycle)
       changeNetworkMode(cycle.mode)
       getAdjacentLeftAndRightArchivers()
@@ -351,6 +353,16 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   if (State.isActive) {
     subscribeConsensorsByConsensusRadius()
   }
+}
+
+function updateNetworkTxsList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
+  const {
+    txadd,
+    txremove
+  } = cycle
+
+  ServiceQueue.addTxs(txadd)
+  ServiceQueue.removeTxs(txremove)
 }
 
 export async function fetchCycleRecords(
