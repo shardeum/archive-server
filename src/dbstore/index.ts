@@ -18,7 +18,11 @@ export const initializeDB = async (config: Config): Promise<void> => {
   )
   await runCreate(
     transactionDatabase,
-    'CREATE INDEX if not exists `transactions_idx` ON `transactions` (`cycleNumber` DESC, `timestamp` DESC)'
+    'CREATE INDEX if not exists `transactions_timestamp` ON `transactions` (`timestamp` ASC)'
+  )
+  await runCreate(
+    transactionDatabase,
+    'CREATE INDEX if not exists `transactions_cycleNumber_timestamp` ON `transactions` (`cycleNumber` ASC, `timestamp` ASC)'
   )
   await runCreate(
     transactionDatabase,
@@ -35,15 +39,28 @@ export const initializeDB = async (config: Config): Promise<void> => {
   )
   await runCreate(
     accountDatabase,
-    'CREATE INDEX if not exists `accounts_idx` ON `accounts` (`cycleNumber` DESC, `timestamp` DESC)'
+    'CREATE INDEX if not exists `accounts_cycleNumber` ON `accounts` (`cycleNumber` ASC)'
+  )
+  await runCreate(
+    accountDatabase,
+    'CREATE INDEX if not exists `accounts_timestamp` ON `accounts` (`timestamp` ASC)'
+  )
+  await runCreate(
+    accountDatabase,
+    'CREATE INDEX if not exists `accounts_cycleNumber_timestamp` ON `accounts` (`cycleNumber` ASC, `timestamp` ASC)'
   )
   await runCreate(
     receiptDatabase,
     'CREATE TABLE if not exists `receipts` (`receiptId` TEXT NOT NULL UNIQUE PRIMARY KEY, `tx` JSON NOT NULL, `cycle` NUMBER NOT NULL, `applyTimestamp` BIGINT NOT NULL, `timestamp` BIGINT NOT NULL, `signedReceipt` JSON NOT NULL, `afterStates` JSON, `beforeStates` JSON, `appReceiptData` JSON, `executionShardKey` TEXT NOT NULL, `globalModification` BOOLEAN NOT NULL)'
   )
+  await runCreate(receiptDatabase, 'CREATE INDEX if not exists `receipts_cycle` ON `receipts` (`cycle` ASC)')
   await runCreate(
     receiptDatabase,
-    'CREATE INDEX if not exists `receipts_idx` ON `receipts` (`cycle` ASC, `timestamp` ASC)'
+    'CREATE INDEX if not exists `receipts_timestamp` ON `receipts` (`timestamp` ASC)'
+  )
+  await runCreate(
+    receiptDatabase,
+    'CREATE INDEX if not exists `receipts_cycle_timestamp` ON `receipts` (`cycle` ASC, `timestamp` ASC)'
   )
   await runCreate(
     originalTxDataDatabase,
@@ -51,11 +68,19 @@ export const initializeDB = async (config: Config): Promise<void> => {
   )
   await runCreate(
     originalTxDataDatabase,
-    'CREATE INDEX if not exists `originalTxsData_idx` ON `originalTxsData` (`cycle` ASC, `timestamp` ASC)'
+    'CREATE INDEX if not exists `originalTxsData_cycle` ON `originalTxsData` (`cycle` ASC)'
   )
   await runCreate(
     originalTxDataDatabase,
-    'CREATE INDEX if not exists `originalTxsData_txId_idx` ON `originalTxsData` (`txId`)'
+    'CREATE INDEX if not exists `originalTxsData_timestamp` ON `originalTxsData` (`timestamp` ASC)'
+  )
+  await runCreate(
+    originalTxDataDatabase,
+    'CREATE INDEX if not exists `originalTxsData_cycle_timestamp` ON `originalTxsData` (`cycle` ASC, `timestamp` ASC)'
+  )
+  await runCreate(
+    originalTxDataDatabase,
+    'CREATE INDEX if not exists `originalTxsData_txId` ON `originalTxsData` (`txId`)'
   )
 }
 

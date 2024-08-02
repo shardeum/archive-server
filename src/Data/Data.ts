@@ -576,7 +576,7 @@ async function syncFromNetworkConfig(): Promise<any> {
       //   typeof devPublicKey === typeof config.DevPublicKey &&
       //   devPublicKey !== config.DevPublicKey
       // )
-      //   updateConfig({ DevPublicKey: devPublicKey })
+      //   updateConfig({ DevPublicKey: devPublicKey })count query)
       if (
         !Utils.isUndefined(newPOQReceipt) &&
         typeof newPOQReceipt === typeof config.newPOQReceipt &&
