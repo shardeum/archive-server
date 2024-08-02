@@ -40,6 +40,7 @@ import { loadGlobalAccounts, syncGlobalAccount } from './GlobalAccount'
 import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycles'
 import { registerRoutes } from './API'
 import { Utils as StringUtils } from '@shardus/types'
+import { healthCheckRouter } from './routes/healthCheck'
 
 const configFile = join(process.cwd(), 'archiver-config.json')
 let logDir: string
@@ -438,6 +439,7 @@ async function startServer(): Promise<void> {
     timeWindow: 10,
     allowList: ['127.0.0.1', '0.0.0.0'], // Excludes local IPs from rate limits
   })
+  await server.register(healthCheckRouter)
 
   server.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
     try {
