@@ -1,7 +1,5 @@
-import { config } from '../Config'
 import * as crypto from '../Crypto'
-import * as Logger from '../Logger'
-import { ArchiverReceipt, Receipt } from '../dbstore/receipts'
+import { ArchiverReceipt, Receipt, SignedReceipt } from '../dbstore/receipts'
 import { Utils as StringUtils } from '@shardus/types'
 
 export type ShardeumReceipt = object & {
@@ -16,12 +14,13 @@ export const verifyAppReceiptData = async (
   nestedCounterMessages = []
 ): Promise<{ valid: boolean; needToSave: boolean }> => {
   let result = { valid: false, needToSave: false }
-  const { appReceiptData, globalModification, signedReceipt } = receipt
-
-  if (globalModification && config.skipGlobalTxReceiptVerification) return { valid: true, needToSave: true }
+  const { appReceiptData, globalModification } = receipt
+  if (globalModification) return { valid: true, needToSave: true }
+  const signedReceipt = receipt.signedReceipt as SignedReceipt
   const newShardeumReceipt = appReceiptData.data as ShardeumReceipt
   if (!newShardeumReceipt.amountSpent || !newShardeumReceipt.readableReceipt) {
     failedReasons.push(`appReceiptData missing amountSpent or readableReceipt`)
+    nestedCounterMessages.push(`appReceiptData missing amountSpent or readableReceipt`)
     return result
   }
   const { accountIDs, afterStateHashes, beforeStateHashes } = signedReceipt.proposal
@@ -40,6 +39,7 @@ export const verifyAppReceiptData = async (
         failedReasons.push(
           `The account state hash before or after is missing in the receipt! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
         )
+        nestedCounterMessages.push(`The account state hash before or after is missing in the receipt!`)
       }
       if (
         // eslint-disable-next-line security/detect-object-injection
@@ -49,6 +49,9 @@ export const verifyAppReceiptData = async (
       ) {
         failedReasons.push(
           `The receipt has 0 amountSpent and status 0 but has state updated accounts! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
+        )
+        nestedCounterMessages.push(
+          `The receipt has 0 amountSpent and status 0 but has state updated accounts!`
         )
         break
       }
@@ -103,20 +106,27 @@ export const verifyAppReceiptData = async (
 
   // Finally verify appReceiptData hash
   const appReceiptDataCopy = { ...appReceiptData }
-  const calculatedAppReceiptDataHash = calculateAppReceiptDataHash(appReceiptDataCopy, failedReasons)
-  if (calculatedAppReceiptDataHash !== receipt.signedReceipt.proposal.appReceiptDataHash) {
+  const calculatedAppReceiptDataHash = calculateAppReceiptDataHash(
+    appReceiptDataCopy,
+    failedReasons,
+    nestedCounterMessages
+  )
+  if (calculatedAppReceiptDataHash !== signedReceipt.proposal.appReceiptDataHash) {
     failedReasons.push(
-      `appReceiptData hash mismatch: ${crypto.hashObj(appReceiptData)} != ${
-        receipt.signedReceipt.proposal.appReceiptDataHash
-      }`
+      `appReceiptData hash mismatch: ${calculatedAppReceiptDataHash} != ${signedReceipt.proposal.appReceiptDataHash}`
     )
+    nestedCounterMessages.push(`appReceiptData hash mismatch`)
     result = { valid: false, needToSave: false }
   }
   return result
 }
 
 // Converting the correct appReceipt data format to get the correct hash
-const calculateAppReceiptDataHash = (appReceiptData: any, failedReasons = []): string => {
+const calculateAppReceiptDataHash = (
+  appReceiptData: any,
+  failedReasons = [],
+  nestedCounterMessages = []
+): string => {
   try {
     if (appReceiptData.data && appReceiptData.data.receipt) {
       if (appReceiptData.data.receipt.bitvector)
@@ -142,7 +152,9 @@ const calculateAppReceiptDataHash = (appReceiptData: any, failedReasons = []): s
     const hash = crypto.hashObj(appReceiptData)
     return hash
   } catch (err) {
+    console.error(`calculateAppReceiptDataHash error: ${err}`)
     failedReasons.push(`calculateAppReceiptDataHash error: ${err}`)
+    nestedCounterMessages.push(`calculateAppReceiptDataHash error`)
     return ''
   }
 }

@@ -73,6 +73,7 @@ export const initializeDB = async (config: Config): Promise<void> => {
     receiptDatabase,
     'CREATE INDEX if not exists `receipts_timestamp` ON `receipts` (`timestamp` ASC)'
   )
+  await runCreate(receiptDatabase, 'CREATE INDEX if not exists `receipts_cycle` ON `receipts` (`cycle` ASC)')
   await runCreate(
     receiptDatabase,
     'CREATE INDEX if not exists `receipts_cycle_timestamp` ON `receipts` (`cycle` ASC, `timestamp` ASC)'
