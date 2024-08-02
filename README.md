@@ -6,6 +6,11 @@ This is a node that runs as part of the shardus network, with the function of re
 
 To release, just run `npm run release`
 
+## Health Check
+
+GET `/is-alive` this endpoint returns 200 if the server is running.
+GET `/is-healthy` currently the same as `/is-alive` but will be expanded.
+
 ## Contributing
 
 Contributions are very welcome! Everyone interacting in our codebases, issue trackers, and any other form of communication, including chat rooms and mailing lists, is expected to follow our [code of conduct](./CODE_OF_CONDUCT.md) so we can all enjoy the effort we put into this project.
