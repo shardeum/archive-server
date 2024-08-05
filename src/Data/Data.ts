@@ -529,7 +529,7 @@ async function syncFromNetworkConfig(): Promise<any> {
   try {
     // Define the query function to get the network config from a node
     const queryFn = async (node): Promise<object> => {
-      const REQUEST_NETCONFIG_TIMEOUT_SECOND = 2 // 2s timeout
+      const REQUEST_NETCONFIG_TIMEOUT_SECOND = 3 // 3s timeout
       try {
         const response = await P2P.getJson(
           `http://${node.ip}:${node.port}/netconfig`,
@@ -566,17 +566,17 @@ async function syncFromNetworkConfig(): Promise<any> {
         configChangeMaxCyclesToKeep,
         maxCyclesShardDataToKeep,
       } = tallyItem.value.config.stateManager
-      const devPublicKeys = tallyItem.value.config.debug.devPublicKeys
-      const devPublicKey =
-        devPublicKeys &&
-        Object.keys(devPublicKeys).length >= 3 &&
-        Object.keys(devPublicKeys).find((key) => devPublicKeys[key] === 3)
-      if (
-        devPublicKey &&
-        typeof devPublicKey === typeof config.DevPublicKey &&
-        devPublicKey !== config.DevPublicKey
-      )
-        updateConfig({ DevPublicKey: devPublicKey })
+      // const devPublicKeys = tallyItem.value.config.debug.devPublicKeys
+      // const devPublicKey =
+      //   devPublicKeys &&
+      //   Object.keys(devPublicKeys).length >= 3 &&
+      //   Object.keys(devPublicKeys).find((key) => devPublicKeys[key] === 3)
+      // if (
+      //   devPublicKey &&
+      //   typeof devPublicKey === typeof config.DevPublicKey &&
+      //   devPublicKey !== config.DevPublicKey
+      // )
+      //   updateConfig({ DevPublicKey: devPublicKey })
       if (
         !Utils.isUndefined(newPOQReceipt) &&
         typeof newPOQReceipt === typeof config.newPOQReceipt &&
