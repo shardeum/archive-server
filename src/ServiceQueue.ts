@@ -26,9 +26,9 @@ export function removeTxs(removeTxs: P2P.ServiceQueueTypes.RemoveNetworkTx[]): b
       const index = txList.findIndex((entry) => entry.hash === removeTx.txHash)
       if (index === -1) {
         Logger.mainLogger.error(`TxHash ${removeTx.txHash} does not exist in txList`)
-        return false
+      } else {
+        txList.splice(index, 1)
       }
-      txList.splice(index, 1)
     }
     return true
   } catch (e) {
