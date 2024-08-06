@@ -1,6 +1,6 @@
 // import { Signature } from 'shardus-crypto-types'
 import * as db from './sqlite3storage'
-import { extractValues, extractValuesFromArray } from './sqlite3storage'
+import { originalTxDataDatabase, extractValues, extractValuesFromArray } from './sqlite3storage'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString } from '../utils/serialization'
@@ -33,7 +33,7 @@ export async function insertOriginalTxData(OriginalTxData: OriginalTxData): Prom
     const placeholders = Object.keys(OriginalTxData).fill('?').join(', ')
     const values = extractValues(OriginalTxData)
     const sql = 'INSERT OR REPLACE INTO originalTxsData (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+    await db.run(originalTxDataDatabase, sql, values)
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Successfully inserted OriginalTxData', OriginalTxData.txId)
     }
@@ -55,7 +55,7 @@ export async function bulkInsertOriginalTxsData(originalTxsData: OriginalTxData[
     for (let i = 1; i < originalTxsData.length; i++) {
       sql = sql + ', (' + placeholders + ')'
     }
-    await db.run(sql, values)
+    await db.run(originalTxDataDatabase, sql, values)
     if (config.VERBOSE)
       Logger.mainLogger.debug('Successfully inserted OriginalTxsData', originalTxsData.length)
   } catch (e) {
@@ -73,7 +73,7 @@ export async function queryOriginalTxDataCount(startCycle?: number, endCycle?: n
       sql += ` WHERE cycle BETWEEN ? AND ?`
       values.push(startCycle, endCycle)
     }
-    originalTxsData = await db.get(sql, values)
+    originalTxsData = await db.get(originalTxDataDatabase, sql, values)
   } catch (e) {
     console.log(e)
   }
@@ -99,7 +99,7 @@ export async function queryOriginalTxsData(
       values.push(startCycle, endCycle)
     }
     sql += sqlSuffix
-    originalTxsData = (await db.all(sql, values)) as DbOriginalTxData[]
+    originalTxsData = (await db.all(originalTxDataDatabase, sql, values)) as DbOriginalTxData[]
     originalTxsData.forEach((originalTxData: DbOriginalTxData) => {
       if (originalTxData.originalTxData)
         originalTxData.originalTxData = DeSerializeFromJsonString(originalTxData.originalTxData)
@@ -118,7 +118,7 @@ export async function queryOriginalTxDataByTxId(txId: string, timestamp = 0): Pr
   try {
     const sql = `SELECT * FROM originalTxsData WHERE txId=?` + (timestamp ? ` AND timestamp=?` : '')
     const value = timestamp ? [txId, timestamp] : [txId]
-    const originalTxData = (await db.get(sql, value)) as DbOriginalTxData
+    const originalTxData = (await db.get(originalTxDataDatabase, sql, value)) as DbOriginalTxData
     if (originalTxData) {
       if (originalTxData.originalTxData)
         originalTxData.originalTxData = DeSerializeFromJsonString(originalTxData.originalTxData)
@@ -142,7 +142,10 @@ export async function queryOriginalTxDataCountByCycles(
   let dbOriginalTxsDataCount: DbOriginalTxDataCount[] = []
   try {
     const sql = `SELECT cycle, COUNT(*) FROM originalTxsData GROUP BY cycle HAVING cycle BETWEEN ? AND ? ORDER BY cycle ASC`
-    dbOriginalTxsDataCount = (await db.all(sql, [start, end])) as DbOriginalTxDataCount[]
+    dbOriginalTxsDataCount = (await db.all(originalTxDataDatabase, sql, [
+      start,
+      end,
+    ])) as DbOriginalTxDataCount[]
   } catch (e) {
     Logger.mainLogger.error(e)
   }
@@ -167,7 +170,7 @@ export async function queryLatestOriginalTxs(count: number): Promise<OriginalTxD
     const sql = `SELECT * FROM originalTxsData ORDER BY cycle DESC, timestamp DESC LIMIT ${
       count ? count : 100
     }`
-    const originalTxsData = (await db.all(sql)) as DbOriginalTxData[]
+    const originalTxsData = (await db.all(originalTxDataDatabase, sql)) as DbOriginalTxData[]
     if (originalTxsData.length > 0) {
       originalTxsData.forEach((tx: DbOriginalTxData) => {
         if (tx.originalTxData) tx.originalTxData = DeSerializeFromJsonString(tx.originalTxData)

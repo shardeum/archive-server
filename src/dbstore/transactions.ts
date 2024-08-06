@@ -1,6 +1,6 @@
 // import { Signature } from 'shardus-crypto-types'
 import * as db from './sqlite3storage'
-import { extractValues, extractValuesFromArray } from './sqlite3storage'
+import { transactionDatabase, extractValues, extractValuesFromArray } from './sqlite3storage'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString } from '../utils/serialization'
@@ -30,7 +30,7 @@ export async function insertTransaction(transaction: Transaction): Promise<void>
     const placeholders = Object.keys(transaction).fill('?').join(', ')
     const values = extractValues(transaction)
     const sql = 'INSERT OR REPLACE INTO transactions (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+    await db.run(transactionDatabase, sql, values)
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Successfully inserted Transaction', transaction.txId)
     }
@@ -52,7 +52,7 @@ export async function bulkInsertTransactions(transactions: Transaction[]): Promi
     for (let i = 1; i < transactions.length; i++) {
       sql = sql + ', (' + placeholders + ')'
     }
-    await db.run(sql, values)
+    await db.run(transactionDatabase, sql, values)
     if (config.VERBOSE) Logger.mainLogger.debug('Successfully inserted Transactions', transactions.length)
   } catch (e) {
     Logger.mainLogger.error(e)
@@ -63,7 +63,7 @@ export async function bulkInsertTransactions(transactions: Transaction[]): Promi
 export async function queryTransactionByTxId(txId: string): Promise<Transaction> {
   try {
     const sql = `SELECT * FROM transactions WHERE txId=?`
-    const transaction = (await db.get(sql, [txId])) as DbTransaction // TODO: confirm structure of object from db
+    const transaction = (await db.get(transactionDatabase, sql, [txId])) as DbTransaction // TODO: confirm structure of object from db
     if (transaction) {
       if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
       if (transaction.originalTxData)
@@ -82,7 +82,7 @@ export async function queryTransactionByTxId(txId: string): Promise<Transaction>
 export async function queryTransactionByAccountId(accountId: string): Promise<Transaction> {
   try {
     const sql = `SELECT * FROM transactions WHERE accountId=?`
-    const transaction = (await db.get(sql, [accountId])) as DbTransaction // TODO: confirm structure of object from db
+    const transaction = (await db.get(transactionDatabase, sql, [accountId])) as DbTransaction // TODO: confirm structure of object from db
     if (transaction) {
       if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
       if (transaction.originalTxData)
@@ -103,7 +103,7 @@ export async function queryLatestTransactions(count: number): Promise<Transactio
     const sql = `SELECT * FROM transactions ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${
       count ? count : 100
     }`
-    const transactions = (await db.all(sql)) as DbTransaction[] // TODO: confirm structure of object from db
+    const transactions = (await db.all(transactionDatabase, sql)) as DbTransaction[] // TODO: confirm structure of object from db
     if (transactions.length > 0) {
       transactions.forEach((transaction: DbTransaction) => {
         if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
@@ -125,7 +125,7 @@ export async function queryTransactions(skip = 0, limit = 10000): Promise<Transa
   let transactions
   try {
     const sql = `SELECT * FROM transactions ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    transactions = (await db.all(sql)) as DbTransaction[] // TODO: confirm structure of object from db
+    transactions = (await db.all(transactionDatabase, sql)) as DbTransaction[] // TODO: confirm structure of object from db
     if (transactions.length > 0) {
       transactions.forEach((transaction: DbTransaction) => {
         if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)
@@ -151,7 +151,7 @@ export async function queryTransactionCount(): Promise<number> {
   let transactions
   try {
     const sql = `SELECT COUNT(*) FROM transactions`
-    transactions = await db.get(sql, [])
+    transactions = await db.get(transactionDatabase, sql, [])
   } catch (e) {
     Logger.mainLogger.error(e)
   }
@@ -170,7 +170,7 @@ export async function queryTransactionCountBetweenCycles(
   let transactions
   try {
     const sql = `SELECT COUNT(*) FROM transactions WHERE cycleNumber BETWEEN ? AND ?`
-    transactions = await db.get(sql, [startCycleNumber, endCycleNumber])
+    transactions = await db.get(transactionDatabase, sql, [startCycleNumber, endCycleNumber])
   } catch (e) {
     Logger.mainLogger.error(e)
   }
@@ -191,7 +191,10 @@ export async function queryTransactionsBetweenCycles(
   let transactions
   try {
     const sql = `SELECT * FROM transactions WHERE cycleNumber BETWEEN ? AND ? ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    transactions = (await db.all(sql, [startCycleNumber, endCycleNumber])) as DbTransaction[] // TODO: confirm structure of object from db
+    transactions = (await db.all(transactionDatabase, sql, [
+      startCycleNumber,
+      endCycleNumber,
+    ])) as DbTransaction[] // TODO: confirm structure of object from db
     if (transactions.length > 0) {
       transactions.forEach((transaction: DbTransaction) => {
         if (transaction.data) transaction.data = DeSerializeFromJsonString(transaction.data)

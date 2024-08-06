@@ -1,5 +1,5 @@
 import * as db from './sqlite3storage'
-import { extractValues, extractValuesFromArray } from './sqlite3storage'
+import { cycleDatabase, extractValues, extractValuesFromArray } from './sqlite3storage'
 import { P2P } from '@shardus/types'
 import * as Logger from '../Logger'
 import { config } from '../Config'
@@ -12,7 +12,7 @@ export async function insertCycle(cycle: Cycle): Promise<void> {
     const placeholders = Object.keys(cycle).fill('?').join(', ')
     const values = extractValues(cycle)
     const sql = 'INSERT OR REPLACE INTO cycles (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+    await db.run(cycleDatabase, sql, values)
     Logger.mainLogger.debug('Successfully inserted Cycle', cycle.cycleRecord.counter, cycle.cycleMarker)
   } catch (e) {
     Logger.mainLogger.error(e)
@@ -33,7 +33,7 @@ export async function bulkInsertCycles(cycles: Cycle[]): Promise<void> {
     for (let i = 1; i < cycles.length; i++) {
       sql = sql + ', (' + placeholders + ')'
     }
-    await db.run(sql, values)
+    await db.run(cycleDatabase, sql, values)
     if (config.VERBOSE) Logger.mainLogger.debug('Successfully inserted Cycles', cycles.length)
   } catch (e) {
     Logger.mainLogger.error(e)
@@ -44,7 +44,7 @@ export async function bulkInsertCycles(cycles: Cycle[]): Promise<void> {
 export async function updateCycle(marker: string, cycle: Cycle): Promise<void> {
   try {
     const sql = `UPDATE cycles SET counter = $counter, cycleRecord = $cycleRecord WHERE cycleMarker = $marker `
-    await db.run(sql, {
+    await db.run(cycleDatabase, sql, {
       $counter: cycle.counter,
       $cycleRecord: cycle.cycleRecord && SerializeToJsonString(cycle.cycleRecord),
       $marker: marker,
@@ -61,7 +61,7 @@ export async function updateCycle(marker: string, cycle: Cycle): Promise<void> {
 export async function queryCycleByMarker(marker: string): Promise<Cycle> {
   try {
     const sql = `SELECT * FROM cycles WHERE cycleMarker=? LIMIT 1`
-    const dbCycle = (await db.get(sql, [marker])) as DbCycle
+    const dbCycle = (await db.get(cycleDatabase, sql, [marker])) as DbCycle
     let cycle: Cycle
     if (dbCycle) {
       cycle = {
@@ -83,7 +83,7 @@ export async function queryCycleByMarker(marker: string): Promise<Cycle> {
 export async function queryLatestCycleRecords(count: number): Promise<P2P.CycleCreatorTypes.CycleData[]> {
   try {
     const sql = `SELECT * FROM cycles ORDER BY counter DESC LIMIT ${count ? count : 100}`
-    const dbCycles = (await db.all(sql)) as DbCycle[]
+    const dbCycles = (await db.all(cycleDatabase, sql)) as DbCycle[]
     const cycleRecords: P2P.CycleCreatorTypes.CycleData[] = []
     if (dbCycles.length > 0) {
       for (const cycle of dbCycles) {
@@ -106,7 +106,7 @@ export async function queryCycleRecordsBetween(
 ): Promise<P2P.CycleCreatorTypes.CycleData[]> {
   try {
     const sql = `SELECT * FROM cycles WHERE counter BETWEEN ? AND ? ORDER BY counter ASC`
-    const dbCycles = (await db.all(sql, [start, end])) as DbCycle[]
+    const dbCycles = (await db.all(cycleDatabase, sql, [start, end])) as DbCycle[]
     const cycleRecords: P2P.CycleCreatorTypes.CycleData[] = []
     if (dbCycles.length > 0) {
       for (const cycle of dbCycles) {
@@ -127,7 +127,7 @@ export async function queryCyleCount(): Promise<number> {
   let cycles
   try {
     const sql = `SELECT COUNT(*) FROM cycles`
-    cycles = await db.get(sql, [])
+    cycles = await db.get(cycleDatabase, sql, [])
   } catch (e) {
     Logger.mainLogger.error(e)
   }

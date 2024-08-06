@@ -13,6 +13,13 @@ export interface Config {
   ARCHIVER_PUBLIC_KEY: string
   ARCHIVER_SECRET_KEY: string
   ARCHIVER_DB: string // Archiver DB folder name
+  ARCHIVER_DATA: {
+    cycleDB: string
+    accountDB: string
+    transactionDB: string
+    receiptDB: string
+    originalTxDataDB: string
+  }
   EXISTING_ARCHIVER_DB_PATH: string
   DATASENDER_TIMEOUT: number
   RATE_LIMIT: number // number of allowed request per second,
@@ -84,6 +91,13 @@ let config: Config = {
   ARCHIVER_SECRET_KEY: '',
   ARCHIVER_LOGS: 'archiver-logs',
   ARCHIVER_DB: 'archiver-db',
+  ARCHIVER_DATA: {
+    cycleDB: 'cycles.sqlite3',
+    accountDB: 'accounts.sqlite3',
+    transactionDB: 'transactions.sqlite3',
+    receiptDB: 'receipts.sqlite3',
+    originalTxDataDB: 'originalTxs.sqlite3',
+  },
   EXISTING_ARCHIVER_DB_PATH: '',
   DATASENDER_TIMEOUT: 1000 * 60 * 5,
   RATE_LIMIT: 100, // 100 req per second,
