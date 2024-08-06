@@ -96,7 +96,7 @@ let config: Config = {
     accountDB: 'accounts.sqlite3',
     transactionDB: 'transactions.sqlite3',
     receiptDB: 'receipts.sqlite3',
-    originalTxDataDB: 'originalTxs.sqlite3',
+    originalTxDataDB: 'originalTxsData.sqlite3',
   },
   EXISTING_ARCHIVER_DB_PATH: '',
   DATASENDER_TIMEOUT: 1000 * 60 * 5,
