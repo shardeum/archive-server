@@ -13,15 +13,15 @@ export let originalTxDataDatabase: Database
 
 export async function init(config: Config): Promise<void> {
   createDirectories(config.ARCHIVER_DB)
-  accountDatabase = await createDB(`${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.accountDB}`, 'Account')
-  cycleDatabase = await createDB(`${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.cycleDB}`, 'Cycle')
+  accountDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.accountDB}`, 'Account')
+  cycleDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.cycleDB}`, 'Cycle')
   transactionDatabase = await createDB(
-    `${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.transactionDB}`,
+    `${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.transactionDB}`,
     'Transaction'
   )
-  receiptDatabase = await createDB(`${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.receiptDB}`, 'Receipt')
+  receiptDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.receiptDB}`, 'Receipt')
   originalTxDataDatabase = await createDB(
-    `${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.originalTxDataDB}`,
+    `${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.originalTxDataDB}`,
     'OriginalTxData'
   )
 }
