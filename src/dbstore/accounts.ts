@@ -1,5 +1,5 @@
 import * as db from './sqlite3storage'
-import { extractValues, extractValuesFromArray } from './sqlite3storage'
+import { accountDatabase, extractValues, extractValuesFromArray } from './sqlite3storage'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString, SerializeToJsonString } from '../utils/serialization'
@@ -24,7 +24,7 @@ export async function insertAccount(account: AccountCopy): Promise<void> {
     const placeholders = Object.keys(account).fill('?').join(', ')
     const values = extractValues(account)
     const sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
-    await db.run(sql, values)
+    await db.run(accountDatabase, sql, values)
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Successfully inserted Account', account.accountId)
     }
@@ -46,7 +46,7 @@ export async function bulkInsertAccounts(accounts: AccountCopy[]): Promise<void>
     for (let i = 1; i < accounts.length; i++) {
       sql = sql + ', (' + placeholders + ')'
     }
-    await db.run(sql, values)
+    await db.run(accountDatabase, sql, values)
     if (config.VERBOSE) Logger.mainLogger.debug('Successfully inserted Accounts', accounts.length)
   } catch (e) {
     Logger.mainLogger.error(e)
@@ -57,7 +57,7 @@ export async function bulkInsertAccounts(accounts: AccountCopy[]): Promise<void>
 export async function updateAccount(account: AccountCopy): Promise<void> {
   try {
     const sql = `UPDATE accounts SET cycleNumber = $cycleNumber, timestamp = $timestamp, data = $data, hash = $hash WHERE accountId = $accountId `
-    await db.run(sql, {
+    await db.run(accountDatabase, sql, {
       $cycleNumber: account.cycleNumber,
       $timestamp: account.timestamp,
       $data: SerializeToJsonString(account.data),
@@ -76,7 +76,7 @@ export async function updateAccount(account: AccountCopy): Promise<void> {
 export async function queryAccountByAccountId(accountId: string): Promise<AccountCopy | null> {
   try {
     const sql = `SELECT * FROM accounts WHERE accountId=?`
-    const dbAccount = (await db.get(sql, [accountId])) as DbAccountCopy
+    const dbAccount = (await db.get(accountDatabase, sql, [accountId])) as DbAccountCopy
     let account: AccountCopy
     if (dbAccount) account = { ...dbAccount, data: DeSerializeFromJsonString(dbAccount.data) }
     if (config.VERBOSE) {
@@ -94,7 +94,7 @@ export async function queryLatestAccounts(count: number): Promise<AccountCopy[] 
     const sql = `SELECT * FROM accounts ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${
       count ? count : 100
     }`
-    const dbAccounts = (await db.all(sql)) as DbAccountCopy[]
+    const dbAccounts = (await db.all(accountDatabase, sql)) as DbAccountCopy[]
     const accounts: AccountCopy[] = []
     if (dbAccounts.length > 0) {
       for (const dbAccount of dbAccounts) {
@@ -116,7 +116,7 @@ export async function queryAccounts(skip = 0, limit = 10000): Promise<AccountCop
   const accounts: AccountCopy[] = []
   try {
     const sql = `SELECT * FROM accounts ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    dbAccounts = (await db.all(sql)) as DbAccountCopy[]
+    dbAccounts = (await db.all(accountDatabase, sql)) as DbAccountCopy[]
     if (dbAccounts.length > 0) {
       for (const dbAccount of dbAccounts) {
         accounts.push({ ...dbAccount, data: DeSerializeFromJsonString(dbAccount.data) })
@@ -135,7 +135,7 @@ export async function queryAccountCount(): Promise<number> {
   let accounts
   try {
     const sql = `SELECT COUNT(*) FROM accounts`
-    accounts = await db.get(sql, [])
+    accounts = await db.get(accountDatabase, sql, [])
   } catch (e) {
     Logger.mainLogger.error(e)
   }
@@ -154,7 +154,7 @@ export async function queryAccountCountBetweenCycles(
   let accounts
   try {
     const sql = `SELECT COUNT(*) FROM accounts WHERE cycleNumber BETWEEN ? AND ?`
-    accounts = await db.get(sql, [startCycleNumber, endCycleNumber])
+    accounts = await db.get(accountDatabase, sql, [startCycleNumber, endCycleNumber])
   } catch (e) {
     Logger.mainLogger.error(e)
   }
@@ -176,7 +176,7 @@ export async function queryAccountsBetweenCycles(
   const accounts: AccountCopy[] = []
   try {
     const sql = `SELECT * FROM accounts WHERE cycleNumber BETWEEN ? AND ? ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
-    dbAccounts = (await db.all(sql, [startCycleNumber, endCycleNumber])) as DbAccountCopy[]
+    dbAccounts = (await db.all(accountDatabase, sql, [startCycleNumber, endCycleNumber])) as DbAccountCopy[]
     if (dbAccounts.length > 0) {
       for (const dbAccount of dbAccounts) {
         accounts.push({ ...dbAccount, data: DeSerializeFromJsonString(dbAccount.data) })
@@ -199,7 +199,7 @@ export async function queryAccountsBetweenCycles(
 export async function fetchAccountsBySqlQuery(sql: string, value: string[]): Promise<AccountCopy[]> {
   const accounts: AccountCopy[] = []
   try {
-    const dbAccounts = (await db.all(sql, value)) as DbAccountCopy[]
+    const dbAccounts = (await db.all(accountDatabase, sql, value)) as DbAccountCopy[]
     if (dbAccounts.length > 0) {
       for (const dbAccount of dbAccounts) {
         accounts.push({ ...dbAccount, data: DeSerializeFromJsonString(dbAccount.data) })
