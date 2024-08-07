@@ -48,9 +48,10 @@ export interface Config {
   sendActiveMessage: boolean
   globalNetworkAccount: string
   maxValidatorsToServe: number
-  verifyAccountData: boolean
   limitToArchiversOnly: boolean
+  verifyReceiptData: boolean
   verifyAppReceiptData: boolean
+  verifyAccountData: boolean
   skipGlobalTxReceiptVerification: boolean // To skip verification of global tx receipts for now
   REQUEST_LIMIT: {
     MAX_ACCOUNTS_PER_REQUEST: number
@@ -127,8 +128,9 @@ let config: Config = {
   globalNetworkAccount:
     process.env.GLOBAL_ACCOUNT || '1000000000000000000000000000000000000000000000000000000000000001', //this address will change in the future
   maxValidatorsToServe: 10, // max number of validators to serve accounts data during restore mode
-  verifyAccountData: true,
   limitToArchiversOnly: true,
+  verifyReceiptData: true,
+  verifyAccountData: true,
   verifyAppReceiptData: true,
   skipGlobalTxReceiptVerification: true,
   REQUEST_LIMIT: {

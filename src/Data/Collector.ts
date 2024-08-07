@@ -191,7 +191,10 @@ const isReceiptRobust = async (
         validateReceiptData(fullReceipt)
       ) {
         if (config.verifyAppReceiptData) {
+          if (profilerInstance) profilerInstance.profileSectionStart('Verify_app_receipt_data')
+          if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Verify_app_receipt_data')
           const { valid, needToSave } = await verifyAppReceiptData(receipt)
+          if (profilerInstance) profilerInstance.profileSectionEnd('Verify_app_receipt_data')
           if (!valid) {
             Logger.mainLogger.error(
               `The app receipt verification failed from robustQuery nodes ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
@@ -208,18 +211,30 @@ const isReceiptRobust = async (
             return { success: false }
           }
         }
-        if (config.verifyAccountData && !verifyAccountHash(fullReceipt)) {
-          Logger.mainLogger.error(
-            `The account verification failed from robustQuery nodes ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
-          )
-          continue
+        if (config.verifyAccountData) {
+          if (profilerInstance) profilerInstance.profileSectionStart('Verify_receipt_account_data')
+          if (nestedCountersInstance)
+            nestedCountersInstance.countEvent('receipt', 'Verify_receipt_account_data')
+          const result = verifyAccountHash(fullReceipt)
+          if (profilerInstance) profilerInstance.profileSectionEnd('Verify_receipt_account_data')
+          if (!result) {
+            Logger.mainLogger.error(
+              `The account verification failed from robustQuery nodes ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+            )
+            continue
+          }
         }
-        const { success } = await verifyReceiptData(fullReceipt, false)
-        if (!success) {
-          Logger.mainLogger.error(
-            `The receipt validation failed from robustQuery nodes ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
-          )
-          continue
+        if (config.verifyReceiptData) {
+          if (profilerInstance) profilerInstance.profileSectionStart('Verify_app_receipt_data')
+          if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Verify_app_receipt_data')
+          const { success } = await verifyReceiptData(fullReceipt, false)
+          if (profilerInstance) profilerInstance.profileSectionEnd('Verify_app_receipt_data')
+          if (!success) {
+            Logger.mainLogger.error(
+              `The receipt validation failed from robustQuery nodes ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
+            )
+            continue
+          }
         }
         Logger.mainLogger.debug(
           `Found valid full receipt in robustQuery ${receipt.tx.txId} , ${receipt.cycle}, ${receipt.tx.timestamp}`
@@ -653,6 +668,7 @@ export const storeReceiptData = async (
     }
     if (config.VERBOSE) console.log('RECEIPT', 'Validate', txId, timestamp, senderInfo)
     receiptsInValidationMap.set(txId, timestamp)
+    if (profilerInstance) profilerInstance.profileSectionStart('Validate_receipt')
     if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Validate_receipt')
     if (!validateReceiptData(receipt)) {
       Logger.mainLogger.error('Invalid receipt: Validation failed', txId, receipt.cycle, timestamp)
@@ -687,7 +703,10 @@ export const storeReceiptData = async (
         }
       }
       if (config.verifyAppReceiptData) {
+        if (profilerInstance) profilerInstance.profileSectionStart('Verify_app_receipt_data')
+        if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Verify_app_receipt_data')
         const { valid, needToSave } = await verifyAppReceiptData(receipt, existingReceipt)
+        if (profilerInstance) profilerInstance.profileSectionEnd('Verify_app_receipt_data')
         if (!valid) {
           Logger.mainLogger.error(
             'Invalid receipt: App Receipt Verification failed',
@@ -710,29 +729,41 @@ export const storeReceiptData = async (
           continue
         }
       }
-      if (config.verifyAccountData && !verifyAccountHash(receipt)) {
-        Logger.mainLogger.error(
-          'Invalid receipt: Account Verification failed',
-          txId,
-          receipt.cycle,
-          timestamp
-        )
-        receiptsInValidationMap.delete(txId)
+      if (config.verifyAccountData) {
+        if (profilerInstance) profilerInstance.profileSectionStart('Verify_receipt_account_data')
         if (nestedCountersInstance)
-          nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_account_verification_failed')
-        if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
-        continue
+          nestedCountersInstance.countEvent('receipt', 'Verify_receipt_account_data')
+        const result = verifyAccountHash(receipt)
+        if (profilerInstance) profilerInstance.profileSectionEnd('Verify_receipt_account_data')
+        if (!result) {
+          Logger.mainLogger.error(
+            'Invalid receipt: Account Verification failed',
+            txId,
+            receipt.cycle,
+            timestamp
+          )
+          receiptsInValidationMap.delete(txId)
+          if (nestedCountersInstance)
+            nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_account_verification_failed')
+          if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
+          continue
+        }
       }
-      const { success, newReceipt } = await verifyReceiptData(receipt)
-      if (!success) {
-        Logger.mainLogger.error('Invalid receipt: Verification failed', txId, receipt.cycle, timestamp)
-        receiptsInValidationMap.delete(txId)
-        if (nestedCountersInstance)
-          nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_verification_failed')
-        if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
-        continue
+      if (config.verifyReceiptData) {
+        if (profilerInstance) profilerInstance.profileSectionStart('Verify_receipt_data')
+        if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Verify_receipt_data')
+        const { success, newReceipt } = await verifyReceiptData(receipt)
+        if (profilerInstance) profilerInstance.profileSectionEnd('Verify_receipt_data')
+        if (!success) {
+          Logger.mainLogger.error('Invalid receipt: Verification failed', txId, receipt.cycle, timestamp)
+          receiptsInValidationMap.delete(txId)
+          if (nestedCountersInstance)
+            nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_verification_failed')
+          if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
+          continue
+        }
+        if (newReceipt) receipt = newReceipt
       }
-      if (newReceipt) receipt = newReceipt
       if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
     }
     // await Receipt.insertReceipt({
