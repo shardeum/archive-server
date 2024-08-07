@@ -764,8 +764,8 @@ export const storeReceiptData = async (
         }
         if (newReceipt) receipt = newReceipt
       }
-      if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
     }
+    if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
     // await Receipt.insertReceipt({
     //   ...receipts[i],
     //   receiptId: tx.txId,
