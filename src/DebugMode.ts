@@ -24,13 +24,13 @@ export const isDebugMiddleware = (_req, res): void => {
         const requestSig = _req.query.sig
         //check if counter is valid
         const sigObj = {
-          route: _req.route,
+          route: _req.routerPath,
           count: _req.query.sig_counter,
           sign: { owner: ownerPk, sig: requestSig },
         }
-
+        const currentCounter = parseInt(sigObj.count)
         //reguire a larger counter than before.
-        if (sigObj.count < lastCounter) {
+        if (currentCounter < lastCounter) {
           const verified = Crypto.verify(sigObj)
           if (!verified) {
             throw new Error('FORBIDDEN. signature authentication is failed.')
@@ -38,7 +38,7 @@ export const isDebugMiddleware = (_req, res): void => {
         } else {
           throw new Error('FORBIDDEN. signature counter is failed.')
         }
-        lastCounter = sigObj.count //update counter so we can't use it again
+        lastCounter = currentCounter //update counter so we can't use it again
         return
       }
       throw new Error('FORBIDDEN. Endpoint is only available in debug mode.')
