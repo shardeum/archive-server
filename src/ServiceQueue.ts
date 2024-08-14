@@ -1,5 +1,5 @@
 import { P2P } from "@shardus/types";
-import * as Logger from '../src/Logger'
+import * as Logger from './Logger'
 import { stringifyReduce } from "./profiler/StringifyReduce";
 
 const txList: Array<{ hash: string; tx: P2P.ServiceQueueTypes.AddNetworkTx }> = []
