@@ -1,17 +1,24 @@
 import { P2P } from "@shardus/types";
 import * as Logger from '../src/Logger'
 import { stringifyReduce } from "./profiler/StringifyReduce";
-import * as crypto from '@shardus/crypto-utils'
 
 const txList: Array<{ hash: string; tx: P2P.ServiceQueueTypes.AddNetworkTx }> = []
 
 export function addTxs(addTxs: P2P.ServiceQueueTypes.AddNetworkTx[]): boolean {
   try {
     for (const addTx of addTxs) {
-      const txHash = crypto.hash(addTx.txData)
-
       Logger.mainLogger.info(`Adding network tx of type ${addTx.type} and payload ${stringifyReduce(addTx.txData)}`)
-      sortedInsert({ hash: txHash, tx: { txData: addTx.txData, type: addTx.type, cycle: addTx.cycle } })
+      const { sign, ...txDataWithoutSign } = addTx.txData
+      sortedInsert(txList, {
+        hash: addTx.hash,
+        tx: {
+          hash: addTx.hash,
+          txData: txDataWithoutSign,
+          type: addTx.type,
+          cycle: addTx.cycle,
+          ...(addTx.subQueueKey && { subQueueKey: addTx.subQueueKey }),
+        },
+      })
     }
     return true
   } catch (e) {
@@ -41,13 +48,17 @@ export function getNetworkTxsList(): { hash: string; tx: P2P.ServiceQueueTypes.A
   return txList
 }
 
-function sortedInsert(entry: { hash: string; tx: P2P.ServiceQueueTypes.AddNetworkTx }): void {
-  const index = txList.findIndex(
-    (item) => item.tx.cycle > entry.tx.cycle || (item.tx.cycle === entry.tx.cycle && item.hash > entry.hash)
+function sortedInsert(
+  list: { hash: string; tx: P2P.ServiceQueueTypes.AddNetworkTx }[],
+  entry: { hash: string; tx: P2P.ServiceQueueTypes.AddNetworkTx }
+): void {
+  const index = list.findIndex(
+    (item) =>
+      item.tx.cycle > entry.tx.cycle || (item.tx.cycle === entry.tx.cycle && item.hash > entry.tx.hash)
   )
   if (index === -1) {
-    txList.push(entry)
+    list.push(entry)
   } else {
-    txList.splice(index, 0, entry)
+    list.splice(index, 0, entry)
   }
 }
