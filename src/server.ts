@@ -42,6 +42,8 @@ import { setShutdownCycleRecord, cycleRecordWithShutDownMode } from './Data/Cycl
 import { registerRoutes } from './API'
 import { Utils as StringUtils } from '@shardus/types'
 import { healthCheckRouter } from './routes/healthCheck'
+import { setupWorkerProcesses } from './primary-process'
+import { initWorkerProcess } from './worker-process'
 
 const configFile = join(process.cwd(), 'archiver-config.json')
 let logDir: string
@@ -76,6 +78,7 @@ async function start(): Promise<void> {
   if (!cluster.isPrimary) {
     // Initialize state from config
     await State.initFromConfig(config)
+    await initWorkerProcess()
     return
   }
 
@@ -480,6 +483,7 @@ async function startServer(): Promise<void> {
       Logger.mainLogger.debug('Archive-server has started.')
       State.setActive()
       Collector.scheduleMissingTxsDataQuery()
+      setupWorkerProcesses(cluster)
     }
   )
 }

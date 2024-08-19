@@ -82,6 +82,10 @@ export interface Config {
   configChangeMaxCyclesToKeep: number
   // the number of config changes to keep*/
   configChangeMaxChangesToKeep: number
+  receiptLoadTrakerInterval: number // Interval to track the receipt load
+  receiptLoadTrakerLimit: number // Limit to track the receipt load
+  lastActivityCheckInterval: number // Interval to check last activity
+  lastActivityCheckTimeout: number // Timeout to check last activity
 }
 
 let config: Config = {
@@ -156,6 +160,10 @@ let config: Config = {
   maxCyclesShardDataToKeep: 10,
   configChangeMaxCyclesToKeep: 5,
   configChangeMaxChangesToKeep: 1000,
+  receiptLoadTrakerInterval: 15 * 1000,
+  receiptLoadTrakerLimit: 10,
+  lastActivityCheckInterval: 15 * 1000,
+  lastActivityCheckTimeout: 30 * 1000,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {

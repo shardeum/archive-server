@@ -1,11 +1,10 @@
 import { verifyArchiverReceipt, ReceiptVerificationResult } from '../Data/Collector'
 import { ChildMessageInterface } from '../primary-process'
+import { config } from '../Config'
 
 export const initWorkerProcess = async (): Promise<void> => {
   console.log(`Worker ${process.pid} started`)
   let lastActivity = Date.now()
-  const lastActivityCheckInterval: number = 15 * 1000 // Interval to check last activity
-  const lastActivityCheckTimeout: number = 30 * 1000 // Timeout to check last activity
 
   // Worker processes
   process.on('message', async ({ type, data }: ChildMessageInterface) => {
@@ -42,11 +41,14 @@ export const initWorkerProcess = async (): Promise<void> => {
     lastActivity = Date.now()
   })
   setInterval(() => {
-    if (Date.now() - lastActivity > lastActivityCheckTimeout) {
+    console.log(
+      `lastActivityCheckTimeout: ${config.lastActivityCheckTimeout}, lastActivityCheckInterval: ${config.lastActivityCheckInterval}`
+    )
+    if (Date.now() - lastActivity > config.lastActivityCheckTimeout) {
       console.log(`Worker ${process.pid} is idle for more than 1 minute`)
       process.send({ type: 'clild_close' })
     }
-  }, lastActivityCheckInterval)
+  }, config.lastActivityCheckInterval)
 }
 
 process.on('uncaughtException', (error) => {

@@ -28,6 +28,12 @@ import { getGlobalNetworkAccount } from './GlobalAccount'
 import { cycleRecordWithShutDownMode } from './Data/Cycles'
 import { isDebugMiddleware } from './DebugMode'
 import { Utils as StringUtils } from '@shardus/types'
+import {
+  receivedReceiptCount,
+  verifiedReceiptCount,
+  successReceiptCount,
+  failureReceiptCount,
+} from './primary-process'
 const { version } = require('../package.json') // eslint-disable-line @typescript-eslint/no-var-requires
 
 const TXID_LENGTH = 64
@@ -1077,6 +1083,23 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         Logger.mainLogger.info(msg)
         reachabilityAllowed = value
       }
+    }
+  )
+
+  server.get(
+    '/verified-receipt-counter',
+    {
+      preHandler: async (_request, reply) => {
+        isDebugMiddleware(_request, reply)
+      },
+    },
+    (_request, reply) => {
+      reply.send({
+        receivedReceiptCount,
+        verifiedReceiptCount,
+        successReceiptCount,
+        failureReceiptCount,
+      })
     }
   )
 
