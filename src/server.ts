@@ -9,8 +9,6 @@ import fastify, { FastifyInstance } from 'fastify'
 import fastifyCors from '@fastify/cors'
 import fastifyRateLimit from '@fastify/rate-limit'
 import * as clusterModule from 'cluster'
-import type { Worker } from 'cluster'
-import { cpus } from 'os'
 import { Server, IncomingMessage, ServerResponse } from 'http'
 import { overrideDefaultConfig, config } from './Config'
 import * as Crypto from './Crypto'
@@ -48,32 +46,12 @@ import { healthCheckRouter } from './routes/healthCheck'
 const configFile = join(process.cwd(), 'archiver-config.json')
 let logDir: string
 const cluster = clusterModule as unknown as clusterModule.Cluster
-const numCPUs = cpus().length
-
-type workerProcessId = number
-export const workerProcessMap = new Map<workerProcessId, Worker>()
 
 async function start(): Promise<void> {
   overrideDefaultConfig(configFile)
   // Set crypto hash keys from config
   const hashKey = config.ARCHIVER_HASH_KEY
   Crypto.setCryptoHashKey(hashKey)
-  try {
-    await setupArchiverDiscovery({
-      hashKey,
-      customConfigPath: configFile.toString(),
-      archiverTimeoutInMilliSeconds: 2000, // 2 seconds
-    })
-  } catch (e) {
-    console.log('Error setting up archiver discovery: ', e)
-  }
-
-  // If no keypair provided, generate one
-  if (config.ARCHIVER_SECRET_KEY === '' || config.ARCHIVER_PUBLIC_KEY === '') {
-    const keypair = Crypto.core.generateKeypair()
-    config.ARCHIVER_PUBLIC_KEY = keypair.publicKey
-    config.ARCHIVER_SECRET_KEY = keypair.secretKey
-  }
   let logsConfig
   try {
     logsConfig = StringUtils.safeJsonParse(readFileSync(resolve(__dirname, '../archiver-log.json'), 'utf8'))
@@ -95,6 +73,12 @@ async function start(): Promise<void> {
   }
   State.addSigListeners()
 
+  if (!cluster.isPrimary) {
+    // Initialize state from config
+    await State.initFromConfig(config)
+    return
+  }
+
   const lastStoredCycle = await CycleDB.queryLatestCycleRecords(1)
   if (lastStoredCycle && lastStoredCycle.length > 0) {
     const lastStoredCycleMode = lastStoredCycle[0].mode
@@ -115,6 +99,16 @@ async function start(): Promise<void> {
         return
       }
     }
+  }
+
+  try {
+    await setupArchiverDiscovery({
+      hashKey,
+      customConfigPath: configFile.toString(),
+      archiverTimeoutInMilliSeconds: 2000, // 2 seconds
+    })
+  } catch (e) {
+    console.log('Error setting up archiver discovery: ', e)
   }
   // Initialize state from config
   await State.initFromConfig(config)
@@ -490,47 +484,4 @@ async function startServer(): Promise<void> {
   )
 }
 
-const spawnWorker = (): Worker => {
-  const worker: Worker = cluster.fork()
-  workerProcessMap.set(worker.process.pid, worker)
-  registerWorkerMessageListener(worker)
-  return worker
-}
-
-export const registerWorkerMessageListener = (worker: Worker): void => {
-  worker.on('message', (message: any) => {
-    console.log(`Master received message from worker ${worker.process.pid}: ${message}`)
-  })
-}
-
-// Creating a worker pool
-export const workers: Worker[] = []
-
-if (cluster.isPrimary) {
-  console.log(`Master ${process.pid} is running`)
-
-  for (let i = 0; i < numCPUs; i++) {
-    const worker = spawnWorker()
-    console.log(`⛏️ Worker ${worker.process.pid} started`)
-  }
-
-  // Optional: Handle worker exit
-  cluster.on('exit', (worker, code, signal) => {
-    console.log(`Worker ${worker.process.pid} died`)
-    workerProcessMap.delete(worker.process.pid)
-    // Respawn the worker
-    const newWorker = spawnWorker()
-    console.log(`⛏️ New Worker ${newWorker.process.pid} started`)
-  })
-
-  start()
-} else {
-  console.log(`Worker ${process.pid} started`)
-  // Worker processes
-  process.on('message', (receipt: any) => {
-    console.log(`Worker ${process.pid} validating receipt`)
-    // Add receipt validation logic here
-    const verified = true
-    process.send({ workerId: process.pid, success: verified })
-  })
-}
+start()

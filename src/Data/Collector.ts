@@ -30,6 +30,7 @@ import { accountSpecificHash, verifyAccountHash } from '../shardeum/calculateAcc
 import { verifyAppReceiptData } from '../shardeum/verifyAppReceiptData'
 import { Cycle as DbCycle } from '../dbstore/types'
 import { Utils as StringUtils } from '@shardus/types'
+import { offloadReceipt } from '../primary-process'
 
 export let storingAccountData = false
 const processedReceiptsMap: Map<string, number> = new Map()
@@ -51,6 +52,13 @@ type GET_TX_RECEIPT_RESPONSE = {
   success: boolean
   receipt?: Receipt.ArchiverReceipt | Receipt.AppliedReceipt2
   reason?: string
+}
+
+export interface ReceiptVerificationResult {
+  success: boolean
+  failedReason?: string
+  nestedCounterMessage?: string
+  newReceipt?: Receipt.ArchiverReceipt
 }
 
 /**
@@ -188,7 +196,7 @@ const isReceiptRobust = async (
       const fullReceipt = fullReceiptResult.receipt as Receipt.ArchiverReceipt
       if (
         isReceiptEqual(fullReceipt.appliedReceipt, robustQueryReceipt) &&
-        validateReceiptData(fullReceipt)
+        validateArchiverReceipt(fullReceipt)
       ) {
         if (config.verifyAppReceiptData) {
           if (profilerInstance) profilerInstance.profileSectionStart('Verify_app_receipt_data')
@@ -267,7 +275,7 @@ const isReceiptRobust = async (
  * @param receipt
  * @returns boolean
  */
-export const validateReceiptData = (receipt: Receipt.ArchiverReceipt): boolean => {
+export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boolean => {
   // Add type and field existence check
   let err = Utils.validateTypes(receipt, {
     tx: 'o',
@@ -642,6 +650,78 @@ const calculateVoteHash = (vote: Receipt.AppliedVote): string => {
   }
 }
 
+export const verifyArchiverReceipt = async (
+  receipt: Receipt.ArchiverReceipt
+): Promise<ReceiptVerificationResult> => {
+  const { txId, timestamp } = receipt.tx
+  const existingReceipt = await Receipt.queryReceiptByReceiptId(txId)
+  if (
+    config.usePOQo === false &&
+    existingReceipt &&
+    receipt.appliedReceipt &&
+    receipt.appliedReceipt.confirmOrChallenge &&
+    receipt.appliedReceipt.confirmOrChallenge.message === 'challenge'
+  ) {
+    // If the existing receipt is confirmed, and the new receipt is challenged, then skip saving the new receipt
+    if (existingReceipt.appliedReceipt.confirmOrChallenge.message === 'confirm') {
+      const failedReason = `Existing receipt is confirmed, but new receipt is challenged ${txId}, ${receipt.cycle}, ${timestamp}`
+      const nestedCounterMessage = 'Existing_receipt_is_confirmed_but_new_receipt_is_challenged'
+      // if (nestedCountersInstance)
+      //   nestedCountersInstance.countEvent(
+      //     'receipt',
+      //     'Existing_receipt_is_confirmed_but_new_receipt_is_challenged'
+      //   )
+      return { success: false, failedReason, nestedCounterMessage }
+    }
+  }
+  if (config.verifyAppReceiptData) {
+    // if (profilerInstance) profilerInstance.profileSectionStart('Verify_app_receipt_data')
+    // if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Verify_app_receipt_data')
+    const { valid, needToSave } = await verifyAppReceiptData(receipt, existingReceipt)
+    // if (profilerInstance) profilerInstance.profileSectionEnd('Verify_app_receipt_data')
+    if (!valid) {
+      const failedReason = `Invalid receipt: App Receipt Verification failed ${txId}, ${receipt.cycle}, ${timestamp}`
+      const nestedCounterMessage = 'Invalid_receipt_app_receipt_verification_failed'
+      // if (nestedCountersInstance)
+      //   nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_app_receipt_verification_failed')
+      return { success: false, failedReason, nestedCounterMessage }
+    }
+    if (!needToSave) {
+      const failedReason = `Valid receipt: but no need to save ${txId}, ${receipt.cycle}, ${timestamp}`
+      const nestedCounterMessage = 'Valid_receipt_but_no_need_to_save'
+      // if (nestedCountersInstance)
+      //   nestedCountersInstance.countEvent('receipt', 'Valid_receipt_but_no_need_to_save')
+      return { success: false, failedReason, nestedCounterMessage }
+    }
+  }
+  if (config.verifyAccountData) {
+    // if (profilerInstance) profilerInstance.profileSectionStart('Verify_receipt_account_data')
+    // if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Verify_receipt_account_data')
+    const result = verifyAccountHash(receipt)
+    // if (profilerInstance) profilerInstance.profileSectionEnd('Verify_receipt_account_data')
+    if (!result) {
+      const failedReason = `Invalid receipt: Account Verification failed ${txId}, ${receipt.cycle}, ${timestamp}`
+      const nestedCounterMessage = 'Invalid_receipt_account_verification_failed'
+      // if (nestedCountersInstance)
+      //   nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_account_verification_failed')
+      return { success: false, failedReason, nestedCounterMessage }
+    }
+  }
+  if (config.verifyReceiptData) {
+    // if (profilerInstance) profilerInstance.profileSectionStart('Verify_receipt_data')
+    // if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Verify_receipt_data')
+    const { success, newReceipt } = await verifyReceiptData(receipt)
+    // if (profilerInstance) profilerInstance.profileSectionEnd('Verify_receipt_data')
+    if (!success) {
+      const failedReason = `Invalid receipt: Verification failed ${txId}, ${receipt.cycle}, ${timestamp}`
+      const nestedCounterMessage = 'Invalid_receipt_verification_failed'
+      return { success: false, failedReason, nestedCounterMessage }
+    }
+    return { success: true, failedReason: '', nestedCounterMessage: '', newReceipt }
+  }
+  return { success: true }
+}
+
 export const storeReceiptData = async (
   receipts: Receipt.ArchiverReceipt[],
   senderInfo = '',
@@ -670,7 +750,7 @@ export const storeReceiptData = async (
     receiptsInValidationMap.set(txId, timestamp)
     if (profilerInstance) profilerInstance.profileSectionStart('Validate_receipt')
     if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Validate_receipt')
-    if (!validateReceiptData(receipt)) {
+    if (!validateArchiverReceipt(receipt)) {
       Logger.mainLogger.error('Invalid receipt: Validation failed', txId, receipt.cycle, timestamp)
       receiptsInValidationMap.delete(txId)
       if (nestedCountersInstance)
@@ -680,90 +760,15 @@ export const storeReceiptData = async (
     }
 
     if (verifyData) {
-      const existingReceipt = await Receipt.queryReceiptByReceiptId(txId)
-      if (
-        existingReceipt &&
-        receipt.appliedReceipt &&
-        receipt.appliedReceipt.confirmOrChallenge &&
-        receipt.appliedReceipt.confirmOrChallenge.message === 'challenge'
-      ) {
-        // If the existing receipt is confirmed, and the new receipt is challenged, then skip saving the new receipt
-        if (existingReceipt.appliedReceipt.confirmOrChallenge.message === 'confirm') {
-          Logger.mainLogger.error(
-            `Existing receipt is confirmed, but new receipt is challenged ${txId}, ${receipt.cycle}, ${timestamp}`
-          )
-          receiptsInValidationMap.delete(txId)
-          if (nestedCountersInstance)
-            nestedCountersInstance.countEvent(
-              'receipt',
-              'Existing_receipt_is_confirmed_but_new_receipt_is_challenged'
-            )
-          if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
-          continue
-        }
+      const result = await offloadReceipt(receipt)
+      if (result.success === false) {
+        receiptsInValidationMap.delete(txId)
+        Logger.mainLogger.error(result.failedReason)
+        if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', result.nestedCounterMessage)
+        if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
+        continue
       }
-      if (config.verifyAppReceiptData) {
-        if (profilerInstance) profilerInstance.profileSectionStart('Verify_app_receipt_data')
-        if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Verify_app_receipt_data')
-        const { valid, needToSave } = await verifyAppReceiptData(receipt, existingReceipt)
-        if (profilerInstance) profilerInstance.profileSectionEnd('Verify_app_receipt_data')
-        if (!valid) {
-          Logger.mainLogger.error(
-            'Invalid receipt: App Receipt Verification failed',
-            txId,
-            receipt.cycle,
-            timestamp
-          )
-          receiptsInValidationMap.delete(txId)
-          if (nestedCountersInstance)
-            nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_app_receipt_verification_failed')
-          if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
-          continue
-        }
-        if (!needToSave) {
-          Logger.mainLogger.error('Valid receipt: but no need to save', txId, receipt.cycle, timestamp)
-          receiptsInValidationMap.delete(txId)
-          if (nestedCountersInstance)
-            nestedCountersInstance.countEvent('receipt', 'Valid_receipt_but_no_need_to_save')
-          if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
-          continue
-        }
-      }
-      if (config.verifyAccountData) {
-        if (profilerInstance) profilerInstance.profileSectionStart('Verify_receipt_account_data')
-        if (nestedCountersInstance)
-          nestedCountersInstance.countEvent('receipt', 'Verify_receipt_account_data')
-        const result = verifyAccountHash(receipt)
-        if (profilerInstance) profilerInstance.profileSectionEnd('Verify_receipt_account_data')
-        if (!result) {
-          Logger.mainLogger.error(
-            'Invalid receipt: Account Verification failed',
-            txId,
-            receipt.cycle,
-            timestamp
-          )
-          receiptsInValidationMap.delete(txId)
-          if (nestedCountersInstance)
-            nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_account_verification_failed')
-          if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
-          continue
-        }
-      }
-      if (config.verifyReceiptData) {
-        if (profilerInstance) profilerInstance.profileSectionStart('Verify_receipt_data')
-        if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Verify_receipt_data')
-        const { success, newReceipt } = await verifyReceiptData(receipt)
-        if (profilerInstance) profilerInstance.profileSectionEnd('Verify_receipt_data')
-        if (!success) {
-          Logger.mainLogger.error('Invalid receipt: Verification failed', txId, receipt.cycle, timestamp)
-          receiptsInValidationMap.delete(txId)
-          if (nestedCountersInstance)
-            nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_verification_failed')
-          if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
-          continue
-        }
-        if (newReceipt) receipt = newReceipt
-      }
+      if (result.newReceipt) receipt = result.newReceipt
     }
     if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
     // await Receipt.insertReceipt({
