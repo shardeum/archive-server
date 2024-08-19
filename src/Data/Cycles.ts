@@ -31,6 +31,7 @@ import { stringifyReduce } from '../profiler/StringifyReduce'
 import { addCyclesToCache } from '../cache/cycleRecordsCache'
 import { queryLatestCycleRecords } from '../dbstore/cycles'
 import { updateGlobalNetworkAccount } from '../GlobalAccount'
+import { syncTxList } from '../sync-v2'
 
 export interface ArchiverCycleResponse {
   cycleInfo: P2PTypes.CycleCreatorTypes.CycleData[]
@@ -355,7 +356,7 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   }
 }
 
-function updateNetworkTxsList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
+async function updateNetworkTxsList(cycle: P2PTypes.CycleCreatorTypes.CycleData): Promise<void> {
   const {
     txadd,
     txremove
@@ -363,6 +364,23 @@ function updateNetworkTxsList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void
 
   ServiceQueue.addTxs(txadd)
   ServiceQueue.removeTxs(txremove)
+
+  const calculatedTxListHash = ServiceQueue.getNetworkTxsListHash()
+
+  if (calculatedTxListHash !== cycle.txlisthash) {
+    console.error('txList hash from cycle record does not match the calculated txList hash')
+    const syncTxListResult = await syncTxList(NodeList.getActiveList())
+
+    syncTxListResult.match(
+      (txList) => {
+        Logger.mainLogger.debug("Successfully synced txList from validators"), 
+        ServiceQueue.setTxList(txList)
+      },
+      (error) => {
+        Logger.mainLogger.error("Failed to synchronize transaction list:", error.message);
+      }
+    );
+  }
 }
 
 export async function fetchCycleRecords(
