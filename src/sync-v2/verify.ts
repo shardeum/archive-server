@@ -58,6 +58,20 @@ export function verifyArchiverList(
   return verify(archiverList, expectedHash, 'archiver list')
 }
 
+/** Verifies that the hash of the tx list matches the expected hash. */
+export function verifyTxList(
+  txList: P2P.ServiceQueueTypes.NetworkTxEntry[],
+  expectedHash: string
+): Result<boolean, Error> {
+  const actualHash = hashObj(txList)
+
+  // verify that the hash of the CycleRecord matches the expected hash
+  if (actualHash !== expectedHash)
+    return err(new Error(`hash mismatch for txList: expected ${expectedHash}, got ${actualHash}`))
+
+  return ok(true)
+}
+
 /** Verifies that the hash of the cycle record matches the expected hash. */
 export function verifyCycleRecord(
   cycleRecord: P2P.CycleCreatorTypes.CycleRecord,
