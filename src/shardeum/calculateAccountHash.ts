@@ -57,11 +57,15 @@ export const accountSpecificHash = (account: any): string => {
   return hash
 }
 
-export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
+export const verifyAccountHash = (
+  receipt: ArchiverReceipt,
+  failedReasons = [],
+  nestedCounterMessages = []
+): boolean => {
   try {
     if (receipt.globalModification && config.skipGlobalTxReceiptVerification) return true // return true if global modification
     if (receipt.accounts.length !== receipt.appliedReceipt.appliedVote.account_state_hash_after.length) {
-      Logger.mainLogger.error(
+      failedReasons.push(
         `Modified account count specified in the receipt and the actual updated account count does not match! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
       )
       return false
@@ -70,7 +74,7 @@ export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
       receipt.appliedReceipt.appliedVote.account_state_hash_before.length !==
       receipt.appliedReceipt.appliedVote.account_state_hash_after.length
     ) {
-      Logger.mainLogger.error(
+      failedReasons.push(
         `Account state hash before and after count does not match! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
       )
       return false
@@ -79,7 +83,7 @@ export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
       const calculatedAccountHash = accountSpecificHash(account.data)
       const indexOfAccount = receipt.appliedReceipt.appliedVote.account_id.indexOf(account.accountId)
       if (indexOfAccount === -1) {
-        Logger.mainLogger.error(
+        failedReasons.push(
           `Account not found in the receipt ${account.accountId} , ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
         )
         return false
@@ -87,7 +91,7 @@ export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
       // eslint-disable-next-line security/detect-object-injection
       const expectedAccountHash = receipt.appliedReceipt.appliedVote.account_state_hash_after[indexOfAccount]
       if (calculatedAccountHash !== expectedAccountHash) {
-        Logger.mainLogger.error(
+        failedReasons.push(
           `Account hash does not match ${account.accountId} , ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
         )
         return false
@@ -95,7 +99,7 @@ export const verifyAccountHash = (receipt: ArchiverReceipt): boolean => {
     }
     return true
   } catch (e) {
-    Logger.mainLogger.error('Error in verifyAccountHash', e)
+    failedReasons.push('Error in verifyAccountHash', e)
     return false
   }
 }

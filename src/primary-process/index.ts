@@ -4,18 +4,22 @@ import { ArchiverReceipt } from '../dbstore/receipts'
 import { verifyArchiverReceipt, ReceiptVerificationResult } from '../Data/Collector'
 import { config } from '../Config'
 import { EventEmitter } from 'events'
+import { shardValuesByCycle } from '../Data/Cycles'
+import { StateManager } from '@shardus/types'
 
 const MAX_WORKERS = cpus().length - 1 // Leaving 1 core for the master process
 
 export interface ChildMessageInterface {
   type: string
   data: {
-    receipt?: ArchiverReceipt
+    receipt?: string
     success?: boolean
     err?: string
     txId?: string
     timestamp?: number
     verificationResult?: ReceiptVerificationResult
+    cycle?: number
+    shardValues?: StateManager.shardFunctionTypes.CycleShardData
   }
 }
 
@@ -48,6 +52,7 @@ export const setupWorkerProcesses = (cluster: Cluster): void => {
         const worker = workers.pop()
         if (worker) extraWorkers.set(worker.process.pid, worker)
       }
+      receiptLoadTraker = 0
       return
     }
     let neededWorkers = Math.ceil(receiptLoadTraker / config.receiptLoadTrakerLimit)
@@ -58,6 +63,12 @@ export const setupWorkerProcesses = (cluster: Cluster): void => {
       for (let i = currentWorkers; i < neededWorkers; i++) {
         const worker = cluster.fork()
         workers.push(worker)
+        for (const [cycle, shardValues] of shardValuesByCycle) {
+          worker.send({
+            type: 'shardValuesByCycle',
+            data: { cycle, shardValues },
+          })
+        }
         // results.set(worker.process.pid, { success: 0, failure: 0 })
         setupWorkerListeners(worker)
       }
@@ -163,29 +174,26 @@ const forwardReceiptVerificationResult = (
     worker.on('exit', () => {
       resolve({
         success: false,
-        failedReason: `Worker exited before sending the receipt verification result for ${txId} with timestamp ${timestamp}`,
-        nestedCounterMessage: 'Worker exited before sending the receipt verification result',
+        failedReasons: [
+          `Worker exited before sending the receipt verification result for ${txId} with timestamp ${timestamp}`,
+        ],
+        nestedCounterMessages: ['Worker exited before sending the receipt verification result'],
       })
     })
   })
 }
 
-// goActive() {
-//   nestedCountersInstance.countEvent('p2p', 'goActive')
-//   const activePromise = new Promise<void>((resolve, reject) => {
-//     Self.emitter.on('active', () => resolve())
-//   })
-//   //Active.requestActive()
-//   console.log('return goActive promise...')
-//   return activePromise
-// }
-
-export const offloadReceipt = async (receipt: ArchiverReceipt): Promise<ReceiptVerificationResult> => {
+export const offloadReceipt = async (
+  txId: string,
+  timestamp: number,
+  receipt: string,
+  receipt2: ArchiverReceipt
+): Promise<ReceiptVerificationResult> => {
   receivedReceiptCount++ // Increment the counter for each receipt received
   receiptLoadTraker++ // Increment the receipt load tracker
   let verificationResult: ReceiptVerificationResult
   if (workers.length === 0) {
-    verificationResult = await verifyArchiverReceipt(receipt)
+    verificationResult = await verifyArchiverReceipt(receipt2)
   } else {
     // Forward the request to a worker in a round-robin fashion
     let worker = workers[currentWorker]
@@ -199,26 +207,18 @@ export const offloadReceipt = async (receipt: ArchiverReceipt): Promise<ReceiptV
           type: 'receipt-verification',
           data: { receipt },
         })
-        verificationResult = await forwardReceiptVerificationResult(
-          receipt.tx.txId,
-          receipt.tx.timestamp,
-          worker
-        )
+        verificationResult = await forwardReceiptVerificationResult(txId, timestamp, worker)
       } else {
         console.error('No worker available to process the receipt 2')
         // Verifying the receipt in the main thread
-        verificationResult = await verifyArchiverReceipt(receipt)
+        verificationResult = await verifyArchiverReceipt(receipt2)
       }
     } else {
       worker.send({
         type: 'receipt-verification',
         data: { receipt },
       })
-      verificationResult = await forwardReceiptVerificationResult(
-        receipt.tx.txId,
-        receipt.tx.timestamp,
-        worker
-      )
+      verificationResult = await forwardReceiptVerificationResult(txId, timestamp, worker)
     }
   }
   verifiedReceiptCount++

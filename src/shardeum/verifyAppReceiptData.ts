@@ -11,13 +11,15 @@ export type ShardeumReceipt = object & {
 
 export const verifyAppReceiptData = async (
   receipt: ArchiverReceipt,
-  existingReceipt?: Receipt | null
+  existingReceipt?: Receipt | null,
+  failedReasons = [],
+  nestedCounterMessages = []
 ): Promise<{ valid: boolean; needToSave: boolean }> => {
   let result = { valid: false, needToSave: false }
   const { appReceiptData, globalModification, appliedReceipt } = receipt
   const newShardeumReceipt = appReceiptData.data as ShardeumReceipt
   if (!newShardeumReceipt.amountSpent || !newShardeumReceipt.readableReceipt) {
-    Logger.mainLogger.error(`appReceiptData missing amountSpent or readableReceipt`)
+    failedReasons.push(`appReceiptData missing amountSpent or readableReceipt`)
     return result
   }
   if (
@@ -32,7 +34,7 @@ export const verifyAppReceiptData = async (
         // eslint-disable-next-line security/detect-object-injection
         !appliedReceipt.appliedVote.account_state_hash_after[i]
       ) {
-        Logger.mainLogger.error(
+        failedReasons.push(
           `The account state hash before or after is missing in the receipt! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
         )
       }
@@ -42,7 +44,7 @@ export const verifyAppReceiptData = async (
         // eslint-disable-next-line security/detect-object-injection
         appliedReceipt.appliedVote.account_state_hash_after[i]
       ) {
-        Logger.mainLogger.error(
+        failedReasons.push(
           `The receipt has 0 amountSpent and status 0 but has state updated accounts! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
         )
         break
@@ -84,7 +86,7 @@ export const verifyAppReceiptData = async (
       if (existingShardeumReceipt.readableReceipt.status === 0) {
         if (newShardeumReceipt.readableReceipt.status === 1) {
           if (existingShardeumReceipt.amountSpent !== '0x0') {
-            Logger.mainLogger.error(
+            failedReasons.push(
               `Success and failed receipts with gas charged`,
               StringUtils.safeStringify(existingReceipt),
               StringUtils.safeStringify(receipt)
@@ -92,7 +94,7 @@ export const verifyAppReceiptData = async (
           } else result = { valid: true, needToSave: true } // Success receipt
         } else {
           if (existingShardeumReceipt.amountSpent !== '0x0' && newShardeumReceipt.amountSpent !== '0x0') {
-            Logger.mainLogger.error(
+            failedReasons.push(
               `Both failed receipts with gas charged`,
               StringUtils.safeStringify(existingReceipt),
               StringUtils.safeStringify(receipt)
@@ -103,7 +105,7 @@ export const verifyAppReceiptData = async (
           }
         }
       } else if (newShardeumReceipt.readableReceipt.status === 1) {
-        Logger.mainLogger.error(
+        failedReasons.push(
           `Duplicate success receipt`,
           StringUtils.safeStringify(existingReceipt),
           StringUtils.safeStringify(receipt)
@@ -114,9 +116,9 @@ export const verifyAppReceiptData = async (
   if (globalModification && config.skipGlobalTxReceiptVerification) return { valid: true, needToSave: true }
   // Finally verify appReceiptData hash
   const appReceiptDataCopy = { ...appReceiptData }
-  const calculatedAppReceiptDataHash = calculateAppReceiptDataHash(appReceiptDataCopy)
+  const calculatedAppReceiptDataHash = calculateAppReceiptDataHash(appReceiptDataCopy, failedReasons)
   if (calculatedAppReceiptDataHash !== receipt.appliedReceipt.app_data_hash) {
-    Logger.mainLogger.error(
+    failedReasons.push(
       `appReceiptData hash mismatch: ${crypto.hashObj(appReceiptData)} != ${
         receipt.appliedReceipt.app_data_hash
       }`
@@ -127,7 +129,7 @@ export const verifyAppReceiptData = async (
 }
 
 // Converting the correct appReceipt data format to get the correct hash
-const calculateAppReceiptDataHash = (appReceiptData): string => {
+const calculateAppReceiptDataHash = (appReceiptData: any, failedReasons = []): string => {
   try {
     if (appReceiptData.data && appReceiptData.data.receipt) {
       if (appReceiptData.data.receipt.bitvector)
@@ -153,7 +155,7 @@ const calculateAppReceiptDataHash = (appReceiptData): string => {
     const hash = crypto.hashObj(appReceiptData)
     return hash
   } catch (err) {
-    Logger.mainLogger.error(`calculateAppReceiptDataHash error: ${err}`)
+    failedReasons.push(`calculateAppReceiptDataHash error: ${err}`)
     return ''
   }
 }

@@ -522,7 +522,7 @@ function updateShardValues(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   shardValuesByCycle.set(cycleShardData.cycleNumber, cycleShardData)
 }
 
-const cleanShardCycleData = (cycleNumber: number): void => {
+export const cleanShardCycleData = (cycleNumber: number): void => {
   for (const [key] of shardValuesByCycle) {
     if (key < cycleNumber) {
       shardValuesByCycle.delete(key)

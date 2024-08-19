@@ -1,6 +1,9 @@
 import { verifyArchiverReceipt, ReceiptVerificationResult } from '../Data/Collector'
 import { ChildMessageInterface } from '../primary-process'
 import { config } from '../Config'
+import { Utils as StringUtils } from '@shardus/types'
+import { ArchiverReceipt } from '../dbstore/receipts'
+import { cleanShardCycleData, shardValuesByCycle } from '../Data/Cycles'
 
 export const initWorkerProcess = async (): Promise<void> => {
   console.log(`Worker ${process.pid} started`)
@@ -14,23 +17,34 @@ export const initWorkerProcess = async (): Promise<void> => {
           console.error(`Worker ${process.pid} received invalid receipt for verification`, data)
           return
         }
+        const receipt2 = StringUtils.safeJsonParse(data.receipt) as ArchiverReceipt
         // console.log(`Worker ${process.pid} verifying receipt`);
-        let verificationResult: ReceiptVerificationResult = { success: false }
+        let verificationResult: ReceiptVerificationResult = {
+          success: false,
+          failedReasons: [],
+          nestedCounterMessages: [],
+        }
         try {
-          verificationResult = await verifyArchiverReceipt(data.receipt)
+          verificationResult = await verifyArchiverReceipt(receipt2)
         } catch (error) {
           console.error(`Error in Worker ${process.pid} while verifying receipt`, error)
-          verificationResult.failedReason = 'Error in Worker while verifying receipt'
-          verificationResult.nestedCounterMessage = 'Error in Worker while verifying receipt'
+          verificationResult.failedReasons.push('Error in Worker while verifying receipt')
+          verificationResult.nestedCounterMessages.push('Error in Worker while verifying receipt')
         }
         process.send({
           type: 'receipt-verification',
           data: {
-            txId: data.receipt.tx.txId,
-            timestamp: data.receipt.tx.timestamp,
+            txId: receipt2.tx.txId,
+            timestamp: receipt2.tx.timestamp,
             verificationResult,
           },
         })
+        break
+      }
+      case 'shardValuesByCycle': {
+        const { cycle, shardValues } = data
+        shardValuesByCycle.set(cycle, shardValues)
+        cleanShardCycleData(cycle - config.maxCyclesShardDataToKeep)
         break
       }
       default:
