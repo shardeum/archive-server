@@ -176,7 +176,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     profilerInstance.profileSectionStart('network-txs-list')
     nestedCountersInstance.countEvent('consensor', 'network-txs-list')
 
-    const res = ServiceQueue.getNetworkTxsList()
+    const res = ServiceQueue.getTxList()
     reply.send(res)
     profilerInstance.profileSectionEnd('network-txs-list')
   })

@@ -1,8 +1,9 @@
 import { P2P } from "@shardus/types";
 import * as Logger from './Logger'
 import { stringifyReduce } from "./profiler/StringifyReduce";
+import * as crypto from './Crypto'
 
-const txList: Array<{ hash: string; tx: P2P.ServiceQueueTypes.AddNetworkTx }> = []
+let txList: P2P.ServiceQueueTypes.NetworkTxEntry[] = []
 
 export function addTxs(addTxs: P2P.ServiceQueueTypes.AddNetworkTx[]): boolean {
   try {
@@ -44,13 +45,21 @@ export function removeTxs(removeTxs: P2P.ServiceQueueTypes.RemoveNetworkTx[]): b
   }
 }
 
-export function getNetworkTxsList(): { hash: string; tx: P2P.ServiceQueueTypes.AddNetworkTx }[] {
+export function setTxList(_txList: P2P.ServiceQueueTypes.NetworkTxEntry[]): void {
+  txList = _txList
+}
+
+export function getTxList(): P2P.ServiceQueueTypes.NetworkTxEntry[] {
   return txList
 }
 
+export function getNetworkTxsListHash(): string {
+  return crypto.hashObj(txList)
+}
+
 function sortedInsert(
-  list: { hash: string; tx: P2P.ServiceQueueTypes.AddNetworkTx }[],
-  entry: { hash: string; tx: P2P.ServiceQueueTypes.AddNetworkTx }
+  list: P2P.ServiceQueueTypes.NetworkTxEntry[],
+  entry: P2P.ServiceQueueTypes.NetworkTxEntry
 ): void {
   const index = list.findIndex(
     (item) =>
