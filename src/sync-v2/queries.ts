@@ -144,6 +144,13 @@ export function robustQueryForStandbyNodeListHash(
   return makeRobustQueryCall(nodes, 'standby-list-hash')
 }
 
+/** Executes a robust query to retrieve the txList hash from the network. */
+export function robustQueryForTxListHash(
+  nodes: ActiveNode[]
+): RobustQueryResultAsync<{ txListHash: hexstring }> {
+  return makeRobustQueryCall(nodes, 'tx-list-hash')
+}
+
 /** Retrives the entire last cycle from the node. */
 export function getCurrentCycleDataFromNode(
   node: ActiveNode,
@@ -182,6 +189,16 @@ export function getStandbyNodeListFromNode(
   expectedHash: hexstring
 ): ResultAsync<JoinRequest[], Error> {
   return attemptSimpleFetch(node, 'standby-list', {
+    hash: expectedHash,
+  })
+}
+
+/** Gets the full tx list from the specified node */
+export function getTxListFromNode(
+  node: ActiveNode,
+  expectedHash: hexstring
+): ResultAsync<P2P.ServiceQueueTypes.NetworkTxEntry[], Error> {
+  return attemptSimpleFetch(node, 'tx-list', {
     hash: expectedHash,
   })
 }
