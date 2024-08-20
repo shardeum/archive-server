@@ -4,15 +4,15 @@ import { ArchiverReceipt } from '../dbstore/receipts'
 import { verifyArchiverReceipt, ReceiptVerificationResult } from '../Data/Collector'
 import { config } from '../Config'
 import { EventEmitter } from 'events'
-import { shardValuesByCycle } from '../Data/Cycles'
-import { StateManager } from '@shardus/types'
+import { StateManager, Utils as StringUtils } from '@shardus/types'
 
 const MAX_WORKERS = cpus().length - 1 // Leaving 1 core for the master process
 
 export interface ChildMessageInterface {
   type: string
   data: {
-    receipt?: string
+    stringifiedReceipt?: string
+    requiredSignatures?: number
     success?: boolean
     err?: string
     txId?: string
@@ -31,6 +31,7 @@ export let failureReceiptCount = 0 // Variable to keep track of the number of re
 let receiptLoadTraker = 0 // Variable to keep track of the receipt load within the last receiptLoadTrakerInterval
 // Creating a worker pool
 const workers: Worker[] = []
+const newWorkers = new Map<number, Worker>()
 const extraWorkers = new Map<number, Worker>()
 let currentWorker = 0
 
@@ -39,7 +40,10 @@ const emitter = new EventEmitter()
 export const setupWorkerProcesses = (cluster: Cluster): void => {
   console.log(`Master ${process.pid} is running`)
   // Set interval to check receipt count every 15 seconds
-  setInterval(() => {
+  setInterval(async () => {
+    for (const [,worker] of newWorkers) {
+        worker.kill()
+    }
     if (receiptLoadTraker < config.receiptLoadTrakerLimit) {
       console.log(`Receipt load is below the limit: ${receiptLoadTraker}/${config.receiptLoadTrakerLimit}`)
       // Kill the extra workers from the end of the array
@@ -62,13 +66,7 @@ export const setupWorkerProcesses = (cluster: Cluster): void => {
     if (neededWorkers > currentWorkers) {
       for (let i = currentWorkers; i < neededWorkers; i++) {
         const worker = cluster.fork()
-        workers.push(worker)
-        for (const [cycle, shardValues] of shardValuesByCycle) {
-          worker.send({
-            type: 'shardValuesByCycle',
-            data: { cycle, shardValues },
-          })
-        }
+        newWorkers.set(worker.process.pid, worker)
         // results.set(worker.process.pid, { success: 0, failure: 0 })
         setupWorkerListeners(worker)
       }
@@ -85,7 +83,7 @@ export const setupWorkerProcesses = (cluster: Cluster): void => {
       }
     }
     console.log(
-      `Adjusted worker count to ${workers.length}, based on ${receiptLoadTraker} receipts received.`
+      `Adjusted worker count to ${workers.length + newWorkers.size}, based on ${receiptLoadTraker} receipts received.`
     )
     receiptLoadTraker = 0 // Reset the count
   }, config.receiptLoadTrakerInterval)
@@ -109,10 +107,11 @@ const setupWorkerListeners = (worker: Worker): void => {
         //   }
         // }
         const { txId, timestamp } = data
+        console.log('receipt-verification', txId + timestamp)
         emitter.emit(txId + timestamp, data.verificationResult)
         break
       }
-      case 'clild_close':
+      case 'child_close':
         console.log(`Worker ${workerId} is requesting to close`)
         // Check if the worker is in the extraWorkers map
         if (extraWorkers.has(workerId)) {
@@ -132,6 +131,17 @@ const setupWorkerListeners = (worker: Worker): void => {
           }
         }
         break
+      case 'child_ready':
+          console.log(`Worker ${workerId} is ready for the duty`)
+          // Check if the worker is in the newWorkers map
+          if (newWorkers.has(workerId)) {
+            console.log(`Worker ${workerId} is in newWorkers, moving it to the workers list`)
+            workers.push(newWorkers.get(workerId))
+            newWorkers.delete(workerId)
+          } else {
+            console.error(`Worker ${workerId}is not in the newWorkers list`)
+          }
+          break
       default:
         console.log(`Worker ${process.pid} is sending unknown message type: ${type}`)
         console.log(data)
@@ -148,16 +158,21 @@ const setupWorkerListeners = (worker: Worker): void => {
       extraWorkers.get(workerId)?.kill()
       extraWorkers.delete(workerId)
     }
+    let isNewWorker = false
+    if(newWorkers.has(workerId)) {
+      console.log(`Worker ${workerId} is in newWorkers, removing it now`)
+      isNewWorker = true
+      newWorkers.get(workerId)?.kill()
+      newWorkers.delete(workerId)
+    }
     // Remove the worker from the workers list if not present in extraWorkers
     const workerIndex = workers.findIndex((worker) => worker.process.pid === workerId)
     if (workerIndex !== -1) {
-      if (isExtraWorker) {
-        console.error(`Worker ${workerId} is in workers list as well`)
-      }
+      if (isExtraWorker || isNewWorker) console.log(`Worker ${workerId} is in workers list as well`)
       workers[workerIndex]?.kill()
       workers.splice(workerIndex, 1)
     } else {
-      if (!isExtraWorker) console.error(`Worker ${workerId} is not in workers list`)
+      if (!isExtraWorker || !isNewWorker) console.error(`Worker ${workerId} is not in workers list`)
     }
   })
 }
@@ -169,13 +184,14 @@ const forwardReceiptVerificationResult = (
 ): Promise<ReceiptVerificationResult> => {
   return new Promise((resolve) => {
     emitter.on(txId + timestamp, (result: ReceiptVerificationResult) => {
+      console.log('forwardReceiptVerificationResult', txId, timestamp)
       resolve(result)
     })
     worker.on('exit', () => {
       resolve({
         success: false,
         failedReasons: [
-          `Worker exited before sending the receipt verification result for ${txId} with timestamp ${timestamp}`,
+          `Worker ${worker.process.pid} exited before sending the receipt verification result for ${txId} with timestamp ${timestamp}`,
         ],
         nestedCounterMessages: ['Worker exited before sending the receipt verification result'],
       })
@@ -186,14 +202,15 @@ const forwardReceiptVerificationResult = (
 export const offloadReceipt = async (
   txId: string,
   timestamp: number,
-  receipt: string,
-  receipt2: ArchiverReceipt
+  requiredSignatures: number,
+  receipt: ArchiverReceipt
 ): Promise<ReceiptVerificationResult> => {
   receivedReceiptCount++ // Increment the counter for each receipt received
   receiptLoadTraker++ // Increment the receipt load tracker
   let verificationResult: ReceiptVerificationResult
   if (workers.length === 0) {
-    verificationResult = await verifyArchiverReceipt(receipt2)
+    console.log('Verifying on the main program 1', txId, timestamp)
+    verificationResult = await verifyArchiverReceipt(receipt, requiredSignatures)
   } else {
     // Forward the request to a worker in a round-robin fashion
     let worker = workers[currentWorker]
@@ -203,20 +220,31 @@ export const offloadReceipt = async (
       worker = workers[currentWorker]
       currentWorker = (currentWorker + 1) % workers.length
       if (worker) {
+        console.log('Verifying on the worker process 2', txId, timestamp, worker.process.pid)
+        const cloneReceipt = { ...receipt }
+        delete cloneReceipt.tx.originalTxData
+        delete cloneReceipt.executionShardKey
+        const stringifiedReceipt = StringUtils.safeStringify(cloneReceipt)
         worker.send({
           type: 'receipt-verification',
-          data: { receipt },
+          data: { stringifiedReceipt, requiredSignatures },
         })
         verificationResult = await forwardReceiptVerificationResult(txId, timestamp, worker)
       } else {
         console.error('No worker available to process the receipt 2')
         // Verifying the receipt in the main thread
-        verificationResult = await verifyArchiverReceipt(receipt2)
+        console.log('Verifying on the main program 2', txId, timestamp)
+        verificationResult = await verifyArchiverReceipt(receipt, requiredSignatures)
       }
     } else {
+      console.log('Verifying on the worker process 1', txId, timestamp, worker.process.pid)
+      const cloneReceipt = { ...receipt }
+      delete cloneReceipt.tx.originalTxData
+      delete cloneReceipt.executionShardKey
+      const stringifiedReceipt = StringUtils.safeStringify(cloneReceipt)
       worker.send({
         type: 'receipt-verification',
-        data: { receipt },
+        data: { stringifiedReceipt, requiredSignatures },
       })
       verificationResult = await forwardReceiptVerificationResult(txId, timestamp, worker)
     }

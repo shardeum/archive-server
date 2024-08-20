@@ -40,7 +40,7 @@ export let isFirst = false
 export let isActive = false
 export const archiversReputation: Map<string, string> = new Map()
 
-export async function initFromConfig(config: Config, shutDownMode = false): Promise<void> {
+export async function initFromConfig(config: Config, shutDownMode = false, useArchiverDiscovery = true): Promise<void> {
   // Get own nodeInfo from config
   nodeState.ip = config.ARCHIVER_IP
   nodeState.port = config.ARCHIVER_PORT
@@ -48,6 +48,8 @@ export async function initFromConfig(config: Config, shutDownMode = false): Prom
   nodeState.secretKey = config.ARCHIVER_SECRET_KEY
   nodeState.curvePk = Crypto.core.convertPkToCurve(nodeState.publicKey)
   nodeState.curveSk = Crypto.core.convertSkToCurve(nodeState.secretKey)
+
+  if (useArchiverDiscovery === false) return
 
   let existingArchivers: ArchiverNodeInfo[] = []
   // Parse existing archivers list

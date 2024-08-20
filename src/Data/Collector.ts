@@ -58,7 +58,6 @@ export interface ReceiptVerificationResult {
   success: boolean
   failedReasons?: string[]
   nestedCounterMessages?: string[]
-  newReceipt?: Receipt.ArchiverReceipt
 }
 
 /**
@@ -406,10 +405,8 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
 
 export const verifyReceiptData = async (
   receipt: Receipt.ArchiverReceipt,
-  checkReceiptRobust = true,
-  failedReasons = [],
-  nestedCounterMessages = []
-): Promise<{ success: boolean; newReceipt?: Receipt.ArchiverReceipt }> => {
+  checkReceiptRobust = true
+): Promise<{ success: boolean; requiredSignatures?: number; newReceipt?: Receipt.ArchiverReceipt }> => {
   const result = { success: false }
   // Check the signed nodes are part of the execution group nodes of the tx
   const { executionShardKey, cycle, appliedReceipt, globalModification } = receipt
@@ -427,14 +424,14 @@ export const verifyReceiptData = async (
   }
   const currentCycle = getCurrentCycleCounter()
   if (currentCycle - cycle > 2) {
-    failedReasons.push(
+    Logger.mainLogger.error(
       `Found receipt with cycle older than 2 cycles ${txId}, ${cycle}, ${timestamp}, ${currentCycle}`
     )
   }
   const cycleShardData = shardValuesByCycle.get(cycle)
   if (!cycleShardData) {
-    failedReasons.push('Cycle shard data not found')
-    nestedCounterMessages.push('Cycle_shard_data_not_found')
+    Logger.mainLogger.error('Cycle shard data not found')
+    if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Cycle_shard_data_not_found')
     return result
   }
   // Determine the home partition index of the primary account (executionShardKey)
@@ -450,118 +447,144 @@ export const verifyReceiptData = async (
         ? Math.ceil(votingGroupCount * config.requiredVotesPercentage)
         : Math.round(votingGroupCount * config.requiredVotesPercentage)
     if (signatures.length < requiredSignatures) {
-      failedReasons.push(
+      Logger.mainLogger.error(
         `Invalid receipt appliedReceipt signatures count is less than requiredSignatures, ${signatures.length}, ${requiredSignatures}`
       )
-      nestedCounterMessages.push(
-        'Invalid_receipt_appliedReceipt_signatures_count_less_than_requiredSignatures'
-      )
+      if (nestedCountersInstance)
+        nestedCountersInstance.countEvent(
+          'receipt',
+          'Invalid_receipt_appliedReceipt_signatures_count_less_than_requiredSignatures'
+        )
       return result
     }
-    // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2799
-    const voteHash = calculateVoteHash(appliedVote)
-    // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2663
-    const appliedVoteHash = {
-      txid: txId,
-      voteHash,
-    }
-    // Using a map to store the good signatures to avoid duplicates
-    const goodSignatures = new Map()
+    // Using a set to store the unique signatures to avoid duplicates
+    const uniqueSigners = new Set()
     for (const signature of signatures) {
       const { owner: nodePubKey } = signature
       // Get the node id from the public key
       const node = cycleShardData.nodes.find((node) => node.publicKey === nodePubKey)
       if (node == null) {
-        failedReasons.push(
+        Logger.mainLogger.error(
           `The node with public key ${nodePubKey} of the receipt ${txId}} with ${timestamp} is not in the active nodesList of cycle ${cycle}`
         )
-        nestedCounterMessages.push('appliedReceipt_signature_owner_not_in_active_nodesList')
+        if (nestedCountersInstance)
+          nestedCountersInstance.countEvent(
+            'receipt',
+            'appliedReceipt_signature_owner_not_in_active_nodesList'
+          )
         continue
       }
       // Check if the node is in the execution group
       if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[node.id]) {
-        failedReasons.push(
+        Logger.mainLogger.error(
           `The node with public key ${nodePubKey} of the receipt ${txId} with ${timestamp} is not in the execution group of the tx`
         )
-        nestedCounterMessages.push('appliedReceipt_signature_node_not_in_execution_group_of_tx')
+        if (nestedCountersInstance)
+          nestedCountersInstance.countEvent(
+            'receipt',
+            'appliedReceipt_signature_node_not_in_execution_group_of_tx'
+          )
         continue
       }
-      if (Crypto.verify({ ...appliedVoteHash, sign: signature })) {
-        goodSignatures.set(signature.owner, signature)
-        // Break the loop if the required number of good signatures are found
-        if (goodSignatures.size >= requiredSignatures) break
-      }
+      uniqueSigners.add(nodePubKey)
     }
-    if (goodSignatures.size < requiredSignatures) {
-      failedReasons.push(
-        `Invalid receipt appliedReceipt valid signatures count is less than requiredSignatures ${goodSignatures.size}, ${requiredSignatures}`
+    if (uniqueSigners.size < requiredSignatures) {
+      Logger.mainLogger.error(
+        `Invalid receipt appliedReceipt valid signatures count is less than requiredSignatures ${uniqueSigners.size}, ${requiredSignatures}`
       )
-      nestedCounterMessages.push(
-        'Invalid_receipt_appliedReceipt_valid_signatures_count_less_than_requiredSignatures'
-      )
+      if (nestedCountersInstance)
+        nestedCountersInstance.countEvent(
+          'receipt',
+          'Invalid_receipt_appliedReceipt_valid_signatures_count_less_than_requiredSignatures'
+        )
       return result
     }
-    return { success: true }
+    return { success: true, requiredSignatures }
   }
   const { confirmOrChallenge } = appliedReceipt
   // Check if the appliedVote node is in the execution group
   if (!cycleShardData.nodeShardDataMap.has(appliedVote.node_id)) {
-    failedReasons.push('Invalid receipt appliedReceipt appliedVote node is not in the active nodesList')
-    nestedCounterMessages.push('Invalid_receipt_appliedVote_node_not_in_active_nodesList')
+    Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote node is not in the active nodesList')
+    if (nestedCountersInstance)
+      nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_appliedVote_node_not_in_active_nodesList')
     return result
   }
   if (appliedVote.sign.owner !== cycleShardData.nodeShardDataMap.get(appliedVote.node_id).node.publicKey) {
-    failedReasons.push(
+    Logger.mainLogger.error(
       'Invalid receipt appliedReceipt appliedVote node signature owner and node public key does not match'
     )
-    nestedCounterMessages.push(
-      'Invalid_receipt_appliedVote_node_signature_owner_and_node_public_key_does_not_match'
-    )
+    if (nestedCountersInstance)
+      nestedCountersInstance.countEvent(
+        'receipt',
+        'Invalid_receipt_appliedVote_node_signature_owner_and_node_public_key_does_not_match'
+      )
     return result
   }
   if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[appliedVote.node_id]) {
-    failedReasons.push(
+    Logger.mainLogger.error(
       'Invalid receipt appliedReceipt appliedVote node is not in the execution group of the tx'
     )
-    nestedCounterMessages.push('Invalid_receipt_appliedVote_node_not_in_execution_group_of_tx')
+    if (nestedCountersInstance)
+      nestedCountersInstance.countEvent(
+        'receipt',
+        'Invalid_receipt_appliedVote_node_not_in_execution_group_of_tx'
+      )
     return result
   }
   if (!Crypto.verify(appliedVote)) {
-    failedReasons.push('Invalid receipt appliedReceipt appliedVote signature verification failed')
-    nestedCounterMessages.push('Invalid_receipt_appliedVote_signature_verification_failed')
+    Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote signature verification failed')
+    if (nestedCountersInstance)
+      nestedCountersInstance.countEvent(
+        'receipt',
+        'Invalid_receipt_appliedVote_signature_verification_failed'
+      )
     return result
   }
 
   // Check if the confirmOrChallenge node is in the execution group
   if (!cycleShardData.nodeShardDataMap.has(confirmOrChallenge.nodeId)) {
-    failedReasons.push(
+    Logger.mainLogger.error(
       'Invalid receipt appliedReceipt confirmOrChallenge node is not in the active nodesList'
     )
-    nestedCounterMessages.push('Invalid_receipt_confirmOrChallenge_node_not_in_active_nodesList')
+    if (nestedCountersInstance)
+      nestedCountersInstance.countEvent(
+        'receipt',
+        'Invalid_receipt_confirmOrChallenge_node_not_in_active_nodesList'
+      )
     return result
   }
   if (
     confirmOrChallenge.sign.owner !==
     cycleShardData.nodeShardDataMap.get(confirmOrChallenge.nodeId).node.publicKey
   ) {
-    failedReasons.push(
+    Logger.mainLogger.error(
       'Invalid receipt appliedReceipt confirmOrChallenge node signature owner and node public key does not match'
     )
-    nestedCounterMessages.push(
-      'Invalid_receipt_confirmOrChallenge_signature_owner_and_node_public_key_does_not_match'
-    )
+    if (nestedCountersInstance)
+      nestedCountersInstance.countEvent(
+        'receipt',
+        'Invalid_receipt_confirmOrChallenge_signature_owner_and_node_public_key_does_not_match'
+      )
     return result
   }
   if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[confirmOrChallenge.nodeId]) {
-    failedReasons.push(
+    Logger.mainLogger.error(
       'Invalid receipt appliedReceipt confirmOrChallenge node is not in the execution group of the tx'
     )
-    nestedCounterMessages.push('Invalid_receipt_confirmOrChallenge_node_not_in_execution_group_of_tx')
+    if (nestedCountersInstance)
+      nestedCountersInstance.countEvent(
+        'receipt',
+        'Invalid_receipt_confirmOrChallenge_node_not_in_execution_group_of_tx'
+      )
     return result
   }
   if (!Crypto.verify(confirmOrChallenge)) {
-    failedReasons.push('Invalid receipt appliedReceipt confirmOrChallenge signature verification failed')
-    nestedCounterMessages.push('Invalid_receipt_confirmOrChallenge_signature_verification_failed')
+    Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge signature verification failed')
+    if (nestedCountersInstance)
+      nestedCountersInstance.countEvent(
+        'receipt',
+        'Invalid_receipt_confirmOrChallenge_signature_verification_failed'
+      )
     return result
   }
 
@@ -577,11 +600,51 @@ export const verifyReceiptData = async (
       : Math.ceil(config.RECEIPT_CONFIRMATIONS / 2) // 3 out of 5 nodes
   const { success, newReceipt } = await isReceiptRobust(receipt, executionGroupNodes, minConfirmations)
   if (!success) {
-    failedReasons.push('Invalid receipt: Robust check failed')
-    nestedCounterMessages.push('Invalid_receipt_robust_check_failed')
+    Logger.mainLogger.error('Invalid receipt: Robust check failed')
+    if (nestedCountersInstance)
+      nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_robust_check_failed')
     return result
   }
-  if (newReceipt) return { success: true, newReceipt }
+  if (newReceipt) return { success: true, requiredSignatures: 0, newReceipt }
+  return { success: true }
+}
+
+const verifyAppliedReceiptSignatures = (
+  receipt: Receipt.ArchiverReceipt,
+  requiredSignatures: number,
+  failedReasons = [],
+  nestedCounterMessages = []
+): { success: boolean } => {
+  const result = { success: false, failedReasons, nestedCounterMessages }
+  const { appliedReceipt, globalModification } = receipt
+  if (globalModification && config.skipGlobalTxReceiptVerification) return { success: true }
+  const { appliedVote, signatures } = appliedReceipt
+  const { txId } = receipt.tx
+  // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2799
+  const voteHash = calculateVoteHash(appliedVote)
+  // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2663
+  const appliedVoteHash = {
+    txid: txId,
+    voteHash,
+  }
+  // Using a map to store the good signatures to avoid duplicates
+  const goodSignatures = new Map()
+  for (const signature of signatures) {
+    if (Crypto.verify({ ...appliedVoteHash, sign: signature })) {
+      goodSignatures.set(signature.owner, signature)
+      // Break the loop if the required number of good signatures are found
+      if (goodSignatures.size >= requiredSignatures) break
+    }
+  }
+  if (goodSignatures.size < requiredSignatures) {
+    failedReasons.push(
+      `Invalid receipt appliedReceipt valid signatures count is less than requiredSignatures ${goodSignatures.size}, ${requiredSignatures}`
+    )
+    nestedCounterMessages.push(
+      'Invalid_receipt_appliedReceipt_valid_signatures_count_less_than_requiredSignatures'
+    )
+    return result
+  }
   return { success: true }
 }
 
@@ -615,28 +678,13 @@ const calculateVoteHash = (vote: Receipt.AppliedVote, failedReasons = []): strin
 }
 
 export const verifyArchiverReceipt = async (
-  receipt: Receipt.ArchiverReceipt
+  receipt: Receipt.ArchiverReceipt,
+  requiredSignatures: number
 ): Promise<ReceiptVerificationResult> => {
   const { txId, timestamp } = receipt.tx
   const existingReceipt = await Receipt.queryReceiptByReceiptId(txId)
   const failedReasons = []
   const nestedCounterMessages = []
-  if (
-    config.usePOQo === false &&
-    existingReceipt &&
-    receipt.appliedReceipt &&
-    receipt.appliedReceipt.confirmOrChallenge &&
-    receipt.appliedReceipt.confirmOrChallenge.message === 'challenge'
-  ) {
-    // If the existing receipt is confirmed, and the new receipt is challenged, then skip saving the new receipt
-    if (existingReceipt.appliedReceipt.confirmOrChallenge.message === 'confirm') {
-      failedReasons.push(
-        `Existing receipt is confirmed, but new receipt is challenged ${txId}, ${receipt.cycle}, ${timestamp}`
-      )
-      nestedCounterMessages.push('Existing_receipt_is_confirmed_but_new_receipt_is_challenged')
-      return { success: false, failedReasons, nestedCounterMessages }
-    }
-  }
   if (config.verifyAppReceiptData) {
     // if (profilerInstance) profilerInstance.profileSectionStart('Verify_app_receipt_data')
     // if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Verify_app_receipt_data')
@@ -673,24 +721,23 @@ export const verifyArchiverReceipt = async (
       return { success: false, failedReasons, nestedCounterMessages }
     }
   }
-  if (config.verifyReceiptData) {
-    // if (profilerInstance) profilerInstance.profileSectionStart('Verify_receipt_data')
-    // if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Verify_receipt_data')
-    const { success, newReceipt } = await verifyReceiptData(
+  if (config.verifyReceiptSignaturesSeparately) {
+    // if (profilerInstance) profilerInstance.profileSectionStart('Verify_receipt_signatures_data')
+    // if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Verify_receipt_signatures_data')
+    const { success } = verifyAppliedReceiptSignatures(
       receipt,
-      true,
+      requiredSignatures,
       failedReasons,
       nestedCounterMessages
     )
-    // if (profilerInstance) profilerInstance.profileSectionEnd('Verify_receipt_data')
+    // if (profilerInstance) profilerInstance.profileSectionEnd('Verify_receipt_signatures_data')
     if (!success) {
       failedReasons.push(`Invalid receipt: Verification failed ${txId}, ${receipt.cycle}, ${timestamp}`)
       nestedCounterMessages.push('Invalid_receipt_verification_failed')
       return { success: false, failedReasons, nestedCounterMessages }
     }
-    return { success: true, failedReasons, nestedCounterMessages, newReceipt }
   }
-  return { success: true }
+  return { success: true, failedReasons, nestedCounterMessages }
 }
 
 export const storeReceiptData = async (
@@ -730,21 +777,68 @@ export const storeReceiptData = async (
       continue
     }
 
-    const stringifiedReceipt = StringUtils.safeStringify(receipt)
     if (verifyData) {
-      const result = await offloadReceipt(txId, timestamp, stringifiedReceipt, receipt)
-      if (result.success === false) {
-        receiptsInValidationMap.delete(txId)
-        for (const message of result.failedReasons) {
-          Logger.mainLogger.error(message)
+      if (config.usePOQo === false) {
+        const existingReceipt = await Receipt.queryReceiptByReceiptId(txId)
+        if (
+          existingReceipt &&
+          receipt.appliedReceipt &&
+          receipt.appliedReceipt.confirmOrChallenge &&
+          receipt.appliedReceipt.confirmOrChallenge.message === 'challenge'
+        ) {
+          // If the existing receipt is confirmed, and the new receipt is challenged, then skip saving the new receipt
+          if (existingReceipt.appliedReceipt.confirmOrChallenge.message === 'confirm') {
+            Logger.mainLogger.error(
+              `Existing receipt is confirmed, but new receipt is challenged ${txId}, ${receipt.cycle}, ${timestamp}`
+            )
+            receiptsInValidationMap.delete(txId)
+            if (nestedCountersInstance)
+              nestedCountersInstance.countEvent(
+                'receipt',
+                'Existing_receipt_is_confirmed_but_new_receipt_is_challenged'
+              )
+            if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
+            continue
+          }
         }
-        for (const message of result.nestedCounterMessages) {
-          if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', message)
-        }
-        if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
-        continue
       }
-      if (result.newReceipt) receipt = result.newReceipt
+
+      if (config.verifyReceiptData) {
+        const { success, requiredSignatures, newReceipt } = await verifyReceiptData(receipt)
+        if (!success) {
+          Logger.mainLogger.error('Invalid receipt: Verification failed', txId, receipt.cycle, timestamp)
+          receiptsInValidationMap.delete(txId)
+          if (nestedCountersInstance)
+            nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_verification_failed')
+          if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
+          continue
+        }
+        if (newReceipt) receipt = newReceipt
+
+        if (profilerInstance) profilerInstance.profileSectionStart('Offload_receipt')
+          if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Offload_receipt')
+          const start_time = process.hrtime();
+          console.log('offloading receipt', txId, timestamp)
+        const result = await offloadReceipt(txId, timestamp, requiredSignatures, receipt)
+        console.log('offload receipt result', txId, timestamp, result)
+        const end_time = process.hrtime(start_time);
+        console.log(
+          `Time taken for receipt verification in millisecond is: `,
+          end_time[0] * 1000 + end_time[1] / 1000000
+        );
+        if (profilerInstance) profilerInstance.profileSectionEnd('Offload_receipt')
+        if (result.success === false) {
+          receiptsInValidationMap.delete(txId)
+          for (const message of result.failedReasons) {
+            Logger.mainLogger.error(message)
+          }
+          for (const message of result.nestedCounterMessages) {
+            if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', message)
+          }
+          if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
+          continue
+        }
+      }
     }
     if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
     // await Receipt.insertReceipt({

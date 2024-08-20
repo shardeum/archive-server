@@ -3,7 +3,6 @@ import { ChildMessageInterface } from '../primary-process'
 import { config } from '../Config'
 import { Utils as StringUtils } from '@shardus/types'
 import { ArchiverReceipt } from '../dbstore/receipts'
-import { cleanShardCycleData, shardValuesByCycle } from '../Data/Cycles'
 
 export const initWorkerProcess = async (): Promise<void> => {
   console.log(`Worker ${process.pid} started`)
@@ -13,11 +12,15 @@ export const initWorkerProcess = async (): Promise<void> => {
   process.on('message', async ({ type, data }: ChildMessageInterface) => {
     switch (type) {
       case 'receipt-verification': {
-        if (!data.receipt) {
+        if (!data.stringifiedReceipt) {
           console.error(`Worker ${process.pid} received invalid receipt for verification`, data)
           return
         }
-        const receipt2 = StringUtils.safeJsonParse(data.receipt) as ArchiverReceipt
+        if (isNaN(data.requiredSignatures)) {
+          console.error(`Worker ${process.pid} received invalid requiredSignatures for verification`, data)
+          return
+        }
+        const receipt = StringUtils.safeJsonParse(data.stringifiedReceipt) as ArchiverReceipt
         // console.log(`Worker ${process.pid} verifying receipt`);
         let verificationResult: ReceiptVerificationResult = {
           success: false,
@@ -25,7 +28,8 @@ export const initWorkerProcess = async (): Promise<void> => {
           nestedCounterMessages: [],
         }
         try {
-          verificationResult = await verifyArchiverReceipt(receipt2)
+          console.log(`Worker process ${process.pid} is verifying receipt`, receipt.tx.txId, receipt.tx.timestamp)
+          verificationResult = await verifyArchiverReceipt(receipt, data.requiredSignatures)
         } catch (error) {
           console.error(`Error in Worker ${process.pid} while verifying receipt`, error)
           verificationResult.failedReasons.push('Error in Worker while verifying receipt')
@@ -34,17 +38,11 @@ export const initWorkerProcess = async (): Promise<void> => {
         process.send({
           type: 'receipt-verification',
           data: {
-            txId: receipt2.tx.txId,
-            timestamp: receipt2.tx.timestamp,
+            txId: receipt.tx.txId,
+            timestamp: receipt.tx.timestamp,
             verificationResult,
           },
         })
-        break
-      }
-      case 'shardValuesByCycle': {
-        const { cycle, shardValues } = data
-        shardValuesByCycle.set(cycle, shardValues)
-        cleanShardCycleData(cycle - config.maxCyclesShardDataToKeep)
         break
       }
       default:
@@ -54,13 +52,14 @@ export const initWorkerProcess = async (): Promise<void> => {
     }
     lastActivity = Date.now()
   })
+  process.send({ type: 'child_ready' })
   setInterval(() => {
     console.log(
       `lastActivityCheckTimeout: ${config.lastActivityCheckTimeout}, lastActivityCheckInterval: ${config.lastActivityCheckInterval}`
     )
     if (Date.now() - lastActivity > config.lastActivityCheckTimeout) {
       console.log(`Worker ${process.pid} is idle for more than 1 minute`)
-      process.send({ type: 'clild_close' })
+      process.send({ type: 'child_close' })
     }
   }, config.lastActivityCheckInterval)
 }

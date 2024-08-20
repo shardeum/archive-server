@@ -50,6 +50,7 @@ export interface Config {
   maxValidatorsToServe: number
   limitToArchiversOnly: boolean
   verifyReceiptData: boolean
+  verifyReceiptSignaturesSeparately: boolean
   verifyAppReceiptData: boolean
   verifyAccountData: boolean
   skipGlobalTxReceiptVerification: boolean // To skip verification of global tx receipts for now
@@ -134,6 +135,7 @@ let config: Config = {
   maxValidatorsToServe: 10, // max number of validators to serve accounts data during restore mode
   limitToArchiversOnly: true,
   verifyReceiptData: true,
+  verifyReceiptSignaturesSeparately: true,
   verifyAccountData: true,
   verifyAppReceiptData: true,
   skipGlobalTxReceiptVerification: true,

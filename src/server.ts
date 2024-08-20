@@ -77,7 +77,7 @@ async function start(): Promise<void> {
 
   if (!cluster.isPrimary) {
     // Initialize state from config
-    await State.initFromConfig(config)
+    await State.initFromConfig(config, false, false)
     await initWorkerProcess()
     return
   }
