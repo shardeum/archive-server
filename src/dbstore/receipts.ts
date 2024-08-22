@@ -6,6 +6,37 @@ import { config } from '../Config'
 import { DeSerializeFromJsonString } from '../utils/serialization'
 import * as Account from '../dbstore/accounts'
 
+export type Proposal = {
+  applied: boolean
+  cant_preApply: boolean
+  accountIDs: string[]
+  beforeStateHashes: string[]
+  afterStateHashes: string[]
+  appReceiptDataHash: string
+  txid: string
+}
+
+export type Vote = {
+  proposalHash: string
+  sign?: Signature
+}
+
+interface AccountsCopy {
+  accountId: string
+  cycleNumber: number
+  data: unknown
+  timestamp: number
+  hash: string
+  isGlobal: boolean
+}
+
+export type SignedReceipt = {
+  proposal: Proposal
+  proposalHash: string // Redundant, may go
+  applyTimestamp: number
+  signaturePack: Signature[]
+}
+
 /**
  * ArchiverReceipt is the full data (shardusReceipt + appReceiptData + accounts ) of a tx that is sent to the archiver
  */
@@ -16,10 +47,10 @@ export interface ArchiverReceipt {
     timestamp: number
   }
   cycle: number
-  beforeStateAccounts: Account.AccountCopy[]
-  accounts: Account.AccountCopy[]
+  signedReceipt: SignedReceipt
+  afterStates?: AccountsCopy[]
+  beforeStates?: AccountsCopy[]
   appReceiptData: object & { accountId?: string; data: object }
-  appliedReceipt: AppliedReceipt2
   executionShardKey: string
   globalModification: boolean
 }
@@ -46,17 +77,17 @@ export type AppliedVote = {
  * never have to send or request votes individually, should be able to rely on existing receipt send/request
  * for nodes that match what is required.
  */
-export type AppliedReceipt2 = {
-  txid: string
-  result: boolean
-  //single copy of vote
-  appliedVote: AppliedVote
-  confirmOrChallenge: ConfirmOrChallengeMessage
-  //all signatures for this vote
-  signatures: [Signature] //Could have all signatures or best N.  (lowest signature value?)
-  // hash of app data
-  app_data_hash: string
-}
+// export type AppliedReceipt2 = {
+//   txid: string
+//   result: boolean
+//   //single copy of vote
+//   appliedVote: AppliedVote
+//   confirmOrChallenge: ConfirmOrChallengeMessage
+//   //all signatures for this vote
+//   signatures: [Signature] //Could have all signatures or best N.  (lowest signature value?)
+//   // hash of app data
+//   app_data_hash: string
+// }
 
 export type ConfirmOrChallengeMessage = {
   message: string
@@ -67,14 +98,15 @@ export type ConfirmOrChallengeMessage = {
 export interface Receipt extends ArchiverReceipt {
   receiptId: string
   timestamp: number
+  applyTimestamp: number
 }
 
 type DbReceipt = Receipt & {
   tx: string
-  beforeStateAccounts: string
-  accounts: string
+  beforeStates: string
+  afterStates: string
   appReceiptData: string
-  appliedReceipt: string
+  signedReceipt: string
 }
 
 export interface ReceiptCount {
@@ -265,11 +297,10 @@ export async function queryReceiptsBetweenCycles(
 
 function deserializeDbReceipt(receipt: DbReceipt): void {
   if (receipt.tx) receipt.tx = DeSerializeFromJsonString(receipt.tx)
-  if (receipt.beforeStateAccounts)
-    receipt.beforeStateAccounts = DeSerializeFromJsonString(receipt.beforeStateAccounts)
-  if (receipt.accounts) receipt.accounts = DeSerializeFromJsonString(receipt.accounts)
+  if (receipt.beforeStates) receipt.beforeStates = DeSerializeFromJsonString(receipt.beforeStates)
+  if (receipt.afterStates) receipt.afterStates = DeSerializeFromJsonString(receipt.afterStates)
   if (receipt.appReceiptData) receipt.appReceiptData = DeSerializeFromJsonString(receipt.appReceiptData)
-  if (receipt.appliedReceipt) receipt.appliedReceipt = DeSerializeFromJsonString(receipt.appliedReceipt)
+  if (receipt.signedReceipt) receipt.signedReceipt = DeSerializeFromJsonString(receipt.signedReceipt)
   // globalModification is stored as 0 or 1 in the database, convert it to boolean
   receipt.globalModification = (receipt.globalModification as unknown as number) === 1
 }

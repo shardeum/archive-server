@@ -63,36 +63,34 @@ export const verifyAccountHash = (
   nestedCounterMessages = []
 ): boolean => {
   try {
+    const { accountIDs, afterStateHashes, beforeStateHashes } = receipt.signedReceipt.proposal
     if (receipt.globalModification && config.skipGlobalTxReceiptVerification) return true // return true if global modification
-    if (receipt.accounts.length !== receipt.appliedReceipt.appliedVote.account_state_hash_after.length) {
+    if (accountIDs.length !== afterStateHashes.length) {
       failedReasons.push(
         `Modified account count specified in the receipt and the actual updated account count does not match! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
       )
       return false
     }
-    if (
-      receipt.appliedReceipt.appliedVote.account_state_hash_before.length !==
-      receipt.appliedReceipt.appliedVote.account_state_hash_after.length
-    ) {
+    if (beforeStateHashes.length !== afterStateHashes.length) {
       failedReasons.push(
         `Account state hash before and after count does not match! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
       )
       return false
     }
-    for (const account of receipt.accounts) {
-      const calculatedAccountHash = accountSpecificHash(account.data)
-      const indexOfAccount = receipt.appliedReceipt.appliedVote.account_id.indexOf(account.accountId)
-      if (indexOfAccount === -1) {
+    for (const [index, accountId] of accountIDs.entries()) {
+      const accountData = receipt.afterStates.find((acc) => acc.accountId === accountId)
+      if (accountData === undefined) {
         failedReasons.push(
-          `Account not found in the receipt ${account.accountId} , ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
+          `Account not found in the receipt's afterStates | Acc-ID: ${accountId}, txId: ${receipt.tx.txId}, Cycle: ${receipt.cycle}, timestamp: ${receipt.tx.timestamp}`
         )
         return false
       }
+      const calculatedAccountHash = accountSpecificHash(accountData.data)
       // eslint-disable-next-line security/detect-object-injection
-      const expectedAccountHash = receipt.appliedReceipt.appliedVote.account_state_hash_after[indexOfAccount]
+      const expectedAccountHash = afterStateHashes[index]
       if (calculatedAccountHash !== expectedAccountHash) {
         failedReasons.push(
-          `Account hash does not match ${account.accountId} , ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
+          `Account hash does not match | Acc-ID: ${accountId}, txId: ${receipt.tx.txId}, Cycle: ${receipt.cycle}, timestamp: ${receipt.tx.timestamp}`
         )
         return false
       }

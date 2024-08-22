@@ -10,6 +10,7 @@ export function setCryptoHashKey(hashkey: string): void {
   core.setCustomStringifier(StringUtils.safeStringify, 'shardus_safeStringify')
 }
 
+export const hash = core.hash
 export const hashObj = core.hashObj
 
 // Asymmetric Encyption Sign/Verify API

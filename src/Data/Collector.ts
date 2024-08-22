@@ -50,7 +50,7 @@ interface MissingTx {
 
 type GET_TX_RECEIPT_RESPONSE = {
   success: boolean
-  receipt?: Receipt.ArchiverReceipt | Receipt.AppliedReceipt2
+  receipt?: Receipt.ArchiverReceipt | Receipt.SignedReceipt
   reason?: string
 }
 
@@ -134,7 +134,7 @@ const isReceiptRobust = async (
     return result
   }
 
-  const robustQueryReceipt = (robustQuery.value as any).receipt as Receipt.AppliedReceipt2
+  const robustQueryReceipt = (robustQuery.value as any).receipt as Receipt.SignedReceipt
 
   if (robustQuery.count < minConfirmations) {
     // Wait for 500ms and try fetching the receipt from the nodes that did not respond in the robustQuery
@@ -167,7 +167,7 @@ const isReceiptRobust = async (
   }
 
   // Check if the robustQueryReceipt is the same as our receipt
-  const sameReceipt = isReceiptEqual(receipt.appliedReceipt, robustQueryReceipt)
+  const sameReceipt = isReceiptEqual(receipt.signedReceipt, robustQueryReceipt)
 
   if (!sameReceipt) {
     Logger.mainLogger.debug(
@@ -175,7 +175,7 @@ const isReceiptRobust = async (
     )
     if (nestedCountersInstance)
       nestedCountersInstance.countEvent('receipt', 'Found_different_receipt_in_robustQuery')
-    if (config.VERBOSE) Logger.mainLogger.debug(receipt.appliedReceipt)
+    if (config.VERBOSE) Logger.mainLogger.debug(receipt.signedReceipt)
     if (config.VERBOSE) Logger.mainLogger.debug(robustQueryReceipt)
     // update signedData with full_receipt = true
     signedData = Crypto.sign({ txId: receipt.tx.txId, timestamp: receipt.tx.timestamp, full_receipt: true })
@@ -194,7 +194,7 @@ const isReceiptRobust = async (
       }
       const fullReceipt = fullReceiptResult.receipt as Receipt.ArchiverReceipt
       if (
-        isReceiptEqual(fullReceipt.appliedReceipt, robustQueryReceipt) &&
+        isReceiptEqual(fullReceipt.signedReceipt, robustQueryReceipt) &&
         validateArchiverReceipt(fullReceipt)
       ) {
         if (config.verifyAppReceiptData) {
@@ -279,10 +279,10 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
   let err = Utils.validateTypes(receipt, {
     tx: 'o',
     cycle: 'n',
-    beforeStateAccounts: 'a',
-    accounts: 'a',
+    afterStates: 'a',
+    beforeStates: 'a',
+    signedReceipt: 'o',
     appReceiptData: 'o?',
-    appliedReceipt: 'o',
     executionShardKey: 's',
     globalModification: 'b',
   })
@@ -291,36 +291,36 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
     return false
   }
   err = Utils.validateTypes(receipt.tx, {
-    originalTxData: 'o',
     txId: 's',
     timestamp: 'n',
+    originalTxData: 'o',
   })
   if (err) {
     Logger.mainLogger.error('Invalid receipt tx data', err)
     return false
   }
-  for (const account of receipt.beforeStateAccounts) {
+  for (const account of receipt.beforeStates) {
     err = Utils.validateTypes(account, {
-      accountId: 's',
-      data: 'o',
-      timestamp: 'n',
       hash: 's',
-      // cycleNumber: 'n', it is not present in the beforeStateAccounts data
+      data: 'o',
       isGlobal: 'b',
+      accountId: 's',
+      timestamp: 'n',
+      // cycleNumber: 'n', it is not present in the beforeStateAccounts data
     })
     if (err) {
       Logger.mainLogger.error('Invalid receipt beforeStateAccounts data', err)
       return false
     }
   }
-  for (const account of receipt.accounts) {
+  for (const account of receipt.afterStates) {
     err = Utils.validateTypes(account, {
-      accountId: 's',
-      data: 'o',
-      timestamp: 'n',
       hash: 's',
-      // cycleNumber: 'n', it is not present in the beforeStateAccounts data
+      data: 'o',
       isGlobal: 'b',
+      accountId: 's',
+      timestamp: 'n',
+      // cycleNumber: 'n', it is not present in the beforeStateAccounts data
     })
     if (err) {
       Logger.mainLogger.error('Invalid receipt accounts data', err)
@@ -329,41 +329,36 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
   }
   if (receipt.globalModification) return true
   // Global Modification Tx does not have appliedReceipt
-  const appliedReceiptToValidate = {
-    txid: 's',
-    result: 'b',
-    appliedVote: 'o',
-    confirmOrChallenge: 'o',
-    signatures: 'a',
-    app_data_hash: 's',
+  const signedReceiptToValidate = {
+    proposal: 'o',
+    proposalHash: 's',
+    signaturePack: 'a',
   }
-  if (config.newPOQReceipt === false) delete appliedReceiptToValidate.confirmOrChallenge
-  err = Utils.validateTypes(receipt.appliedReceipt, appliedReceiptToValidate)
+  // if (config.newPOQReceipt === false) delete appliedReceiptToValidate.confirmOrChallenge
+  err = Utils.validateTypes(receipt.signedReceipt, signedReceiptToValidate)
   if (err) {
     Logger.mainLogger.error('Invalid receipt appliedReceipt data', err)
     return false
   }
-  const appliedVoteToValidate = {
+  const proposalToValidate = {
     txid: 's',
-    transaction_result: 'b',
-    account_id: 'a',
-    account_state_hash_after: 'a',
-    account_state_hash_before: 'a',
-    cant_apply: 'b',
-    node_id: 's',
-    sign: 'o',
-    app_data_hash: 's',
+    applied: 'b',
+    accountIDs: 'a',
+    cant_preApply: 'b',
+    afterStateHashes: 'a',
+    beforeStateHashes: 'a',
+    appReceiptDataHash: 's',
   }
-  if (config.newPOQReceipt === false) {
-    delete appliedVoteToValidate.node_id
-    delete appliedVoteToValidate.sign
-  }
-  err = Utils.validateTypes(receipt.appliedReceipt.appliedVote, appliedVoteToValidate)
+  // if (config.newPOQReceipt === false) {
+  // delete appliedVoteToValidate.node_id
+  // delete appliedVoteToValidate.sign
+  // }
+  err = Utils.validateTypes(receipt.signedReceipt.proposal, proposalToValidate)
   if (err) {
     Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote data', err)
     return false
   }
-  for (const signature of receipt.appliedReceipt.signatures) {
+  for (const signature of receipt.signedReceipt.signaturePack) {
     err = Utils.validateTypes(signature, {
       owner: 's',
       sig: 's',
@@ -373,33 +368,33 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
       return false
     }
   }
-  if (config.newPOQReceipt === false) return true
-  err = Utils.validateTypes(receipt.appliedReceipt.appliedVote.sign, {
-    owner: 's',
-    sig: 's',
-  })
-  if (err) {
-    Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote signature data', err)
-    return false
-  }
-  err = Utils.validateTypes(receipt.appliedReceipt.confirmOrChallenge, {
-    message: 's',
-    nodeId: 's',
-    appliedVote: 'o',
-    sign: 'o',
-  })
-  if (err) {
-    Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge data', err)
-    return false
-  }
-  err = Utils.validateTypes(receipt.appliedReceipt.confirmOrChallenge.sign, {
-    owner: 's',
-    sig: 's',
-  })
-  if (err) {
-    Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge signature data', err)
-    return false
-  }
+  // if (config.newPOQReceipt === false) return true
+  // err = Utils.validateTypes(receipt.appliedReceipt.appliedVote.sign, {
+  //   owner: 's',
+  //   sig: 's',
+  // })
+  // if (err) {
+  //   Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote signature data', err)
+  //   return false
+  // }
+  // err = Utils.validateTypes(receipt.appliedReceipt.confirmOrChallenge, {
+  //   message: 's',
+  //   nodeId: 's',
+  //   appliedVote: 'o',
+  //   sign: 'o',
+  // })
+  // if (err) {
+  //   Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge data', err)
+  //   return false
+  // }
+  // err = Utils.validateTypes(receipt.appliedReceipt.confirmOrChallenge.sign, {
+  //   owner: 's',
+  //   sig: 's',
+  // })
+  // if (err) {
+  //   Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge signature data', err)
+  //   return false
+  // }
   return true
 }
 
@@ -409,9 +404,9 @@ export const verifyReceiptData = async (
 ): Promise<{ success: boolean; requiredSignatures?: number; newReceipt?: Receipt.ArchiverReceipt }> => {
   const result = { success: false }
   // Check the signed nodes are part of the execution group nodes of the tx
-  const { executionShardKey, cycle, appliedReceipt, globalModification } = receipt
+  const { executionShardKey, cycle, signedReceipt, globalModification } = receipt
   if (globalModification && config.skipGlobalTxReceiptVerification) return { success: true }
-  const { appliedVote, signatures } = appliedReceipt
+  const { signaturePack } = signedReceipt
   const { txId, timestamp } = receipt.tx
   if (config.VERBOSE) {
     const currentTimestamp = Date.now()
@@ -446,9 +441,9 @@ export const verifyReceiptData = async (
       config.usePOQo === true
         ? Math.ceil(votingGroupCount * config.requiredVotesPercentage)
         : Math.round(votingGroupCount * config.requiredVotesPercentage)
-    if (signatures.length < requiredSignatures) {
+    if (signaturePack.length < requiredSignatures) {
       Logger.mainLogger.error(
-        `Invalid receipt appliedReceipt signatures count is less than requiredSignatures, ${signatures.length}, ${requiredSignatures}`
+        `Invalid receipt appliedReceipt signatures count is less than requiredSignatures, ${signaturePack.length}, ${requiredSignatures}`
       )
       if (nestedCountersInstance)
         nestedCountersInstance.countEvent(
@@ -459,7 +454,7 @@ export const verifyReceiptData = async (
     }
     // Using a set to store the unique signatures to avoid duplicates
     const uniqueSigners = new Set()
-    for (const signature of signatures) {
+    for (const signature of signaturePack) {
       const { owner: nodePubKey } = signature
       // Get the node id from the public key
       const node = cycleShardData.nodes.find((node) => node.publicKey === nodePubKey)
@@ -501,92 +496,92 @@ export const verifyReceiptData = async (
     }
     return { success: true, requiredSignatures }
   }
-  const { confirmOrChallenge } = appliedReceipt
-  // Check if the appliedVote node is in the execution group
-  if (!cycleShardData.nodeShardDataMap.has(appliedVote.node_id)) {
-    Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote node is not in the active nodesList')
-    if (nestedCountersInstance)
-      nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_appliedVote_node_not_in_active_nodesList')
-    return result
-  }
-  if (appliedVote.sign.owner !== cycleShardData.nodeShardDataMap.get(appliedVote.node_id).node.publicKey) {
-    Logger.mainLogger.error(
-      'Invalid receipt appliedReceipt appliedVote node signature owner and node public key does not match'
-    )
-    if (nestedCountersInstance)
-      nestedCountersInstance.countEvent(
-        'receipt',
-        'Invalid_receipt_appliedVote_node_signature_owner_and_node_public_key_does_not_match'
-      )
-    return result
-  }
-  if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[appliedVote.node_id]) {
-    Logger.mainLogger.error(
-      'Invalid receipt appliedReceipt appliedVote node is not in the execution group of the tx'
-    )
-    if (nestedCountersInstance)
-      nestedCountersInstance.countEvent(
-        'receipt',
-        'Invalid_receipt_appliedVote_node_not_in_execution_group_of_tx'
-      )
-    return result
-  }
-  if (!Crypto.verify(appliedVote)) {
-    Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote signature verification failed')
-    if (nestedCountersInstance)
-      nestedCountersInstance.countEvent(
-        'receipt',
-        'Invalid_receipt_appliedVote_signature_verification_failed'
-      )
-    return result
-  }
+  // const { confirmOrChallenge } = appliedReceipt
+  // // Check if the appliedVote node is in the execution group
+  // if (!cycleShardData.nodeShardDataMap.has(appliedVote.node_id)) {
+  //   Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote node is not in the active nodesList')
+  //   if (nestedCountersInstance)
+  //     nestedCountersInstance.countEvent('receipt', 'Invalid_receipt_appliedVote_node_not_in_active_nodesList')
+  //   return result
+  // }
+  // if (appliedVote.sign.owner !== cycleShardData.nodeShardDataMap.get(appliedVote.node_id).node.publicKey) {
+  //   Logger.mainLogger.error(
+  //     'Invalid receipt appliedReceipt appliedVote node signature owner and node public key does not match'
+  //   )
+  //   if (nestedCountersInstance)
+  //     nestedCountersInstance.countEvent(
+  //       'receipt',
+  //       'Invalid_receipt_appliedVote_node_signature_owner_and_node_public_key_does_not_match'
+  //     )
+  //   return result
+  // }
+  // if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[appliedVote.node_id]) {
+  //   Logger.mainLogger.error(
+  //     'Invalid receipt appliedReceipt appliedVote node is not in the execution group of the tx'
+  //   )
+  //   if (nestedCountersInstance)
+  //     nestedCountersInstance.countEvent(
+  //       'receipt',
+  //       'Invalid_receipt_appliedVote_node_not_in_execution_group_of_tx'
+  //     )
+  //   return result
+  // }
+  // if (!Crypto.verify(appliedVote)) {
+  //   Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote signature verification failed')
+  //   if (nestedCountersInstance)
+  //     nestedCountersInstance.countEvent(
+  //       'receipt',
+  //       'Invalid_receipt_appliedVote_signature_verification_failed'
+  //     )
+  //   return result
+  // }
 
-  // Check if the confirmOrChallenge node is in the execution group
-  if (!cycleShardData.nodeShardDataMap.has(confirmOrChallenge.nodeId)) {
-    Logger.mainLogger.error(
-      'Invalid receipt appliedReceipt confirmOrChallenge node is not in the active nodesList'
-    )
-    if (nestedCountersInstance)
-      nestedCountersInstance.countEvent(
-        'receipt',
-        'Invalid_receipt_confirmOrChallenge_node_not_in_active_nodesList'
-      )
-    return result
-  }
-  if (
-    confirmOrChallenge.sign.owner !==
-    cycleShardData.nodeShardDataMap.get(confirmOrChallenge.nodeId).node.publicKey
-  ) {
-    Logger.mainLogger.error(
-      'Invalid receipt appliedReceipt confirmOrChallenge node signature owner and node public key does not match'
-    )
-    if (nestedCountersInstance)
-      nestedCountersInstance.countEvent(
-        'receipt',
-        'Invalid_receipt_confirmOrChallenge_signature_owner_and_node_public_key_does_not_match'
-      )
-    return result
-  }
-  if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[confirmOrChallenge.nodeId]) {
-    Logger.mainLogger.error(
-      'Invalid receipt appliedReceipt confirmOrChallenge node is not in the execution group of the tx'
-    )
-    if (nestedCountersInstance)
-      nestedCountersInstance.countEvent(
-        'receipt',
-        'Invalid_receipt_confirmOrChallenge_node_not_in_execution_group_of_tx'
-      )
-    return result
-  }
-  if (!Crypto.verify(confirmOrChallenge)) {
-    Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge signature verification failed')
-    if (nestedCountersInstance)
-      nestedCountersInstance.countEvent(
-        'receipt',
-        'Invalid_receipt_confirmOrChallenge_signature_verification_failed'
-      )
-    return result
-  }
+  // // Check if the confirmOrChallenge node is in the execution group
+  // if (!cycleShardData.nodeShardDataMap.has(confirmOrChallenge.nodeId)) {
+  //   Logger.mainLogger.error(
+  //     'Invalid receipt appliedReceipt confirmOrChallenge node is not in the active nodesList'
+  //   )
+  //   if (nestedCountersInstance)
+  //     nestedCountersInstance.countEvent(
+  //       'receipt',
+  //       'Invalid_receipt_confirmOrChallenge_node_not_in_active_nodesList'
+  //     )
+  //   return result
+  // }
+  // if (
+  //   confirmOrChallenge.sign.owner !==
+  //   cycleShardData.nodeShardDataMap.get(confirmOrChallenge.nodeId).node.publicKey
+  // ) {
+  //   Logger.mainLogger.error(
+  //     'Invalid receipt appliedReceipt confirmOrChallenge node signature owner and node public key does not match'
+  //   )
+  //   if (nestedCountersInstance)
+  //     nestedCountersInstance.countEvent(
+  //       'receipt',
+  //       'Invalid_receipt_confirmOrChallenge_signature_owner_and_node_public_key_does_not_match'
+  //     )
+  //   return result
+  // }
+  // if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[confirmOrChallenge.nodeId]) {
+  //   Logger.mainLogger.error(
+  //     'Invalid receipt appliedReceipt confirmOrChallenge node is not in the execution group of the tx'
+  //   )
+  //   if (nestedCountersInstance)
+  //     nestedCountersInstance.countEvent(
+  //       'receipt',
+  //       'Invalid_receipt_confirmOrChallenge_node_not_in_execution_group_of_tx'
+  //     )
+  //   return result
+  // }
+  // if (!Crypto.verify(confirmOrChallenge)) {
+  //   Logger.mainLogger.error('Invalid receipt appliedReceipt confirmOrChallenge signature verification failed')
+  //   if (nestedCountersInstance)
+  //     nestedCountersInstance.countEvent(
+  //       'receipt',
+  //       'Invalid_receipt_confirmOrChallenge_signature_verification_failed'
+  //     )
+  //   return result
+  // }
 
   if (!checkReceiptRobust) return { success: true }
   // List the execution group nodes of the tx, Use them to robustQuery to verify the receipt
@@ -616,12 +611,12 @@ const verifyAppliedReceiptSignatures = (
   nestedCounterMessages = []
 ): { success: boolean } => {
   const result = { success: false, failedReasons, nestedCounterMessages }
-  const { appliedReceipt, globalModification } = receipt
+  const { signedReceipt, globalModification } = receipt
   if (globalModification && config.skipGlobalTxReceiptVerification) return { success: true }
-  const { appliedVote, signatures } = appliedReceipt
+  const { proposal, signaturePack } = signedReceipt
   const { txId } = receipt.tx
   // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2799
-  const voteHash = calculateVoteHash(appliedVote)
+  const voteHash = calculateVoteHash(proposal)
   // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2663
   const appliedVoteHash = {
     txid: txId,
@@ -629,7 +624,7 @@ const verifyAppliedReceiptSignatures = (
   }
   // Using a map to store the good signatures to avoid duplicates
   const goodSignatures = new Map()
-  for (const signature of signatures) {
+  for (const signature of signaturePack) {
     if (Crypto.verify({ ...appliedVoteHash, sign: signature })) {
       goodSignatures.set(signature.owner, signature)
       // Break the loop if the required number of good signatures are found
@@ -648,20 +643,36 @@ const verifyAppliedReceiptSignatures = (
   return { success: true }
 }
 
-const calculateVoteHash = (vote: Receipt.AppliedVote, failedReasons = []): string => {
+const calculateVoteHash = (vote: Receipt.AppliedVote | Receipt.Proposal): string => {
   try {
-    if (config.usePOQo === true) {
+    if (config.usePOQo === true && (vote as Receipt.Proposal).applied !== undefined) {
+      const proposal = vote as Receipt.Proposal
+      const applyStatus = {
+        applied: proposal.applied,
+        cantApply: proposal.cant_preApply,
+      }
+      const accountsHash = Crypto.hash(
+        Crypto.hashObj(proposal.accountIDs) +
+          Crypto.hashObj(proposal.beforeStateHashes) +
+          Crypto.hashObj(proposal.afterStateHashes)
+      )
+      const proposalHash = Crypto.hash(
+        Crypto.hashObj(applyStatus) + accountsHash + proposal.appReceiptDataHash
+      )
+      return proposalHash
+    } else if (config.usePOQo === true) {
+      const appliedVote = vote as Receipt.AppliedVote
       const appliedHash = {
-        applied: vote.transaction_result,
-        cantApply: vote.cant_apply,
+        applied: appliedVote.transaction_result,
+        cantApply: appliedVote.cant_apply,
       }
       const stateHash = {
-        account_id: vote.account_id,
-        account_state_hash_after: vote.account_state_hash_after,
-        account_state_hash_before: vote.account_state_hash_before,
+        account_id: appliedVote.account_id,
+        account_state_hash_after: appliedVote.account_state_hash_after,
+        account_state_hash_before: appliedVote.account_state_hash_before,
       }
       const appDataHash = {
-        app_data_hash: vote.app_data_hash,
+        app_data_hash: appliedVote.app_data_hash,
       }
       const voteToHash = {
         appliedHash: Crypto.hashObj(appliedHash),
@@ -672,7 +683,7 @@ const calculateVoteHash = (vote: Receipt.AppliedVote, failedReasons = []): strin
     }
     return Crypto.hashObj({ ...vote, node_id: '' })
   } catch {
-    failedReasons.push('Error in calculateVoteHash', vote)
+    Logger.mainLogger.error('Error in calculateVoteHash', vote)
     return ''
   }
 }
@@ -780,27 +791,27 @@ export const storeReceiptData = async (
     if (verifyData) {
       if (config.usePOQo === false) {
         const existingReceipt = await Receipt.queryReceiptByReceiptId(txId)
-        if (
-          existingReceipt &&
-          receipt.appliedReceipt &&
-          receipt.appliedReceipt.confirmOrChallenge &&
-          receipt.appliedReceipt.confirmOrChallenge.message === 'challenge'
-        ) {
-          // If the existing receipt is confirmed, and the new receipt is challenged, then skip saving the new receipt
-          if (existingReceipt.appliedReceipt.confirmOrChallenge.message === 'confirm') {
-            Logger.mainLogger.error(
-              `Existing receipt is confirmed, but new receipt is challenged ${txId}, ${receipt.cycle}, ${timestamp}`
-            )
-            receiptsInValidationMap.delete(txId)
-            if (nestedCountersInstance)
-              nestedCountersInstance.countEvent(
-                'receipt',
-                'Existing_receipt_is_confirmed_but_new_receipt_is_challenged'
-              )
-            if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
-            continue
-          }
-        }
+        // if (
+        //   existingReceipt &&
+        //   receipt.appliedReceipt &&
+        //   receipt.appliedReceipt.confirmOrChallenge &&
+        //   receipt.appliedReceipt.confirmOrChallenge.message === 'challenge'
+        // ) {
+        //   // If the existing receipt is confirmed, and the new receipt is challenged, then skip saving the new receipt
+        //   if (existingReceipt.appliedReceipt.confirmOrChallenge.message === 'confirm') {
+        //     Logger.mainLogger.error(
+        //       `Existing receipt is confirmed, but new receipt is challenged ${txId}, ${receipt.cycle}, ${timestamp}`
+        //     )
+        //     receiptsInValidationMap.delete(txId)
+        //     if (nestedCountersInstance)
+        //       nestedCountersInstance.countEvent(
+        //         'receipt',
+        //         'Existing_receipt_is_confirmed_but_new_receipt_is_challenged'
+        //       )
+        //     if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
+        //     continue
+        //   }
+        // }
       }
 
       if (config.verifyReceiptData) {
@@ -816,16 +827,16 @@ export const storeReceiptData = async (
         if (newReceipt) receipt = newReceipt
 
         if (profilerInstance) profilerInstance.profileSectionStart('Offload_receipt')
-          if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Offload_receipt')
-          const start_time = process.hrtime();
-          console.log('offloading receipt', txId, timestamp)
+        if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Offload_receipt')
+        const start_time = process.hrtime()
+        console.log('offloading receipt', txId, timestamp)
         const result = await offloadReceipt(txId, timestamp, requiredSignatures, receipt)
         console.log('offload receipt result', txId, timestamp, result)
-        const end_time = process.hrtime(start_time);
+        const end_time = process.hrtime(start_time)
         console.log(
           `Time taken for receipt verification in millisecond is: `,
           end_time[0] * 1000 + end_time[1] / 1000000
-        );
+        )
         if (profilerInstance) profilerInstance.profileSectionEnd('Offload_receipt')
         if (result.success === false) {
           receiptsInValidationMap.delete(txId)
@@ -846,7 +857,7 @@ export const storeReceiptData = async (
     //   receiptId: tx.txId,
     //   timestamp: tx.timestamp,
     // })
-    const { accounts, cycle, tx, appReceiptData, appliedReceipt } = receipt
+    const { afterStates, cycle, tx, appReceiptData } = receipt
     if (config.VERBOSE) console.log('RECEIPT', 'Save', txId, timestamp, senderInfo)
     processedReceiptsMap.set(tx.txId, tx.timestamp)
     receiptsInValidationMap.delete(tx.txId)
@@ -855,6 +866,7 @@ export const storeReceiptData = async (
       ...receipt,
       receiptId: tx.txId,
       timestamp: tx.timestamp,
+      applyTimestamp: receipt.signedReceipt.applyTimestamp,
     })
     if (config.dataLogWrite && ReceiptLogWriter)
       ReceiptLogWriter.writeToLog(
@@ -862,18 +874,19 @@ export const storeReceiptData = async (
           ...receipt,
           receiptId: tx.txId,
           timestamp: tx.timestamp,
+          applyTimestamp: receipt.signedReceipt.applyTimestamp,
         })}\n`
       )
     txDataList.push({ txId, timestamp })
     // If the receipt is a challenge, then skip updating its accounts data or transaction data
-    if (
-      config.newPOQReceipt === true &&
-      appliedReceipt &&
-      appliedReceipt.confirmOrChallenge &&
-      appliedReceipt.confirmOrChallenge.message === 'challenge'
-    )
-      continue
-    for (const account of accounts) {
+    // if (
+    //   config.newPOQReceipt === true &&
+    //   appliedReceipt &&
+    //   appliedReceipt.confirmOrChallenge &&
+    //   appliedReceipt.confirmOrChallenge.message === 'challenge'
+    // )
+    //   continue
+    for (const account of afterStates) {
       const accObj: Account.AccountCopy = {
         accountId: account.accountId,
         data: account.data,
