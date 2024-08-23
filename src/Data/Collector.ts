@@ -1380,6 +1380,8 @@ export const collectMissingReceipts = async (
     `Collecting missing receipt for txId ${txId} with timestamp ${txTimestamp} from archivers`,
     senderArchivers.map((a) => a.ip + ':' + a.port)
   )
+  if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Collect_missing_receipt')
+  if (profilerInstance) profilerInstance.profileSectionStart('Collect_missing_receipt')
   for (const senderArchiver of senderArchivers) {
     if (
       (processedReceiptsMap.has(txId) && processedReceiptsMap.get(txId) === txTimestamp) ||
@@ -1409,7 +1411,8 @@ export const collectMissingReceipts = async (
       `Failed to collect receipt for txId ${txId} with timestamp ${txTimestamp} from archivers ${senders}`
     )
   }
-  collectingMissingOriginalTxsMap.delete(txId)
+  collectingMissingReceiptsMap.delete(txId)
+  if (profilerInstance) profilerInstance.profileSectionEnd('Collect_missing_receipt')
 }
 
 const collectMissingOriginalTxsData = async (
@@ -1424,6 +1427,9 @@ const collectMissingOriginalTxsData = async (
     `Collecting missing originalTxData for txId ${txId} with timestamp ${txTimestamp} from archivers`,
     senderArchivers.map((a) => a.ip + ':' + a.port)
   )
+  if (nestedCountersInstance)
+    nestedCountersInstance.countEvent('originalTxData', 'Collect_missing_originalTxData')
+  if (profilerInstance) profilerInstance.profileSectionStart('Collect_missing_originalTxData')
   for (const senderArchiver of senderArchivers) {
     if (
       (processedOriginalTxsMap.has(txId) && processedOriginalTxsMap.get(txId) === txTimestamp) ||
@@ -1451,7 +1457,8 @@ const collectMissingOriginalTxsData = async (
       `Failed to collect originalTxData for txId ${txId} with timestamp ${txTimestamp} from archivers ${senders}`
     )
   }
-  collectingMissingReceiptsMap.delete(txId)
+  collectingMissingOriginalTxsMap.delete(txId)
+  if (profilerInstance) profilerInstance.profileSectionEnd('Collect_missing_originalTxData')
 }
 
 type TxDataFromArchiversResponse = {

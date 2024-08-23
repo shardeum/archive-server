@@ -6,6 +6,7 @@ import { Signature } from '@shardus/crypto-utils'
 import { P2P as P2PTypes } from '@shardus/types'
 import * as Utils from '../Utils'
 import { config } from '../Config'
+import { nestedCountersInstance } from '../profiler/nestedCounters'
 
 // adjacentArchivers are one archiver from left and one archiver from right of the current archiver
 export let adjacentArchivers: State.ArchiverNodeInfo[] = []
@@ -102,12 +103,23 @@ export async function sendDataToAdjacentArchivers(
       }
     }
     try {
-      await Promise.allSettled(promises)
+      await Promise.allSettled(promises).then((results) => {
+        results.forEach((result) => {
+          if (nestedCountersInstance) {
+            if (result.status === 'fulfilled') {
+              if (result.value !== null) nestedCountersInstance.countEvent('gossip-data', 'success')
+              else nestedCountersInstance.countEvent('gossip-data', 'failure')
+            } else nestedCountersInstance.countEvent('gossip-data', 'failure')
+          }
+        })
+      })
     } catch (err) {
       Logger.mainLogger.error('Gossip Error: ' + err)
+      if (nestedCountersInstance) nestedCountersInstance.countEvent('gossip-data', 'error 1', err)
     }
   } catch (ex) {
     Logger.mainLogger.debug(ex)
     Logger.mainLogger.debug('Fail to gossip')
+    if (nestedCountersInstance) nestedCountersInstance.countEvent('gossip-data', 'error 2', ex)
   }
 }
