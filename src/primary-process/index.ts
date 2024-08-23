@@ -5,6 +5,7 @@ import { verifyArchiverReceipt, ReceiptVerificationResult } from '../Data/Collec
 import { config } from '../Config'
 import { EventEmitter } from 'events'
 import { StateManager, Utils as StringUtils } from '@shardus/types'
+import * as Utils from '../Utils'
 
 const MAX_WORKERS = cpus().length - 1 // Leaving 1 core for the master process
 
@@ -41,8 +42,8 @@ export const setupWorkerProcesses = (cluster: Cluster): void => {
   console.log(`Master ${process.pid} is running`)
   // Set interval to check receipt count every 15 seconds
   setInterval(async () => {
-    for (const [,worker] of newWorkers) {
-        worker.kill()
+    for (const [, worker] of newWorkers) {
+      worker.kill()
     }
     if (receiptLoadTraker < config.receiptLoadTrakerLimit) {
       console.log(`Receipt load is below the limit: ${receiptLoadTraker}/${config.receiptLoadTrakerLimit}`)
@@ -83,7 +84,9 @@ export const setupWorkerProcesses = (cluster: Cluster): void => {
       }
     }
     console.log(
-      `Adjusted worker count to ${workers.length + newWorkers.size}, based on ${receiptLoadTraker} receipts received.`
+      `Adjusted worker count to ${
+        workers.length + newWorkers.size
+      }, based on ${receiptLoadTraker} receipts received.`
     )
     receiptLoadTraker = 0 // Reset the count
   }, config.receiptLoadTrakerInterval)
@@ -132,16 +135,16 @@ const setupWorkerListeners = (worker: Worker): void => {
         }
         break
       case 'child_ready':
-          console.log(`Worker ${workerId} is ready for the duty`)
-          // Check if the worker is in the newWorkers map
-          if (newWorkers.has(workerId)) {
-            console.log(`Worker ${workerId} is in newWorkers, moving it to the workers list`)
-            workers.push(newWorkers.get(workerId))
-            newWorkers.delete(workerId)
-          } else {
-            console.error(`Worker ${workerId}is not in the newWorkers list`)
-          }
-          break
+        console.log(`Worker ${workerId} is ready for the duty`)
+        // Check if the worker is in the newWorkers map
+        if (newWorkers.has(workerId)) {
+          console.log(`Worker ${workerId} is in newWorkers, moving it to the workers list`)
+          workers.push(newWorkers.get(workerId))
+          newWorkers.delete(workerId)
+        } else {
+          console.error(`Worker ${workerId}is not in the newWorkers list`)
+        }
+        break
       default:
         console.log(`Worker ${process.pid} is sending unknown message type: ${type}`)
         console.log(data)
@@ -159,7 +162,7 @@ const setupWorkerListeners = (worker: Worker): void => {
       extraWorkers.delete(workerId)
     }
     let isNewWorker = false
-    if(newWorkers.has(workerId)) {
+    if (newWorkers.has(workerId)) {
       console.log(`Worker ${workerId} is in newWorkers, removing it now`)
       isNewWorker = true
       newWorkers.get(workerId)?.kill()
@@ -221,7 +224,7 @@ export const offloadReceipt = async (
       currentWorker = (currentWorker + 1) % workers.length
       if (worker) {
         console.log('Verifying on the worker process 2', txId, timestamp, worker.process.pid)
-        const cloneReceipt = { ...receipt }
+        const cloneReceipt = Utils.deepCopy(receipt)
         delete cloneReceipt.tx.originalTxData
         delete cloneReceipt.executionShardKey
         const stringifiedReceipt = StringUtils.safeStringify(cloneReceipt)
