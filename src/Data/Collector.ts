@@ -1407,6 +1407,8 @@ export const collectMissingReceipts = async (
     if (foundTxData) break
   }
   if (!foundTxData) {
+    if (nestedCountersInstance)
+      nestedCountersInstance.countEvent('receipt', 'Failed to collect missing receipt from archivers')
     Logger.mainLogger.error(
       `Failed to collect receipt for txId ${txId} with timestamp ${txTimestamp} from archivers ${senders}`
     )
@@ -1453,6 +1455,8 @@ const collectMissingOriginalTxsData = async (
     if (foundTxData) break
   }
   if (!foundTxData) {
+    if (nestedCountersInstance)
+      nestedCountersInstance.countEvent('originalTxData', 'Failed to collect_missing_originalTxData')
     Logger.mainLogger.error(
       `Failed to collect originalTxData for txId ${txId} with timestamp ${txTimestamp} from archivers ${senders}`
     )
