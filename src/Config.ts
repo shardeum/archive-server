@@ -19,6 +19,8 @@ export interface Config {
     transactionDB: string
     receiptDB: string
     originalTxDataDB: string
+    processedTxDB: string 
+    txDigestDB: string
   }
   DATASENDER_TIMEOUT: number
   RATE_LIMIT: number // number of allowed request per second,
@@ -86,6 +88,10 @@ export interface Config {
   receiptLoadTrakerLimit: number // Limit to track the receipt load
   lastActivityCheckInterval: number // Interval to check last activity
   lastActivityCheckTimeout: number // Timeout to check last activity
+  txDigest: {
+    cycleDiff: number,
+    syncDelay: number,
+  }
 }
 
 let config: Config = {
@@ -102,6 +108,8 @@ let config: Config = {
     transactionDB: 'transactions.sqlite3',
     receiptDB: 'receipts.sqlite3',
     originalTxDataDB: 'originalTxsData.sqlite3',
+    processedTxDB: 'processedTransactions.sqlite3',
+    txDigestDB: 'txDigest.sqlite3',
   },
   DATASENDER_TIMEOUT: 1000 * 60 * 5,
   RATE_LIMIT: 100, // 100 req per second,
@@ -164,6 +172,10 @@ let config: Config = {
   receiptLoadTrakerLimit: 10,
   lastActivityCheckInterval: 15 * 1000,
   lastActivityCheckTimeout: 30 * 1000,
+  txDigest: {
+    cycleDiff: 10,
+    syncDelay: 20,
+  }
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {

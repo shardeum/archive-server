@@ -1,0 +1,76 @@
+import * as db from './sqlite3storage'
+import { digesterDatabase, extractValues } from './sqlite3storage'
+import { config } from '../Config'
+
+/**
+ * TransactionDigest is for storing transaction digests, which is the hash of prevHash
+ * and list of transactions in a timestamp range
+ */
+export interface TransactionDigest {
+  cycleStart: number
+  cycleEnd: number
+  txCount: number
+  hash: string
+}
+
+export async function insertTransactionDigest(txDigest: TransactionDigest): Promise<void> {
+  try {
+    const fields = Object.keys(txDigest).join(', ')
+    const placeholders = Object.keys(txDigest).fill('?').join(', ')
+    const values = extractValues(txDigest)
+    const sql = 'INSERT OR REPLACE INTO txDigests (' + fields + ') VALUES (' + placeholders + ')'
+    await db.run(digesterDatabase, sql, values)
+    if (config.VERBOSE) {
+      console.log(
+        `Successfully inserted txDigest for cycle records from ${txDigest.cycleStart} to ${txDigest.cycleEnd}`
+      )
+    }
+  } catch (e) {
+    console.error(e)
+    throw new Error(
+      `Unable to insert txDigest for cycle records from ${txDigest.cycleStart} to ${txDigest.cycleEnd}`
+    )
+  }
+}
+
+export async function getLastProcessedTxDigest(): Promise<TransactionDigest> {
+  try {
+    const sql = `SELECT * FROM txDigests ORDER BY cycleEnd DESC LIMIT 1`
+    const lastProcessedDigest = (await db.get(digesterDatabase, sql)) as TransactionDigest
+    if (config.VERBOSE) {
+      console.log('LastProcessed Tx Digest', lastProcessedDigest)
+    }
+    return lastProcessedDigest
+  } catch (e) {
+    console.error(e)
+    return null
+  }
+}
+
+export async function queryByEndCycle(endCycle: number): Promise<TransactionDigest> {
+  try {
+    const sql = `SELECT * FROM txDigests WHERE cycleEnd=? LIMIT 1`
+    const txDigest = (await db.get(digesterDatabase, sql, [endCycle])) as TransactionDigest
+    if (config.VERBOSE) {
+      console.log('Tx Digest by endCycle', txDigest)
+    }
+    return txDigest
+  } catch (e) {
+    console.error(e)
+    return null
+  }
+}
+
+export async function queryByCycleRange(startCycle: number, endCycle: number): Promise<TransactionDigest[]> {
+  try {
+    const sql = `SELECT * FROM txDigests WHERE cycleStart >= ? AND cycleEnd <= ? ORDER BY cycleEnd`
+    const txDigests = (await db.all(digesterDatabase, sql, [startCycle, endCycle])) as TransactionDigest[]
+    if (config.VERBOSE) {
+      console.log('Tx Digest by cycle range', txDigests)
+    }
+    return txDigests || []
+  } catch (e) {
+    console.error(e)
+    return []
+  }
+}

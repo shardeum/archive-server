@@ -4,6 +4,7 @@ import * as Account from '../dbstore/accounts'
 import * as Transaction from '../dbstore/transactions'
 import * as Receipt from '../dbstore/receipts'
 import * as OriginalTxsData from '../dbstore/originalTxsData'
+import * as ProcessedTransaction from '../dbstore/processedTxs'
 import * as Crypto from '../Crypto'
 import {
   clearCombinedAccountsData,
@@ -762,6 +763,7 @@ export const storeReceiptData = async (
   let combineReceipts = []
   let combineAccounts = []
   let combineTransactions = []
+  let combineProcessedTxs = []
   let txDataList: TxData[] = []
   if (saveOnlyGossipData) return
   for (let receipt of receipts) {
@@ -948,8 +950,17 @@ export const storeReceiptData = async (
       data: appReceiptData ? appReceiptData.data : {},
       originalTxData: tx.originalTxData,
     }
+
+    const processedTx: ProcessedTransaction.ProcessedTransaction = {
+      txId: tx.txId,
+      cycle: cycle,
+      txTimestamp: tx.timestamp,
+      txApplyTimestamp: null,
+    }
+
     // await Transaction.insertTransaction(txObj)
     combineTransactions.push(txObj)
+    combineProcessedTxs.push(processedTx)
     // Receipts size can be big, better to save per 100
     if (combineReceipts.length >= 100) {
       await Receipt.bulkInsertReceipts(combineReceipts)
@@ -963,7 +974,12 @@ export const storeReceiptData = async (
     }
     if (combineTransactions.length >= bucketSize) {
       await Transaction.bulkInsertTransactions(combineTransactions)
+
       combineTransactions = []
+    }
+    if (combineProcessedTxs.length >= bucketSize) {
+      await ProcessedTransaction.bulkInsertProcessedTxs(combineProcessedTxs)
+      combineProcessedTxs = []
     }
   }
   // Receipts size can be big, better to save per 100
@@ -973,6 +989,7 @@ export const storeReceiptData = async (
   }
   if (combineAccounts.length > 0) await Account.bulkInsertAccounts(combineAccounts)
   if (combineTransactions.length > 0) await Transaction.bulkInsertTransactions(combineTransactions)
+  if (combineProcessedTxs.length > 0) await ProcessedTransaction.bulkInsertProcessedTxs(combineProcessedTxs)
   // If the archiver is not active, good to clean up the processed receipts map if it exceeds 2000
   if (!State.isActive && processedReceiptsMap.size > 2000) processedReceiptsMap.clear()
 }
@@ -1113,6 +1130,7 @@ export const storeAccountData = async (restoreData: StoreAccountParam = {}): Pro
   if (receipts && receipts.length > 0) {
     Logger.mainLogger.debug('Received receipts Size', receipts.length)
     const combineTransactions = []
+    const combineProcessedTxs = []
     for (const receipt of receipts) {
       const txObj: Transaction.Transaction = {
         txId: receipt.data.txId || receipt.txId,
@@ -1122,9 +1140,17 @@ export const storeAccountData = async (restoreData: StoreAccountParam = {}): Pro
         data: receipt.data,
         originalTxData: {},
       }
+      const processedTx: ProcessedTransaction.ProcessedTransaction = {
+        txId: receipt.data.txId || receipt.txId,
+        cycle: receipt.cycleNumber,
+        txTimestamp: receipt.timestamp,
+        txApplyTimestamp: null,
+      }
       combineTransactions.push(txObj)
+      combineProcessedTxs.push(processedTx)
     }
     await Transaction.bulkInsertTransactions(combineTransactions)
+    await ProcessedTransaction.bulkInsertProcessedTxs(combineProcessedTxs)
   }
   if (profilerInstance) profilerInstance.profileSectionEnd('store_account_data')
   Logger.mainLogger.debug('Combined Accounts Data', combineAccountsData.accounts.length)

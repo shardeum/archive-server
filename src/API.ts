@@ -1103,6 +1103,19 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     }
   )
 
+  server.get('/status', async (_request, reply) => {
+    Logger.mainLogger.debug('Status request received')
+    const status = {
+      isActive: State.isActive,
+    }
+
+    Logger.mainLogger.debug('Status response', status)
+    const res = Crypto.sign({
+      status,
+    })
+    reply.send(res)
+  })
+
   // Old snapshot ArchivedCycle endpoint;
   if (!config.experimentalSnapshot) {
     type FullArchiveRequest = FastifyRequest<{

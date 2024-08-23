@@ -9,6 +9,7 @@ export let accountDatabase: Database
 export let transactionDatabase: Database
 export let receiptDatabase: Database
 export let originalTxDataDatabase: Database
+export let processedTxDatabase: Database
 
 export const initializeDB = async (config: Config): Promise<void> => {
   createDirectories(config.ARCHIVER_DB)
@@ -22,6 +23,10 @@ export const initializeDB = async (config: Config): Promise<void> => {
   originalTxDataDatabase = await createDB(
     `${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.originalTxDataDB}`,
     'OriginalTxData'
+  )
+  processedTxDatabase = await createDB(
+    `${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.processedTxDB}`,
+    'ProcessedTransaction'
   )
   await runCreate(
     transactionDatabase,
@@ -93,6 +98,16 @@ export const initializeDB = async (config: Config): Promise<void> => {
     originalTxDataDatabase,
     'CREATE INDEX if not exists `originalTxsData_txId` ON `originalTxsData` (`txId`)'
   )
+
+  // Transaction digester service tables
+  await runCreate(
+    processedTxDatabase,
+    'CREATE TABLE if not exists `processedTxs` (`txId` TEXT NOT NULL, `cycle` BIGINT NOT NULL, `txTimestamp` BIGINT NOT NULL, `txApplyTimestamp` BIGINT, PRIMARY KEY (`txId`))'
+  )
+  await runCreate(
+    processedTxDatabase,
+    'CREATE INDEX if not exists `processedTxs_cycle_idx` ON `processedTxs` (`cycle`)'
+  )
 }
 
 export const closeDatabase = async (): Promise<void> => {
@@ -101,6 +116,7 @@ export const closeDatabase = async (): Promise<void> => {
   await close(cycleDatabase, 'Cycle')
   await close(receiptDatabase, 'Receipt')
   await close(originalTxDataDatabase, 'OriginalTxData')
+  await close(processedTxDatabase, 'ProcessedTransaction')
 }
 
 function createDirectories(pathname: string): void {

@@ -16,6 +16,8 @@
   },
   "scripts": {
     "start": "npm run prepare && node build/server.js",
+    "txDigestCronServer": "npm run prepare && node build/txDigester.js",
+    "txDigestApiServer": "npm run prepare && node build/txDigestAPIserver.js",
     "release": "npm run prepare && np --no-cleanup --no-tests --no-yarn --any-branch",
     "check": "gts check",
     "clean": "npm-run-all clean:*",
@@ -49,6 +51,7 @@
   "homepage": "https://gitlab.com/shardus/archive/archive-server#readme",
   "devDependencies": {
     "@types/node": "18.16.1",
+    "@types/node-cron": "3.0.7",
     "@types/node-fetch": "^2.5.4",
     "@types/socket.io": "^2.1.11",
     "@types/socket.io-client": "^1.4.33",
@@ -84,6 +87,7 @@
     "log4js-extend": "^0.2.1",
     "minimist": "^1.2.0",
     "neverthrow": "^6.0.0",
+    "node-cron": "3.0.2",
     "node-fetch": "^2.6.8",
     "rfdc": "^1.3.0",
     "socket.io-client": "^2.3.0",
