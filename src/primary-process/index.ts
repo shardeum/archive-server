@@ -172,7 +172,7 @@ const setupWorkerListeners = (worker: Worker): void => {
       workers[workerIndex]?.kill()
       workers.splice(workerIndex, 1)
     } else {
-      if (!isExtraWorker || !isNewWorker) console.error(`Worker ${workerId} is not in workers list`)
+      if (!isExtraWorker && !isNewWorker) console.error(`Worker ${workerId} is not in workers list`)
     }
   })
 }
