@@ -1,5 +1,5 @@
 import * as db from './sqlite3storage'
-import { accountDatabase, extractValues, extractValuesFromArray } from './sqlite3storage'
+import { accountDatabase } from '.'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString, SerializeToJsonString } from '../utils/serialization'
@@ -22,7 +22,7 @@ export async function insertAccount(account: AccountsCopy): Promise<void> {
   try {
     const fields = Object.keys(account).join(', ')
     const placeholders = Object.keys(account).fill('?').join(', ')
-    const values = extractValues(account)
+    const values = db.extractValues(account)
     const sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
     await db.run(accountDatabase, sql, values)
     if (config.VERBOSE) {
@@ -41,7 +41,7 @@ export async function bulkInsertAccounts(accounts: AccountsCopy[]): Promise<void
   try {
     const fields = Object.keys(accounts[0]).join(', ')
     const placeholders = Object.keys(accounts[0]).fill('?').join(', ')
-    const values = extractValuesFromArray(accounts)
+    const values = db.extractValuesFromArray(accounts)
     let sql = 'INSERT OR REPLACE INTO accounts (' + fields + ') VALUES (' + placeholders + ')'
     for (let i = 1; i < accounts.length; i++) {
       sql = sql + ', (' + placeholders + ')'

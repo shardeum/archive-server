@@ -1,6 +1,6 @@
 // import { Signature } from 'shardus-crypto-types'
 import * as db from './sqlite3storage'
-import { originalTxDataDatabase, extractValues, extractValuesFromArray } from './sqlite3storage'
+import { originalTxDataDatabase } from '.'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString } from '../utils/serialization'
@@ -31,7 +31,7 @@ export async function insertOriginalTxData(OriginalTxData: OriginalTxData): Prom
   try {
     const fields = Object.keys(OriginalTxData).join(', ')
     const placeholders = Object.keys(OriginalTxData).fill('?').join(', ')
-    const values = extractValues(OriginalTxData)
+    const values = db.extractValues(OriginalTxData)
     const sql = 'INSERT OR REPLACE INTO originalTxsData (' + fields + ') VALUES (' + placeholders + ')'
     await db.run(originalTxDataDatabase, sql, values)
     if (config.VERBOSE) {
@@ -50,7 +50,7 @@ export async function bulkInsertOriginalTxsData(originalTxsData: OriginalTxData[
   try {
     const fields = Object.keys(originalTxsData[0]).join(', ')
     const placeholders = Object.keys(originalTxsData[0]).fill('?').join(', ')
-    const values = extractValuesFromArray(originalTxsData)
+    const values = db.extractValuesFromArray(originalTxsData)
     let sql = 'INSERT OR REPLACE INTO originalTxsData (' + fields + ') VALUES (' + placeholders + ')'
     for (let i = 1; i < originalTxsData.length; i++) {
       sql = sql + ', (' + placeholders + ')'

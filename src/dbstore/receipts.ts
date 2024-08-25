@@ -1,6 +1,6 @@
 import { Signature } from '@shardus/crypto-utils'
 import * as db from './sqlite3storage'
-import { receiptDatabase, extractValues, extractValuesFromArray } from './sqlite3storage'
+import { receiptDatabase } from '.'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString } from '../utils/serialization'
@@ -109,7 +109,7 @@ export async function insertReceipt(receipt: Receipt): Promise<void> {
   try {
     const fields = Object.keys(receipt).join(', ')
     const placeholders = Object.keys(receipt).fill('?').join(', ')
-    const values = extractValues(receipt)
+    const values = db.extractValues(receipt)
     const sql = 'INSERT OR REPLACE INTO receipts (' + fields + ') VALUES (' + placeholders + ')'
     await db.run(receiptDatabase, sql, values)
     if (config.VERBOSE) {
@@ -128,7 +128,7 @@ export async function bulkInsertReceipts(receipts: Receipt[]): Promise<void> {
   try {
     const fields = Object.keys(receipts[0]).join(', ')
     const placeholders = Object.keys(receipts[0]).fill('?').join(', ')
-    const values = extractValuesFromArray(receipts)
+    const values = db.extractValuesFromArray(receipts)
     let sql = 'INSERT OR REPLACE INTO receipts (' + fields + ') VALUES (' + placeholders + ')'
     for (let i = 1; i < receipts.length; i++) {
       sql = sql + ', (' + placeholders + ')'

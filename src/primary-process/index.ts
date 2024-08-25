@@ -241,7 +241,7 @@ export const offloadReceipt = async (
       }
     } else {
       console.log('Verifying on the worker process 1', txId, timestamp, worker.process.pid)
-      const cloneReceipt = { ...receipt }
+      const cloneReceipt = Utils.deepCopy(receipt)
       delete cloneReceipt.tx.originalTxData
       delete cloneReceipt.executionShardKey
       const stringifiedReceipt = StringUtils.safeStringify(cloneReceipt)

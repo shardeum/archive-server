@@ -8,8 +8,7 @@ index a892baf..ffac25a 100644
    ],
 -  "ARCHIVER_MODE": "release",
 +  "ARCHIVER_MODE": "debug",
-   "DevPublicKey": "",
-   "EXISTING_ARCHIVER_DB_PATH": ""
+   "DevPublicKey": ""
  }
 \ No newline at end of file
 diff --git a/src/Config.ts b/src/Config.ts

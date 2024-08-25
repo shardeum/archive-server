@@ -1,6 +1,6 @@
 // import { Signature } from 'shardus-crypto-types'
 import * as db from './sqlite3storage'
-import { transactionDatabase, extractValues, extractValuesFromArray } from './sqlite3storage'
+import { transactionDatabase } from '.'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString } from '../utils/serialization'
@@ -28,7 +28,7 @@ export async function insertTransaction(transaction: Transaction): Promise<void>
   try {
     const fields = Object.keys(transaction).join(', ')
     const placeholders = Object.keys(transaction).fill('?').join(', ')
-    const values = extractValues(transaction)
+    const values = db.extractValues(transaction)
     const sql = 'INSERT OR REPLACE INTO transactions (' + fields + ') VALUES (' + placeholders + ')'
     await db.run(transactionDatabase, sql, values)
     if (config.VERBOSE) {
@@ -47,7 +47,7 @@ export async function bulkInsertTransactions(transactions: Transaction[]): Promi
   try {
     const fields = Object.keys(transactions[0]).join(', ')
     const placeholders = Object.keys(transactions[0]).fill('?').join(', ')
-    const values = extractValuesFromArray(transactions)
+    const values = db.extractValuesFromArray(transactions)
     let sql = 'INSERT OR REPLACE INTO transactions (' + fields + ') VALUES (' + placeholders + ')'
     for (let i = 1; i < transactions.length; i++) {
       sql = sql + ', (' + placeholders + ')'

@@ -1,5 +1,5 @@
 import * as db from './sqlite3storage'
-import { cycleDatabase, extractValues, extractValuesFromArray } from './sqlite3storage'
+import { cycleDatabase } from '.'
 import { P2P } from '@shardus/types'
 import * as Logger from '../Logger'
 import { config } from '../Config'
@@ -10,7 +10,7 @@ export async function insertCycle(cycle: Cycle): Promise<void> {
   try {
     const fields = Object.keys(cycle).join(', ')
     const placeholders = Object.keys(cycle).fill('?').join(', ')
-    const values = extractValues(cycle)
+    const values = db.extractValues(cycle)
     const sql = 'INSERT OR REPLACE INTO cycles (' + fields + ') VALUES (' + placeholders + ')'
     await db.run(cycleDatabase, sql, values)
     Logger.mainLogger.debug('Successfully inserted Cycle', cycle.cycleRecord.counter, cycle.cycleMarker)
@@ -28,7 +28,7 @@ export async function bulkInsertCycles(cycles: Cycle[]): Promise<void> {
   try {
     const fields = Object.keys(cycles[0]).join(', ')
     const placeholders = Object.keys(cycles[0]).fill('?').join(', ')
-    const values = extractValuesFromArray(cycles)
+    const values = db.extractValuesFromArray(cycles)
     let sql = 'INSERT OR REPLACE INTO cycles (' + fields + ') VALUES (' + placeholders + ')'
     for (let i = 1; i < cycles.length; i++) {
       sql = sql + ', (' + placeholders + ')'

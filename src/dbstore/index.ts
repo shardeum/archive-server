@@ -1,17 +1,28 @@
+import * as fs from 'fs'
+import * as path from 'path'
+import { Database } from 'sqlite3'
 import { Config } from '../Config'
-import {
-  init,
-  runCreate,
-  close,
-  accountDatabase,
-  transactionDatabase,
-  cycleDatabase,
-  receiptDatabase,
-  originalTxDataDatabase,
-} from './sqlite3storage'
+import { createDB, runCreate, close } from './sqlite3storage'
+
+export let cycleDatabase: Database
+export let accountDatabase: Database
+export let transactionDatabase: Database
+export let receiptDatabase: Database
+export let originalTxDataDatabase: Database
 
 export const initializeDB = async (config: Config): Promise<void> => {
-  await init(config)
+  createDirectories(config.ARCHIVER_DB)
+  accountDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.accountDB}`, 'Account')
+  cycleDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.cycleDB}`, 'Cycle')
+  transactionDatabase = await createDB(
+    `${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.transactionDB}`,
+    'Transaction'
+  )
+  receiptDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.receiptDB}`, 'Receipt')
+  originalTxDataDatabase = await createDB(
+    `${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.originalTxDataDB}`,
+    'OriginalTxData'
+  )
   await runCreate(
     transactionDatabase,
     'CREATE TABLE if not exists `transactions` (`txId` TEXT NOT NULL UNIQUE PRIMARY KEY, `appReceiptId` TEXT, `timestamp` BIGINT NOT NULL, `cycleNumber` NUMBER NOT NULL, `data` JSON NOT NULL, `originalTxData` JSON NOT NULL)'
@@ -90,4 +101,10 @@ export const closeDatabase = async (): Promise<void> => {
   await close(cycleDatabase, 'Cycle')
   await close(receiptDatabase, 'Receipt')
   await close(originalTxDataDatabase, 'OriginalTxData')
+}
+
+function createDirectories(pathname: string): void {
+  const __dirname = path.resolve()
+  pathname = pathname.replace(/^\.*\/|\/?[^/]+\.[a-z]+|\/$/g, '') // Remove leading directory markers, and remove ending /file-name.extension
+  fs.mkdirSync(path.resolve(__dirname, pathname), { recursive: true }) // eslint-disable-line security/detect-non-literal-fs-filename
 }

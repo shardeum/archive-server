@@ -20,7 +20,6 @@ export interface Config {
     receiptDB: string
     originalTxDataDB: string
   }
-  EXISTING_ARCHIVER_DB_PATH: string
   DATASENDER_TIMEOUT: number
   RATE_LIMIT: number // number of allowed request per second,
   N_NODE_REJECT_PERCENT: number
@@ -104,7 +103,6 @@ let config: Config = {
     receiptDB: 'receipts.sqlite3',
     originalTxDataDB: 'originalTxsData.sqlite3',
   },
-  EXISTING_ARCHIVER_DB_PATH: '',
   DATASENDER_TIMEOUT: 1000 * 60 * 5,
   RATE_LIMIT: 100, // 100 req per second,
   N_NODE_REJECT_PERCENT: 5, // Percentage of old nodes to remove from nodelist

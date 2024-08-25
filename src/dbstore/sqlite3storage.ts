@@ -1,32 +1,7 @@
-import * as fs from 'fs'
-import * as path from 'path'
-import { Config } from '../Config'
 import { SerializeToJsonString } from '../utils/serialization'
 import { Database } from 'sqlite3'
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 
-export let cycleDatabase: Database
-export let accountDatabase: Database
-export let transactionDatabase: Database
-export let receiptDatabase: Database
-export let originalTxDataDatabase: Database
-
-export async function init(config: Config): Promise<void> {
-  createDirectories(config.ARCHIVER_DB)
-  accountDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.accountDB}`, 'Account')
-  cycleDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.cycleDB}`, 'Cycle')
-  transactionDatabase = await createDB(
-    `${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.transactionDB}`,
-    'Transaction'
-  )
-  receiptDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.receiptDB}`, 'Receipt')
-  originalTxDataDatabase = await createDB(
-    `${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.originalTxDataDB}`,
-    'OriginalTxData'
-  )
-}
-
-const createDB = async (dbPath: string, dbName: string): Promise<Database> => {
+export const createDB = async (dbPath: string, dbName: string): Promise<Database> => {
   console.log('dbName', dbName, 'dbPath', dbPath)
   const db = new Database(dbPath, (err) => {
     if (err) {
@@ -145,10 +120,4 @@ export function extractValuesFromArray(arr: object[]): unknown[] {
     console.log(e)
     return null
   }
-}
-
-function createDirectories(pathname: string): void {
-  const __dirname = path.resolve()
-  pathname = pathname.replace(/^\.*\/|\/?[^/]+\.[a-z]+|\/$/g, '') // Remove leading directory markers, and remove ending /file-name.extension
-  fs.mkdirSync(path.resolve(__dirname, pathname), { recursive: true }) // eslint-disable-line security/detect-non-literal-fs-filename
 }
