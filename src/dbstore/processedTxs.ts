@@ -1,5 +1,5 @@
 import * as db from './sqlite3storage'
-import { processedTxDatabase, extractValues, extractValuesFromArray } from './sqlite3storage'
+import { processedTxDatabase } from './'
 import * as Logger from '../Logger'
 import { config } from '../Config'
 
@@ -17,7 +17,7 @@ export async function insertProcessedTx(processedTx: ProcessedTransaction): Prom
   try {
     const fields = Object.keys(processedTx).join(', ')
     const placeholders = Object.keys(processedTx).fill('?').join(', ')
-    const values = extractValues(processedTx)
+    const values = db.extractValues(processedTx)
     const sql = 'INSERT OR REPLACE INTO processedTxs (' + fields + ') VALUES (' + placeholders + ')'
     await db.run(processedTxDatabase, sql, values)
     if (config.VERBOSE) {
@@ -36,7 +36,7 @@ export async function bulkInsertProcessedTxs(processedTxs: ProcessedTransaction[
   try {
     const fields = Object.keys(processedTxs[0]).join(', ')
     const placeholders = Object.keys(processedTxs[0]).fill('?').join(', ')
-    const values = extractValuesFromArray(processedTxs)
+    const values = db.extractValuesFromArray(processedTxs)
     let sql = 'INSERT OR REPLACE INTO processedTxs (' + fields + ') VALUES (' + placeholders + ')'
     for (let i = 1; i < processedTxs.length; i++) {
       sql = sql + ', (' + placeholders + ')'

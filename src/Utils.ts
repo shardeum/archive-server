@@ -1,3 +1,5 @@
+import * as fs from 'fs'
+import * as path from 'path'
 import { Utils as StringUtils } from '@shardus/types'
 import * as util from 'util'
 import * as Logger from './Logger'
@@ -561,3 +563,9 @@ interface Identifiable {
 
 export const byIdAsc = (a: Identifiable, b: Identifiable): number =>
   a.id === b.id ? 0 : a.id < b.id ? -1 : 1
+
+export function createDirectories(pathname: string): void {
+  const __dirname = path.resolve()
+  pathname = pathname.replace(/^\.*\/|\/?[^/]+\.[a-z]+|\/$/g, '') // Remove leading directory markers, and remove ending /file-name.extension
+  fs.mkdirSync(path.resolve(__dirname, pathname), { recursive: true }) // eslint-disable-line security/detect-non-literal-fs-filename
+}

@@ -1,8 +1,7 @@
-import * as fs from 'fs'
-import * as path from 'path'
 import { Database } from 'sqlite3'
 import { Config } from '../Config'
 import { createDB, runCreate, close } from './sqlite3storage'
+import { createDirectories } from '../Utils'
 
 export let cycleDatabase: Database
 export let accountDatabase: Database
@@ -12,20 +11,20 @@ export let originalTxDataDatabase: Database
 export let processedTxDatabase: Database
 
 export const initializeDB = async (config: Config): Promise<void> => {
-  createDirectories(config.ARCHIVER_DB)
-  accountDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.accountDB}`, 'Account')
-  cycleDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.cycleDB}`, 'Cycle')
+  createDirectories(config.ARCHIVER_DB_DIR)
+  accountDatabase = await createDB(`${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.accountDB}`, 'Account')
+  cycleDatabase = await createDB(`${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.cycleDB}`, 'Cycle')
   transactionDatabase = await createDB(
-    `${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.transactionDB}`,
+    `${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.transactionDB}`,
     'Transaction'
   )
-  receiptDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.receiptDB}`, 'Receipt')
+  receiptDatabase = await createDB(`${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.receiptDB}`, 'Receipt')
   originalTxDataDatabase = await createDB(
-    `${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.originalTxDataDB}`,
+    `${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.originalTxDataDB}`,
     'OriginalTxData'
   )
   processedTxDatabase = await createDB(
-    `${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.processedTxDB}`,
+    `${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.processedTxDB}`,
     'ProcessedTransaction'
   )
   await runCreate(
@@ -117,10 +116,4 @@ export const closeDatabase = async (): Promise<void> => {
   await close(receiptDatabase, 'Receipt')
   await close(originalTxDataDatabase, 'OriginalTxData')
   await close(processedTxDatabase, 'ProcessedTransaction')
-}
-
-function createDirectories(pathname: string): void {
-  const __dirname = path.resolve()
-  pathname = pathname.replace(/^\.*\/|\/?[^/]+\.[a-z]+|\/$/g, '') // Remove leading directory markers, and remove ending /file-name.extension
-  fs.mkdirSync(path.resolve(__dirname, pathname), { recursive: true }) // eslint-disable-line security/detect-non-literal-fs-filename
 }

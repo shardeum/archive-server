@@ -1,5 +1,5 @@
-import * as db from './sqlite3storage'
-import { digesterDatabase, extractValues } from './sqlite3storage'
+import * as db from '../dbstore/sqlite3storage'
+import { digesterDatabase } from '.'
 import { config } from '../Config'
 
 /**
@@ -17,7 +17,7 @@ export async function insertTransactionDigest(txDigest: TransactionDigest): Prom
   try {
     const fields = Object.keys(txDigest).join(', ')
     const placeholders = Object.keys(txDigest).fill('?').join(', ')
-    const values = extractValues(txDigest)
+    const values = db.extractValues(txDigest)
     const sql = 'INSERT OR REPLACE INTO txDigests (' + fields + ') VALUES (' + placeholders + ')'
     await db.run(digesterDatabase, sql, values)
     if (config.VERBOSE) {
