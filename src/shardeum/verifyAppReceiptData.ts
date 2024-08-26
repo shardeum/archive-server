@@ -1,8 +1,7 @@
 import { config } from '../Config'
 import * as crypto from '../Crypto'
-import * as Logger from '../Logger'
-import { ArchiverReceipt, Receipt } from '../dbstore/receipts'
-import { Utils as StringUtils } from '@shardus/types'
+import { ArchiverReceipt, Receipt, AppliedReceipt2, SignedReceipt } from '../dbstore/receipts'
+import { Utils as StringUtils, P2P } from '@shardus/types'
 
 export type ShardeumReceipt = object & {
   amountSpent: string
@@ -16,12 +15,13 @@ export const verifyAppReceiptData = async (
   nestedCounterMessages = []
 ): Promise<{ valid: boolean; needToSave: boolean }> => {
   let result = { valid: false, needToSave: false }
-  const { appReceiptData, globalModification, signedReceipt } = receipt
-
-  if (globalModification && config.skipGlobalTxReceiptVerification) return { valid: true, needToSave: true }
+  const { appReceiptData, globalModification } = receipt
+  if (globalModification) return { valid: true, needToSave: true }
+  let signedReceipt = receipt.signedReceipt as SignedReceipt
   const newShardeumReceipt = appReceiptData.data as ShardeumReceipt
   if (!newShardeumReceipt.amountSpent || !newShardeumReceipt.readableReceipt) {
     failedReasons.push(`appReceiptData missing amountSpent or readableReceipt`)
+    nestedCounterMessages.push(`appReceiptData missing amountSpent or readableReceipt`)
     return result
   }
   const { accountIDs, afterStateHashes, beforeStateHashes } = signedReceipt.proposal
@@ -103,20 +103,25 @@ export const verifyAppReceiptData = async (
 
   // Finally verify appReceiptData hash
   const appReceiptDataCopy = { ...appReceiptData }
-  const calculatedAppReceiptDataHash = calculateAppReceiptDataHash(appReceiptDataCopy, failedReasons)
+  const calculatedAppReceiptDataHash = calculateAppReceiptDataHash(appReceiptDataCopy, failedReasons, nestedCounterMessages)
   if (calculatedAppReceiptDataHash !== receipt.signedReceipt.proposal.appReceiptDataHash) {
     failedReasons.push(
-      `appReceiptData hash mismatch: ${crypto.hashObj(appReceiptData)} != ${
+      `appReceiptData hash mismatch: ${calculatedAppReceiptDataHash} != ${
         receipt.signedReceipt.proposal.appReceiptDataHash
       }`
     )
+    nestedCounterMessages.push(`appReceiptData hash mismatch`)
     result = { valid: false, needToSave: false }
   }
   return result
 }
 
 // Converting the correct appReceipt data format to get the correct hash
-const calculateAppReceiptDataHash = (appReceiptData: any, failedReasons = []): string => {
+const calculateAppReceiptDataHash = (
+  appReceiptData: any,
+  failedReasons = [],
+  nestedCounterMessages = []
+): string => {
   try {
     if (appReceiptData.data && appReceiptData.data.receipt) {
       if (appReceiptData.data.receipt.bitvector)
@@ -143,6 +148,7 @@ const calculateAppReceiptDataHash = (appReceiptData: any, failedReasons = []): s
     return hash
   } catch (err) {
     failedReasons.push(`calculateAppReceiptDataHash error: ${err}`)
+    nestedCounterMessages.push(`calculateAppReceiptDataHash error`)
     return ''
   }
 }
