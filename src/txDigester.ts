@@ -40,11 +40,11 @@ const start = async (): Promise<void> => {
 
   const ARCHIVER_STATUS_CHECK_URL = `http://${config.ARCHIVER_IP}:${config.ARCHIVER_PORT}/status`
 
-  cron.schedule('*/5 * * * *', async () => {
+  cron.schedule(config.txDigest.txCronSchedule, async () => {
     console.log('Running cron task....')
     console.log('Checking archiver status....')
     const archiverStatusResp = await axios.get(ARCHIVER_STATUS_CHECK_URL)
-    const isArchiverActive: boolean = archiverStatusResp.data.statusResp.isActive
+    const isArchiverActive: boolean = archiverStatusResp.data.status.isActive
     console.log('isArchiverActive: ', isArchiverActive)
 
     if (isArchiverActive) {

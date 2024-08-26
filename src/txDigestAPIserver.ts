@@ -73,16 +73,16 @@ const start = async (): Promise<void> => {
   // Start server and bind to port on all interfaces
   server.listen(
     {
-      port: 8084,
+      port: config.txDigest.apiServerPort,
       host: '0.0.0.0',
     },
     (err) => {
-      Logger.mainLogger.debug('Listening', config.ARCHIVER_PORT)
+      Logger.mainLogger.debug('TXDigestAPI Listening', config.txDigest.apiServerPort)
       if (err) {
         server.log.error(err)
         process.exit(1)
       }
-      Logger.mainLogger.debug('Archive-server has started.')
+      Logger.mainLogger.debug('txDigestAPI server has started.')
     }
   )
 }

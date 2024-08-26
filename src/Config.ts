@@ -19,7 +19,7 @@ export interface Config {
     transactionDB: string
     receiptDB: string
     originalTxDataDB: string
-    processedTxDB: string 
+    processedTxDB: string
     txDigestDB: string
   }
   DATASENDER_TIMEOUT: number
@@ -89,8 +89,10 @@ export interface Config {
   lastActivityCheckInterval: number // Interval to check last activity
   lastActivityCheckTimeout: number // Timeout to check last activity
   txDigest: {
-    cycleDiff: number,
-    syncDelay: number,
+    cycleDiff: number
+    syncDelay: number
+    apiServerPort: number
+    txCronSchedule: string
   }
 }
 
@@ -175,7 +177,9 @@ let config: Config = {
   txDigest: {
     cycleDiff: 10,
     syncDelay: 20,
-  }
+    apiServerPort: 8084,
+    txCronSchedule: '*/5 * * * *',
+  },
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {

@@ -16,8 +16,15 @@ export const getTxIds = async (startCycle: number, endCycle: number): Promise<st
 }
 
 export const getHash = async (cycle: number): Promise<string> => {
+  if (cycle == -1) {
+    return '0x0'
+  }
   const txDigestHash = await txDigest.queryByEndCycle(cycle)
-  return txDigestHash ? txDigestHash.hash : '0x0'
+  if (!txDigestHash) {
+    throw new Error(`Failed to fetch txDigestHash for cycle ${cycle}`)
+  }
+
+  return txDigestHash.hash
 }
 
 export const updateLastProcessedTxDigest = async (): Promise<void> => {
@@ -49,7 +56,10 @@ export const processAndInsertTxDigests = async (
       console.error(`Failed to fetch txIds for cycle ${currentCycle} to ${endCycle}`)
       return
     }
-    console.log(`TxIds from ${currentCycle} to ${endCycle} of length ${txIds.length}: `, txIds)
+
+    if(config.VERBOSE) {
+      console.log(`TxIds from ${currentCycle} to ${endCycle} of length ${txIds.length}: `, txIds)
+    }
 
     const prevHash = await getHash(currentCycle - 1)
     console.log(`prevHash for cycle ${currentCycle}: `, prevHash)

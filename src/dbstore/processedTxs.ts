@@ -18,7 +18,16 @@ export async function insertProcessedTx(processedTx: ProcessedTransaction): Prom
     const fields = Object.keys(processedTx).join(', ')
     const placeholders = Object.keys(processedTx).fill('?').join(', ')
     const values = db.extractValues(processedTx)
-    const sql = 'INSERT OR REPLACE INTO processedTxs (' + fields + ') VALUES (' + placeholders + ')'
+    const sql =
+      'INSERT INTO processedTxs (' +
+      fields +
+      ') VALUES (' +
+      placeholders +
+      ') ON CONFLICT (txId) DO UPDATE SET ' +
+      'cycle = excluded.cycle, ' +
+      'txTimestamp = excluded.txTimestamp, ' +
+      'txApplyTimestamp = excluded.txApplyTimestamp'
+
     await db.run(processedTxDatabase, sql, values)
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Successfully inserted ProcessedTransaction', processedTx.txId)
@@ -37,10 +46,17 @@ export async function bulkInsertProcessedTxs(processedTxs: ProcessedTransaction[
     const fields = Object.keys(processedTxs[0]).join(', ')
     const placeholders = Object.keys(processedTxs[0]).fill('?').join(', ')
     const values = db.extractValuesFromArray(processedTxs)
-    let sql = 'INSERT OR REPLACE INTO processedTxs (' + fields + ') VALUES (' + placeholders + ')'
+    let sql = 'INSERT INTO processedTxs (' + fields + ') VALUES (' + placeholders + ')'
     for (let i = 1; i < processedTxs.length; i++) {
       sql = sql + ', (' + placeholders + ')'
     }
+    sql =
+      sql +
+      ' ON CONFLICT (txId) DO UPDATE SET ' +
+      'cycle = excluded.cycle, ' +
+      'txTimestamp = excluded.txTimestamp, ' +
+      'txApplyTimestamp = excluded.txApplyTimestamp'
+
     await db.run(processedTxDatabase, sql, values)
     if (config.VERBOSE)
       Logger.mainLogger.debug('Successfully inserted ProcessedTransaction', processedTxs.length)
@@ -96,7 +112,7 @@ export async function querySortedTxsBetweenCycleRange(
     txIds.sort()
     return txIds
   } catch (e) {
-    Logger.mainLogger.error(e)
+    Logger.mainLogger.error('error in querySortedTxsBetweenCycleRange: ', e)
     return null
   }
 }

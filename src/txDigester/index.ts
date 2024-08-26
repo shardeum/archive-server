@@ -13,7 +13,7 @@ export const initializeDB = async (config: Config): Promise<void> => {
   )
   await runCreate(
     digesterDatabase,
-    'CREATE TABLE if not exists `txDigests` (`cycleStart` NUMBER NOT NULL UNIQUE, `cycleEnd` NUMBER NOT NULL UNIQUE, `txCount` NUMBER NOT NULL, `hash` TEXT NOT NULL, PRIMARY KEY (`cycleStart`, `cycleEnd`))'
+    'CREATE TABLE if not exists `txDigests` (`cycleStart` NUMBER NOT NULL UNIQUE, `cycleEnd` NUMBER NOT NULL UNIQUE, `txCount` NUMBER NOT NULL, `hash` TEXT NOT NULL, PRIMARY KEY (`cycleEnd`))'
   )
 }
 

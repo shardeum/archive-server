@@ -18,7 +18,16 @@ export async function insertTransactionDigest(txDigest: TransactionDigest): Prom
     const fields = Object.keys(txDigest).join(', ')
     const placeholders = Object.keys(txDigest).fill('?').join(', ')
     const values = db.extractValues(txDigest)
-    const sql = 'INSERT OR REPLACE INTO txDigests (' + fields + ') VALUES (' + placeholders + ')'
+    const sql =
+      'INSERT INTO txDigests (' +
+      fields +
+      ') VALUES (' +
+      placeholders +
+      ') ON CONFLICT (cycleEnd) DO UPDATE SET ' +
+      'cycleStart = excluded.cycleStart, ' +
+      'txCount = excluded.txCount, ' +
+      'hash = excluded.hash'
+
     await db.run(digesterDatabase, sql, values)
     if (config.VERBOSE) {
       console.log(
