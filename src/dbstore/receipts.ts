@@ -1,4 +1,5 @@
 import { Signature } from '@shardus/crypto-utils'
+import { P2P } from '@shardus/types'
 import * as db from './sqlite3storage'
 import { receiptDatabase } from '.'
 import * as Logger from '../Logger'
@@ -34,7 +35,7 @@ export interface ArchiverReceipt {
     timestamp: number
   }
   cycle: number
-  signedReceipt: SignedReceipt
+  signedReceipt: SignedReceipt | P2P.GlobalAccountsTypes.GlobalTxReceipt
   afterStates?: AccountsCopy[]
   beforeStates?: AccountsCopy[]
   appReceiptData: object & { accountId?: string; data: object }

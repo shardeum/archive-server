@@ -219,7 +219,7 @@ const isReceiptRobust = async (
             return { success: false }
           }
         }
-        if (config.verifyAccountData) {
+        if (config.verifyAccountData && receipt.globalModification === false) {
           if (profilerInstance) profilerInstance.profileSectionStart('Verify_receipt_account_data')
           if (nestedCountersInstance)
             nestedCountersInstance.countEvent('receipt', 'Verify_receipt_account_data')
@@ -330,13 +330,14 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
   }
   if (receipt.globalModification) return true
   // Global Modification Tx does not have appliedReceipt
+  const signedReceipt = receipt.signedReceipt as Receipt.SignedReceipt
   const signedReceiptToValidate = {
     proposal: 'o',
     proposalHash: 's',
     signaturePack: 'a',
   }
   // if (config.newPOQReceipt === false) delete appliedReceiptToValidate.confirmOrChallenge
-  err = Utils.validateTypes(receipt.signedReceipt, signedReceiptToValidate)
+  err = Utils.validateTypes(signedReceipt, signedReceiptToValidate)
   if (err) {
     Logger.mainLogger.error('Invalid receipt appliedReceipt data', err)
     return false
@@ -354,12 +355,12 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
   // delete appliedVoteToValidate.node_id
   // delete appliedVoteToValidate.sign
   // }
-  err = Utils.validateTypes(receipt.signedReceipt.proposal, proposalToValidate)
+  err = Utils.validateTypes(signedReceipt.proposal, proposalToValidate)
   if (err) {
     Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote data', err)
     return false
   }
-  for (const signature of receipt.signedReceipt.signaturePack) {
+  for (const signature of signedReceipt.signaturePack) {
     err = Utils.validateTypes(signature, {
       owner: 's',
       sig: 's',
@@ -407,7 +408,6 @@ export const verifyReceiptData = async (
   // Check the signed nodes are part of the execution group nodes of the tx
   const { executionShardKey, cycle, signedReceipt, globalModification } = receipt
   if (globalModification && config.skipGlobalTxReceiptVerification) return { success: true }
-  const { signaturePack } = signedReceipt
   const { txId, timestamp } = receipt.tx
   if (config.VERBOSE) {
     const currentTimestamp = Date.now()
@@ -432,6 +432,76 @@ export const verifyReceiptData = async (
   }
   // Determine the home partition index of the primary account (executionShardKey)
   const { homePartition } = ShardFunction.addressToPartition(cycleShardData.shardGlobals, executionShardKey)
+  if (globalModification) {
+    const appliedReceipt = receipt.signedReceipt as P2PTypes.GlobalAccountsTypes.GlobalTxReceipt
+    if (config.skipGlobalTxReceiptVerification) return { success: true }
+    else {
+      const { signs } = appliedReceipt
+      // Refer to https://github.com/shardeum/shardus-core/blob/7d8877b7e1a5b18140f898a64b932182d8a35298/src/p2p/GlobalAccounts.ts#L397
+      let votingGroupCount = cycleShardData.shardGlobals.nodesPerConsenusGroup
+      if (votingGroupCount > cycleShardData.nodes.length) {
+        votingGroupCount = cycleShardData.nodes.length
+      }
+      let isReceiptMajority = (signs.length / votingGroupCount) * 100 >= 60
+      if (!isReceiptMajority) {
+        Logger.mainLogger.error(
+          `Invalid receipt globalModification signs count is less than 60% of the votingGroupCount, ${signs.length}, ${votingGroupCount}`
+        )
+        if (nestedCountersInstance)
+          nestedCountersInstance.countEvent(
+            'receipt',
+            'Invalid_receipt_globalModification_signs_count_less_than_60%'
+          )
+        return result
+      }
+      // Using a set to store the unique signers to avoid duplicates
+      const uniqueSigners = new Set()
+      for (const sign of signs) {
+        const { owner: nodePubKey } = sign
+        // Get the node id from the public key
+        const node = cycleShardData.nodes.find((node) => node.publicKey === nodePubKey)
+        if (node == null) {
+          Logger.mainLogger.error(
+            `The node with public key ${nodePubKey} of the receipt ${txId} with ${timestamp} is not in the active nodesList of cycle ${cycle}`
+          )
+          if (nestedCountersInstance)
+            nestedCountersInstance.countEvent(
+              'receipt',
+              'globalModification_sign_owner_not_in_active_nodesList'
+            )
+          continue
+        }
+        // Check if the node is in the execution group
+        if (!cycleShardData.parititionShardDataMap.get(homePartition).coveredBy[node.id]) {
+          Logger.mainLogger.error(
+            `The node with public key ${nodePubKey} of the receipt ${txId} with ${timestamp} is not in the execution group of the tx`
+          )
+          if (nestedCountersInstance)
+            nestedCountersInstance.countEvent(
+              'receipt',
+              'globalModification_sign_node_not_in_execution_group_of_tx'
+            )
+          continue
+        }
+        uniqueSigners.add(nodePubKey)
+      }
+      isReceiptMajority = (uniqueSigners.size / votingGroupCount) * 100 >= 60
+      if (isReceiptMajority) {
+        Logger.mainLogger.error(
+          `Invalid receipt globalModification valid signs count is less than votingGroupCount ${uniqueSigners.size}, ${votingGroupCount}`
+        )
+        if (nestedCountersInstance)
+          nestedCountersInstance.countEvent(
+            'receipt',
+            'Invalid_receipt_globalModification_valid_signs_count_less_than_votingGroupCount'
+          )
+        return result
+      }
+      const requiredSignatures = Math.floor((votingGroupCount * 100) / 60)
+      return { success: true, requiredSignatures }
+    }
+  }
+  const { signaturePack } = signedReceipt as Receipt.SignedReceipt
   if (config.newPOQReceipt === false) {
     // Refer to https://github.com/shardeum/shardus-core/blob/f7000c36faa0cd1e0832aa1e5e3b1414d32dcf66/src/state-manager/TransactionConsensus.ts#L1406
     let votingGroupCount = cycleShardData.shardGlobals.nodesPerConsenusGroup
@@ -497,7 +567,7 @@ export const verifyReceiptData = async (
     }
     return { success: true, requiredSignatures }
   }
-  // const { confirmOrChallenge } = appliedReceipt
+  // const { confirmOrChallenge } = appliedReceipt as Receipt.AppliedReceipt2
   // // Check if the appliedVote node is in the execution group
   // if (!cycleShardData.nodeShardDataMap.has(appliedVote.node_id)) {
   //   Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote node is not in the active nodesList')
@@ -614,7 +684,7 @@ const verifyAppliedReceiptSignatures = (
   const result = { success: false, failedReasons, nestedCounterMessages }
   const { signedReceipt, globalModification } = receipt
   if (globalModification && config.skipGlobalTxReceiptVerification) return { success: true }
-  const { proposal, signaturePack, voteOffsets } = signedReceipt
+  const { proposal, signaturePack, voteOffsets } = signedReceipt as Receipt.SignedReceipt
   const { txId: txid } = receipt.tx
   // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2799
   const voteHash = calculateVoteHash(proposal, failedReasons, nestedCounterMessages)
@@ -869,9 +939,7 @@ export const storeReceiptData = async (
     //   receiptId: tx.txId,
     //   timestamp: tx.timestamp,
     // })
-    const { afterStates, cycle, tx, appReceiptData, signedReceipt } = receipt
-    receipt.beforeStates = config.storeReceiptBeforeStates ? receipt.beforeStates : []
-
+    const { afterStates, cycle, tx, appReceiptData, signedReceipt, globalModification } = receipt
     const sortedVoteOffsets = (signedReceipt.voteOffsets ?? []).sort()
     const medianOffset = sortedVoteOffsets[Math.floor(sortedVoteOffsets.length / 2)] ?? 0
     const applyTimestamp = tx.timestamp + medianOffset * 1000
@@ -879,6 +947,7 @@ export const storeReceiptData = async (
     processedReceiptsMap.set(tx.txId, tx.timestamp)
     receiptsInValidationMap.delete(tx.txId)
     if (missingReceiptsMap.has(tx.txId)) missingReceiptsMap.delete(tx.txId)
+    receipt.beforeStates = globalModification || config.storeReceiptBeforeStates ? receipt.beforeStates : [] // Store beforeStates for globalModification tx, or if config.storeReceiptBeforeStates is true
     combineReceipts.push({
       ...receipt,
       receiptId: tx.txId,
