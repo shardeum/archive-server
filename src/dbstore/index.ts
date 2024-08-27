@@ -11,20 +11,20 @@ export let originalTxDataDatabase: Database
 export let processedTxDatabase: Database
 
 export const initializeDB = async (config: Config): Promise<void> => {
-  createDirectories(config.ARCHIVER_DB_DIR)
-  accountDatabase = await createDB(`${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.accountDB}`, 'Account')
-  cycleDatabase = await createDB(`${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.cycleDB}`, 'Cycle')
+  createDirectories(config.ARCHIVER_DB)
+  accountDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.accountDB}`, 'Account')
+  cycleDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.cycleDB}`, 'Cycle')
   transactionDatabase = await createDB(
-    `${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.transactionDB}`,
+    `${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.transactionDB}`,
     'Transaction'
   )
-  receiptDatabase = await createDB(`${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.receiptDB}`, 'Receipt')
+  receiptDatabase = await createDB(`${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.receiptDB}`, 'Receipt')
   originalTxDataDatabase = await createDB(
-    `${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.originalTxDataDB}`,
+    `${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.originalTxDataDB}`,
     'OriginalTxData'
   )
   processedTxDatabase = await createDB(
-    `${config.ARCHIVER_DB_DIR}/${config.ARCHIVER_DATA.processedTxDB}`,
+    `${config.ARCHIVER_DB}/${config.ARCHIVER_DATA.processedTxDB}`,
     'ProcessedTransaction'
   )
   await runCreate(
@@ -110,10 +110,12 @@ export const initializeDB = async (config: Config): Promise<void> => {
 }
 
 export const closeDatabase = async (): Promise<void> => {
-  await close(accountDatabase, 'Account')
-  await close(transactionDatabase, 'Transaction')
-  await close(cycleDatabase, 'Cycle')
-  await close(receiptDatabase, 'Receipt')
-  await close(originalTxDataDatabase, 'OriginalTxData')
-  await close(processedTxDatabase, 'ProcessedTransaction')
+  const promises = []
+  promises.push(close(accountDatabase, 'Account'))
+  promises.push(close(transactionDatabase, 'Transaction'))
+  promises.push(close(cycleDatabase, 'Cycle'))
+  promises.push(close(receiptDatabase, 'Receipt'))
+  promises.push(close(originalTxDataDatabase, 'OriginalTxData'))
+  promises.push(close(processedTxDatabase, 'ProcessedTransaction'))
+  await Promise.all(promises)
 }

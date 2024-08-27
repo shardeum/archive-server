@@ -18,7 +18,7 @@ interface CycleRecordDocument {
 
 export async function initStorage(config: Config): Promise<void> {
   // Get db file location from config
-  const dbFile = config.ARCHIVER_DB_DIR
+  const dbFile = config.ARCHIVER_DB
 
   Collection = new Database<StateMetaData.ArchivedCycle>({
     ref: dbFile,

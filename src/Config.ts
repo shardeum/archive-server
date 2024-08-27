@@ -12,7 +12,7 @@ export interface Config {
   ARCHIVER_HASH_KEY: string
   ARCHIVER_PUBLIC_KEY: string
   ARCHIVER_SECRET_KEY: string
-  ARCHIVER_DB_DIR: string // Archiver DB folder name and path
+  ARCHIVER_DB: string // Archiver DB folder name and path
   ARCHIVER_DATA: {
     cycleDB: string
     accountDB: string
@@ -103,7 +103,7 @@ let config: Config = {
   ARCHIVER_PUBLIC_KEY: '',
   ARCHIVER_SECRET_KEY: '',
   ARCHIVER_LOGS: 'archiver-logs',
-  ARCHIVER_DB_DIR: 'archiver-db',
+  ARCHIVER_DB: 'archiver-db',
   ARCHIVER_DATA: {
     cycleDB: 'cycles.sqlite3',
     accountDB: 'accounts.sqlite3',
