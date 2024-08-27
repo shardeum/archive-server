@@ -4,7 +4,7 @@ import { receiptDatabase, extractValues, extractValuesFromArray } from './sqlite
 import * as Logger from '../Logger'
 import { config } from '../Config'
 import { DeSerializeFromJsonString } from '../utils/serialization'
-import * as Account from '../dbstore/accounts'
+import { AccountsCopy } from '../dbstore/accounts'
 
 export type Proposal = {
   applied: boolean
@@ -14,20 +14,6 @@ export type Proposal = {
   afterStateHashes: string[]
   appReceiptDataHash: string
   txid: string
-}
-
-export type Vote = {
-  proposalHash: string
-  sign?: Signature
-}
-
-interface AccountsCopy {
-  accountId: string
-  cycleNumber: number
-  data: unknown
-  timestamp: number
-  hash: string
-  isGlobal: boolean
 }
 
 export type SignedReceipt = {

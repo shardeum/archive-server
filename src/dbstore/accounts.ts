@@ -5,7 +5,7 @@ import { config } from '../Config'
 import { DeSerializeFromJsonString, SerializeToJsonString } from '../utils/serialization'
 
 /** Same as type AccountsCopy in the shardus core */
-export type AccountCopy = {
+export type AccountsCopy = {
   accountId: string
   data: any // eslint-disable-line @typescript-eslint/no-explicit-any
   timestamp: number
@@ -14,11 +14,11 @@ export type AccountCopy = {
   isGlobal: boolean
 }
 
-type DbAccountCopy = AccountCopy & {
+type DbAccountCopy = AccountsCopy & {
   data: string
 }
 
-export async function insertAccount(account: AccountCopy): Promise<void> {
+export async function insertAccount(account: AccountsCopy): Promise<void> {
   try {
     const fields = Object.keys(account).join(', ')
     const placeholders = Object.keys(account).fill('?').join(', ')
@@ -37,7 +37,7 @@ export async function insertAccount(account: AccountCopy): Promise<void> {
   }
 }
 
-export async function bulkInsertAccounts(accounts: AccountCopy[]): Promise<void> {
+export async function bulkInsertAccounts(accounts: AccountsCopy[]): Promise<void> {
   try {
     const fields = Object.keys(accounts[0]).join(', ')
     const placeholders = Object.keys(accounts[0]).fill('?').join(', ')
@@ -54,7 +54,7 @@ export async function bulkInsertAccounts(accounts: AccountCopy[]): Promise<void>
   }
 }
 
-export async function updateAccount(account: AccountCopy): Promise<void> {
+export async function updateAccount(account: AccountsCopy): Promise<void> {
   try {
     const sql = `UPDATE accounts SET cycleNumber = $cycleNumber, timestamp = $timestamp, data = $data, hash = $hash WHERE accountId = $accountId `
     await db.run(accountDatabase, sql, {
@@ -73,11 +73,11 @@ export async function updateAccount(account: AccountCopy): Promise<void> {
   }
 }
 
-export async function queryAccountByAccountId(accountId: string): Promise<AccountCopy | null> {
+export async function queryAccountByAccountId(accountId: string): Promise<AccountsCopy | null> {
   try {
     const sql = `SELECT * FROM accounts WHERE accountId=?`
     const dbAccount = (await db.get(accountDatabase, sql, [accountId])) as DbAccountCopy
-    let account: AccountCopy
+    let account: AccountsCopy
     if (dbAccount) account = { ...dbAccount, data: DeSerializeFromJsonString(dbAccount.data) }
     if (config.VERBOSE) {
       Logger.mainLogger.debug('Account accountId', account)
@@ -89,13 +89,13 @@ export async function queryAccountByAccountId(accountId: string): Promise<Accoun
   }
 }
 
-export async function queryLatestAccounts(count: number): Promise<AccountCopy[] | null> {
+export async function queryLatestAccounts(count: number): Promise<AccountsCopy[] | null> {
   try {
     const sql = `SELECT * FROM accounts ORDER BY cycleNumber DESC, timestamp DESC LIMIT ${
       count ? count : 100
     }`
     const dbAccounts = (await db.all(accountDatabase, sql)) as DbAccountCopy[]
-    const accounts: AccountCopy[] = []
+    const accounts: AccountsCopy[] = []
     if (dbAccounts.length > 0) {
       for (const dbAccount of dbAccounts) {
         accounts.push({ ...dbAccount, data: DeSerializeFromJsonString(dbAccount.data) })
@@ -111,9 +111,9 @@ export async function queryLatestAccounts(count: number): Promise<AccountCopy[] 
   }
 }
 
-export async function queryAccounts(skip = 0, limit = 10000): Promise<AccountCopy[]> {
+export async function queryAccounts(skip = 0, limit = 10000): Promise<AccountsCopy[]> {
   let dbAccounts: DbAccountCopy[]
-  const accounts: AccountCopy[] = []
+  const accounts: AccountsCopy[] = []
   try {
     const sql = `SELECT * FROM accounts ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
     dbAccounts = (await db.all(accountDatabase, sql)) as DbAccountCopy[]
@@ -171,9 +171,9 @@ export async function queryAccountsBetweenCycles(
   limit = 10000,
   startCycleNumber: number,
   endCycleNumber: number
-): Promise<AccountCopy[]> {
+): Promise<AccountsCopy[]> {
   let dbAccounts: DbAccountCopy[]
-  const accounts: AccountCopy[] = []
+  const accounts: AccountsCopy[] = []
   try {
     const sql = `SELECT * FROM accounts WHERE cycleNumber BETWEEN ? AND ? ORDER BY cycleNumber ASC, timestamp ASC LIMIT ${limit} OFFSET ${skip}`
     dbAccounts = (await db.all(accountDatabase, sql, [startCycleNumber, endCycleNumber])) as DbAccountCopy[]
@@ -196,8 +196,8 @@ export async function queryAccountsBetweenCycles(
   return accounts
 }
 
-export async function fetchAccountsBySqlQuery(sql: string, value: string[]): Promise<AccountCopy[]> {
-  const accounts: AccountCopy[] = []
+export async function fetchAccountsBySqlQuery(sql: string, value: string[]): Promise<AccountsCopy[]> {
+  const accounts: AccountsCopy[] = []
   try {
     const dbAccounts = (await db.all(accountDatabase, sql, value)) as DbAccountCopy[]
     if (dbAccounts.length > 0) {

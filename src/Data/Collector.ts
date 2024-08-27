@@ -887,7 +887,7 @@ export const storeReceiptData = async (
     // )
     //   continue
     for (const account of afterStates) {
-      const accObj: Account.AccountCopy = {
+      const accObj: Account.AccountsCopy = {
         accountId: account.accountId,
         data: account.data,
         timestamp: account.timestamp,
@@ -920,7 +920,7 @@ export const storeReceiptData = async (
       }
     }
     // if (receipt) {
-    //   const accObj: Account.AccountCopy = {
+    //   const accObj: Account.AccountsCopy = {
     //     accountId: receipt.accountId,
     //     data: receipt.data,
     //     timestamp: receipt.timestamp,
@@ -1056,7 +1056,7 @@ export const storeCycleData = async (cycles: P2PTypes.CycleCreatorTypes.CycleDat
 }
 
 interface StoreAccountParam {
-  accounts?: Account.AccountCopy[]
+  accounts?: Account.AccountsCopy[]
   receipts?: Transaction.Transaction[]
 }
 

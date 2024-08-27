@@ -636,7 +636,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       reply.send({ success: false, error: result.error })
       return
     }
-    let accounts: AccountDB.AccountCopy | AccountDB.AccountCopy[] | number = []
+    let accounts: AccountDB.AccountsCopy | AccountDB.AccountsCopy[] | number = []
     let totalAccounts = 0
     let res
     const { count, start, end, startCycle, endCycle, page, accountId } = _request.body

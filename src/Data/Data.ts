@@ -37,7 +37,7 @@ import { syncV2 } from '../sync-v2'
 import { queryFromArchivers, RequestDataType } from '../API'
 import ioclient = require('socket.io-client')
 import { Transaction } from '../dbstore/transactions'
-import { AccountCopy } from '../dbstore/accounts'
+import { AccountsCopy } from '../dbstore/accounts'
 import { getJson } from '../P2P'
 import { robustQuery } from '../Utils'
 import { Utils as StringUtils } from '@shardus/types'
@@ -99,7 +99,7 @@ interface ArchiverTransactionResponse {
 
 interface ArchiverAccountResponse {
   totalAccounts: number
-  accounts: AccountCopy[]
+  accounts: AccountsCopy[]
 }
 
 interface ArchiverTotalDataResponse {

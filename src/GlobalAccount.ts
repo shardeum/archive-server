@@ -9,7 +9,7 @@ import { robustQuery, deepCopy } from './Utils'
 import { isDeepStrictEqual } from 'util'
 import { accountSpecificHash } from './shardeum/calculateAccountHash'
 
-let cachedGlobalNetworkAccount: AccountDB.AccountCopy
+let cachedGlobalNetworkAccount: AccountDB.AccountsCopy
 let cachedGlobalNetworkAccountHash: string
 
 interface Node {
@@ -32,7 +32,7 @@ export function getGlobalNetworkAccount(hash: boolean): object | string {
   return cachedGlobalNetworkAccount
 }
 
-export function setGlobalNetworkAccount(account: AccountDB.AccountCopy): void {
+export function setGlobalNetworkAccount(account: AccountDB.AccountsCopy): void {
   cachedGlobalNetworkAccount = rfdc()(account)
   cachedGlobalNetworkAccountHash = account.hash
 }

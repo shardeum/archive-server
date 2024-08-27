@@ -40,7 +40,7 @@ const runProgram = async (): Promise<void> => {
   addSigListeners()
 
   const networkAccountId = config.globalNetworkAccount
-  const networkAccount = (await AccountDB.queryAccountByAccountId(networkAccountId)) as AccountDB.AccountCopy
+  const networkAccount = (await AccountDB.queryAccountByAccountId(networkAccountId)) as AccountDB.AccountsCopy
   console.log('Network account before', networkAccount)
 
   networkAccount.data.current = {
