@@ -148,9 +148,14 @@ const setupWorkerListeners = (worker: Worker): void => {
           console.error(`Worker ${workerId}is not in the newWorkers list`)
         }
         break
-      case 'axm:monitor': // Ignore axm:monitor messages
-        break
       default:
+        if (type.includes('axm')) {
+          if (config.VERBOSE) {
+            console.log(`Worker ${workerId} is sending axm message: ${type}`)
+            console.log(data)
+          }
+          break
+        }
         console.log(`Worker ${workerId} is sending unknown message type: ${type}`)
         console.log(data)
         break
