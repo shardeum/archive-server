@@ -160,7 +160,7 @@ const setupWorkerListeners = (worker: Worker): void => {
         }
         break
       default:
-        if (type && type.includes('axm')) {
+        if (type && typeof type === 'string' && type.includes('axm')) {
           if (config.VERBOSE) {
             console.log(`Worker ${workerId} is sending axm message: ${type}`)
             console.log(data)
