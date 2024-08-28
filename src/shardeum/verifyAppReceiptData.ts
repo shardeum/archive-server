@@ -1,7 +1,6 @@
-import { config } from '../Config'
 import * as crypto from '../Crypto'
-import { ArchiverReceipt, Receipt, AppliedReceipt2, SignedReceipt } from '../dbstore/receipts'
-import { Utils as StringUtils, P2P } from '@shardus/types'
+import { ArchiverReceipt, Receipt, SignedReceipt } from '../dbstore/receipts'
+import { Utils as StringUtils } from '@shardus/types'
 
 export type ShardeumReceipt = object & {
   amountSpent: string
@@ -17,7 +16,7 @@ export const verifyAppReceiptData = async (
   let result = { valid: false, needToSave: false }
   const { appReceiptData, globalModification } = receipt
   if (globalModification) return { valid: true, needToSave: true }
-  let signedReceipt = receipt.signedReceipt as SignedReceipt
+  const signedReceipt = receipt.signedReceipt as SignedReceipt
   const newShardeumReceipt = appReceiptData.data as ShardeumReceipt
   if (!newShardeumReceipt.amountSpent || !newShardeumReceipt.readableReceipt) {
     failedReasons.push(`appReceiptData missing amountSpent or readableReceipt`)
@@ -40,6 +39,7 @@ export const verifyAppReceiptData = async (
         failedReasons.push(
           `The account state hash before or after is missing in the receipt! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
         )
+        nestedCounterMessages.push(`The account state hash before or after is missing in the receipt!`)
       }
       if (
         // eslint-disable-next-line security/detect-object-injection
@@ -49,6 +49,9 @@ export const verifyAppReceiptData = async (
       ) {
         failedReasons.push(
           `The receipt has 0 amountSpent and status 0 but has state updated accounts! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
+        )
+        nestedCounterMessages.push(
+          `The receipt has 0 amountSpent and status 0 but has state updated accounts!`
         )
         break
       }
@@ -147,6 +150,7 @@ const calculateAppReceiptDataHash = (
     const hash = crypto.hashObj(appReceiptData)
     return hash
   } catch (err) {
+    console.error(`calculateAppReceiptDataHash error: ${err}`)
     failedReasons.push(`calculateAppReceiptDataHash error: ${err}`)
     nestedCounterMessages.push(`calculateAppReceiptDataHash error`)
     return ''

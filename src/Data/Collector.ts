@@ -328,7 +328,38 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
       return false
     }
   }
-  if (receipt.globalModification) return true
+  if (receipt.globalModification) {
+    const appliedReceipt = receipt.appliedReceipt as P2PTypes.GlobalAccountsTypes.GlobalTxReceipt
+    err = Utils.validateTypes(appliedReceipt, {
+      tx: 'o',
+      signs: 'a',
+    })
+    if (err) {
+      Logger.mainLogger.error('Invalid receipt globalModification data', err)
+      return false
+    }
+    err = Utils.validateTypes(appliedReceipt.tx, {
+      address: 's',
+      value: 'o',
+      when: 'n',
+      source: 's',
+    })
+    if (err) {
+      Logger.mainLogger.error('Invalid receipt globalModification tx data', err)
+      return false
+    }
+    for (const sign of appliedReceipt.signs) {
+      err = Utils.validateTypes(sign, {
+        owner: 's',
+        sig: 's',
+      })
+      if (err) {
+        Logger.mainLogger.error('Invalid receipt globalModification signs data', err)
+        return false
+      }
+    }
+    return true
+  }
   // Global Modification Tx does not have appliedReceipt
   const signedReceipt = receipt.signedReceipt as Receipt.SignedReceipt
   const signedReceiptToValidate = {
@@ -406,8 +437,7 @@ export const verifyReceiptData = async (
 ): Promise<{ success: boolean; requiredSignatures?: number; newReceipt?: Receipt.ArchiverReceipt }> => {
   const result = { success: false }
   // Check the signed nodes are part of the execution group nodes of the tx
-  const { executionShardKey, cycle, signedReceipt, globalModification } = receipt
-  if (globalModification && config.skipGlobalTxReceiptVerification) return { success: true }
+  const { executionShardKey, cycle, globalModification } = receipt
   const { txId, timestamp } = receipt.tx
   if (config.VERBOSE) {
     const currentTimestamp = Date.now()
@@ -497,11 +527,11 @@ export const verifyReceiptData = async (
           )
         return result
       }
-      const requiredSignatures = Math.floor((votingGroupCount * 100) / 60)
+      const requiredSignatures = Math.floor(votingGroupCount * (60 / 100))
       return { success: true, requiredSignatures }
     }
   }
-  const { signaturePack } = signedReceipt as Receipt.SignedReceipt
+  const { signaturePack } = receipt.signedReceipt as Receipt.SignedReceipt
   if (config.newPOQReceipt === false) {
     // Refer to https://github.com/shardeum/shardus-core/blob/f7000c36faa0cd1e0832aa1e5e3b1414d32dcf66/src/state-manager/TransactionConsensus.ts#L1406
     let votingGroupCount = cycleShardData.shardGlobals.nodesPerConsenusGroup
@@ -567,6 +597,7 @@ export const verifyReceiptData = async (
     }
     return { success: true, requiredSignatures }
   }
+
   // const { confirmOrChallenge } = appliedReceipt as Receipt.AppliedReceipt2
   // // Check if the appliedVote node is in the execution group
   // if (!cycleShardData.nodeShardDataMap.has(appliedVote.node_id)) {
@@ -682,10 +713,34 @@ const verifyAppliedReceiptSignatures = (
   nestedCounterMessages = []
 ): { success: boolean } => {
   const result = { success: false, failedReasons, nestedCounterMessages }
-  const { signedReceipt, globalModification } = receipt
-  if (globalModification && config.skipGlobalTxReceiptVerification) return { success: true }
-  const { proposal, signaturePack, voteOffsets } = signedReceipt as Receipt.SignedReceipt
+  const { globalModification } = receipt
   const { txId: txid } = receipt.tx
+  if (globalModification) {
+    const appliedReceipt = receipt.signedReceipt as P2PTypes.GlobalAccountsTypes.GlobalTxReceipt
+    // Refer to https://github.com/shardeum/shardus-core/blob/7d8877b7e1a5b18140f898a64b932182d8a35298/src/p2p/GlobalAccounts.ts#L294
+
+    const { signs, tx } = appliedReceipt
+    // Using a map to store the good signatures to avoid duplicates
+    const goodSignatures = new Map()
+    for (const sign of signs) {
+      if (Crypto.verify({ ...tx, sign: sign })) {
+        goodSignatures.set(sign.owner, sign)
+        // Break the loop if the required number of good signatures are found
+        if (goodSignatures.size >= requiredSignatures) break
+      }
+    }
+    if (goodSignatures.size < requiredSignatures) {
+      failedReasons.push(
+        `Invalid receipt globalModification valid signs count is less than requiredSignatures ${txid}, ${goodSignatures.size}, ${requiredSignatures}`
+      )
+      nestedCounterMessages.push(
+        'Invalid_receipt_globalModification_valid_signs_count_less_than_requiredSignatures'
+      )
+      return result
+    }
+    return { success: true }
+  }
+  const { proposal, signaturePack, voteOffsets } =  receipt.signedReceipt as Receipt.SignedReceipt
   // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2799
   const voteHash = calculateVoteHash(proposal, failedReasons, nestedCounterMessages)
   // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2663
@@ -709,7 +764,7 @@ const verifyAppliedReceiptSignatures = (
   }
   if (goodSignatures.size < requiredSignatures) {
     failedReasons.push(
-      `Invalid receipt signedReceipt valid signatures count is less than requiredSignatures ${goodSignatures.size}, ${requiredSignatures}`
+      `Invalid receipt signedReceipt valid signatures count is less than requiredSignatures ${txid}, ${goodSignatures.size}, ${requiredSignatures}`
     )
     nestedCounterMessages.push(
       'Invalid_receipt_signedReceipt_valid_signatures_count_less_than_requiredSignatures'

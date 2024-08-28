@@ -1,5 +1,8 @@
 import * as crypto from '../Crypto'
 import { ArchiverReceipt, SignedReceipt } from '../dbstore/receipts'
+import { verifyGlobalTxAccountChange } from './verifyGlobalTxReceipt'
+import { config } from '../Config'
+import { P2P } from '@shardus/types'
 
 // account types in Shardeum
 export enum AccountType {
@@ -61,7 +64,39 @@ export const verifyAccountHash = (
   nestedCounterMessages = []
 ): boolean => {
   try {
-    if (receipt.globalModification) return true //return true if global modification
+    if (receipt.globalModification) {
+      const appliedReceipt = receipt.signedReceipt as P2P.GlobalAccountsTypes.GlobalTxReceipt
+      if (config.globalNetworkAccount !== appliedReceipt.tx.address) {
+        failedReasons.push(
+          `Global network account and the tx address in the globalModification tx data does not match! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
+        )
+        nestedCounterMessages.push(
+          `Global network account and the tx address in the globalModification tx data does not match!`
+        )
+        return false
+      }
+      for (const account of receipt.afterStates) {
+        if (account.accountId !== config.globalNetworkAccount) {
+          failedReasons.push(
+            `network account does not match in globalModification tx - ${account.accountId} , ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
+          )
+          nestedCounterMessages.push(`network account does not match in globalModification tx`)
+          return false
+        }
+        const result = verifyGlobalTxAccountChange(account, receipt, failedReasons, nestedCounterMessages)
+        if (!result) return false
+        const expectedAccountHash = account.hash
+        const calculatedAccountHash = accountSpecificHash(account.data)
+        if (expectedAccountHash !== calculatedAccountHash) {
+          failedReasons.push(
+            `Account hash does not match in globalModification tx - ${account.accountId} , ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
+          )
+          nestedCounterMessages.push(`Account hash does not match in globalModification tx`)
+          return false
+        }
+      }
+      return true
+    }
     const signedReceipt = receipt.signedReceipt as SignedReceipt
     const { accountIDs, afterStateHashes, beforeStateHashes } = signedReceipt.proposal
     if (accountIDs.length !== afterStateHashes.length) {
@@ -102,7 +137,9 @@ export const verifyAccountHash = (
     }
     return true
   } catch (e) {
-    failedReasons.push('Error in verifyAccountHash', e)
+    console.error(`Error in verifyAccountHash`, e)
+    failedReasons.push(`Error in verifyAccountHash ${e}`)
+    nestedCounterMessages.push('Error in verifyAccountHash')
     return false
   }
 }
