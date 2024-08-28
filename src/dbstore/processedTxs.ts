@@ -100,15 +100,16 @@ export async function querySortedTxsBetweenCycleRange(
 ): Promise<string[]> {
   try {
     const sql = `SELECT txId FROM processedTxs WHERE cycle BETWEEN ? AND ?`
-    const txIds = (await db.all(processedTxDatabase, sql, [startCycle, endCycle])) as string[]
+    const txIdsArray = (await db.all(processedTxDatabase, sql, [startCycle, endCycle])) as { txId: string }[]
     if (config.VERBOSE) {
-      Logger.mainLogger.debug(`txIds between ${startCycle} and ${endCycle} are ${txIds ? txIds.length : 0}`)
+      Logger.mainLogger.debug(`txIds between ${startCycle} and ${endCycle} are ${txIdsArray ? txIdsArray.length : 0}`)
     }
 
-    if (!txIds) {
+    if (!txIdsArray) {
       return []
     }
 
+    const txIds = txIdsArray.map((tx) => tx.txId)
     txIds.sort()
     return txIds
   } catch (e) {
