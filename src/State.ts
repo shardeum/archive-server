@@ -142,16 +142,18 @@ export async function exitArchiver(): Promise<void> {
 export function addSigListeners(sigint = true, sigterm = true): void {
   if (sigint) {
     process.on('SIGINT', async () => {
-      Logger.mainLogger.debug('Exiting on SIGINT')
+      Logger.mainLogger.debug('Exiting on SIGINT', process.pid)
       await closeDatabase()
       if (isActive) exitArchiver()
+      else process.exit(0)
     })
   }
   if (sigterm) {
     process.on('SIGTERM', async () => {
-      Logger.mainLogger.debug('Exiting on SIGTERM')
+      Logger.mainLogger.debug('Exiting on SIGTERM', process.pid)
       await closeDatabase()
       if (isActive) exitArchiver()
+      else process.exit(0)
     })
   }
   Logger.mainLogger.debug('Registerd exit signal listeners.')

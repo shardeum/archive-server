@@ -38,8 +38,11 @@ let currentWorker = 0
 
 const emitter = new EventEmitter()
 
+let masterProcessId
+
 export const setupWorkerProcesses = (cluster: Cluster): void => {
   console.log(`Master ${process.pid} is running`)
+  masterProcessId = process.pid
   // Set interval to check receipt count every 15 seconds
   setInterval(async () => {
     for (const [, worker] of newWorkers) {
@@ -145,8 +148,10 @@ const setupWorkerListeners = (worker: Worker): void => {
           console.error(`Worker ${workerId}is not in the newWorkers list`)
         }
         break
+      case 'axm:monitor': // Ignore axm:monitor messages
+        break
       default:
-        console.log(`Worker ${process.pid} is sending unknown message type: ${type}`)
+        console.log(`Worker ${workerId} is sending unknown message type: ${type}`)
         console.log(data)
         break
     }
