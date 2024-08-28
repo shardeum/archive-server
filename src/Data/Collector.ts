@@ -613,19 +613,19 @@ const verifyAppliedReceiptSignatures = (
   const result = { success: false, failedReasons, nestedCounterMessages }
   const { signedReceipt, globalModification } = receipt
   if (globalModification && config.skipGlobalTxReceiptVerification) return { success: true }
-  const { proposal, signaturePack } = signedReceipt
-  const { txId } = receipt.tx
+  const { proposal, signaturePack, voteOffsets } = signedReceipt
+  const { txId: txid } = receipt.tx
   // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2799
   const voteHash = calculateVoteHash(proposal)
   // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2663
   const appliedVoteHash = {
-    txid: txId,
+    txid,
     voteHash,
   }
   // Using a map to store the good signatures to avoid duplicates
   const goodSignatures = new Map()
-  for (const signature of signaturePack) {
-    if (Crypto.verify({ ...appliedVoteHash, sign: signature })) {
+  for (const [index, signature] of signaturePack.entries()) {
+    if (Crypto.verify({ ...appliedVoteHash, sign: signature, voteTime: voteOffsets.at(index) })) {
       goodSignatures.set(signature.owner, signature)
       // Break the loop if the required number of good signatures are found
       if (goodSignatures.size >= requiredSignatures) break
