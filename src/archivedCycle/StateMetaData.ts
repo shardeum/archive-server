@@ -31,13 +31,16 @@ import { P2P as P2PTypes, StateManager } from '@shardus/types'
 import * as Logger from '../Logger'
 import { nestedCountersInstance } from '../profiler/nestedCounters'
 import { profilerInstance } from '../profiler/profiler'
+import { Node } from '../ShardFunctions'
 
 // Socket modules
-export let socketServer: SocketIO.Server
+import { Socket } from "socket.io-client";
+import {Server} from "http";
+export let socketServer: Server
 import * as ioclient from 'socket.io-client'
 import { Utils as StringUtils } from '@shardus/types'
-let socketClient: SocketIOClientStatic['Socket']
-export const socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
+let socketClient: Socket
+export const socketClients: Map<string, Socket> = new Map()
 const socketConnectionsTracker: Map<string, string> = new Map()
 let lastSentCycleCounterToExplorer = 0
 
@@ -113,7 +116,7 @@ interface NodeWithPort extends Node {
 export const StateMetaDataMap = new Map()
 export let currentDataSender = ''
 
-export function initSocketServer(io: SocketIO.Server): void {
+export function initSocketServer(io: Server): void {
   socketServer = io
   //`socket: SocketIO.Socket` removed as an argument
   socketServer.on('connection', () => {

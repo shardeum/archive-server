@@ -53,8 +53,6 @@
     "@types/node": "18.16.1",
     "@types/node-cron": "3.0.7",
     "@types/node-fetch": "^2.5.4",
-    "@types/socket.io": "^2.1.11",
-    "@types/socket.io-client": "^1.4.33",
     "@typescript-eslint/eslint-plugin": "^5.60.0",
     "@typescript-eslint/typescript-estree": "^5.60.0",
     "eslint": "^8.43.0",
@@ -90,7 +88,7 @@
     "node-cron": "3.0.2",
     "node-fetch": "^2.6.8",
     "rfdc": "^1.3.0",
-    "socket.io-client": "^2.3.0",
+    "socket.io-client": "^4.7.5",
     "sqlite3": "^5.0.0",
     "streamroller": "^3.1.3",
     "tydb": "^0.1.5"

@@ -35,14 +35,14 @@ import * as StateMetaData from '../archivedCycle/StateMetaData'
 import fetch from 'node-fetch'
 import { syncV2 } from '../sync-v2'
 import { queryFromArchivers, RequestDataType } from '../API'
-import ioclient = require('socket.io-client')
+import { Socket, io } from 'socket.io-client';
 import { Transaction } from '../dbstore/transactions'
 import { AccountsCopy } from '../dbstore/accounts'
 import { getJson } from '../P2P'
 import { robustQuery } from '../Utils'
 import { Utils as StringUtils } from '@shardus/types'
 
-export const socketClients: Map<string, SocketIOClientStatic['Socket']> = new Map()
+export const socketClients: Map<string, Socket> = new Map()
 export let combineAccountsData = {
   accounts: [],
   receipts: [],
@@ -191,7 +191,7 @@ export async function unsubscribeDataSender(
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
   if (config.VERBOSE) Logger.mainLogger.debug('Node Info to socket connect', node)
-  const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
+  const socketClient = io(`http://${node.ip}:${node.port}`);
   socketClients.set(node.publicKey, socketClient)
 
   let archiverKeyisEmitted = false
@@ -976,7 +976,7 @@ export async function getCycleDuration(): Promise<number> {
 }
 
 /*
-  checkJoinStatus checks if the current archiver node is joined to a network. 
+  checkJoinStatus checks if the current archiver node is joined to a network.
   This queries by the /joinedArchiver endpoint on the nodes and returns joining status based on majority response.
 */
 export async function checkJoinStatus(activeNodes: NodeList.ConsensusNodeInfo[]): Promise<boolean> {
