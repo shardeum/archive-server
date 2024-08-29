@@ -63,8 +63,8 @@ export const verifyAccountHash = (
   nestedCounterMessages = []
 ): boolean => {
   try {
-    const { accountIDs, afterStateHashes, beforeStateHashes } = receipt.signedReceipt.proposal
     if (receipt.globalModification && config.skipGlobalTxReceiptVerification) return true // return true if global modification
+    const { accountIDs, afterStateHashes, beforeStateHashes } = receipt.signedReceipt.proposal
     if (accountIDs.length !== afterStateHashes.length) {
       failedReasons.push(
         `Modified account count specified in the receipt and the actual updated account count does not match! ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`

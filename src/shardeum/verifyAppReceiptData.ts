@@ -17,6 +17,8 @@ export const verifyAppReceiptData = async (
 ): Promise<{ valid: boolean; needToSave: boolean }> => {
   let result = { valid: false, needToSave: false }
   const { appReceiptData, globalModification, signedReceipt } = receipt
+
+  if (globalModification && config.skipGlobalTxReceiptVerification) return { valid: true, needToSave: true }
   const newShardeumReceipt = appReceiptData.data as ShardeumReceipt
   if (!newShardeumReceipt.amountSpent || !newShardeumReceipt.readableReceipt) {
     failedReasons.push(`appReceiptData missing amountSpent or readableReceipt`)
@@ -54,22 +56,6 @@ export const verifyAppReceiptData = async (
   }
   result = { valid: true, needToSave: false }
   if (existingReceipt && existingReceipt.timestamp !== receipt.tx.timestamp) {
-    // If the existing receipt is challenged and the new receipt is confirmed, overwrite the existing receipt
-    // let skipAppReceiptCheck = false
-    // if (
-    //   config.newPOQReceipt === true &&
-    //   existingReceipt.appliedReceipt &&
-    //   existingReceipt.appliedReceipt.confirmOrChallenge &&
-    //   receipt.appliedReceipt &&
-    //   receipt.appliedReceipt.confirmOrChallenge &&
-    //   existingReceipt.appliedReceipt.confirmOrChallenge.message === 'challenge' &&
-    //   receipt.appliedReceipt.confirmOrChallenge.message === 'confirm'
-    // ) {
-    //   result = { valid: true, needToSave: true }
-    //   skipAppReceiptCheck = true
-    // }
-
-    // if (!skipAppReceiptCheck) {
     const existingShardeumReceipt = existingReceipt.appReceiptData.data as ShardeumReceipt
     /**
      * E: existing receipt, N: new receipt, X: any value
@@ -114,7 +100,7 @@ export const verifyAppReceiptData = async (
     }
     // }
   } else result = { valid: true, needToSave: true }
-  if (globalModification && config.skipGlobalTxReceiptVerification) return { valid: true, needToSave: true }
+
   // Finally verify appReceiptData hash
   const appReceiptDataCopy = { ...appReceiptData }
   const calculatedAppReceiptDataHash = calculateAppReceiptDataHash(appReceiptDataCopy, failedReasons)
