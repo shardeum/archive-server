@@ -34,8 +34,9 @@ import { profilerInstance } from '../profiler/profiler'
 import { Node } from '../ShardFunctions'
 
 // Socket modules
-import { Socket } from "socket.io-client";
-import {Server} from "http";
+import { Socket } from 'socket.io-client';
+import { Server } from 'http';
+
 export let socketServer: Server
 import * as ioclient from 'socket.io-client'
 import { Utils as StringUtils } from '@shardus/types'
