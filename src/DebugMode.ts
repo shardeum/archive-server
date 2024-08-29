@@ -1,6 +1,7 @@
 import { config } from './Config'
 import * as Crypto from './Crypto'
 
+const MAX_COUNTER_BUFFER_MILLISECONDS = 10000
 let lastCounter = 0
 
 export function isDebugMode(): boolean {
@@ -29,13 +30,17 @@ export const isDebugMiddleware = (_req, res): void => {
           sign: { owner: ownerPk, sig: requestSig },
         }
         const currentCounter = parseInt(sigObj.count)
-        //reguire a larger counter than before.
-        if (currentCounter < lastCounter) {
+        //reguire a larger counter than before. This prevents replay attacks
+        const currentTime = new Date().getTime()
+        if (currentCounter > lastCounter && currentCounter <= currentTime + MAX_COUNTER_BUFFER_MILLISECONDS) {
           const verified = Crypto.verify(sigObj)
           if (!verified) {
             throw new Error('FORBIDDEN. signature authentication is failed.')
           }
         } else {
+          console.log(
+            `isDebugMiddleware: currentCounter=${currentCounter}, lastCounter=${lastCounter}, currentTime=${currentTime}`
+          )
           throw new Error('FORBIDDEN. signature counter is failed.')
         }
         lastCounter = currentCounter //update counter so we can't use it again
