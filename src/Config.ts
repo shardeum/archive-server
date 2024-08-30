@@ -170,7 +170,7 @@ let config: Config = {
   maxCyclesShardDataToKeep: 10,
   configChangeMaxCyclesToKeep: 5,
   configChangeMaxChangesToKeep: 1000,
-  receiptLoadTrakerInterval: 15 * 1000,
+  receiptLoadTrakerInterval: 10 * 1000,
   receiptLoadTrakerLimit: 10,
   lastActivityCheckInterval: 15 * 1000,
   lastActivityCheckTimeout: 30 * 1000,

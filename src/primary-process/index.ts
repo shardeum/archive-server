@@ -30,6 +30,7 @@ export let successReceiptCount = 0 // Variable to keep track of the number of re
 export let failureReceiptCount = 0 // Variable to keep track of the number of receipts failed verification
 
 let receiptLoadTraker = 0 // Variable to keep track of the receipt load within the last receiptLoadTrakerInterval
+let mainProcessReceiptTracker = 0 // receipt tracker for the receipts getting verified in the main process
 // Creating a worker pool
 const workers: Worker[] = []
 const newWorkers = new Map<number, Worker>()
@@ -38,11 +39,8 @@ let currentWorker = 0
 
 const emitter = new EventEmitter()
 
-let masterProcessId
-
 export const setupWorkerProcesses = (cluster: Cluster): void => {
   console.log(`Master ${process.pid} is running`)
-  masterProcessId = process.pid
   // Set interval to check receipt count every 15 seconds
   setInterval(async () => {
     for (const [, worker] of newWorkers) {
@@ -60,30 +58,38 @@ export const setupWorkerProcesses = (cluster: Cluster): void => {
         const worker = workers.pop()
         if (worker) extraWorkers.set(worker.process.pid, worker)
       }
-      receiptLoadTraker = 0
-      return
-    }
-    let neededWorkers = Math.ceil(receiptLoadTraker / config.receiptLoadTrakerLimit)
-    if (neededWorkers > MAX_WORKERS) neededWorkers = MAX_WORKERS
-    const currentWorkers = workers.length
-    console.log(`Needed workers: ${neededWorkers}`, `Current workers: ${currentWorkers}`)
-    if (neededWorkers > currentWorkers) {
-      for (let i = currentWorkers; i < neededWorkers; i++) {
-        const worker = cluster.fork()
-        newWorkers.set(worker.process.pid, worker)
-        // results.set(worker.process.pid, { success: 0, failure: 0 })
-        setupWorkerListeners(worker)
-      }
-    } else if (neededWorkers < currentWorkers) {
-      // Kill the extra workers from the end of the array
-      for (let i = currentWorkers - 1; i >= neededWorkers; i--) {
-        // console.log(`Killing worker ${workers[i].process.pid} with index ${i}`);
-        // workers[i].kill();
-        // workers.pop();
+    } else {
+      let neededWorkers = Math.ceil(receiptLoadTraker / config.receiptLoadTrakerLimit)
+      if (neededWorkers > MAX_WORKERS) neededWorkers = MAX_WORKERS
+      let currentWorkers = workers.length
+      console.log(`Needed workers: ${neededWorkers}`, `Current workers: ${currentWorkers}`)
+      if (neededWorkers > currentWorkers) {
+        if (extraWorkers.size > 0) {
+          console.log(`Extra workers available: ${extraWorkers.size}, moving them to workers list`)
+          // Move the extra workers to the workers list
+          for (const [pid, worker] of extraWorkers) {
+            workers.push(worker)
+            extraWorkers.delete(pid)
+          }
+          currentWorkers = workers.length
+        }
+        for (let i = currentWorkers; i < neededWorkers; i++) {
+          const worker = cluster.fork()
+          newWorkers.set(worker.process.pid, worker)
+          // results.set(worker.process.pid, { success: 0, failure: 0 })
+          setupWorkerListeners(worker)
+        }
+      } else if (neededWorkers < currentWorkers) {
+        // Kill the extra workers from the end of the array
+        for (let i = currentWorkers - 1; i >= neededWorkers; i--) {
+          // console.log(`Killing worker ${workers[i].process.pid} with index ${i}`);
+          // workers[i].kill();
+          // workers.pop();
 
-        // Instead of killing the worker, move it to the extraWorkers map
-        const worker = workers.pop()
-        if (worker) extraWorkers.set(worker.process.pid, worker)
+          // Instead of killing the worker, move it to the extraWorkers map
+          const worker = workers.pop()
+          if (worker) extraWorkers.set(worker.process.pid, worker)
+        }
       }
     }
     console.log(
@@ -113,7 +119,7 @@ const setupWorkerListeners = (worker: Worker): void => {
         //   }
         // }
         const { txId, timestamp } = data
-        console.log('receipt-verification', txId + timestamp)
+        // console.log('receipt-verification', txId + timestamp)
         emitter.emit(txId + timestamp, data.verificationResult)
         break
       }
@@ -149,7 +155,7 @@ const setupWorkerListeners = (worker: Worker): void => {
         }
         break
       default:
-        if (type.includes('axm')) {
+        if (type && type.includes('axm')) {
           if (config.VERBOSE) {
             console.log(`Worker ${workerId} is sending axm message: ${type}`)
             console.log(data)
@@ -197,7 +203,7 @@ const forwardReceiptVerificationResult = (
 ): Promise<ReceiptVerificationResult> => {
   return new Promise((resolve) => {
     emitter.on(txId + timestamp, (result: ReceiptVerificationResult) => {
-      console.log('forwardReceiptVerificationResult', txId, timestamp)
+      // console.log('forwardReceiptVerificationResult', txId, timestamp)
       resolve(result)
     })
     worker.on('exit', () => {
@@ -221,10 +227,30 @@ export const offloadReceipt = async (
   receivedReceiptCount++ // Increment the counter for each receipt received
   receiptLoadTraker++ // Increment the receipt load tracker
   let verificationResult: ReceiptVerificationResult
+  if (workers.length === 0 && mainProcessReceiptTracker > config.receiptLoadTrakerLimit) {
+    // If there are extra workers available, put them to the workers list
+    if (extraWorkers.size > 0) {
+      console.log(
+        `offloadReceipt - Extra workers available: ${extraWorkers.size}, moving them to workers list`
+      )
+      // Move the extra workers to the workers list
+      for (const [pid, worker] of extraWorkers) {
+        workers.push(worker)
+        extraWorkers.delete(pid)
+      }
+    }
+    // // If there are still no workers available, add randon wait time (0-1 second) and proceed
+    // if (workers.length === 0 && mainProcessReceiptTracker > config.receiptLoadTrakerLimit) {
+    //   await Utils.sleep(Math.floor(Math.random() * 1000))
+    // }
+  }
   if (workers.length === 0) {
+    mainProcessReceiptTracker++
     console.log('Verifying on the main program 1', txId, timestamp)
-    verificationResult = await verifyArchiverReceipt(receipt, requiredSignatures)
+    verificationResult = await verifyArchiverReceipt(receipt, requiredSignatures)                                                                                                                                                                                          
+    mainProcessReceiptTracker--
   } else {
+    mainProcessReceiptTracker = 0
     // Forward the request to a worker in a round-robin fashion
     let worker = workers[currentWorker]
     currentWorker = (currentWorker + 1) % workers.length

@@ -831,14 +831,14 @@ export const storeReceiptData = async (
         if (profilerInstance) profilerInstance.profileSectionStart('Offload_receipt')
         if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Offload_receipt')
         const start_time = process.hrtime()
-        console.log('offloading receipt', txId, timestamp)
+        // console.log('offloading receipt', txId, timestamp)
         const result = await offloadReceipt(txId, timestamp, requiredSignatures, receipt)
-        console.log('offload receipt result', txId, timestamp, result)
+        // console.log('offload receipt result', txId, timestamp, result)
         const end_time = process.hrtime(start_time)
-        console.log(
-          `Time taken for receipt verification in millisecond is: `,
-          end_time[0] * 1000 + end_time[1] / 1000000
-        )
+        const time_taken = end_time[0] * 1000 + end_time[1] / 1000000
+        if (time_taken > 100) {
+          console.log(`Time taken for receipt verification in millisecond is: `, txId, timestamp, time_taken)
+        }
         if (profilerInstance) profilerInstance.profileSectionEnd('Offload_receipt')
         if (result.success === false) {
           receiptsInValidationMap.delete(txId)

@@ -12,9 +12,9 @@ export const createDB = async (dbPath: string, dbName: string): Promise<Database
   await run(db, 'PRAGMA journal_mode=WAL')
   db.on('profile', (sql, time) => {
     if (time > 500 && time < 1000) {
-      console.log('SLOW QUERY', sql, time)
+      console.log('SLOW QUERY', process.pid, sql, time)
     } else if (time > 1000) {
-      console.log('VERY SLOW QUERY', sql, time)
+      console.log('VERY SLOW QUERY', process.pid, sql, time)
     }
   })
   console.log(`Database ${dbName} Initialized!`)

@@ -28,7 +28,7 @@ export const initWorkerProcess = async (): Promise<void> => {
           nestedCounterMessages: [],
         }
         try {
-          console.log(`Worker process ${process.pid} is verifying receipt`, receipt.tx.txId, receipt.tx.timestamp)
+          // console.log(`Worker process ${process.pid} is verifying receipt`, receipt.tx.txId, receipt.tx.timestamp)
           verificationResult = await verifyArchiverReceipt(receipt, data.requiredSignatures)
         } catch (error) {
           console.error(`Error in Worker ${process.pid} while verifying receipt`, error)
@@ -54,9 +54,9 @@ export const initWorkerProcess = async (): Promise<void> => {
   })
   process.send({ type: 'child_ready' })
   setInterval(() => {
-    console.log(
-      `lastActivityCheckTimeout: ${config.lastActivityCheckTimeout}, lastActivityCheckInterval: ${config.lastActivityCheckInterval}`
-    )
+    // console.log(
+    //   `lastActivityCheckTimeout: ${config.lastActivityCheckTimeout}, lastActivityCheckInterval: ${config.lastActivityCheckInterval}`
+    // )
     if (Date.now() - lastActivity > config.lastActivityCheckTimeout) {
       console.log(`Worker ${process.pid} is idle for more than 1 minute`)
       process.send({ type: 'child_close' })
