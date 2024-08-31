@@ -861,7 +861,8 @@ export const storeReceiptData = async (
     // })
     const { afterStates, cycle, tx, appReceiptData, signedReceipt } = receipt
     const sortedVoteOffsets = (signedReceipt.voteOffsets ?? []).sort()
-    const medianTimestamp = sortedVoteOffsets[Math.floor(sortedVoteOffsets.length / 2)] ?? tx.timestamp
+    const medianOffset = sortedVoteOffsets[Math.floor(sortedVoteOffsets.length / 2)] ?? 0
+    const applyTimestamp = tx.timestamp + medianOffset * 1000
     if (config.VERBOSE) console.log('RECEIPT', 'Save', txId, timestamp, senderInfo)
     processedReceiptsMap.set(tx.txId, tx.timestamp)
     receiptsInValidationMap.delete(tx.txId)
@@ -870,7 +871,7 @@ export const storeReceiptData = async (
       ...receipt,
       receiptId: tx.txId,
       timestamp: tx.timestamp,
-      applyTimestamp: medianTimestamp,
+      applyTimestamp,
     })
     if (config.dataLogWrite && ReceiptLogWriter)
       ReceiptLogWriter.writeToLog(
@@ -878,7 +879,7 @@ export const storeReceiptData = async (
           ...receipt,
           receiptId: tx.txId,
           timestamp: tx.timestamp,
-          applyTimestamp: medianTimestamp,
+          applyTimestamp,
         })}\n`
       )
     txDataList.push({ txId, timestamp })
