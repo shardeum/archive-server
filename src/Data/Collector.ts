@@ -617,7 +617,7 @@ const verifyAppliedReceiptSignatures = (
   const { proposal, signaturePack, voteOffsets } = signedReceipt
   const { txId: txid } = receipt.tx
   // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2799
-  const voteHash = calculateVoteHash(proposal)
+  const voteHash = calculateVoteHash(proposal, failedReasons, nestedCounterMessages)
   // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2663
   const appliedVoteHash = {
     txid,
@@ -630,21 +630,30 @@ const verifyAppliedReceiptSignatures = (
       goodSignatures.set(signature.owner, signature)
       // Break the loop if the required number of good signatures are found
       if (goodSignatures.size >= requiredSignatures) break
+    } else {
+      failedReasons.push(
+        `Found invalid signature in receipt signedReceipt ${txid}, ${signature.owner}, ${index}`
+      )
+      nestedCounterMessages.push('Found_invalid_signature_in_receipt_signedReceipt')
     }
   }
   if (goodSignatures.size < requiredSignatures) {
     failedReasons.push(
-      `Invalid receipt appliedReceipt valid signatures count is less than requiredSignatures ${goodSignatures.size}, ${requiredSignatures}`
+      `Invalid receipt signedReceipt valid signatures count is less than requiredSignatures ${goodSignatures.size}, ${requiredSignatures}`
     )
     nestedCounterMessages.push(
-      'Invalid_receipt_appliedReceipt_valid_signatures_count_less_than_requiredSignatures'
+      'Invalid_receipt_signedReceipt_valid_signatures_count_less_than_requiredSignatures'
     )
     return result
   }
   return { success: true }
 }
 
-const calculateVoteHash = (vote: Receipt.AppliedVote | Receipt.Proposal): string => {
+const calculateVoteHash = (
+  vote: Receipt.AppliedVote | Receipt.Proposal,
+  failedReasons = [],
+  nestedCounterMessages = []
+): string => {
   try {
     if (config.usePOQo === true && (vote as Receipt.Proposal).applied !== undefined) {
       const proposal = vote as Receipt.Proposal
@@ -684,7 +693,8 @@ const calculateVoteHash = (vote: Receipt.AppliedVote | Receipt.Proposal): string
     }
     return Crypto.hashObj({ ...vote, node_id: '' })
   } catch {
-    Logger.mainLogger.error('Error in calculateVoteHash', vote)
+    failedReasons.push('Error in calculateVoteHash', vote)
+    nestedCounterMessages.push('Error_in_calculateVoteHash')
     return ''
   }
 }
@@ -791,30 +801,30 @@ export const storeReceiptData = async (
     }
 
     if (verifyData) {
-      if (config.usePOQo === false) {
-        const existingReceipt = await Receipt.queryReceiptByReceiptId(txId)
-        // if (
-        //   existingReceipt &&
-        //   receipt.appliedReceipt &&
-        //   receipt.appliedReceipt.confirmOrChallenge &&
-        //   receipt.appliedReceipt.confirmOrChallenge.message === 'challenge'
-        // ) {
-        //   // If the existing receipt is confirmed, and the new receipt is challenged, then skip saving the new receipt
-        //   if (existingReceipt.appliedReceipt.confirmOrChallenge.message === 'confirm') {
-        //     Logger.mainLogger.error(
-        //       `Existing receipt is confirmed, but new receipt is challenged ${txId}, ${receipt.cycle}, ${timestamp}`
-        //     )
-        //     receiptsInValidationMap.delete(txId)
-        //     if (nestedCountersInstance)
-        //       nestedCountersInstance.countEvent(
-        //         'receipt',
-        //         'Existing_receipt_is_confirmed_but_new_receipt_is_challenged'
-        //       )
-        //     if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
-        //     continue
-        //   }
-        // }
-      }
+      // if (config.usePOQo === false) {
+      // const existingReceipt = await Receipt.queryReceiptByReceiptId(txId)
+      // if (
+      //   existingReceipt &&
+      //   receipt.appliedReceipt &&
+      //   receipt.appliedReceipt.confirmOrChallenge &&
+      //   receipt.appliedReceipt.confirmOrChallenge.message === 'challenge'
+      // ) {
+      //   // If the existing receipt is confirmed, and the new receipt is challenged, then skip saving the new receipt
+      //   if (existingReceipt.appliedReceipt.confirmOrChallenge.message === 'confirm') {
+      //     Logger.mainLogger.error(
+      //       `Existing receipt is confirmed, but new receipt is challenged ${txId}, ${receipt.cycle}, ${timestamp}`
+      //     )
+      //     receiptsInValidationMap.delete(txId)
+      //     if (nestedCountersInstance)
+      //       nestedCountersInstance.countEvent(
+      //         'receipt',
+      //         'Existing_receipt_is_confirmed_but_new_receipt_is_challenged'
+      //       )
+      //     if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
+      //     continue
+      //   }
+      // }
+      // }
 
       if (config.verifyReceiptData) {
         const { success, requiredSignatures, newReceipt } = await verifyReceiptData(receipt)
@@ -840,14 +850,14 @@ export const storeReceiptData = async (
           console.log(`Time taken for receipt verification in millisecond is: `, txId, timestamp, time_taken)
         }
         if (profilerInstance) profilerInstance.profileSectionEnd('Offload_receipt')
+        for (const message of result.failedReasons) {
+          Logger.mainLogger.error(message)
+        }
+        for (const message of result.nestedCounterMessages) {
+          if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', message)
+        }
         if (result.success === false) {
           receiptsInValidationMap.delete(txId)
-          for (const message of result.failedReasons) {
-            Logger.mainLogger.error(message)
-          }
-          for (const message of result.nestedCounterMessages) {
-            if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', message)
-          }
           if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
           continue
         }
