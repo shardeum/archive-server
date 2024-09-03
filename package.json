@@ -2,7 +2,7 @@
   "name": "@shardus/archiver",
   "version": "3.5.3",
   "engines": {
-    "node": "18.16.1"
+    "node": "18.19.1"
   },
   "description": "",
   "main": "./build/server.js",
@@ -50,7 +50,7 @@
   },
   "homepage": "https://gitlab.com/shardus/archive/archive-server#readme",
   "devDependencies": {
-    "@types/node": "18.16.1",
+    "@types/node": "18.19.1",
     "@types/node-cron": "3.0.7",
     "@types/node-fetch": "^2.5.4",
     "@types/socket.io": "^2.1.11",
