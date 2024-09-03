@@ -66,16 +66,18 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
       // Update currentCycle state
       currentCycleDuration = cycle.duration * 1000
       currentCycleCounter = cycle.counter
+      currentCycleMarker = cycle.marker
 
       // Update NodeList from cycle info
       updateNodeList(cycle)
       updateShardValues(cycle)
       changeNetworkMode(cycle.mode)
       getAdjacentLeftAndRightArchivers()
-      handleLostArchivers(cycle)
 
       await addCyclesToCache(cycles)
       await storeCycleData([cycle])
+
+      handleLostArchivers(cycle)
 
       Logger.mainLogger.debug(`Processed cycle ${cycle.counter}`)
 
