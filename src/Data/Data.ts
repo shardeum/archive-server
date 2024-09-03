@@ -191,21 +191,15 @@ export async function unsubscribeDataSender(
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
   if (config.VERBOSE) Logger.mainLogger.debug('Node Info to socket connect', node)
-  const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
+  const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`, {
+    query: {
+      data: JSON.stringify(Crypto.sign({ publicKey: State.getNodeInfo().publicKey })),
+    },
+  })
   socketClients.set(node.publicKey, socketClient)
 
-  let archiverKeyisEmitted = false
-
   socketClient.on('connect', () => {
-    Logger.mainLogger.debug(
-      `${!archiverKeyisEmitted ? 'New connection' : 'Reconnection'} to consensus node ${node.ip}:${
-        node.port
-      } is made`
-    )
-    if (archiverKeyisEmitted) return
-    // Send ehlo event right after connect:
-    socketClient.emit('ARCHIVER_PUBLIC_KEY', config.ARCHIVER_PUBLIC_KEY)
-    archiverKeyisEmitted = true
+    Logger.mainLogger.debug(`✅ New Socket Connection to consensus node ${node.ip}:${node.port} is made`)
     if (config.VERBOSE) Logger.mainLogger.debug('Connected node', node)
     if (config.VERBOSE) Logger.mainLogger.debug('Init socketClients', socketClients.size, dataSenders.size)
   })
