@@ -10,7 +10,7 @@ export interface ProcessedTransaction {
   txId: string
   cycle: number
   txTimestamp: number
-  txApplyTimestamp: number
+  applyTimestamp: number
 }
 
 export async function insertProcessedTx(processedTx: ProcessedTransaction): Promise<void> {
@@ -26,7 +26,7 @@ export async function insertProcessedTx(processedTx: ProcessedTransaction): Prom
       ') ON CONFLICT (txId) DO UPDATE SET ' +
       'cycle = excluded.cycle, ' +
       'txTimestamp = excluded.txTimestamp, ' +
-      'txApplyTimestamp = excluded.txApplyTimestamp'
+      'applyTimestamp = excluded.applyTimestamp'
 
     await db.run(processedTxDatabase, sql, values)
     if (config.VERBOSE) {
@@ -55,7 +55,7 @@ export async function bulkInsertProcessedTxs(processedTxs: ProcessedTransaction[
       ' ON CONFLICT (txId) DO UPDATE SET ' +
       'cycle = excluded.cycle, ' +
       'txTimestamp = excluded.txTimestamp, ' +
-      'txApplyTimestamp = excluded.txApplyTimestamp'
+      'applyTimestamp = excluded.applyTimestamp'
 
     await db.run(processedTxDatabase, sql, values)
     if (config.VERBOSE)

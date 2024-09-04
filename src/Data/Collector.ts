@@ -968,7 +968,7 @@ export const storeReceiptData = async (
       txId: tx.txId,
       cycle: cycle,
       txTimestamp: tx.timestamp,
-      txApplyTimestamp: null,
+      applyTimestamp,
     }
 
     // await Transaction.insertTransaction(txObj)
@@ -1157,7 +1157,7 @@ export const storeAccountData = async (restoreData: StoreAccountParam = {}): Pro
         txId: receipt.data.txId || receipt.txId,
         cycle: receipt.cycleNumber,
         txTimestamp: receipt.timestamp,
-        txApplyTimestamp: null,
+        applyTimestamp: receipt.timestamp,
       }
       combineTransactions.push(txObj)
       combineProcessedTxs.push(processedTx)

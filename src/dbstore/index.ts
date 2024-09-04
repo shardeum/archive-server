@@ -101,7 +101,7 @@ export const initializeDB = async (config: Config): Promise<void> => {
   // Transaction digester service tables
   await runCreate(
     processedTxDatabase,
-    'CREATE TABLE if not exists `processedTxs` (`txId` VARCHAR(128) NOT NULL, `cycle` BIGINT NOT NULL, `txTimestamp` BIGINT NOT NULL, `txApplyTimestamp` BIGINT, PRIMARY KEY (`txId`))'
+    'CREATE TABLE if not exists `processedTxs` (`txId` VARCHAR(128) NOT NULL, `cycle` BIGINT NOT NULL, `txTimestamp` BIGINT NOT NULL, `applyTimestamp` BIGINT NOT NULL, PRIMARY KEY (`txId`))'
   )
   await runCreate(
     processedTxDatabase,
