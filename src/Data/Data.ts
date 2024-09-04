@@ -191,7 +191,14 @@ export async function unsubscribeDataSender(
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
   if (config.VERBOSE) Logger.mainLogger.debug('Node Info to socket connect', node)
-  const socketClient = io(`http://${node.ip}:${node.port}`);
+  const socketClient = io(`http://${node.ip}:${node.port}`, {
+    transports: ['websocket','polling'],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    randomizationFactor: 0.5,
+  });
   socketClients.set(node.publicKey, socketClient)
 
   let archiverKeyisEmitted = false
