@@ -169,6 +169,7 @@ export async function unsubscribeDataSender(
   }
   const socketClient = socketClients.get(publicKey)
   if (socketClient) {
+    console.log(' red - unsubscribe from node', publicKey)
     socketClient.emit('UNSUBSCRIBE', config.ARCHIVER_PUBLIC_KEY)
     socketClient.close()
     socketClients.delete(publicKey)
@@ -192,7 +193,7 @@ export async function unsubscribeDataSender(
 export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
   if (config.VERBOSE) Logger.mainLogger.debug('Node Info to socket connect', node)
   const socketClient = io(`http://${node.ip}:${node.port}`, {
-    transports: ['websocket','polling'],
+    transports: ['websocket'],
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
@@ -202,8 +203,26 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
   socketClients.set(node.publicKey, socketClient)
 
   let archiverKeyisEmitted = false
+  socketClient.on('connect_error', (error) => {
+    console.error(' red - Connection error:', error);
+    if (socketClient.active) {
+      console.log(' red - temporary failure, the socket will automatically try to reconnect');
+    } else {
+      console.log(' red - Connection denied by the server. Trying to reconnect');
+      socketClient.connect()
+    }
+  });
+
+  socketClient.on('error', (error) => {
+    console.error(' red - Socket error:', error);
+  });
+
+  socketClient.on('connect_timeout', () => {
+    console.log(' red - Connection timed out');
+  });
 
   socketClient.on('connect', () => {
+    console.log(' red - connected to node', node.ip, node.port)
     Logger.mainLogger.debug(
       `${!archiverKeyisEmitted ? 'New connection' : 'Reconnection'} to consensus node ${node.ip}:${
         node.port
@@ -218,10 +237,12 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
   })
 
   socketClient.once('disconnect', async () => {
+    console.log(' red - disconnected from node', node.ip, node.port)
     Logger.mainLogger.debug(`Connection request is refused by the consensor node ${node.ip}:${node.port}`)
   })
 
   socketClient.on('DATA', (data: string) => {
+    console.log(' red - data received from node', node.ip, node.port)
     const newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage =
       StringUtils.safeJsonParse(data)
     if (!newData || !newData.responses) return
