@@ -24,7 +24,7 @@ export interface GlobalAccountsHashAndTimestamp {
 export const globalAccountsMap = new Map<string, GlobalAccountsHashAndTimestamp>()
 const appliedConfigChanges = new Set<string>()
 
-export function getGlobalNetworkAccount(hash: boolean): object | string {
+export function getGlobalNetworkAccount(hash: boolean): AccountDB.AccountsCopy | string {
   if (hash) {
     return cachedGlobalNetworkAccountHash
   }
