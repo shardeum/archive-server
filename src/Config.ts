@@ -159,7 +159,7 @@ let config: Config = {
     enabled: false,
   },
   newPOQReceipt: false,
-  storeReceiptBeforeStates: false,
+  storeReceiptBeforeStates: true,
   waitingTimeForMissingTxData: 2000, // in ms
   gossipToMoreArchivers: true,
   randomGossipArchiversCount: 2,
