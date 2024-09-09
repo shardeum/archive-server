@@ -150,7 +150,7 @@ export async function queryTransactions(skip = 0, limit = 10000): Promise<Transa
 export async function queryTransactionCount(): Promise<number> {
   let transactions
   try {
-    const sql = `SELECT COUNT(*) FROM transactions`
+    const sql = `SELECT COUNT(timestamp) FROM transactions`
     transactions = await db.get(transactionDatabase, sql, [])
   } catch (e) {
     Logger.mainLogger.error(e)
@@ -158,7 +158,7 @@ export async function queryTransactionCount(): Promise<number> {
   if (config.VERBOSE) {
     Logger.mainLogger.debug('Transaction count', transactions)
   }
-  if (transactions) transactions = transactions['COUNT(*)']
+  if (transactions) transactions = transactions['COUNT(timestamp)']
   else transactions = 0
   return transactions
 }

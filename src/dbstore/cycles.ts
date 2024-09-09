@@ -126,7 +126,7 @@ export async function queryCycleRecordsBetween(
 export async function queryCyleCount(): Promise<number> {
   let cycles
   try {
-    const sql = `SELECT COUNT(*) FROM cycles`
+    const sql = `SELECT COUNT(counter) FROM cycles`
     cycles = await db.get(cycleDatabase, sql, [])
   } catch (e) {
     Logger.mainLogger.error(e)
@@ -134,7 +134,7 @@ export async function queryCyleCount(): Promise<number> {
   if (config.VERBOSE) {
     Logger.mainLogger.debug('Cycle count', cycles)
   }
-  if (cycles) cycles = cycles['COUNT(*)']
+  if (cycles) cycles = cycles['COUNT(counter)']
   else cycles = 0
   return cycles
 }

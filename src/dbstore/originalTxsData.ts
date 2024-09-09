@@ -67,7 +67,7 @@ export async function bulkInsertOriginalTxsData(originalTxsData: OriginalTxData[
 export async function queryOriginalTxDataCount(startCycle?: number, endCycle?: number): Promise<number> {
   let originalTxsData
   try {
-    let sql = `SELECT COUNT(*) FROM originalTxsData`
+    let sql = `SELECT COUNT(timestamp) FROM originalTxsData`
     const values: number[] = []
     if (startCycle && endCycle) {
       sql += ` WHERE cycle BETWEEN ? AND ?`
@@ -80,7 +80,7 @@ export async function queryOriginalTxDataCount(startCycle?: number, endCycle?: n
   if (config.VERBOSE) {
     Logger.mainLogger.debug('OriginalTxData count', originalTxsData)
   }
-  return originalTxsData['COUNT(*)'] || 0
+  return originalTxsData['COUNT(timestamp)'] || 0
 }
 
 export async function queryOriginalTxsData(

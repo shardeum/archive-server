@@ -841,11 +841,14 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       reply.send({ success: false, error: result.error })
       return
     }
-    const totalCycles = await CycleDB.queryCyleCount()
-    const totalAccounts = await AccountDB.queryAccountCount()
-    const totalTransactions = await TransactionDB.queryTransactionCount()
-    const totalReceipts = await ReceiptDB.queryReceiptCount()
-    const totalOriginalTxs = await OriginalTxDB.queryOriginalTxDataCount()
+    const [totalCycles, totalAccounts, totalReceipts, totalTransactions, totalOriginalTxs] =
+      await Promise.all([
+        CycleDB.queryCyleCount(),
+        AccountDB.queryAccountCount(),
+        ReceiptDB.queryReceiptCount(),
+        TransactionDB.queryTransactionCount(),
+        OriginalTxDB.queryOriginalTxDataCount(),
+      ])
     reply.send(
       Crypto.sign({ totalCycles, totalAccounts, totalTransactions, totalReceipts, totalOriginalTxs })
     )

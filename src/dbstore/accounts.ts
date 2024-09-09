@@ -134,7 +134,7 @@ export async function queryAccounts(skip = 0, limit = 10000): Promise<AccountsCo
 export async function queryAccountCount(): Promise<number> {
   let accounts
   try {
-    const sql = `SELECT COUNT(*) FROM accounts`
+    const sql = `SELECT COUNT(timestamp) FROM accounts`
     accounts = await db.get(accountDatabase, sql, [])
   } catch (e) {
     Logger.mainLogger.error(e)
@@ -142,7 +142,7 @@ export async function queryAccountCount(): Promise<number> {
   if (config.VERBOSE) {
     Logger.mainLogger.debug('Account count', accounts)
   }
-  if (accounts) accounts = accounts['COUNT(*)']
+  if (accounts) accounts = accounts['COUNT(timestamp)']
   else accounts = 0
   return accounts
 }

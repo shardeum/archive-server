@@ -198,7 +198,7 @@ export async function queryReceipts(skip = 0, limit = 10000): Promise<Receipt[]>
 export async function queryReceiptCount(): Promise<number> {
   let receipts
   try {
-    const sql = `SELECT COUNT(*) FROM receipts`
+    const sql = `SELECT COUNT(timestamp) FROM receipts`
     receipts = await db.get(receiptDatabase, sql, [])
   } catch (e) {
     Logger.mainLogger.error(e)
@@ -206,7 +206,7 @@ export async function queryReceiptCount(): Promise<number> {
   if (config.VERBOSE) {
     Logger.mainLogger.debug('Receipt count', receipts)
   }
-  if (receipts) receipts = receipts['COUNT(*)']
+  if (receipts) receipts = receipts['COUNT(timestamp)']
   else receipts = 0
   return receipts
 }
