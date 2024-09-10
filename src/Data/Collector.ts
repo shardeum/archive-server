@@ -870,6 +870,8 @@ export const storeReceiptData = async (
     //   timestamp: tx.timestamp,
     // })
     const { afterStates, cycle, tx, appReceiptData, signedReceipt } = receipt
+    receipt.beforeStates = config.storeReceiptBeforeStates ? receipt.beforeStates : []
+
     const sortedVoteOffsets = (signedReceipt.voteOffsets ?? []).sort()
     const medianOffset = sortedVoteOffsets[Math.floor(sortedVoteOffsets.length / 2)] ?? 0
     const applyTimestamp = tx.timestamp + medianOffset * 1000
@@ -882,7 +884,6 @@ export const storeReceiptData = async (
       receiptId: tx.txId,
       timestamp: tx.timestamp,
       applyTimestamp,
-      beforeStateAccounts: config.storeReceiptBeforeStates ? receipt.beforeStateAccounts : [],
     })
     if (config.dataLogWrite && ReceiptLogWriter)
       ReceiptLogWriter.writeToLog(
@@ -891,7 +892,6 @@ export const storeReceiptData = async (
           receiptId: tx.txId,
           timestamp: tx.timestamp,
           applyTimestamp,
-          beforeStateAccounts: config.storeReceiptBeforeStates ? receipt.beforeStateAccounts : [],
         })}\n`
       )
     txDataList.push({ txId, timestamp })
