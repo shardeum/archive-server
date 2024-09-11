@@ -106,12 +106,14 @@ export const verifyAppReceiptData = async (
 
   // Finally verify appReceiptData hash
   const appReceiptDataCopy = { ...appReceiptData }
-  const calculatedAppReceiptDataHash = calculateAppReceiptDataHash(appReceiptDataCopy, failedReasons, nestedCounterMessages)
-  if (calculatedAppReceiptDataHash !== receipt.signedReceipt.proposal.appReceiptDataHash) {
+  const calculatedAppReceiptDataHash = calculateAppReceiptDataHash(
+    appReceiptDataCopy,
+    failedReasons,
+    nestedCounterMessages
+  )
+  if (calculatedAppReceiptDataHash !== signedReceipt.proposal.appReceiptDataHash) {
     failedReasons.push(
-      `appReceiptData hash mismatch: ${calculatedAppReceiptDataHash} != ${
-        receipt.signedReceipt.proposal.appReceiptDataHash
-      }`
+      `appReceiptData hash mismatch: ${calculatedAppReceiptDataHash} != ${signedReceipt.proposal.appReceiptDataHash}`
     )
     nestedCounterMessages.push(`appReceiptData hash mismatch`)
     result = { valid: false, needToSave: false }

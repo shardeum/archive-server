@@ -329,8 +329,8 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
     }
   }
   if (receipt.globalModification) {
-    const appliedReceipt = receipt.appliedReceipt as P2PTypes.GlobalAccountsTypes.GlobalTxReceipt
-    err = Utils.validateTypes(appliedReceipt, {
+    const signedReceipt = receipt.signedReceipt as P2PTypes.GlobalAccountsTypes.GlobalTxReceipt
+    err = Utils.validateTypes(signedReceipt, {
       tx: 'o',
       signs: 'a',
     })
@@ -338,8 +338,9 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
       Logger.mainLogger.error('Invalid receipt globalModification data', err)
       return false
     }
-    err = Utils.validateTypes(appliedReceipt.tx, {
+    err = Utils.validateTypes(signedReceipt.tx, {
       address: 's',
+      addressHash: 's',
       value: 'o',
       when: 'n',
       source: 's',
@@ -348,7 +349,7 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
       Logger.mainLogger.error('Invalid receipt globalModification tx data', err)
       return false
     }
-    for (const sign of appliedReceipt.signs) {
+    for (const sign of signedReceipt.signs) {
       err = Utils.validateTypes(sign, {
         owner: 's',
         sig: 's',
@@ -366,11 +367,12 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
     proposal: 'o',
     proposalHash: 's',
     signaturePack: 'a',
+    voteOffsets: 'a',
   }
   // if (config.newPOQReceipt === false) delete appliedReceiptToValidate.confirmOrChallenge
   err = Utils.validateTypes(signedReceipt, signedReceiptToValidate)
   if (err) {
-    Logger.mainLogger.error('Invalid receipt appliedReceipt data', err)
+    Logger.mainLogger.error('Invalid receipt signedReceipt data', err)
     return false
   }
   const proposalToValidate = {
@@ -388,7 +390,7 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
   // }
   err = Utils.validateTypes(signedReceipt.proposal, proposalToValidate)
   if (err) {
-    Logger.mainLogger.error('Invalid receipt appliedReceipt appliedVote data', err)
+    Logger.mainLogger.error('Invalid receipt signedReceipt appliedVote data', err)
     return false
   }
   for (const signature of signedReceipt.signaturePack) {
@@ -397,7 +399,14 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
       sig: 's',
     })
     if (err) {
-      Logger.mainLogger.error('Invalid receipt appliedReceipt signatures data', err)
+      Logger.mainLogger.error('Invalid receipt signedReceipt signatures data', err)
+      return false
+    }
+  }
+  for (const voteOffset of signedReceipt.voteOffsets) {
+    const isValid = typeof voteOffset === 'number' || !isNaN(voteOffset)
+    if (isValid) {
+      Logger.mainLogger.error('Invalid receipt signedReceipt voteOffsets data', voteOffset)
       return false
     }
   }
@@ -740,7 +749,7 @@ const verifyAppliedReceiptSignatures = (
     }
     return { success: true }
   }
-  const { proposal, signaturePack, voteOffsets } =  receipt.signedReceipt as Receipt.SignedReceipt
+  const { proposal, signaturePack, voteOffsets } = receipt.signedReceipt as Receipt.SignedReceipt
   // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2799
   const voteHash = calculateVoteHash(proposal, failedReasons, nestedCounterMessages)
   // Refer to https://github.com/shardeum/shardus-core/blob/50b6d00f53a35996cd69210ea817bee068a893d6/src/state-manager/TransactionConsensus.ts#L2663
@@ -995,7 +1004,9 @@ export const storeReceiptData = async (
     //   timestamp: tx.timestamp,
     // })
     const { afterStates, cycle, tx, appReceiptData, signedReceipt, globalModification } = receipt
-    const sortedVoteOffsets = (signedReceipt.voteOffsets ?? []).sort()
+    const sortedVoteOffsets = globalModification
+      ? []
+      : (signedReceipt as Receipt.SignedReceipt).voteOffsets.sort()
     const medianOffset = sortedVoteOffsets[Math.floor(sortedVoteOffsets.length / 2)] ?? 0
     const applyTimestamp = tx.timestamp + medianOffset * 1000
     if (config.VERBOSE) console.log('RECEIPT', 'Save', txId, timestamp, senderInfo)
