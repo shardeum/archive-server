@@ -49,7 +49,7 @@ export const verifyGlobalTxAccountChange = (
       internalTx.internalTXType === InternalTXType.ApplyNetworkParam
     ) {
       if (signedReceipt.tx.addressHash !== '') {
-        for (const account of receipt.signedReceipt) {
+        for (const account of receipt.beforeStates) {
           if (account.accountId !== signedReceipt.tx.address) {
             failedReasons.push(
               `Unexpected account found in before accounts ${receipt.tx.txId} , ${receipt.cycle} , ${receipt.tx.timestamp}`
