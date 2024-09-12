@@ -191,10 +191,11 @@ export async function unsubscribeDataSender(
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
   if (config.VERBOSE) Logger.mainLogger.debug('Node Info to socket connect', node)
+  
   try {
     const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`, {
       query: {
-        data: JSON.stringify(Crypto.sign({publicKey: State.getNodeInfo().publicKey})),
+        data: JSON.stringify(Crypto.sign({publicKey: State.getNodeInfo().publicKey, timestamp: Date.now()})),
       },
     })
     socketClients.set(node.publicKey, socketClient)
