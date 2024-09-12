@@ -195,7 +195,13 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
   try {
     const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`, {
       query: {
-        data: JSON.stringify(Crypto.sign({publicKey: State.getNodeInfo().publicKey, timestamp: Date.now()})),
+        data: JSON.stringify(
+        Crypto.sign({
+          publicKey: State.getNodeInfo().publicKey, 
+          timestamp: Date.now(),
+          intendedConsensor: node.publicKey
+       })
+      ),
       },
     })
     socketClients.set(node.publicKey, socketClient)
