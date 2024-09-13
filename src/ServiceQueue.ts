@@ -17,6 +17,7 @@ export function addTxs(addTxs: P2P.ServiceQueueTypes.AddNetworkTx[]): boolean {
           txData: txDataWithoutSign,
           type: addTx.type,
           cycle: addTx.cycle,
+          priority: addTx.priority,
           ...(addTx.subQueueKey && { subQueueKey: addTx.subQueueKey }),
         },
       })
@@ -63,7 +64,9 @@ function sortedInsert(
 ): void {
   const index = list.findIndex(
     (item) =>
-      item.tx.cycle > entry.tx.cycle || (item.tx.cycle === entry.tx.cycle && item.hash > entry.tx.hash)
+      item.tx.cycle > entry.tx.cycle ||
+      (item.tx.cycle === entry.tx.cycle && item.tx.priority < entry.tx.priority) || // Compare by priority if cycle is the same
+      (item.tx.cycle === entry.tx.cycle && item.tx.priority === entry.tx.priority && item.hash > entry.hash) // Compare by hash if both cycle and priority are the same
   )
   if (index === -1) {
     list.push(entry)
