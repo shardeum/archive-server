@@ -18,6 +18,7 @@ export function addTxs(addTxs: P2P.ServiceQueueTypes.AddNetworkTx[]): boolean {
           type: addTx.type,
           cycle: addTx.cycle,
           priority: addTx.priority,
+          involvedAddress: addTx.involvedAddress,
           ...(addTx.subQueueKey && { subQueueKey: addTx.subQueueKey }),
         },
       })
