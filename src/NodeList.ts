@@ -416,3 +416,35 @@ export function toggleFirstNode(): void {
   foundFirstNode = !foundFirstNode
   Logger.mainLogger.debug('foundFirstNode', foundFirstNode)
 }
+
+export function isEqualOrNewerVersion(minimumVersion: string, nodeVersion: string): boolean {
+  if (minimumVersion === nodeVersion) {
+    return true
+  }
+
+  const minVerParts = minimumVersion.split('.')
+  const nodeVerParts = nodeVersion.split('.')
+
+  /* eslint-disable security/detect-object-injection */
+  for (let i = 0; i < nodeVerParts.length; i++) {
+    const nodeV = ~~nodeVerParts[i] // parse int
+    const minV = ~~minVerParts[i] // parse int
+    if (nodeV > minV) return true
+    if (nodeV < minV) return false
+  }
+  /* eslint-enable security/detect-object-injection */
+  return false
+}
+
+export function isEqualOrOlderVersion(maximumVersion: string, nodeVersion: string): boolean {
+  return isEqualOrNewerVersion(nodeVersion, maximumVersion)
+}
+
+export function isValidVersion(minimumVersion: string, latestVersion: string, nodeVersion: string): boolean {
+  if(config.VERBOSE) Logger.mainLogger.debug('isValidVersion: ', minimumVersion, latestVersion, nodeVersion)
+  
+  const equalOrNewer = isEqualOrNewerVersion(minimumVersion, nodeVersion)
+  const equalOrOlder = isEqualOrOlderVersion(latestVersion, nodeVersion)
+
+  return equalOrNewer && equalOrOlder
+}

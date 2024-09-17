@@ -67,7 +67,18 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
    * CZ adds AZ's join reqeuest to cycle zero and sets AZ as cycleRecipient
    */
   type NodeListRequest = FastifyRequest<{
-    Body: P2P.FirstNodeInfo & Crypto.SignedMessage
+    Body: {
+      joinRequest: {
+        appJoinData: {
+          shardeumVersion: string
+          minVersion: string
+          activeVersion: string
+          latestVersion: string
+          operatorCLIVersion: string
+          operatorGUIVersion: string
+        }
+      } & P2P.FirstNodeInfo
+    } & Crypto.SignedMessage
   }>
 
   server.get('/myip', function (request, reply) {
@@ -78,18 +89,23 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
   server.post('/nodelist', (request: NodeListRequest, reply) => {
     profilerInstance.profileSectionStart('POST_nodelist')
     nestedCountersInstance.countEvent('consensor', 'POST_nodelist', 1)
-    const signedFirstNodeInfo = request.body
+    const requestBody = request.body
+    // eslint-disable-next-line no-constant-condition
+    if(config.VERBOSE) {
+      Logger.mainLogger.debug('POST /nodelist requestBody:', requestBody)
+    }
 
     if (State.isFirst && NodeList.isEmpty() && !NodeList.foundFirstNode) {
       try {
-        const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
+        const isSignatureValid = Crypto.verify(requestBody)
         if (!isSignatureValid) {
-          Logger.mainLogger.error('Invalid signature', signedFirstNodeInfo)
+          Logger.mainLogger.error('Invalid signature', requestBody)
           reply.send({ success: false, error: 'Invalid signature' })
           return
         }
       } catch (e) {
         Logger.mainLogger.error(e)
+        Logger.mainLogger.error('Signature verification failed', requestBody)
         reply.send({ success: false, error: 'Signature verification failed' })
         return
       }
@@ -99,14 +115,49 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         return
       }
       NodeList.toggleFirstNode()
-      const ip = signedFirstNodeInfo.nodeInfo.externalIp
-      const port = signedFirstNodeInfo.nodeInfo.externalPort
-      const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
+
+      const signedFirstNodeInfo = requestBody.joinRequest.nodeInfo
+      const appJoinData = requestBody.joinRequest.appJoinData
+
+      const ip = signedFirstNodeInfo.externalIp
+      const port = signedFirstNodeInfo.externalPort
+      const publicKey = signedFirstNodeInfo.publicKey
 
       const firstNode: NodeList.ConsensusNodeInfo = {
         ip,
         port,
         publicKey,
+      }
+
+      // eslint-disable-next-line no-constant-condition
+      if (config.VERBOSE) {
+        Logger.mainLogger.debug('POST /nodelist firstNode:', firstNode)
+        Logger.mainLogger.debug('POST /nodelist appJoinData:', appJoinData)
+      }
+      
+
+      const networkAccount: AccountDB.AccountsCopy | string = getGlobalNetworkAccount(false)
+      Logger.mainLogger.debug('networkAccount', networkAccount)
+
+      if (networkAccount) {
+        if (
+          typeof networkAccount != 'string' &&
+          !NodeList.isValidVersion(
+            networkAccount?.data?.current?.minVersion,
+            networkAccount?.data?.current?.latestVersion,
+            appJoinData.shardeumVersion
+          )
+        ) {
+          Logger.mainLogger.debug(
+            `Invalid version of the node: ${appJoinData.shardeumVersion}, required minVersion: ${networkAccount?.data?.current?.minVersion}, required latestVersion: ${networkAccount?.data?.current?.latestVersion}`
+          )
+          reply.send({ success: false, error: 'Invalid version' })
+          return
+        } else {
+          Logger.mainLogger.debug('POST /nodelist network account is a string or version is valid: ', typeof networkAccount)
+        }
+      } else {
+        Logger.mainLogger.debug('POST /nodelist network account does not exist')
       }
 
       Data.initSocketClient(firstNode)
