@@ -95,6 +95,7 @@ export interface Config {
     apiServerPort: number
     txCronSchedule: string
   }
+  workerProcessesDebugLog: boolean // To enable debug logs for worker processes managed by the main process
 }
 
 let config: Config = {
@@ -182,6 +183,7 @@ let config: Config = {
     apiServerPort: 8084,
     txCronSchedule: '*/5 * * * *',
   },
+  workerProcessesDebugLog: false,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {
