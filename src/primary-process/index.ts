@@ -47,7 +47,8 @@ export const setupWorkerProcesses = (cluster: Cluster): void => {
       worker.kill()
     }
     if (receiptLoadTraker < config.receiptLoadTrakerLimit) {
-      console.log(`Receipt load is below the limit: ${receiptLoadTraker}/${config.receiptLoadTrakerLimit}`)
+      if (config.workerProcessesDebugLog)
+        console.log(`Receipt load is below the limit: ${receiptLoadTraker}/${config.receiptLoadTrakerLimit}`)
       // Kill the extra workers from the end of the array
       for (let i = workers.length - 1; i >= 0; i--) {
         // console.log(`Killing worker ${workers[i].process.pid} with index ${i}`);
@@ -62,10 +63,12 @@ export const setupWorkerProcesses = (cluster: Cluster): void => {
       let neededWorkers = Math.ceil(receiptLoadTraker / config.receiptLoadTrakerLimit)
       if (neededWorkers > MAX_WORKERS) neededWorkers = MAX_WORKERS
       let currentWorkers = workers.length
-      console.log(`Needed workers: ${neededWorkers}`, `Current workers: ${currentWorkers}`)
+      if (config.workerProcessesDebugLog)
+        console.log(`Needed workers: ${neededWorkers}`, `Current workers: ${currentWorkers}`)
       if (neededWorkers > currentWorkers) {
         if (extraWorkers.size > 0) {
-          console.log(`Extra workers available: ${extraWorkers.size}, moving them to workers list`)
+          if (config.workerProcessesDebugLog)
+            console.log(`Extra workers available: ${extraWorkers.size}, moving them to workers list`)
           // Move the extra workers to the workers list
           for (const [pid, worker] of extraWorkers) {
             workers.push(worker)
@@ -92,11 +95,12 @@ export const setupWorkerProcesses = (cluster: Cluster): void => {
         }
       }
     }
-    console.log(
-      `Adjusted worker count to ${
-        workers.length + newWorkers.size
-      }, based on ${receiptLoadTraker} receipts received.`
-    )
+    if (config.workerProcessesDebugLog)
+      console.log(
+        `Adjusted worker count to ${
+          workers.length + newWorkers.size
+        }, based on ${receiptLoadTraker} receipts received.`
+      )
     receiptLoadTraker = 0 // Reset the count
   }, config.receiptLoadTrakerInterval)
 }
@@ -124,10 +128,11 @@ const setupWorkerListeners = (worker: Worker): void => {
         break
       }
       case 'child_close':
-        console.log(`Worker ${workerId} is requesting to close`)
+        if (config.workerProcessesDebugLog) console.log(`Worker ${workerId} is requesting to close`)
         // Check if the worker is in the extraWorkers map
         if (extraWorkers.has(workerId)) {
-          console.log(`Worker ${workerId} is in extraWorkers, killing it now`)
+          if (config.workerProcessesDebugLog)
+            console.log(`Worker ${workerId} is in extraWorkers, killing it now`)
           const worker = extraWorkers.get(workerId)
           if (worker) worker.kill()
         } else {
@@ -144,7 +149,7 @@ const setupWorkerListeners = (worker: Worker): void => {
         }
         break
       case 'child_ready':
-        console.log(`Worker ${workerId} is ready for the duty`)
+        if (config.workerProcessesDebugLog) console.log(`Worker ${workerId} is ready for the duty`)
         // Check if the worker is in the newWorkers map
         if (newWorkers.has(workerId)) {
           console.log(`Worker ${workerId} is in newWorkers, moving it to the workers list`)
@@ -172,7 +177,8 @@ const setupWorkerListeners = (worker: Worker): void => {
     console.log(`Worker ${worker.process.pid} died with code ${code} and signal ${signal}`)
     let isExtraWorker = false
     if (extraWorkers.has(workerId)) {
-      console.log(`Worker ${workerId} is in extraWorkers, removing it now`)
+      if (config.workerProcessesDebugLog)
+        console.log(`Worker ${workerId} is in extraWorkers, removing it now`)
       isExtraWorker = true
       extraWorkers.get(workerId)?.kill()
       extraWorkers.delete(workerId)
@@ -246,8 +252,8 @@ export const offloadReceipt = async (
   }
   if (workers.length === 0) {
     mainProcessReceiptTracker++
-    console.log('Verifying on the main program 1', txId, timestamp)
-    verificationResult = await verifyArchiverReceipt(receipt, requiredSignatures)                                                                                                                                                                                          
+    if (config.workerProcessesDebugLog) console.log('Verifying on the main program 1', txId, timestamp)
+    verificationResult = await verifyArchiverReceipt(receipt, requiredSignatures)
     mainProcessReceiptTracker--
   } else {
     mainProcessReceiptTracker = 0
@@ -276,7 +282,8 @@ export const offloadReceipt = async (
         verificationResult = await verifyArchiverReceipt(receipt, requiredSignatures)
       }
     } else {
-      console.log('Verifying on the worker process 1', txId, timestamp, worker.process.pid)
+      if (config.workerProcessesDebugLog)
+        console.log('Verifying on the worker process 1', txId, timestamp, worker.process.pid)
       const cloneReceipt = Utils.deepCopy(receipt)
       delete cloneReceipt.tx.originalTxData
       delete cloneReceipt.executionShardKey
