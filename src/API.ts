@@ -127,7 +127,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const port = signedFirstNodeInfo.nodeInfo.externalPort
       const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
       if (config.restrictFirstNodeSelectionByPublicKey) {
-        if (config.firstNodePublicKey !== '' && publicKey !== config.firstNodePublicKey) {
+        if (publicKey !== config.firstNodePublicKey) {
           Logger.mainLogger.error('Invalid publicKey of first node info', signedFirstNodeInfo)
           reply.send({ success: false, error: 'Invalid publicKey of first node info' })
           return
