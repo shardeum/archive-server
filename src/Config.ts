@@ -191,7 +191,7 @@ let config: Config = {
     txCronSchedule: '*/5 * * * *',
   },
   workerProcessesDebugLog: false,
-  restrictFirstNodeSelection: true,
+  restrictFirstNodeSelection: false,
   restrictFirstNodeSelectionByPublicKey: false,
   firstNodeInfo: {
     IP: '127.0.0.1',
