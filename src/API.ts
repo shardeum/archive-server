@@ -81,6 +81,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     const signedFirstNodeInfo = request.body
 
     if (State.isFirst && NodeList.isEmpty() && !NodeList.foundFirstNode) {
+      // TODO - validate signedFirstNodeInfo payload before signature verification
       try {
         const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
         if (!isSignatureValid) {
@@ -93,16 +94,22 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         reply.send({ success: false, error: 'Signature verification failed' })
         return
       }
+      const ip = signedFirstNodeInfo.nodeInfo.externalIp
+      const port = signedFirstNodeInfo.nodeInfo.externalPort
+      const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
+      if (config.restrictFirstNodeSelection) {
+        if (ip !== config.firstNodeInfo.IP || port !== config.firstNodeInfo.PORT) {
+          Logger.mainLogger.error('Invalid first node info', signedFirstNodeInfo)
+          reply.send({ success: false, error: 'Invalid first node info' })
+          return
+        }
+      }
       if (NodeList.foundFirstNode) {
         const res = NodeList.getCachedNodeList()
         reply.send(res)
         return
       }
       NodeList.toggleFirstNode()
-      const ip = signedFirstNodeInfo.nodeInfo.externalIp
-      const port = signedFirstNodeInfo.nodeInfo.externalPort
-      const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
-
       const firstNode: NodeList.ConsensusNodeInfo = {
         ip,
         port,
