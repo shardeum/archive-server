@@ -96,6 +96,11 @@ export interface Config {
     txCronSchedule: string
   }
   workerProcessesDebugLog: boolean // To enable debug logs for worker processes managed by the main process
+  restrictFirstNodeSelection: boolean // The flag to pick the first node that matches the IP and PORT specified in the firstNodeInfo
+  firstNodeInfo: {
+    IP: string
+    PORT: number
+  }
 }
 
 let config: Config = {
@@ -184,6 +189,11 @@ let config: Config = {
     txCronSchedule: '*/5 * * * *',
   },
   workerProcessesDebugLog: false,
+  restrictFirstNodeSelection: true,
+  firstNodeInfo: {
+    IP: '127.0.0.1',
+    PORT: 4000,
+  },
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {
