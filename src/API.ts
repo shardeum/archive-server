@@ -35,7 +35,6 @@ import {
   failureReceiptCount,
 } from './primary-process'
 import * as ServiceQueue from './ServiceQueue'
-import { sign } from 'crypto'
 const { version } = require('../package.json') // eslint-disable-line @typescript-eslint/no-var-requires
 
 const TXID_LENGTH = 64
@@ -127,15 +126,8 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const ip = signedFirstNodeInfo.nodeInfo.externalIp
       const port = signedFirstNodeInfo.nodeInfo.externalPort
       const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
-      if (config.restrictFirstNodeSelection) {
-        if (ip !== config.firstNodeInfo.IP || port !== config.firstNodeInfo.PORT) {
-          Logger.mainLogger.error('Invalid ip and port of the first node info', signedFirstNodeInfo)
-          reply.send({ success: false, error: 'Invalid ip and port of the first node info' })
-          return
-        }
-      }
       if (config.restrictFirstNodeSelectionByPublicKey) {
-        if (config.firstNodeInfo.PUBLIC_KEY !== '' && publicKey !== config.firstNodeInfo.PUBLIC_KEY) {
+        if (config.firstNodePublicKey !== '' && publicKey !== config.firstNodePublicKey) {
           Logger.mainLogger.error('Invalid publicKey of first node info', signedFirstNodeInfo)
           reply.send({ success: false, error: 'Invalid publicKey of first node info' })
           return
