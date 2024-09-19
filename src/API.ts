@@ -93,7 +93,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         }
         err = Utils.validateTypes(signedFirstNodeInfo.nodeInfo, {
           externalIp: 's',
-          externalPort: 's',
+          externalPort: 'n',
           publicKey: 's',
         })
         if (err) {
@@ -102,7 +102,7 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         }
         err = Utils.validateTypes(signedFirstNodeInfo.sign, {
           owner: 's',
-          signature: 's',
+          sig: 's',
         })
         if (err) {
           reply.send({ success: false, error: err })
