@@ -192,7 +192,7 @@ let config: Config = {
   restrictFirstNodeSelection: true,
   firstNodeInfo: {
     IP: '127.0.0.1',
-    PORT: 4000,
+    PORT: 9001,
   },
 }
 // Override default config params from config file, env vars, and cli args
