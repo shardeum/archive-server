@@ -96,10 +96,12 @@ export interface Config {
     txCronSchedule: string
   }
   workerProcessesDebugLog: boolean // To enable debug logs for worker processes managed by the main process
-  restrictFirstNodeSelection: boolean // The flag to pick the first node that matches the IP and PORT specified in the firstNodeInfo
+  restrictFirstNodeSelection: boolean // The flag to pick the first node that matches the IP and PORT specified in the firstNodeInfo ( without checking the PUBLIC_KEY )
+  restrictFirstNodeSelectionByPublicKey: boolean // The flag to pick the first node that matches the PUBLIC_KEY specified in the firstNodeInfo
   firstNodeInfo: {
     IP: string
     PORT: number
+    PUBLIC_KEY: string
   }
 }
 
@@ -190,9 +192,11 @@ let config: Config = {
   },
   workerProcessesDebugLog: false,
   restrictFirstNodeSelection: true,
+  restrictFirstNodeSelectionByPublicKey: false,
   firstNodeInfo: {
     IP: '127.0.0.1',
     PORT: 9001,
+    PUBLIC_KEY: '',
   },
 }
 // Override default config params from config file, env vars, and cli args

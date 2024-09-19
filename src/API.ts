@@ -35,6 +35,7 @@ import {
   failureReceiptCount,
 } from './primary-process'
 import * as ServiceQueue from './ServiceQueue'
+import { sign } from 'crypto'
 const { version } = require('../package.json') // eslint-disable-line @typescript-eslint/no-var-requires
 
 const TXID_LENGTH = 64
@@ -81,8 +82,37 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
     const signedFirstNodeInfo = request.body
 
     if (State.isFirst && NodeList.isEmpty() && !NodeList.foundFirstNode) {
-      // TODO - validate signedFirstNodeInfo payload before signature verification
       try {
+        let err = Utils.validateTypes(signedFirstNodeInfo, {
+          nodeInfo: 'o',
+          sign: 'o',
+        })
+        if (err) {
+          reply.send({ success: false, error: err })
+          return
+        }
+        err = Utils.validateTypes(signedFirstNodeInfo.nodeInfo, {
+          externalIp: 's',
+          externalPort: 's',
+          publicKey: 's',
+        })
+        if (err) {
+          reply.send({ success: false, error: err })
+          return
+        }
+        err = Utils.validateTypes(signedFirstNodeInfo.sign, {
+          owner: 's',
+          signature: 's',
+        })
+        if (err) {
+          reply.send({ success: false, error: err })
+          return
+        }
+        if (signedFirstNodeInfo.nodeInfo.publicKey !== signedFirstNodeInfo.sign.owner) {
+          Logger.mainLogger.error('nodeInfo.publicKey does not match signature owner', signedFirstNodeInfo)
+          reply.send({ success: false, error: 'nodeInfo.publicKey does not match signature owner' })
+          return
+        }
         const isSignatureValid = Crypto.verify(signedFirstNodeInfo)
         if (!isSignatureValid) {
           Logger.mainLogger.error('Invalid signature', signedFirstNodeInfo)
@@ -99,8 +129,15 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
       const publicKey = signedFirstNodeInfo.nodeInfo.publicKey
       if (config.restrictFirstNodeSelection) {
         if (ip !== config.firstNodeInfo.IP || port !== config.firstNodeInfo.PORT) {
-          Logger.mainLogger.error('Invalid first node info', signedFirstNodeInfo)
-          reply.send({ success: false, error: 'Invalid first node info' })
+          Logger.mainLogger.error('Invalid ip and port of the first node info', signedFirstNodeInfo)
+          reply.send({ success: false, error: 'Invalid ip and port of the first node info' })
+          return
+        }
+      }
+      if (config.restrictFirstNodeSelectionByPublicKey) {
+        if (config.firstNodeInfo.PUBLIC_KEY !== '' && publicKey !== config.firstNodeInfo.PUBLIC_KEY) {
+          Logger.mainLogger.error('Invalid publicKey of first node info', signedFirstNodeInfo)
+          reply.send({ success: false, error: 'Invalid publicKey of first node info' })
           return
         }
       }
