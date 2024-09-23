@@ -12,7 +12,7 @@ import { resolve } from 'path'
 import * as Logger from './Logger'
 import { startSaving } from './saveConsoleOutput'
 import axios from 'axios'
-
+import * as ipfsPublisher from './txDigester/ipfsPublisher'
 const configFile = join(process.cwd(), 'archiver-config.json')
 
 const start = async (): Promise<void> => {
@@ -37,6 +37,9 @@ const start = async (): Promise<void> => {
   await dbstore.initializeDB(config)
 
   await txDigesterDB.initializeDB(config)
+
+  // Initialises the Client that publishes Transaction Digest to Web3.Storage
+  if (config.txDigest.enableSavingToWeb3Storage) ipfsPublisher.init()
 
   const ARCHIVER_STATUS_CHECK_URL = `http://${config.ARCHIVER_IP}:${config.ARCHIVER_PORT}/status`
 

@@ -94,6 +94,11 @@ export interface Config {
     syncDelay: number
     apiServerPort: number
     txCronSchedule: string
+    web3Storage: {
+      root_did: string
+      admin_email: string
+    }
+    enableSavingToWeb3Storage: boolean
   }
   workerProcessesDebugLog: boolean // To enable debug logs for worker processes managed by the main process
   restrictFirstNodeSelectionByPublicKey: boolean // The flag to pick the first node that matches the PUBLIC_KEY specified in the firstNodeInfo
@@ -183,7 +188,12 @@ let config: Config = {
     cycleDiff: 10,
     syncDelay: 20,
     apiServerPort: 8084,
-    txCronSchedule: '*/5 * * * *',
+    txCronSchedule: '* * * * *',
+    web3Storage: {
+      root_did: 'did:key:', // Should be in the format: did:key:<DID>
+      admin_email: '', // Make sure the email here is the one to which the intended Web3.Storage Account is linked to
+    },
+    enableSavingToWeb3Storage: false, // Set root_did and admin_email when you enable this
   },
   workerProcessesDebugLog: false,
   restrictFirstNodeSelectionByPublicKey: false,
