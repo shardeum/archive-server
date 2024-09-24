@@ -60,8 +60,8 @@
   "DevPublicKey": "",
   "txDigest": {
     "web3Storage": {
-      "root_did": "did:key:REPLACE_ME",
-      "admin_email": ""
+      "rootDID": "did:key:REPLACE_ME",
+      "adminEmail": ""
     },
     "enableSavingToWeb3Storage": false
   }

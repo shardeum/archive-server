@@ -95,8 +95,8 @@ export interface Config {
     apiServerPort: number
     txCronSchedule: string
     web3Storage: {
-      root_did: string
-      admin_email: string
+      rootDID: string
+      adminEmail: string
     }
     enableSavingToWeb3Storage: boolean
   }
@@ -188,12 +188,12 @@ let config: Config = {
     cycleDiff: 10,
     syncDelay: 20,
     apiServerPort: 8084,
-    txCronSchedule: '* * * * *',
+    txCronSchedule: '*/5 * * * *',
     web3Storage: {
-      root_did: 'did:key:', // Should be in the format: did:key:<DID>
-      admin_email: '', // Make sure the email here is the one to which the intended Web3.Storage Account is linked to
+      rootDID: 'did:key:', // Should be in the format: did:key:<DID>
+      adminEmail: '', // Make sure the email here is the one to which the intended Web3.Storage Account is linked to
     },
-    enableSavingToWeb3Storage: false, // Set root_did and admin_email when you enable this
+    enableSavingToWeb3Storage: false, // Set rootDID and adminEmail when you enable this
   },
   workerProcessesDebugLog: false,
   restrictFirstNodeSelectionByPublicKey: false,
