@@ -6,6 +6,7 @@ import { config } from '../Config'
 import { EventEmitter } from 'events'
 import { StateManager, Utils as StringUtils } from '@shardus/types'
 import * as Utils from '../Utils'
+import * as Logger from '../Logger'
 
 const MAX_WORKERS = cpus().length - 1 // Leaving 1 core for the master process
 
@@ -40,7 +41,7 @@ let currentWorker = 0
 const emitter = new EventEmitter()
 
 export const setupWorkerProcesses = (cluster: Cluster): void => {
-  console.log(`Master ${process.pid} is running`)
+  Logger.workerProcessLogger.info(`Master ${process.pid} is running`)
   // Set interval to check receipt count every 15 seconds
   setInterval(async () => {
     for (const [, worker] of newWorkers) {
@@ -48,10 +49,10 @@ export const setupWorkerProcesses = (cluster: Cluster): void => {
     }
     if (receiptLoadTraker < config.receiptLoadTrakerLimit) {
       if (config.workerProcessesDebugLog)
-        console.log(`Receipt load is below the limit: ${receiptLoadTraker}/${config.receiptLoadTrakerLimit}`)
+        Logger.workerProcessLogger.debug(`Receipt load is below the limit: ${receiptLoadTraker}/${config.receiptLoadTrakerLimit}`)
       // Kill the extra workers from the end of the array
       for (let i = workers.length - 1; i >= 0; i--) {
-        // console.log(`Killing worker ${workers[i].process.pid} with index ${i}`);
+        //Logger.workerProcessLogger.info(`Killing worker ${workers[i].process.pid} with index ${i}`);
         // workers[i].kill();
         // workers.pop();
 
@@ -64,11 +65,11 @@ export const setupWorkerProcesses = (cluster: Cluster): void => {
       if (neededWorkers > MAX_WORKERS) neededWorkers = MAX_WORKERS
       let currentWorkers = workers.length
       if (config.workerProcessesDebugLog)
-        console.log(`Needed workers: ${neededWorkers}`, `Current workers: ${currentWorkers}`)
+        Logger.workerProcessLogger.debug(`Needed workers: ${neededWorkers}`, `Current workers: ${currentWorkers}`)
       if (neededWorkers > currentWorkers) {
         if (extraWorkers.size > 0) {
           if (config.workerProcessesDebugLog)
-            console.log(`Extra workers available: ${extraWorkers.size}, moving them to workers list`)
+            Logger.workerProcessLogger.debug(`Extra workers available: ${extraWorkers.size}, moving them to workers list`)
           // Move the extra workers to the workers list
           for (const [pid, worker] of extraWorkers) {
             workers.push(worker)
@@ -85,7 +86,7 @@ export const setupWorkerProcesses = (cluster: Cluster): void => {
       } else if (neededWorkers < currentWorkers) {
         // Kill the extra workers from the end of the array
         for (let i = currentWorkers - 1; i >= neededWorkers; i--) {
-          // console.log(`Killing worker ${workers[i].process.pid} with index ${i}`);
+          // Logger.workerProcessLogger.info(`Killing worker ${workers[i].process.pid} with index ${i}`);
           // workers[i].kill();
           // workers.pop();
 
@@ -96,7 +97,7 @@ export const setupWorkerProcesses = (cluster: Cluster): void => {
       }
     }
     if (config.workerProcessesDebugLog)
-      console.log(
+      Logger.workerProcessLogger.debug(
         `Adjusted worker count to ${
           workers.length + newWorkers.size
         }, based on ${receiptLoadTraker} receipts received.`
@@ -123,69 +124,69 @@ const setupWorkerListeners = (worker: Worker): void => {
         //   }
         // }
         const { txId, timestamp } = data
-        // console.log('receipt-verification', txId + timestamp)
+        // Logger.workerProcessLogger.info('receipt-verification', txId + timestamp)
         emitter.emit(txId + timestamp, data.verificationResult)
         break
       }
       case 'child_close':
-        if (config.workerProcessesDebugLog) console.log(`Worker ${workerId} is requesting to close`)
+        if (config.workerProcessesDebugLog) Logger.workerProcessLogger.debug(`Worker ${workerId} is requesting to close`)
         // Check if the worker is in the extraWorkers map
         if (extraWorkers.has(workerId)) {
           if (config.workerProcessesDebugLog)
-            console.log(`Worker ${workerId} is in extraWorkers, killing it now`)
+            Logger.workerProcessLogger.debug(`Worker ${workerId} is in extraWorkers, killing it now`)
           const worker = extraWorkers.get(workerId)
           if (worker) worker.kill()
         } else {
-          console.error(`Worker ${workerId} is not in extraWorkers`)
+          Logger.workerProcessLogger.error(`Worker ${workerId} is not in extraWorkers`)
           // Check if the worker is in the workers array
           const workerIndex = workers.findIndex((worker) => worker.process.pid === workerId)
           if (workerIndex !== -1) {
-            console.error(
+            Logger.workerProcessLogger.error(
               `Worker ${workerId} is in workers now, we can't kill it as it might be processing a receipt`
             )
           } else {
-            console.error(`Worker ${workerId} is not in workers`)
+            Logger.workerProcessLogger.error(`Worker ${workerId} is not in workers`)
           }
         }
         break
       case 'child_ready':
-        if (config.workerProcessesDebugLog) console.log(`Worker ${workerId} is ready for the duty`)
+        if (config.workerProcessesDebugLog) Logger.workerProcessLogger.debug(`Worker ${workerId} is ready for the duty`)
         // Check if the worker is in the newWorkers map
         if (newWorkers.has(workerId)) {
-          console.log(`Worker ${workerId} is in newWorkers, moving it to the workers list`)
+          Logger.workerProcessLogger.info(`Worker ${workerId} is in newWorkers, moving it to the workers list`)
           workers.push(newWorkers.get(workerId))
           newWorkers.delete(workerId)
         } else {
-          console.error(`Worker ${workerId}is not in the newWorkers list`)
+          Logger.workerProcessLogger.error(`Worker ${workerId}is not in the newWorkers list`)
         }
         break
       default:
         if (type && type.includes('axm')) {
           if (config.VERBOSE) {
-            console.log(`Worker ${workerId} is sending axm message: ${type}`)
-            console.log(data)
+            Logger.workerProcessLogger.debug(`Worker ${workerId} is sending axm message: ${type}`)
+            Logger.workerProcessLogger.debug(data)
           }
           break
         }
-        console.log(`Worker ${workerId} is sending unknown message type: ${type}`)
-        console.log(data)
+        Logger.workerProcessLogger.info(`Worker ${workerId} is sending unknown message type: ${type}`)
+        Logger.workerProcessLogger.info(data)
         break
     }
   })
 
   worker.on('exit', (code, signal) => {
-    console.log(`Worker ${worker.process.pid} died with code ${code} and signal ${signal}`)
+    Logger.workerProcessLogger.info(`Worker ${worker.process.pid} died with code ${code} and signal ${signal}`)
     let isExtraWorker = false
     if (extraWorkers.has(workerId)) {
       if (config.workerProcessesDebugLog)
-        console.log(`Worker ${workerId} is in extraWorkers, removing it now`)
+        Logger.workerProcessLogger.debug(`Worker ${workerId} is in extraWorkers, removing it now`)
       isExtraWorker = true
       extraWorkers.get(workerId)?.kill()
       extraWorkers.delete(workerId)
     }
     let isNewWorker = false
     if (newWorkers.has(workerId)) {
-      console.log(`Worker ${workerId} is in newWorkers, removing it now`)
+      Logger.workerProcessLogger.info(`Worker ${workerId} is in newWorkers, removing it now`)
       isNewWorker = true
       newWorkers.get(workerId)?.kill()
       newWorkers.delete(workerId)
@@ -193,11 +194,11 @@ const setupWorkerListeners = (worker: Worker): void => {
     // Remove the worker from the workers list if not present in extraWorkers
     const workerIndex = workers.findIndex((worker) => worker.process.pid === workerId)
     if (workerIndex !== -1) {
-      if (isExtraWorker || isNewWorker) console.log(`Worker ${workerId} is in workers list as well`)
+      if (isExtraWorker || isNewWorker) Logger.workerProcessLogger.info(`Worker ${workerId} is in workers list as well`)
       workers[workerIndex]?.kill()
       workers.splice(workerIndex, 1)
     } else {
-      if (!isExtraWorker && !isNewWorker) console.error(`Worker ${workerId} is not in workers list`)
+      if (!isExtraWorker && !isNewWorker) Logger.workerProcessLogger.error(`Worker ${workerId} is not in workers list`)
     }
   })
 }
@@ -209,7 +210,7 @@ const forwardReceiptVerificationResult = (
 ): Promise<ReceiptVerificationResult> => {
   return new Promise((resolve) => {
     emitter.on(txId + timestamp, (result: ReceiptVerificationResult) => {
-      // console.log('forwardReceiptVerificationResult', txId, timestamp)
+      // Logger.workerProcessLogger.info('forwardReceiptVerificationResult', txId, timestamp)
       resolve(result)
     })
     worker.on('exit', () => {
@@ -236,7 +237,7 @@ export const offloadReceipt = async (
   if (workers.length === 0 && mainProcessReceiptTracker > config.receiptLoadTrakerLimit) {
     // If there are extra workers available, put them to the workers list
     if (extraWorkers.size > 0) {
-      console.log(
+      Logger.workerProcessLogger.info(
         `offloadReceipt - Extra workers available: ${extraWorkers.size}, moving them to workers list`
       )
       // Move the extra workers to the workers list
@@ -252,7 +253,7 @@ export const offloadReceipt = async (
   }
   if (workers.length === 0) {
     mainProcessReceiptTracker++
-    if (config.workerProcessesDebugLog) console.log('Verifying on the main program 1', txId, timestamp)
+    if (config.workerProcessesDebugLog) Logger.workerProcessLogger.debug('Verifying on the main program 1', txId, timestamp)
     verificationResult = await verifyArchiverReceipt(receipt, requiredSignatures)
     mainProcessReceiptTracker--
   } else {
@@ -261,11 +262,11 @@ export const offloadReceipt = async (
     let worker = workers[currentWorker]
     currentWorker = (currentWorker + 1) % workers.length
     if (!worker) {
-      console.error('No worker available to process the receipt 1')
+      Logger.workerProcessLogger.error('No worker available to process the receipt 1')
       worker = workers[currentWorker]
       currentWorker = (currentWorker + 1) % workers.length
       if (worker) {
-        console.log('Verifying on the worker process 2', txId, timestamp, worker.process.pid)
+        Logger.workerProcessLogger.info('Verifying on the worker process 2', txId, timestamp, worker.process.pid)
         const cloneReceipt = Utils.deepCopy(receipt)
         delete cloneReceipt.tx.originalTxData
         delete cloneReceipt.executionShardKey
@@ -276,14 +277,14 @@ export const offloadReceipt = async (
         })
         verificationResult = await forwardReceiptVerificationResult(txId, timestamp, worker)
       } else {
-        console.error('No worker available to process the receipt 2')
+        Logger.workerProcessLogger.error('No worker available to process the receipt 2')
         // Verifying the receipt in the main thread
-        console.log('Verifying on the main program 2', txId, timestamp)
+        Logger.workerProcessLogger.info('Verifying on the main program 2', txId, timestamp)
         verificationResult = await verifyArchiverReceipt(receipt, requiredSignatures)
       }
     } else {
       if (config.workerProcessesDebugLog)
-        console.log('Verifying on the worker process 1', txId, timestamp, worker.process.pid)
+        Logger.workerProcessLogger.debug('Verifying on the worker process 1', txId, timestamp, worker.process.pid)
       const cloneReceipt = Utils.deepCopy(receipt)
       delete cloneReceipt.tx.originalTxData
       delete cloneReceipt.executionShardKey

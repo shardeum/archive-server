@@ -1,7 +1,7 @@
 {
     "saveConsoleOutput": true,
     "dir": "archiver-logs",
-    "files": { "main": "", "fatal": "", "net": "" },
+    "files": { "main": "", "fatal": "", "net": "", "workerProcess": "" },
     "options": {
       "appenders": {
         "out": { "type": "console", "maxLogSize": 10000000, "backups": 50 },
@@ -24,12 +24,18 @@
           "type": "logLevelFilter",
           "level": "ERROR",
           "appender": "errorFile"
+        },
+        "workerProcess":{
+          "type": "file",
+          "maxLogSize": 10000000,
+          "backups": 50
         }
       },
       "categories": {
         "default": { "appenders": ["out"], "level": "trace" },
         "main": { "appenders": ["main", "errors"], "level": "trace" },
-        "fatal": { "appenders": ["fatal"], "level": "fatal" }
+        "fatal": { "appenders": ["fatal"], "level": "fatal" },
+        "workerProcess": { "appenders": ["workerProcess"], "level": "trace" }
       }
     }
   }
