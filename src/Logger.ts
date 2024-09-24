@@ -140,12 +140,14 @@ class Logger {
 export let mainLogger: log4js.Logger
 export let fatalLogger: log4js.Logger
 export let errorLogger: log4js.Logger
+export let workerProcessLogger: log4js.Logger
 
 export function initLogger(baseDir: string, logsConfig: LogsConfiguration): void {
   const logger = new Logger(baseDir, logsConfig)
   mainLogger = logger.getLogger('main')
   fatalLogger = logger.getLogger('fatal')
   errorLogger = logger.getLogger('errorFile')
+  workerProcessLogger = logger.getLogger('workerProcess')
 }
 
 export default Logger
