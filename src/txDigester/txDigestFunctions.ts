@@ -102,3 +102,10 @@ export const getTxDigestsForACycleRange = async (
   const txDigests: txDigest.TransactionDigest[] = await txDigest.queryByCycleRange(cycleStart, cycleEnd)
   return txDigests
 }
+
+export const getLatestTxDigests = async (
+  count: number
+): Promise<txDigest.TransactionDigest[]> => {
+  const txDigests: txDigest.TransactionDigest[] = await txDigest.queryLatestTxDigests(count)
+  return txDigests
+}

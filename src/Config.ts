@@ -61,6 +61,7 @@ export interface Config {
     MAX_ORIGINAL_TXS_PER_REQUEST: number
     MAX_CYCLES_PER_REQUEST: number
     MAX_BETWEEN_CYCLES_PER_REQUEST: number
+    MAX_DIGESTS_PER_REQUEST: number
   }
   cycleRecordsCache: {
     enabled: boolean
@@ -157,6 +158,7 @@ let config: Config = {
     MAX_ORIGINAL_TXS_PER_REQUEST: 100,
     MAX_CYCLES_PER_REQUEST: 100,
     MAX_BETWEEN_CYCLES_PER_REQUEST: 100,
+    MAX_DIGESTS_PER_REQUEST: 100,
   },
   cycleRecordsCache: {
     enabled: false,

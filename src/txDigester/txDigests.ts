@@ -79,7 +79,21 @@ export async function queryByCycleRange(startCycle: number, endCycle: number): P
     }
     return txDigests || []
   } catch (e) {
-    console.error(e)
+    console.error('Error fetching txDigests from DB: ', e)
+    return []
+  }
+}
+
+export async function queryLatestTxDigests(count: number): Promise<TransactionDigest[]> {
+  try {
+    const sql = `SELECT * FROM txDigests ORDER BY cycleEnd DESC LIMIT ?`
+    const txDigests = (await db.all(digesterDatabase, sql, [count])) as TransactionDigest[]
+    if (config.VERBOSE) {
+      console.log('Latest Tx Digests', txDigests)
+    }
+    return txDigests || []
+  } catch (e) {
+    console.error('Error fetching latest tx digests from DB: ', e)
     return []
   }
 }
