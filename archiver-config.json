@@ -62,7 +62,6 @@
     "web3Storage": {
       "rootDID": "did:key:REPLACE_ME",
       "adminEmail": ""
-    },
-    "enableSavingToWeb3Storage": false
+    }
   }
 }

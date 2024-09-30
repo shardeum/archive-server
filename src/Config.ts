@@ -21,6 +21,7 @@ export interface Config {
     originalTxDataDB: string
     processedTxDB: string
     txDigestDB: string
+    ipfsRecordsDB: string
   }
   DATASENDER_TIMEOUT: number
   RATE_LIMIT: number // number of allowed request per second,
@@ -98,7 +99,6 @@ export interface Config {
       rootDID: string
       adminEmail: string
     }
-    enableSavingToWeb3Storage: boolean
   }
   workerProcessesDebugLog: boolean // To enable debug logs for worker processes managed by the main process
   restrictFirstNodeSelectionByPublicKey: boolean // The flag to pick the first node that matches the PUBLIC_KEY specified in the firstNodeInfo
@@ -121,6 +121,7 @@ let config: Config = {
     originalTxDataDB: 'originalTxsData.sqlite3',
     processedTxDB: 'processedTransactions.sqlite3',
     txDigestDB: 'txDigest.sqlite3',
+    ipfsRecordsDB: 'ipfsRecords.sqlite3',
   },
   DATASENDER_TIMEOUT: 1000 * 60 * 5,
   RATE_LIMIT: 100, // 100 req per second,
@@ -193,7 +194,6 @@ let config: Config = {
       rootDID: 'did:key:', // Should be in the format: did:key:<DID>
       adminEmail: '', // Make sure the email here is the one to which the intended Web3.Storage Account is linked to
     },
-    enableSavingToWeb3Storage: false, // Set rootDID and adminEmail when you enable this
   },
   workerProcessesDebugLog: false,
   restrictFirstNodeSelectionByPublicKey: false,
