@@ -10,4 +10,4 @@ archiver-logs
 data-logs
 .direnv/
 .secrets
-src/utils/esm/bundle.js
+src/ipfsPublisher/esm/bundle.js

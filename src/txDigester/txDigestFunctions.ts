@@ -2,7 +2,6 @@ import { config } from '../Config'
 import * as processedTxs from '../dbstore/processedTxs'
 import * as txDigest from './txDigests'
 import * as Crypto from '../Crypto'
-import { uploadDigestToIPFS } from './ipfsPublisher'
 
 let lastProcessedTxDigest: txDigest.TransactionDigest = null
 
@@ -58,7 +57,7 @@ export const processAndInsertTxDigests = async (
       return
     }
 
-    if(config.VERBOSE) {
+    if (config.VERBOSE) {
       console.log(`TxIds from ${currentCycle} to ${endCycle} of length ${txIds.length}: `, txIds)
     }
 
@@ -81,9 +80,6 @@ export const processAndInsertTxDigests = async (
 
     try {
       txDigest.insertTransactionDigest(txDigestObj)
-      if (config.txDigest.enableSavingToWeb3Storage) {
-        await uploadDigestToIPFS(txDigestObj)
-      }
     } catch (e) {
       console.error('Failed to insert txDigestObj: ', txDigestObj)
       console.error(e)

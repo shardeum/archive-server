@@ -1,12 +1,15 @@
+import type { Client } from '@web3-storage/w3up-client'
+import { BlobLike } from '@web3-storage/w3up-client/dist/src/types'
+
 import { join } from 'path'
 import { Blob } from 'buffer'
-import { TransactionDigest } from './txDigests'
-import type { Client } from '@web3-storage/w3up-client'
-import { overrideDefaultConfig, config } from '../Config'
 import { mainLogger } from '../Logger'
-import { BlobLike } from '@web3-storage/w3up-client/dist/src/types'
+import { IPFSRecord, insertUploadedIPFSRecord } from './dbStore'
+import { overrideDefaultConfig, config } from '../Config'
+import { TransactionDigest } from '../txDigester/txDigests'
+
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { W3SClient, Email } = require(join(process.cwd(), '/src/utils/esm/bundle.js'))
+const { W3SClient, Email } = require(join(process.cwd(), '/src/ipfsPublisher/esm/bundle.js'))
 
 const configFile = join(process.cwd(), 'archiver-config.json')
 overrideDefaultConfig(configFile)
@@ -19,25 +22,27 @@ type Web3StorageAdminEmail = `${string}@${string}`
 let client: Client
 let lastUploadTime: number | null = null
 let isPublisherActive = false
+export const failedDigests: TransactionDigest[] = []
 
 // Note: This can be removed in production or in cases where uploads will happen once in 5 or more cycles/minutes
-const REST_PERIOD_BETWEEN_UPLOADS = 1000 * 60 * 5 // 5 minutes
+export const REST_PERIOD_BETWEEN_UPLOADS = 1000 * 30 // 30 seconds
 
 // Upload a file to the specified space DID
-export const uploadDigestToIPFS = async (data: TransactionDigest): Promise<void> => {
+export const uploadDigestToIPFS = async (data: TransactionDigest): Promise<IPFSRecord> | null => {
   try {
     if (!isUploadPossible()) {
       console.log(
-        `❌ Publisher cannot upload to IPFS: ${
+        `Publisher cannot upload to IPFS: ${
           isPublisherActive ? 'Another Upload in progress.' : 'Rest Period is Active.'
         }`
       )
-      return
+      return null
     }
     isPublisherActive = true
-    console.log(`Uploading TX Digest for Cycle Range ${data.cycleStart} to ${data.cycleEnd}`)
     await client.setCurrentSpace(rootDID as Web3StorageRootDID)
-    console.log(`Uploading Data to Root-DID: ${rootDID}`)
+    console.log(
+      `⏳ Uploading TX-Digest for Cycle Range ${data.cycleStart} to ${data.cycleEnd} | Space-DID: ${rootDID}`
+    )
 
     const { cycleStart: cs, cycleEnd: ce, txCount: tc, hash: h } = data
     const optimisedJSON = { cs, ce, tc, h }
@@ -45,20 +50,38 @@ export const uploadDigestToIPFS = async (data: TransactionDigest): Promise<void>
     const cid = await client.uploadFile(
       new Blob([JSON.stringify(optimisedJSON)], { type: 'application/json' }) as BlobLike
     )
-    console.log(
+    mainLogger.log(
       `✅ Uploaded to IPFS Successfully for Cycles (${data.cycleStart} to ${data.cycleEnd}) @ https://${cid}.ipfs.w3s.link`
     )
     lastUploadTime = Date.now()
+    removeFailedDigest(data)
     const storageUsed = await client.currentSpace()?.usage.get()
     console.log(`${Number(storageUsed!.ok)} bytes used on Web3.Storage.`)
     isPublisherActive = false
+    delete data.txCount
+    return { ...data, cid: cid.toString(), spaceDID: client.currentSpace()?.did(), timestamp: lastUploadTime }
   } catch (error) {
     isPublisherActive = false
-    console.error(
+    mainLogger.error(
       `❌ Error while Uploading Digest for Cycles: ${data.cycleStart} to ${data.cycleEnd} w/ Hash: ${data.hash}) to IPFS:`
     )
-    console.error(error)
-    return
+    mainLogger.error(error)
+    addFailedDigest(data)
+    return null
+  }
+}
+
+const addFailedDigest = (digest: TransactionDigest): void => {
+  const index = failedDigests.findIndex((failedDigest) => failedDigest.hash === digest.hash)
+  if (index === -1) {
+    failedDigests.push(digest)
+  }
+}
+
+const removeFailedDigest = (digest: TransactionDigest): void => {
+  const index = failedDigests.findIndex((failedDigest) => failedDigest.hash === digest.hash)
+  if (index > -1) {
+    failedDigests.splice(index, 1)
   }
 }
 
@@ -79,6 +102,27 @@ const isAuthWithEmail = (email: Web3StorageAdminEmail): boolean => {
 const maskedEmail = (email: string): string => {
   const [name, domain] = email.split('@')
   return `${name.slice(0, 1)}${'*'.repeat(name.length - 2)}${name.slice(-1)}@${domain}`
+}
+
+export const processFailedDigestUploads = async (): Promise<void> => {
+  try {
+    if (failedDigests.length > 0) {
+      for (const failedDigest of failedDigests) {
+        const uploadedDigest = await uploadDigestToIPFS(failedDigest)
+        if (!uploadedDigest) {
+          console.error(
+            `❌ Failed to upload Digest for Cycle Range ${failedDigest.cycleStart} to ${failedDigest.cycleEnd}. Failed Digests: ${failedDigests.length}`
+          )
+        } else {
+          await insertUploadedIPFSRecord(uploadedDigest)
+          failedDigests.splice(failedDigests.indexOf(failedDigest), 1)
+        }
+      }
+    }
+  } catch (error) {
+    mainLogger.error(`❌ Error in processFailedDigestUploads():-`)
+    mainLogger.error(error)
+  }
 }
 
 export const init = async (): Promise<void> => {

@@ -16,8 +16,9 @@
   },
   "scripts": {
     "start": "npm run prepare && node build/server.js",
-    "w3s-build": "esbuild --platform=node src/utils/esm/index.ts --bundle --outfile=src/utils/esm/bundle.js",
-    "txDigestCronServer": "npm run w3s-build && npm run prepare && node build/txDigester.js",
+    "w3s-build": "esbuild --platform=node src/ipfsPublisher/esm/index.ts --bundle --outfile=src/ipfsPublisher/esm/bundle.js",
+    "ipfsPublisher": "npm run w3s-build && npm run prepare && node build/ipfsPublisher/index.js",
+    "txDigestCronServer": "npm run prepare && node build/txDigester.js",
     "txDigestApiServer": "npm run prepare && node build/txDigestAPIserver.js",
     "release": "npm run prepare && np --no-cleanup --no-tests --no-yarn --any-branch",
     "check": "gts check",
