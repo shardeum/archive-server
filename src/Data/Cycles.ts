@@ -54,7 +54,6 @@ export const removedAndApopedNodes = []
 export let cycleRecordWithShutDownMode = null as P2PTypes.CycleCreatorTypes.CycleRecord | null
 export let currentNetworkMode: P2PTypes.ModesTypes.Record['mode'] = 'forming'
 export const shardValuesByCycle = new Map<number, StateManager.shardFunctionTypes.CycleShardData>()
-
 export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData[]): Promise<void> {
   if (profilerInstance) profilerInstance.profileSectionStart('process_cycle', false)
   try {
@@ -70,12 +69,12 @@ export async function processCycles(cycles: P2PTypes.CycleCreatorTypes.CycleData
       currentCycleCounter = cycle.counter
 
       // Update NodeList from cycle info
-      updateNodeList(cycle)
+      await updateNodeList(cycle)
+      await handleLostArchivers(cycle)
       updateNetworkTxsList(cycle)
       updateShardValues(cycle)
       changeNetworkMode(cycle.mode)
       getAdjacentLeftAndRightArchivers()
-      handleLostArchivers(cycle)
 
       await addCyclesToCache(cycles)
       await storeCycleData([cycle])
@@ -235,7 +234,7 @@ export interface JoinedConsensor extends P2PNode {
   cycleJoined: string
 }
 
-function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
+async function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): Promise<void> {
   const {
     joinedConsensors,
     activatedPublicKeys,
@@ -328,6 +327,12 @@ function updateNodeList(cycle: P2PTypes.CycleCreatorTypes.CycleData): void {
   }
 
   for (const leavingArchiver of leavingArchivers) {
+    if (leavingArchiver.publicKey === config.ARCHIVER_PUBLIC_KEY) {
+      Logger.mainLogger.debug(
+        `Archiver was found in leavingArchivers on cycle ${cycle.counter}, shutting down`
+      )
+      await State.stopArchiver(cycle)
+    }
     State.removeActiveArchiver(leavingArchiver.publicKey)
   }
 

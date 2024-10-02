@@ -11,6 +11,7 @@ import { publicKey, secretKey, curvePublicKey, curveSecretKey } from '@shardus/c
 import fetch from 'node-fetch'
 import { getAdjacentLeftAndRightArchivers } from './Data/GossipData'
 import { closeDatabase } from './dbstore'
+import { storeCycleData } from './Data/Collector'
 
 export interface ArchiverNodeState {
   ip: string
@@ -40,7 +41,11 @@ export let isFirst = false
 export let isActive = false
 export const archiversReputation: Map<string, string> = new Map()
 
-export async function initFromConfig(config: Config, shutDownMode = false, useArchiverDiscovery = true): Promise<void> {
+export async function initFromConfig(
+  config: Config,
+  shutDownMode = false,
+  useArchiverDiscovery = true
+): Promise<void> {
   // Get own nodeInfo from config
   nodeState.ip = config.ARCHIVER_IP
   nodeState.port = config.ARCHIVER_PORT
@@ -137,6 +142,23 @@ export async function exitArchiver(): Promise<void> {
   } catch (e) {
     Logger.mainLogger.error(e)
   }
+}
+
+/**
+ *
+ * @param cycle
+ * This function is called when the archiver is shutting down when it is found removed from the network.
+ * It stores the cycle data to the database and closes the database connection before exiting.
+ * It also exits the process with exit code 2 to avoid restart by pm2.
+ */
+export async function stopArchiver(cycle: P2PTypes.CycleCreatorTypes.CycleData): Promise<void> {
+  try {
+    await storeCycleData([cycle])
+  } catch (e) {
+    Logger.mainLogger.error(e)
+  }
+  await closeDatabase()
+  process.exit(2)
 }
 
 export function addSigListeners(sigint = true, sigterm = true): void {

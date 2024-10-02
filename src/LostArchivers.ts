@@ -2,12 +2,12 @@ import * as CycleDB from './dbstore/cycles'
 import * as Cycles from './Data/Cycles'
 import * as Logger from './Logger'
 import * as NodeList from './NodeList'
-import { ArchiverRefutesLostMsg, Record } from '@shardus/types/build/src/p2p/LostArchiverTypes'
+import * as Crypto from './Crypto'
+import * as State from './State'
+import { P2P as P2PTypes } from '@shardus/types'
 import { config } from './Config'
 import { calcIncomingTimes } from './Data/Data'
 import { postJson } from './P2P'
-import { sign } from './Crypto'
-import { SignedObject } from '@shardus/types/build/src/p2p/P2PTypes'
 
 let shouldSendRefutes = false
 
@@ -19,7 +19,7 @@ let shouldSendRefutes = false
  * If found in 'lostArchivers', we'll schedule a refute in the next cycle's Q1.
  * If found in 'removedArchivers', we'll shut down.
  */
-export function handleLostArchivers<R extends Record>(record: R): void {
+export async function handleLostArchivers(record: P2PTypes.CycleCreatorTypes.CycleData): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const debug = (message: any, ...args: any[]): void => Logger.mainLogger.debug(message, ...args)
   debug('>> handleLostArchivers()')
@@ -38,8 +38,8 @@ export function handleLostArchivers<R extends Record>(record: R): void {
       scheduleRefute()
     } else if (record.removedArchivers.some((publicKey) => publicKey === config.ARCHIVER_PUBLIC_KEY)) {
       // if self is in 'removedArchivers' field, shut down
-      debug('archiver was found in `removedArchivers`, shutting down')
-      die()
+      debug(`Archiver was found in removedArchivers on cycle ${record.counter}, shutting down.`)
+      await State.stopArchiver(record)
     }
   }
   debug('<< handleLostArchivers()')
@@ -77,7 +77,7 @@ async function sendRefute(): Promise<void> {
 
   console.log('sending refute')
 
-  const refuteMsg: SignedObject<ArchiverRefutesLostMsg> = sign({
+  const refuteMsg: P2PTypes.LostArchiverTypes.ArchiverRefutesLostMsg & Crypto.SignedMessage = Crypto.sign({
     archiver: config.ARCHIVER_PUBLIC_KEY,
     cycle: Cycles.getCurrentCycleMarker(),
   })
@@ -92,14 +92,4 @@ async function sendRefute(): Promise<void> {
       scheduleRefute()
     }
   }
-}
-
-/**
- * Shuts down the archiver with exit code 2.
- */
-function die(): void {
-  Logger.mainLogger.debug(
-    'Archiver was found in `removedArchivers` and will exit now without sending a leave request'
-  )
-  process.exit(2)
 }

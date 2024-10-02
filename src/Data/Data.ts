@@ -198,8 +198,13 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
   })
   socketClients.set(node.publicKey, socketClient)
 
+  let connected = false
   socketClient.on('connect', () => {
-    Logger.mainLogger.debug(`✅ New Socket Connection to consensus node ${node.ip}:${node.port} is made`)
+    Logger.mainLogger.debug(
+      `${connected ? 'Reconnection' : 'New connection'} to consensus node ${node.ip}:${node.port} is made`
+    )
+    if (connected) return
+    connected = true
     if (config.VERBOSE) Logger.mainLogger.debug('Connected node', node)
     if (config.VERBOSE) Logger.mainLogger.debug('Init socketClients', socketClients.size, dataSenders.size)
   })
