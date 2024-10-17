@@ -65,7 +65,7 @@ const {
 
 const GENESIS_ACCOUNTS_CYCLE_RANGE = {
   startCycle: 0,
-  endCycle: 5,
+  endCycle: 7,
 }
 
 export enum DataRequestTypes {
