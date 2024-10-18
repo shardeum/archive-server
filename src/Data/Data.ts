@@ -191,153 +191,157 @@ export async function unsubscribeDataSender(
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
   if (config.VERBOSE) Logger.mainLogger.debug('Node Info to socket connect', node)
-  const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`, {
-    query: {
-      data: JSON.stringify(Crypto.sign({ publicKey: State.getNodeInfo().publicKey })),
-    },
-  })
-  socketClients.set(node.publicKey, socketClient)
+  try {
+    const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`, {
+      query: {
+        data: JSON.stringify(Crypto.sign({publicKey: State.getNodeInfo().publicKey})),
+      },
+    })
+    socketClients.set(node.publicKey, socketClient)
 
-  socketClient.on('connect', () => {
-    Logger.mainLogger.debug(`✅ New Socket Connection to consensus node ${node.ip}:${node.port} is made`)
-    if (config.VERBOSE) Logger.mainLogger.debug('Connected node', node)
-    if (config.VERBOSE) Logger.mainLogger.debug('Init socketClients', socketClients.size, dataSenders.size)
-  })
+    socketClient.on('connect', () => {
+      Logger.mainLogger.debug(`✅ New Socket Connection to consensus node ${node.ip}:${node.port} is made`)
+      if (config.VERBOSE) Logger.mainLogger.debug('Connected node', node)
+      if (config.VERBOSE) Logger.mainLogger.debug('Init socketClients', socketClients.size, dataSenders.size)
+    })
 
-  socketClient.once('disconnect', async () => {
-    Logger.mainLogger.debug(`Connection request is refused by the consensor node ${node.ip}:${node.port}`)
-  })
+    socketClient.once('disconnect', async () => {
+      Logger.mainLogger.debug(`Connection request is refused by the consensor node ${node.ip}:${node.port}`)
+    })
 
-  socketClient.on('DATA', (data: string) => {
-    const newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage =
-      StringUtils.safeJsonParse(data)
-    if (!newData || !newData.responses) return
-    if (newData.recipient !== State.getNodeInfo().publicKey) {
-      Logger.mainLogger.debug('This data is not meant for this archiver')
-      return
-    }
-
-    // If tag is invalid, dont keepAlive, END
-    if (Crypto.authenticate(newData) === false) {
-      Logger.mainLogger.debug('This data cannot be authenticated')
-      unsubscribeDataSender(node.publicKey)
-      return
-    }
-
-    if (config.experimentalSnapshot) {
-      // Get sender entry
-      let sender = dataSenders.get(newData.publicKey)
-      // If no sender entry, remove publicKey from senders, END
-      if (!sender) {
-        Logger.mainLogger.error('This sender is not in the subscribed nodes list', newData.publicKey)
-        // unsubscribeDataSender(newData.publicKey)
+    socketClient.on('DATA', (data: string) => {
+      const newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage =
+        StringUtils.safeJsonParse(data)
+      if (!newData || !newData.responses) return
+      if (newData.recipient !== State.getNodeInfo().publicKey) {
+        Logger.mainLogger.debug('This data is not meant for this archiver')
         return
       }
-      // Clear senders contactTimeout, if it has one
-      if (sender.contactTimeout) {
-        if (config.VERBOSE) Logger.mainLogger.debug('Clearing contact timeout.')
-        clearTimeout(sender.contactTimeout)
-        sender.contactTimeout = null
-        nestedCountersInstance.countEvent('archiver', 'clear_contact_timeout')
+
+      // If tag is invalid, dont keepAlive, END
+      if (Crypto.authenticate(newData) === false) {
+        Logger.mainLogger.debug('This data cannot be authenticated')
+        unsubscribeDataSender(node.publicKey)
+        return
       }
 
-      if (config.VERBOSE)
-        console.log('DATA', sender.nodeInfo.publicKey, sender.nodeInfo.ip, sender.nodeInfo.port)
-
-      if (newData.responses && newData.responses.ORIGINAL_TX_DATA) {
-        if (config.VERBOSE)
-          Logger.mainLogger.debug(
-            'ORIGINAL_TX_DATA',
-            sender.nodeInfo.publicKey,
-            sender.nodeInfo.ip,
-            sender.nodeInfo.port,
-            newData.responses.ORIGINAL_TX_DATA.length
-          )
-        storeOriginalTxData(
-          newData.responses.ORIGINAL_TX_DATA,
-          sender.nodeInfo.ip + ':' + sender.nodeInfo.port,
-          config.saveOnlyGossipData
-        )
-      }
-      if (newData.responses && newData.responses.RECEIPT) {
-        if (config.VERBOSE)
-          Logger.mainLogger.debug(
-            'RECEIPT',
-            sender.nodeInfo.publicKey,
-            sender.nodeInfo.ip,
-            sender.nodeInfo.port,
-            newData.responses.RECEIPT.length
-          )
-        storeReceiptData(
-          newData.responses.RECEIPT,
-          sender.nodeInfo.ip + ':' + sender.nodeInfo.port,
-          true,
-          config.saveOnlyGossipData
-        )
-      }
-      if (newData.responses && newData.responses.CYCLE) {
-        collectCycleData(newData.responses.CYCLE, sender.nodeInfo.ip + ':' + sender.nodeInfo.port)
-      }
-      if (newData.responses && newData.responses.ACCOUNT) {
-        if (getCurrentCycleCounter() > GENESIS_ACCOUNTS_CYCLE_RANGE.endCycle) {
-          Logger.mainLogger.error(
-            'Account data is not meant to be received after the genesis accounts cycle range',
-            getCurrentCycleCounter()
-          )
-          unsubscribeDataSender(sender.nodeInfo.publicKey)
+      if (config.experimentalSnapshot) {
+        // Get sender entry
+        let sender = dataSenders.get(newData.publicKey)
+        // If no sender entry, remove publicKey from senders, END
+        if (!sender) {
+          Logger.mainLogger.error('This sender is not in the subscribed nodes list', newData.publicKey)
+          // unsubscribeDataSender(newData.publicKey)
           return
         }
-        if (
-          Cycles.currentNetworkMode !== 'forming' ||
-          NodeList.byPublicKey.size > 1 ||
-          !NodeList.byPublicKey.has(sender.nodeInfo.publicKey)
-        ) {
-          Logger.mainLogger.error(
-            'Account data is not meant to be received by the first validator',
-            `Number of nodes in the network ${NodeList.byPublicKey.size}`
-          )
-          unsubscribeDataSender(sender.nodeInfo.publicKey)
-          return
+        // Clear senders contactTimeout, if it has one
+        if (sender.contactTimeout) {
+          if (config.VERBOSE) Logger.mainLogger.debug('Clearing contact timeout.')
+          clearTimeout(sender.contactTimeout)
+          sender.contactTimeout = null
+          nestedCountersInstance.countEvent('archiver', 'clear_contact_timeout')
         }
-        Logger.mainLogger.debug(`RECEIVED ACCOUNTS DATA FROM ${sender.nodeInfo.ip}:${sender.nodeInfo.port}`)
-        nestedCountersInstance.countEvent('genesis', 'accounts', 1)
-        if (!forwardGenesisAccounts) {
-          Logger.mainLogger.debug('Genesis Accounts To Sycn', newData.responses.ACCOUNT)
-          syncGenesisAccountsFromConsensor(newData.responses.ACCOUNT, sender.nodeInfo)
-        } else {
-          if (storingAccountData) {
-            Logger.mainLogger.debug('Storing Account Data')
-            let newCombineAccountsData = { ...combineAccountsData }
-            if (newData.responses.ACCOUNT.accounts)
-              newCombineAccountsData.accounts = [
-                ...newCombineAccountsData.accounts,
-                ...newData.responses.ACCOUNT.accounts,
-              ]
-            if (newData.responses.ACCOUNT.receipts)
-              newCombineAccountsData.receipts = [
-                ...newCombineAccountsData.receipts,
-                ...newData.responses.ACCOUNT.receipts,
-              ]
-            combineAccountsData = { ...newCombineAccountsData }
-            newCombineAccountsData = {
-              accounts: [],
-              receipts: [],
-            }
-          } else storeAccountData(newData.responses.ACCOUNT)
-        }
-      }
 
-      // Set new contactTimeout for sender. Postpone sender removal because data is still received from consensor
-      nestedCountersInstance.countEvent('archiver', 'postpone_contact_timeout')
-      // To make sure that the sender is still in the subscribed list
-      sender = dataSenders.get(newData.publicKey)
-      if (sender)
-        sender.contactTimeout = createContactTimeout(
-          sender.nodeInfo.publicKey,
-          'This timeout is created after processing data'
-        )
-    }
-  })
+        if (config.VERBOSE)
+          console.log('DATA', sender.nodeInfo.publicKey, sender.nodeInfo.ip, sender.nodeInfo.port)
+
+        if (newData.responses && newData.responses.ORIGINAL_TX_DATA) {
+          if (config.VERBOSE)
+            Logger.mainLogger.debug(
+              'ORIGINAL_TX_DATA',
+              sender.nodeInfo.publicKey,
+              sender.nodeInfo.ip,
+              sender.nodeInfo.port,
+              newData.responses.ORIGINAL_TX_DATA.length
+            )
+          storeOriginalTxData(
+            newData.responses.ORIGINAL_TX_DATA,
+            sender.nodeInfo.ip + ':' + sender.nodeInfo.port,
+            config.saveOnlyGossipData
+          )
+        }
+        if (newData.responses && newData.responses.RECEIPT) {
+          if (config.VERBOSE)
+            Logger.mainLogger.debug(
+              'RECEIPT',
+              sender.nodeInfo.publicKey,
+              sender.nodeInfo.ip,
+              sender.nodeInfo.port,
+              newData.responses.RECEIPT.length
+            )
+          storeReceiptData(
+            newData.responses.RECEIPT,
+            sender.nodeInfo.ip + ':' + sender.nodeInfo.port,
+            true,
+            config.saveOnlyGossipData
+          )
+        }
+        if (newData.responses && newData.responses.CYCLE) {
+          collectCycleData(newData.responses.CYCLE, sender.nodeInfo.ip + ':' + sender.nodeInfo.port)
+        }
+        if (newData.responses && newData.responses.ACCOUNT) {
+          if (getCurrentCycleCounter() > GENESIS_ACCOUNTS_CYCLE_RANGE.endCycle) {
+            Logger.mainLogger.error(
+              'Account data is not meant to be received after the genesis accounts cycle range',
+              getCurrentCycleCounter()
+            )
+            unsubscribeDataSender(sender.nodeInfo.publicKey)
+            return
+          }
+          if (
+            Cycles.currentNetworkMode !== 'forming' ||
+            NodeList.byPublicKey.size > 1 ||
+            !NodeList.byPublicKey.has(sender.nodeInfo.publicKey)
+          ) {
+            Logger.mainLogger.error(
+              'Account data is not meant to be received by the first validator',
+              `Number of nodes in the network ${NodeList.byPublicKey.size}`
+            )
+            unsubscribeDataSender(sender.nodeInfo.publicKey)
+            return
+          }
+          Logger.mainLogger.debug(`RECEIVED ACCOUNTS DATA FROM ${sender.nodeInfo.ip}:${sender.nodeInfo.port}`)
+          nestedCountersInstance.countEvent('genesis', 'accounts', 1)
+          if (!forwardGenesisAccounts) {
+            Logger.mainLogger.debug('Genesis Accounts To Sycn', newData.responses.ACCOUNT)
+            syncGenesisAccountsFromConsensor(newData.responses.ACCOUNT, sender.nodeInfo)
+          } else {
+            if (storingAccountData) {
+              Logger.mainLogger.debug('Storing Account Data')
+              let newCombineAccountsData = {...combineAccountsData}
+              if (newData.responses.ACCOUNT.accounts)
+                newCombineAccountsData.accounts = [
+                  ...newCombineAccountsData.accounts,
+                  ...newData.responses.ACCOUNT.accounts,
+                ]
+              if (newData.responses.ACCOUNT.receipts)
+                newCombineAccountsData.receipts = [
+                  ...newCombineAccountsData.receipts,
+                  ...newData.responses.ACCOUNT.receipts,
+                ]
+              combineAccountsData = {...newCombineAccountsData}
+              newCombineAccountsData = {
+                accounts: [],
+                receipts: [],
+              }
+            } else storeAccountData(newData.responses.ACCOUNT)
+          }
+        }
+
+        // Set new contactTimeout for sender. Postpone sender removal because data is still received from consensor
+        nestedCountersInstance.countEvent('archiver', 'postpone_contact_timeout')
+        // To make sure that the sender is still in the subscribed list
+        sender = dataSenders.get(newData.publicKey)
+        if (sender)
+          sender.contactTimeout = createContactTimeout(
+            sender.nodeInfo.publicKey,
+            'This timeout is created after processing data'
+          )
+      }
+    })
+  } catch (error) {
+    console.error('Error occurred during socket connection:', error);
+  }
 }
 
 export function collectCycleData(
@@ -970,7 +974,7 @@ export async function getCycleDuration(): Promise<number> {
 }
 
 /*
-  checkJoinStatus checks if the current archiver node is joined to a network. 
+  checkJoinStatus checks if the current archiver node is joined to a network.
   This queries by the /joinedArchiver endpoint on the nodes and returns joining status based on majority response.
 */
 export async function checkJoinStatus(activeNodes: NodeList.ConsensusNodeInfo[]): Promise<boolean> {

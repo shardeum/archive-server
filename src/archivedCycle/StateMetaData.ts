@@ -134,73 +134,79 @@ export function unsubscribeDataSender(publicKey: NodeList.ConsensusNodeInfo['pub
 export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
   if (config.VERBOSE) Logger.mainLogger.debug('Node Info to socker connect', node)
   if (config.VERBOSE) console.log('Node Info to socker connect', node)
-  const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
 
-  socketClient.on('connect', () => {
-    Logger.mainLogger.debug('Connection to consensus node was made')
-    // Send ehlo event right after connect:
-    socketClient.emit('ARCHIVER_PUBLIC_KEY', config.ARCHIVER_PUBLIC_KEY)
-  })
+  try {
+    const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`)
 
-  socketClient.once('disconnect', async () => {
-    Logger.mainLogger.debug(`Connection request is refused by the consensor node ${node.ip}:${node.port}`)
-    console.log(`Connection request is refused by the consensor node ${node.ip}:${node.port}`)
-    // socketClients.delete(node.publicKey)
-    // await Utils.sleep(3000)
-    // if (socketClients.has(node.publicKey)) replaceDataSender(node.publicKey)
-    socketConnectionsTracker.set(node.publicKey, 'disconnected')
-  })
+    socketClient.on('connect', () => {
+      Logger.mainLogger.debug('Connection to consensus node was made')
+      // Send ehlo event right after connect:
+      socketClient.emit('ARCHIVER_PUBLIC_KEY', config.ARCHIVER_PUBLIC_KEY)
+    })
 
-  socketClient.on('DATA', (data: string) => {
-    const newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage =
-      StringUtils.safeJsonParse(data)
-    if (!newData || !newData.responses) return
-    if (newData.recipient !== State.getNodeInfo().publicKey) {
-      Logger.mainLogger.debug('This data is not meant for this archiver')
-      return
-    }
+    socketClient.once('disconnect', async () => {
+      Logger.mainLogger.debug(`Connection request is refused by the consensor node ${node.ip}:${node.port}`)
+      console.log(`Connection request is refused by the consensor node ${node.ip}:${node.port}`)
+      // socketClients.delete(node.publicKey)
+      // await Utils.sleep(3000)
+      // if (socketClients.has(node.publicKey)) replaceDataSender(node.publicKey)
+      socketConnectionsTracker.set(node.publicKey, 'disconnected')
+    })
 
-    // If tag is invalid, dont keepAlive, END
-    if (Crypto.authenticate(newData) === false) {
-      Logger.mainLogger.debug('This data cannot be authenticated')
-      console.log('Unsubscribe 1', node.publicKey)
-      unsubscribeDataSender(node.publicKey)
-      return
-    }
-
-    if (newData.responses.STATE_METADATA.length > 0) Logger.mainLogger.debug('New DATA', newData.responses)
-    else Logger.mainLogger.debug('State metadata is empty')
-
-    currentDataSender = newData.publicKey
-    if (newData.responses && newData.responses.STATE_METADATA) {
-      // Logger.mainLogger.debug('New DATA from consensor STATE_METADATA', newData.publicKey, newData.responses.STATE_METADATA)
-      // let hashArray: any = Gossip.convertStateMetadataToHashArray(newData.responses.STATE_METADATA[0])
-      for (const stateMetadata of newData.responses.STATE_METADATA) {
-        StateMetaDataMap.set(stateMetadata.counter, stateMetadata)
-        Gossip.sendGossip('hashes', stateMetadata)
-      }
-    }
-
-    socketServer.emit('DATA', newData)
-    const sender = dataSenders.get(newData.publicKey)
-    // If publicKey is not in dataSenders, dont keepAlive, END
-    if (!sender) {
-      Logger.mainLogger.debug('NO SENDER')
-      return
-    }
-
-    // If unexpected data type from sender, dont keepAlive, END
-    const newDataTypes = Object.keys(newData.responses)
-    for (const type of newDataTypes as (keyof typeof P2PTypes.SnapshotTypes.TypeNames)[]) {
-      if (sender.types.includes(type) === false) {
-        Logger.mainLogger.debug(
-          `NEW DATA type ${type} not included in sender's types: ${StringUtils.safeStringify(sender.types)}`
-        )
+    socketClient.on('DATA', (data: string) => {
+      const newData: DataResponse<P2PTypes.SnapshotTypes.ValidTypes> & Crypto.TaggedMessage =
+        StringUtils.safeJsonParse(data)
+      if (!newData || !newData.responses) return
+      if (newData.recipient !== State.getNodeInfo().publicKey) {
+        Logger.mainLogger.debug('This data is not meant for this archiver')
         return
       }
-    }
-    setImmediate(processData, newData)
-  })
+
+      // If tag is invalid, dont keepAlive, END
+      if (Crypto.authenticate(newData) === false) {
+        Logger.mainLogger.debug('This data cannot be authenticated')
+        console.log('Unsubscribe 1', node.publicKey)
+        unsubscribeDataSender(node.publicKey)
+        return
+      }
+
+      if (newData.responses.STATE_METADATA.length > 0) Logger.mainLogger.debug('New DATA', newData.responses)
+      else Logger.mainLogger.debug('State metadata is empty')
+
+      currentDataSender = newData.publicKey
+      if (newData.responses && newData.responses.STATE_METADATA) {
+        // Logger.mainLogger.debug('New DATA from consensor STATE_METADATA', newData.publicKey, newData.responses.STATE_METADATA)
+        // let hashArray: any = Gossip.convertStateMetadataToHashArray(newData.responses.STATE_METADATA[0])
+        for (const stateMetadata of newData.responses.STATE_METADATA) {
+          StateMetaDataMap.set(stateMetadata.counter, stateMetadata)
+          Gossip.sendGossip('hashes', stateMetadata)
+        }
+      }
+
+      socketServer.emit('DATA', newData)
+      const sender = dataSenders.get(newData.publicKey)
+      // If publicKey is not in dataSenders, dont keepAlive, END
+      if (!sender) {
+        Logger.mainLogger.debug('NO SENDER')
+        return
+      }
+
+      // If unexpected data type from sender, dont keepAlive, END
+      const newDataTypes = Object.keys(newData.responses)
+      for (const type of newDataTypes as (keyof typeof P2PTypes.SnapshotTypes.TypeNames)[]) {
+        if (sender.types.includes(type) === false) {
+          Logger.mainLogger.debug(
+            `NEW DATA type ${type} not included in sender's types: ${StringUtils.safeStringify(sender.types)}`
+          )
+          return
+        }
+      }
+      setImmediate(processData, newData)
+    })
+
+  } catch (error) {
+    console.error('Error occurred during socket connection:', error);
+  }
 }
 
 export function createDataRequest<T extends P2PTypes.SnapshotTypes.ValidTypes>(
