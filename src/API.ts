@@ -145,6 +145,8 @@ export function registerRoutes(server: FastifyInstance<Server, IncomingMessage, 
         publicKey,
       }
 
+      Data.initSocketClient(firstNode)
+
       // Add first node to NodeList
       NodeList.addNodes(NodeList.NodeStatus.SYNCING, [firstNode])
       // Setting current time for realUpdatedTimes to refresh the nodelist and full-nodelist cache
