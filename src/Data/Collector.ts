@@ -405,7 +405,7 @@ export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boole
   }
   for (const voteOffset of signedReceipt.voteOffsets) {
     const isValid = typeof voteOffset === 'number' || !isNaN(voteOffset)
-    if (isValid) {
+    if (!isValid) {
       Logger.mainLogger.error('Invalid receipt signedReceipt voteOffsets data', voteOffset)
       return false
     }
