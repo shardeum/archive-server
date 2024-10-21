@@ -57,5 +57,12 @@
     }
   ],
   "ARCHIVER_MODE": "release",
-  "DevPublicKey": ""
+  "DevPublicKey": "",
+  "txDigest": {
+    "web3Storage": {
+      "rootDID": "did:key:REPLACE_ME",
+      "adminEmail": ""
+    },
+    "enableSavingToWeb3Storage": false
+  }
 }
