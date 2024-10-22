@@ -276,6 +276,8 @@ const isReceiptRobust = async (
  * @returns boolean
  */
 export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boolean => {
+  console.log('[debug-log] Received validateArchiverReceipt: ', StringUtils.safeStringify(receipt))
+
   // Add type and field existence check
   let err = Utils.validateTypes(receipt, {
     tx: 'o',
@@ -777,6 +779,9 @@ export const storeReceiptData = async (
   let txDataList: TxData[] = []
   if (saveOnlyGossipData) return
   for (let receipt of receipts) {
+    if (receipt.globalModification) {
+      console.log('[debug-log] Received storeReceiptData: ', StringUtils.safeStringify(receipt))
+    }
     const txId = receipt?.tx?.txId
     const timestamp = receipt?.tx?.timestamp
     if (!txId || !timestamp) continue
