@@ -788,10 +788,10 @@ export const storeReceiptData = async (
       (processedReceiptsMap.has(txId) && processedReceiptsMap.get(txId) === timestamp) ||
       (receiptsInValidationMap.has(txId) && receiptsInValidationMap.get(txId) === timestamp)
     ) {
-      if (config.VERBOSE) console.log('RECEIPT', 'Skip', txId, timestamp, senderInfo)
+      if (receipt.globalModification) console.log('[global-debug-log] RECEIPT', 'Skip', txId, timestamp, senderInfo)
       continue
     }
-    if (config.VERBOSE) console.log('RECEIPT', 'Validate', txId, timestamp, senderInfo)
+    if (receipt.globalModification) console.log('[global-debug-log] RECEIPT', 'Validate', txId, timestamp, senderInfo)
     receiptsInValidationMap.set(txId, timestamp)
     if (profilerInstance) profilerInstance.profileSectionStart('Validate_receipt')
     if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Validate_receipt')
@@ -845,9 +845,9 @@ export const storeReceiptData = async (
         if (profilerInstance) profilerInstance.profileSectionStart('Offload_receipt')
         if (nestedCountersInstance) nestedCountersInstance.countEvent('receipt', 'Offload_receipt')
         const start_time = process.hrtime()
-        // console.log('offloading receipt', txId, timestamp)
+        if (receipt.globalModification) console.log('[global-debug-log] offloading receipt', txId, timestamp)
         const result = await offloadReceipt(txId, timestamp, requiredSignatures, receipt)
-        // console.log('offload receipt result', txId, timestamp, result)
+        if (receipt.globalModification) console.log('[global-debug-log] offload receipt result', txId, timestamp, result)
         const end_time = process.hrtime(start_time)
         const time_taken = end_time[0] * 1000 + end_time[1] / 1000000
         if (time_taken > 100) {
@@ -867,6 +867,7 @@ export const storeReceiptData = async (
         }
       }
     }
+    if (receipt.globalModification) console.log('[global-debug-log] reached here #1', txId, timestamp)
     if (profilerInstance) profilerInstance.profileSectionEnd('Validate_receipt')
     // await Receipt.insertReceipt({
     //   ...receipts[i],
@@ -879,7 +880,7 @@ export const storeReceiptData = async (
     const sortedVoteOffsets = (signedReceipt.voteOffsets ?? []).sort()
     const medianOffset = sortedVoteOffsets[Math.floor(sortedVoteOffsets.length / 2)] ?? 0
     const applyTimestamp = tx.timestamp + medianOffset * 1000
-    if (config.VERBOSE) console.log('RECEIPT', 'Save', txId, timestamp, senderInfo)
+    if (receipt.globalModification) console.log('[global-debug-log] RECEIPT', 'Save', txId, timestamp, senderInfo)
     processedReceiptsMap.set(tx.txId, tx.timestamp)
     receiptsInValidationMap.delete(tx.txId)
     if (missingReceiptsMap.has(tx.txId)) missingReceiptsMap.delete(tx.txId)
@@ -907,6 +908,7 @@ export const storeReceiptData = async (
     //   appliedReceipt.confirmOrChallenge.message === 'challenge'
     // )
     //   continue
+    if (receipt.globalModification) console.log('[global-debug-log] reached here #2', txId, timestamp)
     for (const account of afterStates) {
       const accObj: Account.AccountsCopy = {
         accountId: account.accountId,
@@ -929,11 +931,14 @@ export const storeReceiptData = async (
         combineAccounts.push(accObj)
       }
 
+      if (receipt.globalModification) console.log('[global-debug-log] reached here #3', txId, timestamp)
       //check global network account updates
       if (accObj.accountId === config.globalNetworkAccount) {
+        if (receipt.globalModification) console.log('[global-debug-log] reached here #4', txId, timestamp)
         setGlobalNetworkAccount(accObj)
       }
       if (accObj.isGlobal) {
+        if (receipt.globalModification) console.log('[global-debug-log] reached here #5', txId, timestamp)
         globalAccountsMap.set(accObj.accountId, {
           hash: accObj.hash,
           timestamp: accObj.timestamp,
@@ -980,12 +985,14 @@ export const storeReceiptData = async (
     combineProcessedTxs.push(processedTx)
     // Receipts size can be big, better to save per 100
     if (combineReceipts.length >= 100) {
+      if (receipt.globalModification) console.log('[global-debug-log] reached here #6', txId, timestamp)
       await Receipt.bulkInsertReceipts(combineReceipts)
       if (State.isActive) sendDataToAdjacentArchivers(DataType.RECEIPT, txDataList)
       combineReceipts = []
       txDataList = []
     }
     if (combineAccounts.length >= bucketSize) {
+      if (receipt.globalModification) console.log('[global-debug-log] reached here #7', txId, timestamp)
       await Account.bulkInsertAccounts(combineAccounts)
       combineAccounts = []
     }
