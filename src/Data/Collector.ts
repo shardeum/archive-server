@@ -276,8 +276,6 @@ const isReceiptRobust = async (
  * @returns boolean
  */
 export const validateArchiverReceipt = (receipt: Receipt.ArchiverReceipt): boolean => {
-  console.log('[debug-log] Received validateArchiverReceipt: ', StringUtils.safeStringify(receipt))
-
   // Add type and field existence check
   let err = Utils.validateTypes(receipt, {
     tx: 'o',

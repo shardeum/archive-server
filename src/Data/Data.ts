@@ -190,20 +190,19 @@ export async function unsubscribeDataSender(
 }
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
-  if (config.VERBOSE) Logger.mainLogger.debug('Node Info to socket connect', node)
-  try {
-    const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`, {
-      query: {
-        data: JSON.stringify(Crypto.sign({publicKey: State.getNodeInfo().publicKey})),
-      },
-    })
-    socketClients.set(node.publicKey, socketClient)
+  Logger.mainLogger.debug('[debug-log] Node Info to socket connect', node)
+  const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`, {
+    query: {
+      data: JSON.stringify(Crypto.sign({ publicKey: State.getNodeInfo().publicKey })),
+    },
+  })
+  socketClients.set(node.publicKey, socketClient)
 
-    socketClient.on('connect', () => {
-      Logger.mainLogger.debug(`✅ New Socket Connection to consensus node ${node.ip}:${node.port} is made`)
-      if (config.VERBOSE) Logger.mainLogger.debug('Connected node', node)
-      if (config.VERBOSE) Logger.mainLogger.debug('Init socketClients', socketClients.size, dataSenders.size)
-    })
+  socketClient.on('connect', () => {
+    Logger.mainLogger.debug(`[debug-log] ✅ New Socket Connection to consensus node ${node.ip}:${node.port} is made`)
+    if (config.VERBOSE) Logger.mainLogger.debug('Connected node', node)
+    if (config.VERBOSE) Logger.mainLogger.debug('Init socketClients', socketClients.size, dataSenders.size)
+  })
 
     socketClient.once('disconnect', async () => {
       Logger.mainLogger.debug(`Connection request is refused by the consensor node ${node.ip}:${node.port}`)
@@ -614,8 +613,8 @@ async function getConsensusRadius(): Promise<number> {
 
   const tallyItem = await syncFromNetworkConfig()
   if (tallyItem?.value?.config) {
-    const nodesPerEdgeFromConfig = tallyItem.value.config.sharding?.nodesPerEdge
-    const nodesPerConsensusGroupFromConfig = tallyItem.value.config.sharding?.nodesPerConsensusGroup
+    const nodesPerEdgeFromConfig = tallyItem.value.config.sharding?.nodesPerEdge // 5
+    const nodesPerConsensusGroupFromConfig = tallyItem.value.config.sharding?.nodesPerConsensusGroup // 128
 
     if (!Number.isInteger(nodesPerConsensusGroupFromConfig) || nodesPerConsensusGroupFromConfig <= 0) {
       Logger.mainLogger.error(
@@ -637,8 +636,8 @@ async function getConsensusRadius(): Promise<number> {
     nodesPerConsensusGroup = nodesPerConsensusGroupFromConfig
     nodesPerEdge = nodesPerEdgeFromConfig
     // Upgrading consensus size to an odd number
-    if (nodesPerConsensusGroup % 2 === 0) nodesPerConsensusGroup++
-    const consensusRadius = Math.floor((nodesPerConsensusGroup - 1) / 2)
+    if (nodesPerConsensusGroup % 2 === 0) nodesPerConsensusGroup++ // 129
+    const consensusRadius = Math.floor((nodesPerConsensusGroup - 1) / 2) // 128/2 = 64
     // Validation: Ensure consensusRadius is a number and greater than zero
     if (typeof consensusRadius !== 'number' || isNaN(consensusRadius) || consensusRadius <= 0) {
       Logger.mainLogger.error('Invalid consensusRadius:', consensusRadius)
@@ -668,6 +667,7 @@ export async function createDataTransferConnection(
   // Subscribe this node for dataRequest
   const response = await sendDataRequest(newSenderInfo, DataRequestTypes.SUBSCRIBE)
   if (response) {
+    console.log("[debug-log] sendDataRequest response received", newSenderInfo.ip, newSenderInfo.externalPort)
     initSocketClient(newSenderInfo)
     // Add new dataSender to dataSenders
     const newSender: DataSender = {
@@ -680,6 +680,8 @@ export async function createDataTransferConnection(
     }
     addDataSender(newSender)
     Logger.mainLogger.debug(`added new sender ${newSenderInfo.publicKey} to dataSenders`)
+  } else {
+    console.log("[debug-log] sendDataRequest response failed", newSenderInfo.ip, newSenderInfo.externalPort)
   }
   return response
 }
@@ -693,7 +695,7 @@ export async function createNodesGroupByConsensusRadius(): Promise<void> {
   currentConsensusRadius = consensusRadius
   const activeList = [...NodeList.activeListByIdSorted]
   if (config.VERBOSE) Logger.mainLogger.debug('activeList', activeList.length, activeList)
-  let totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius)
+  let totalNumberOfNodesToSubscribe = Math.ceil(activeList.length / consensusRadius) // 640/64 = 10
   // Only if there are less than 4 activeArchivers and if the consensusRadius is greater than 5
   if (config.subscribeToMoreConsensors && State.activeArchivers.length < 4 && currentConsensusRadius > 5) {
     totalNumberOfNodesToSubscribe += totalNumberOfNodesToSubscribe * config.extraConsensorsToSubscribe
@@ -702,7 +704,7 @@ export async function createNodesGroupByConsensusRadius(): Promise<void> {
   subsetNodesMapByConsensusRadius = new Map()
   let round = 0
   for (let i = 0; i < activeList.length; i += consensusRadius) {
-    const subsetList: NodeList.ConsensusNodeInfo[] = activeList.slice(i, i + consensusRadius)
+    const subsetList: NodeList.ConsensusNodeInfo[] = activeList.slice(i, i + consensusRadius) // [(0-64), (67-128),...]
     subsetNodesMapByConsensusRadius.set(round, subsetList)
     round++
   }
@@ -712,13 +714,13 @@ export async function createNodesGroupByConsensusRadius(): Promise<void> {
 
 export async function subscribeConsensorsByConsensusRadius(): Promise<void> {
   await createNodesGroupByConsensusRadius()
-  for (const [i, subsetList] of subsetNodesMapByConsensusRadius) {
-    if (config.VERBOSE) Logger.mainLogger.debug('Round', i, 'subsetList', subsetList, dataSenders.keys())
+  for (const [i, subsetList] of subsetNodesMapByConsensusRadius) { // [(0-64), (67-128),...]
+    Logger.mainLogger.debug('Round', i, 'subsetList', subsetList, dataSenders.keys())
     subscribeNodeFromThisSubset(subsetList)
   }
 }
 
-export async function subscribeNodeFromThisSubset(nodeList: NodeList.ConsensusNodeInfo[]): Promise<void> {
+export async function subscribeNodeFromThisSubset(nodeList: NodeList.ConsensusNodeInfo[]): Promise<void> {  // (0-64) = 10
   // First check if there is any subscribed node from this subset
   const subscribedNodesFromThisSubset = []
   for (const node of nodeList) {
@@ -740,8 +742,7 @@ export async function subscribeNodeFromThisSubset(nodeList: NodeList.ConsensusNo
       unsubscribeDataSender(publicKey)
     }
   }
-  if (config.VERBOSE)
-    Logger.mainLogger.debug('Subscribed nodes from this subset', subscribedNodesFromThisSubset)
+  Logger.mainLogger.debug('Subscribed nodes from this subset', subscribedNodesFromThisSubset)
   if (subscribedNodesFromThisSubset.length === numberOfNodesToSubsribe) return
   Logger.mainLogger.debug('Subscribing node from this subset!')
   // Pick a new dataSender from this subset
