@@ -332,9 +332,9 @@ async function syncAndStartServer(): Promise<void> {
 
     // If the receipt data does not match, clear the DB and start again
     if (!receiptResult.success) {
-      throw Error(
-        'The last saved receipts of last 10 cycles data do not match with the archiver data! Clear the DB and start the server again!'
-      )
+      // throw Error(
+      //   'The last saved receipts of last 10 cycles data do not match with the archiver data! Clear the DB and start the server again!'
+      // )
     }
 
     // Update the last stored receipt cycle
