@@ -190,7 +190,7 @@ export async function unsubscribeDataSender(
 }
 
 export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
-  Logger.mainLogger.debug('[debug-log] Node Info to socket connect', node)
+  Logger.mainLogger.debug('[global-debug-log] Node Info to socket connect', node)
   const socketClient = ioclient.connect(`http://${node.ip}:${node.port}`, {
     query: {
       data: JSON.stringify(Crypto.sign({ publicKey: State.getNodeInfo().publicKey })),
@@ -199,7 +199,7 @@ export function initSocketClient(node: NodeList.ConsensusNodeInfo): void {
   socketClients.set(node.publicKey, socketClient)
 
   socketClient.on('connect', () => {
-    Logger.mainLogger.debug(`[debug-log] ✅ New Socket Connection to consensus node ${node.ip}:${node.port} is made`)
+    Logger.mainLogger.debug(`[global-debug-log] ✅ New Socket Connection to consensus node ${node.ip}:${node.port} is made`)
     if (config.VERBOSE) Logger.mainLogger.debug('Connected node', node)
     if (config.VERBOSE) Logger.mainLogger.debug('Init socketClients', socketClients.size, dataSenders.size)
   })
@@ -667,7 +667,7 @@ export async function createDataTransferConnection(
   // Subscribe this node for dataRequest
   const response = await sendDataRequest(newSenderInfo, DataRequestTypes.SUBSCRIBE)
   if (response) {
-    console.log("[debug-log] sendDataRequest response received", newSenderInfo.ip, newSenderInfo.externalPort)
+    console.log("[global-debug-log] sendDataRequest response received", newSenderInfo.ip, newSenderInfo.externalPort)
     initSocketClient(newSenderInfo)
     // Add new dataSender to dataSenders
     const newSender: DataSender = {
@@ -681,7 +681,7 @@ export async function createDataTransferConnection(
     addDataSender(newSender)
     Logger.mainLogger.debug(`added new sender ${newSenderInfo.publicKey} to dataSenders`)
   } else {
-    console.log("[debug-log] sendDataRequest response failed", newSenderInfo.ip, newSenderInfo.externalPort)
+    console.log("[global-debug-log] sendDataRequest response failed", newSenderInfo.ip, newSenderInfo.externalPort)
   }
   return response
 }

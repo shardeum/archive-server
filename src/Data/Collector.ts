@@ -32,6 +32,7 @@ import { verifyAppReceiptData } from '../shardeum/verifyAppReceiptData'
 import { Cycle as DbCycle } from '../dbstore/types'
 import { Utils as StringUtils } from '@shardus/types'
 import { offloadReceipt } from '../primary-process'
+import rfdc = require('rfdc')
 
 export let storingAccountData = false
 const processedReceiptsMap: Map<string, number> = new Map()
@@ -778,7 +779,7 @@ export const storeReceiptData = async (
   if (saveOnlyGossipData) return
   for (let receipt of receipts) {
     if (receipt.globalModification) {
-      console.log('[debug-log] Received storeReceiptData: ', StringUtils.safeStringify(receipt))
+      console.log('[global-debug-log] Received storeReceiptData: ', StringUtils.safeStringify(receipt))
     }
     const txId = receipt?.tx?.txId
     const timestamp = receipt?.tx?.timestamp
