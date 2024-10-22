@@ -339,6 +339,7 @@ async function syncAndStartServer(): Promise<void> {
 
     // Update the last stored receipt cycle
     lastStoredReceiptCycle = receiptResult.matchedCycle
+    lastStoredReceiptCycle = 38134
   }
 
   if (lastStoredOriginalTxCount > 0) {
