@@ -40,7 +40,11 @@ export let isFirst = false
 export let isActive = false
 export const archiversReputation: Map<string, string> = new Map()
 
-export async function initFromConfig(config: Config, shutDownMode = false, useArchiverDiscovery = true): Promise<void> {
+export async function initFromConfig(
+  config: Config,
+  shutDownMode = false,
+  useArchiverDiscovery = true
+): Promise<void> {
   // Get own nodeInfo from config
   nodeState.ip = config.ARCHIVER_IP
   nodeState.port = config.ARCHIVER_PORT
