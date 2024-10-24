@@ -233,6 +233,26 @@ export const offloadReceipt = async (
   receivedReceiptCount++ // Increment the counter for each receipt received
   receiptLoadTraker++ // Increment the receipt load tracker
   let verificationResult: ReceiptVerificationResult
+
+  // Check if offloading is disabled globally or for global modifications
+  if (
+    config.disableOffloadReceipt ||
+    (config.disableOffloadReceiptForGlobalModification && receipt.globalModification)
+  ) {
+    mainProcessReceiptTracker++
+    if (config.workerProcessesDebugLog) console.log('Verifying on the main program', txId, timestamp)
+    verificationResult = await verifyArchiverReceipt(receipt, requiredSignatures)
+    mainProcessReceiptTracker--
+    verifiedReceiptCount++
+    if (verificationResult.success) {
+      successReceiptCount++
+    } else {
+      failureReceiptCount++
+    }
+    return verificationResult
+  }
+
+  // Existing logic for offloading
   if (workers.length === 0 && mainProcessReceiptTracker > config.receiptLoadTrakerLimit) {
     // If there are extra workers available, put them to the workers list
     if (extraWorkers.size > 0) {

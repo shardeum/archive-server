@@ -98,6 +98,8 @@ export interface Config {
   workerProcessesDebugLog: boolean // To enable debug logs for worker processes managed by the main process
   restrictFirstNodeSelectionByPublicKey: boolean // The flag to pick the first node that matches the PUBLIC_KEY specified in the firstNodeInfo
   firstNodePublicKey: string // The public key of the first node to be selected
+  disableOffloadReceipt: boolean // To disable offloading of receipts globally
+  disableOffloadReceiptForGlobalModification: boolean // To disable offloading of receipts for global modifications receipts
 }
 
 let config: Config = {
@@ -188,6 +190,8 @@ let config: Config = {
   workerProcessesDebugLog: false,
   restrictFirstNodeSelectionByPublicKey: false,
   firstNodePublicKey: '',
+  disableOffloadReceipt: false,
+  disableOffloadReceiptForGlobalModification: true,
 }
 // Override default config params from config file, env vars, and cli args
 export async function overrideDefaultConfig(file: string): Promise<void> {
